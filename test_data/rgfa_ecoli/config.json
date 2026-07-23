@@ -1,0 +1,27 @@
+{
+  "assemblies": [
+    {
+      "name": "K12",
+      "sequence": {
+        "type": "ReferenceSequenceTrack",
+        "trackId": "K12-ReferenceSequenceTrack",
+        "adapter": {
+          "type": "ChromSizesAdapter",
+          "uri": "K12.chrom.sizes"
+        }
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "FeatureTrack",
+      "trackId": "ecoli_minigraph_segments",
+      "name": "minigraph graph segments (rGFA)",
+      "assemblyNames": ["K12"],
+      "adapter": {
+        "type": "RgfaTabixAdapter",
+        "uri": "rgfa_ecoli"
+      }
+    }
+  ]
+}

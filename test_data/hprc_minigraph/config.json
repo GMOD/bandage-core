@@ -1,0 +1,56 @@
+{
+  "assemblies": [
+    {
+      "name": "hg38",
+      "aliases": ["GRCh38"],
+      "uri": "https://jbrowse.org/genomes/GRCh38/fasta/hg38.prefix.fa.gz",
+      "refNameAliases": {
+        "uri": "https://s3.amazonaws.com/jbrowse.org/genomes/GRCh38/hg38_aliases.txt"
+      }
+    }
+  ],
+  "tracks": [
+    {
+      "type": "FeatureTrack",
+      "trackId": "hprc_minigraph_segments",
+      "name": "HPRC release 2 graph (Minigraph-Cactus sv.gfa, rGFA segments)",
+      "assemblyNames": ["hg38"],
+      "adapter": {
+        "type": "RgfaTabixAdapter",
+        "uri": "hprc_minigraph_chr6",
+        "assemblyNameToPanSN": {
+          "hg38": "GRCh38"
+        }
+      }
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "ncbi_refseq_109_hg38_latest",
+      "name": "NCBI RefSeq (GFF3Tabix)",
+      "assemblyNames": ["hg38"],
+      "adapter": {
+        "type": "Gff3TabixAdapter",
+        "uri": "https://s3.amazonaws.com/jbrowse.org/genomes/GRCh38/ncbi_refseq/GRCh38_latest_genomic.sort.gff.gz"
+      },
+      "displays": [
+        {
+          "type": "LinearBasicDisplay",
+          "showOnlyGenes": true
+        }
+      ]
+    },
+    {
+      "type": "FeatureTrack",
+      "trackId": "hprc_minigraph_bubbles",
+      "name": "HPRC release 2 bubbles (gfatools bubble)",
+      "assemblyNames": ["hg38"],
+      "adapter": {
+        "type": "MinigraphBubbleAdapter",
+        "uri": "hprc_bubbles_chr6.bed.gz",
+        "assemblyNameToPanSN": {
+          "hg38": "GRCh38"
+        }
+      }
+    }
+  ]
+}
