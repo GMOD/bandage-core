@@ -7,7 +7,18 @@ import tseslint from 'typescript-eslint'
 
 export default defineConfig(
   {
-    ignores: ['eslint.config.mjs', 'esbuild.mjs', 'dist/*', 'scripts/*'],
+    ignores: [
+      'eslint.config.mjs',
+      'esbuild.mjs',
+      'dist/*',
+      'scripts/*',
+      // build/test config, outside tsconfig.eslint.json's `src` project so
+      // typed linting cannot parse them
+      'vitest.config.ts',
+      'config/**',
+      // generated Emscripten output, see src/bandage/README.md
+      'src/bandage/bandage-layout.js',
+    ],
   },
   {
     languageOptions: {

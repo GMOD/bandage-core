@@ -1,0 +1,4 @@
+# Emscripten output with the wasm inlined as base64. Committed so a normal build
+# needs no toolchain, but it is generated — keep it out of diffs and language
+# stats. Regenerate with `pnpm build:wasm`, never edit by hand.
+src/bandage/bandage-layout.js linguist-generated=true -diff

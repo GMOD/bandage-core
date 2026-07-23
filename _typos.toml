@@ -1,0 +1,7 @@
+[files]
+extend-exclude = [
+  # generated Emscripten output; the inlined wasm reads as endless typos
+  "src/bandage/bandage-layout.js",
+  "pnpm-lock.yaml",
+  "dist/",
+]

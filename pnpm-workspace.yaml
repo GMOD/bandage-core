@@ -1,7 +1,4 @@
 allowBuilds:
-  esbuild: set this to true or false
-  unrs-resolver: set this to true or false
-onlyBuiltDependencies:
-  - esbuild
-  - puppeteer
-  - unrs-resolver
+  esbuild: true
+  puppeteer: true
+  unrs-resolver: true
