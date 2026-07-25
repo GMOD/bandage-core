@@ -25,6 +25,7 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/launchSubgraph/testEnv.ts",
+    "src/GraphGenomeView/renderer/recordingCanvas.ts",
     "src/bandage/bandage-layout.js"
   ]
 }

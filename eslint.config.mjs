@@ -16,6 +16,10 @@ export default defineConfig(
       // typed linting cannot parse them
       'vitest.config.ts',
       'config/**',
+      // JBrowse instances the e2e harness creates in the repo root; gitignored,
+      // but flat config does not consult .gitignore, so a demo run would
+      // otherwise fail lint on hundreds of bundled files
+      '.test-jbrowse-*/**',
       // generated Emscripten output, see src/bandage/README.md
       'src/bandage/bandage-layout.js',
     ],
