@@ -1,19 +1,26 @@
 #!/bin/bash
-# Rebuilds src/bandage/bandage-layout.js from the BandageNG C++ sources.
+# Rebuilds src/bandage/bandage-layout.js from src/bandage/native.
 #
-# Needs the Emscripten SDK and a BandageNG checkout. The artifact is committed,
-# so this only needs running when the layout sources or OGDF change.
+# The engine's C++ lives in this repo; OGDF does not, because it is ~85MB of
+# build tree that compiles for far longer than the port does. Point OGDF_DIR at
+# a checkout (a BandageNG one has it under thirdparty/ogdf) and this builds it
+# once with Emscripten, then reuses libOGDF.a.
+#
+# The artifact is committed, so this only needs running when native/ changes.
 
 set -euo pipefail
 
-BANDAGE_DIR="${BANDAGE_DIR:-$HOME/src/vendor/BandageNG}"
-LAYOUT_DIR="$BANDAGE_DIR/bandage-layout-js"
-BUILD_DIR="$LAYOUT_DIR/build-singlefile"
-DEST="$(cd "$(dirname "$0")/.." && pwd)/src/bandage/bandage-layout.js"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+NATIVE_DIR="$ROOT/src/bandage/native"
+# Out of src/, because CMake writes a compiler_depend.ts into its build tree and
+# tsc and eslint would both try to parse it.
+BUILD_DIR="$ROOT/.wasm-build"
+DEST="$ROOT/src/bandage/bandage-layout.js"
+OGDF_DIR="${OGDF_DIR:-$HOME/src/vendor/BandageNG/thirdparty/ogdf}"
 
-if [ ! -d "$LAYOUT_DIR" ]; then
-    echo "ERROR: no BandageNG checkout at $BANDAGE_DIR" >&2
-    echo "Clone https://github.com/cmdcolin/BandageNG-web or set BANDAGE_DIR" >&2
+if [ ! -d "$OGDF_DIR" ]; then
+    echo "ERROR: no OGDF checkout at $OGDF_DIR" >&2
+    echo "Clone https://github.com/ogdf/ogdf or set OGDF_DIR" >&2
     exit 1
 fi
 
@@ -34,16 +41,18 @@ if ! command -v emcc &> /dev/null; then
     exit 1
 fi
 
-# OGDF is the slow part (~85MB of build tree); build.sh already handles it and
-# skips when libOGDF.a exists.
-if [ ! -f "$BANDAGE_DIR/thirdparty/ogdf/build-wasm/libOGDF.a" ]; then
+if [ ! -f "$OGDF_DIR/build-wasm/libOGDF.a" ]; then
     echo "Building OGDF (slow, one time)..."
-    (cd "$LAYOUT_DIR" && ./build.sh)
+    mkdir -p "$OGDF_DIR/build-wasm"
+    (cd "$OGDF_DIR/build-wasm" &&
+        emcmake cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+            -DOGDF_SEPARATE_TESTS=OFF &&
+        emmake make -j"$(nproc)")
 fi
 
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
-emcmake cmake .. -DCMAKE_BUILD_TYPE=Release -DSINGLE_FILE=ON
+emcmake cmake "$NATIVE_DIR" -DCMAKE_BUILD_TYPE=Release -DOGDF_DIR="$OGDF_DIR"
 emmake make -j"$(nproc)"
 
 cp "$BUILD_DIR/bandage-layout.js" "$DEST"

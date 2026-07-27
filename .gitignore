@@ -16,3 +16,4 @@ meta.json
 test-screenshots/
 .test-jbrowse-*/
 .vscode
+.wasm-build/
