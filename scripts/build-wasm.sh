@@ -56,4 +56,50 @@ emcmake cmake "$NATIVE_DIR" -DCMAKE_BUILD_TYPE=Release -DOGDF_DIR="$OGDF_DIR"
 emmake make -j"$(nproc)"
 
 cp "$BUILD_DIR/bandage-layout.js" "$DEST"
+
+# emscripten's UTF8ArrayToString decodes a view over HEAPU8 — i.e. over
+# WebAssembly.Memory, whose buffer is a RESIZABLE ArrayBuffer — and browsers
+# reject TextDecoder.decode on such a view:
+#
+#   TypeError: Failed to execute 'decode' on 'TextDecoder':
+#   The provided ArrayBuffer value must not be resizable
+#
+# It only takes that path for strings longer than 16 bytes; shorter ones go
+# through the manual char loop below it and are unaffected. That threshold is
+# what makes the bug look like a data problem rather than a code one: a graph
+# whose node ids are `s10274` never trips it, and one whose ids are
+# `bb_GRCh38#0#chr1_0` always does. The bubble-tier index is the second kind, and
+# it cost a long investigation that blamed tabix, bgzf, the CDN, the compressor
+# and the bundler in turn before landing here.
+#
+# Copy before decoding. Patched here rather than in src/bandage by hand, because
+# that file is overwritten by the cp above. Idempotent, and fails loudly if
+# emscripten changes the shape.
+decode='return UTF8Decoder.decode(heapOrArray.subarray(idx,endPtr))'
+if grep -qF "$decode" "$DEST"; then
+  perl -pi -e 's/\Qsubarray(idx,endPtr))\E/subarray(idx,endPtr).slice())/' "$DEST"
+  grep -qF 'subarray(idx,endPtr).slice())' "$DEST" || {
+    echo "UTF8ArrayToString patch did not apply to $DEST" >&2; exit 1; }
+  echo "patched UTF8ArrayToString to copy out of the wasm heap"
+elif grep -qF 'subarray(idx,endPtr).slice())' "$DEST"; then
+  echo "UTF8ArrayToString already copies"
+else
+  echo "emscripten changed UTF8ArrayToString; re-check the resizable-buffer patch" >&2
+  exit 1
+fi
+
+# UTF16ToString has the identical shape and the identical 16-unit threshold.
+decode16='return UTF16Decoder.decode(HEAPU16.subarray(idx,endIdx))'
+if grep -qF "$decode16" "$DEST"; then
+  perl -pi -e 's/\QHEAPU16.subarray(idx,endIdx))\E/HEAPU16.subarray(idx,endIdx).slice())/' "$DEST"
+  grep -qF 'HEAPU16.subarray(idx,endIdx).slice())' "$DEST" || {
+    echo "UTF16ToString patch did not apply to $DEST" >&2; exit 1; }
+  echo "patched UTF16ToString to copy out of the wasm heap"
+elif grep -qF 'HEAPU16.subarray(idx,endIdx).slice())' "$DEST"; then
+  echo "UTF16ToString already copies"
+else
+  echo "emscripten changed UTF16ToString; re-check the resizable-buffer patch" >&2
+  exit 1
+fi
+
 echo "Wrote $DEST ($(du -h "$DEST" | cut -f1))"
