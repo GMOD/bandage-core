@@ -16,6 +16,11 @@ meta.json
 test-screenshots/
 .test-jbrowse-*/
 .vscode
+# Claude Code's scratch, including the git worktrees it checks out under
+# .claude/worktrees. Untracked but not ignored, it left the tree permanently
+# unclean, and `pnpm version` refuses to run on one — so a release could be
+# blocked by an unrelated session's working directory.
+.claude/
 .wasm-build/
 # OGDF's own build tree, inside the vendored sources. ~85 MB of objects and one
 # libOGDF.a; the sources beside it ARE committed (see vendor/README.md).
