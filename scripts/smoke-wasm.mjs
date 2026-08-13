@@ -91,6 +91,54 @@ if (reseeded === first) {
   throw new Error('a different seed produced an identical layout')
 }
 
+// The linear layout, on segment names that are NOT plain integers.
+//
+// Both halves of that sentence are the test. `determineLinearNodePositions` is
+// the only code that reads a segment's name, it is only reached under
+// `linearLayout`, and it asks whether the name is a number so it can sort
+// numerically. The graph above answers yes — `1`, `2`, `3` — which is why this
+// suite ran green for months over an engine that aborted outright on `s1`.
+//
+// Every minigraph rGFA names its segments that way, so this was the whole
+// format the plugin is built around: "Linear layout" in the settings menu
+// error-banned the view, each aborted call leaked the graph it had built, and
+// about twenty of them exhausted the worker's heap and left every subsequent
+// layout failing with "memory access out of bounds" until the tab was reloaded.
+//
+// A fresh module, because the failure it guards is one that poisons a shared
+// one — and it asserts a real drawing rather than merely "did not throw", since
+// the abort was one bad name away from being a silent empty result.
+const linearEngine = await createModule()
+const named = ['s1', 's2', 's3', 's4'].map(id => ({
+  id: `${id}+`,
+  name: `${id}+`,
+  length: 3000,
+  depth: 1,
+}))
+const namedEdges = [
+  ['s1', 's2'],
+  ['s2', 's3'],
+  ['s1', 's4'],
+  ['s4', 's3'],
+].map(([from, to]) => ({ from: `${from}+`, to: `${to}+`, overlap: 0 }))
+const linear = linearEngine.computeLayout(
+  { nodes: named, edges: namedEdges },
+  { quality: 1, linearLayout: true },
+)
+const linearIds = Object.keys(linear.nodePositions)
+if (linearIds.length !== named.length) {
+  throw new Error(
+    `linear layout placed ${linearIds.length} of ${named.length} named nodes`,
+  )
+}
+const linearPoints = linearIds.flatMap(id => linear.nodePositions[id])
+if (
+  linearPoints.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y)) ||
+  new Set(linearPoints.map(p => `${p.x},${p.y}`)).size === 1
+) {
+  throw new Error('linear layout of named segments is degenerate')
+}
+
 console.log(
-  `ok: ${laidOut.length} nodes, ${points.length} points, spread ${spread.toFixed(1)}, deterministic`,
+  `ok: ${laidOut.length} nodes, ${points.length} points, spread ${spread.toFixed(1)}, deterministic; linear layout of named segments ok`,
 )
