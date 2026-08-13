@@ -25,3 +25,8 @@ test-screenshots/
 # OGDF's own build tree, inside the vendored sources. ~85 MB of objects and one
 # libOGDF.a; the sources beside it ARE committed (see vendor/README.md).
 vendor/ogdf/build-wasm/
+# The host-arch pair of the two above, built by scripts/profile/build.sh so perf
+# has symbols to walk. Deliberately a separate tree: dropping a native libOGDF.a
+# on build-wasm/ would silently relink the committed engine against it.
+.profile-build/
+vendor/ogdf/build-native/

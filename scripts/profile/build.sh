@@ -25,6 +25,16 @@ OUT="$ROOT/.profile-build"
 
 FLAGS="-O3 -g -fno-omit-frame-pointer -fcx-limited-range"
 
+# src/bandage/native/include/settings.h calls ceil() without including <cmath>.
+# emcc's libc++ pulls it in transitively so the wasm build never noticed;
+# libstdc++ does not, and both the driver and graphlayout.cpp fail on it. Forced
+# in from the command line rather than fixed in the header, because that header
+# is a source of the COMMITTED engine and editing it desyncs the artifact from
+# its sources for a build nobody ships. Worth fixing there on its own, with a
+# regen — it is the same latent-include bug the vendored OGDF needed <chrono>
+# for (vendor/ogdf-emscripten.patch, hunk 2).
+DRIVER_FLAGS="-include cmath"
+
 if [ ! -f "$BUILD/libOGDF.a" ]; then
     echo "Building OGDF natively (slow, one time)..."
     mkdir -p "$BUILD"
@@ -36,7 +46,7 @@ if [ ! -f "$BUILD/libOGDF.a" ]; then
 fi
 
 mkdir -p "$OUT"
-g++ $FLAGS -std=c++17 \
+g++ $FLAGS $DRIVER_FLAGS -std=c++17 \
     -I"$OGDF_DIR/include" -I"$BUILD/include" \
     "$ROOT/scripts/profile/gfa-layout-profile.cpp" \
     "$ROOT/src/bandage/native/src/graphlayout.cpp" \
