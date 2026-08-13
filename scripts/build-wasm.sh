@@ -46,13 +46,37 @@ if [ ! -f "$OGDF_DIR/CMakeLists.txt" ]; then
     exit 1
 fi
 
-if [ ! -f "$OGDF_DIR/build-wasm/libOGDF.a" ]; then
+# FMMM's multipole expansions divide by (z_1 - z_0)^k in complex<double>, and
+# without this the compiler emits a call to __divdc3 for every one of them —
+# 22% of the whole program at layoutQuality 4, where k runs to 8. Inlining it is
+# worth 1.3-1.9x (agent-docs/GRAPH_SCALE_AND_LOD.md has the table).
+#
+# It does not change the drawing. compiler-rt's __divdc3 computes the same naive
+# (ac+bd)/(c^2+d^2) this inlines; it only scales c and d by exact powers of two
+# first and unscales after, so every rounding is the same one and the results are
+# bit-identical short of an intermediate overflow. Verified on all 90
+# layout-digest.mjs cases plus larger shapes, max coordinate delta exactly 0.
+#
+# It must reach libOGDF.a, not just the engine, since that is where the complex
+# arithmetic lives.
+OGDF_CXX_FLAGS="-fcx-limited-range"
+
+# Rebuild OGDF when the flags change, not only when the library is missing.
+# Skipping on presence alone silently links a stale libOGDF.a built with
+# different arithmetic, and the artifact is committed — so a rebuild that
+# quietly used the wrong one would produce a drawing nobody could reproduce.
+FLAG_STAMP="$OGDF_DIR/build-wasm/.cxxflags"
+if [ ! -f "$OGDF_DIR/build-wasm/libOGDF.a" ] ||
+   [ "$(cat "$FLAG_STAMP" 2>/dev/null)" != "$OGDF_CXX_FLAGS" ]; then
     echo "Building OGDF (slow, one time)..."
+    rm -rf "$OGDF_DIR/build-wasm"
     mkdir -p "$OGDF_DIR/build-wasm"
     (cd "$OGDF_DIR/build-wasm" &&
         emcmake cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
-            -DOGDF_SEPARATE_TESTS=OFF &&
+            -DOGDF_SEPARATE_TESTS=OFF \
+            -DCMAKE_CXX_FLAGS="$OGDF_CXX_FLAGS" &&
         emmake make -j"$(nproc)")
+    echo "$OGDF_CXX_FLAGS" > "$FLAG_STAMP"
 fi
 
 mkdir -p "$BUILD_DIR"
