@@ -4,4 +4,18 @@ extend-exclude = [
   "src/bandage/bandage-layout.js",
   "pnpm-lock.yaml",
   "dist/",
+  # vendored OGDF (vendor/README.md). 2,281 hits, all in upstream's own prose,
+  # comments and test fixtures. Not ours to correct: every "fix" would be a
+  # conflict against the next version bump, and the whole point of vendoring at
+  # a pinned tag is that the tree matches upstream byte for byte.
+  "vendor/",
 ]
+
+[default.extend-words]
+# Level of detail — the rendering term the agent-docs file is named for, which
+# typos reads as a misspelling of LOAD.
+LOD = "LOD"
+# From `mis-anchors` in gfaParser's note on rGFA stable names that contain
+# colons. Scoped as narrowly as the tool allows; it is one hyphenated compound,
+# and rewording correct prose to satisfy a spellchecker is the wrong trade.
+mis = "mis"
