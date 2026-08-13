@@ -1,19 +1,15 @@
 name: Rebuild Bandage engine
 
-# Proves src/bandage/bandage-layout.js is still reproducible from the C++ it
-# claims to come from — the point of vendoring it rather than fetching an opaque
-# blob. Not run per-push: OGDF is a multi-minute compile.
+# Proves src/bandage/bandage-layout.js is still reproducible from the C++ and
+# the OGDF it claims to come from — the point of committing sources rather than
+# an opaque blob.
 #
-# Requires the SINGLE_FILE option in BandageNG-web's bandage-layout-js/
-# CMakeLists.txt, so push that change before enabling this.
+# Not run per-push: OGDF is a multi-minute compile, and the artifact only moves
+# when src/bandage/native or vendor/ogdf does.
 on:
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch:
-    inputs:
-      bandage-ref:
-        description: BandageNG-web ref to build from
-        default: bandage-layout-js
 
 jobs:
   rebuild:
@@ -21,54 +17,64 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          path: plugin
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: cmdcolin/BandageNG-web
-          ref: ${{ inputs.bandage-ref || 'bandage-layout-js' }}
-          path: BandageNG
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24.x
 
-      # OGDF dominates the build; its output only changes when that vendored
-      # tree does, so key the cache on it
+      # What the engine on main draws today, captured BEFORE the rebuild
+      # overwrites it. Five graph shapes against every option the view sends,
+      # full-precision coordinates, each in a fresh module.
+      - name: Digest the committed engine
+        run: node scripts/layout-digest.mjs > /tmp/before.txt
+
+      # OGDF dominates the build and only changes when the vendored tree does,
+      # so key the cache on that tree rather than on a ref.
       - name: Cache OGDF wasm build
         uses: actions/cache@v4
         with:
-          path: BandageNG/thirdparty/ogdf/build-wasm
-          key: ogdf-wasm-${{ hashFiles('BandageNG/thirdparty/ogdf/**/CMakeLists.txt') }}
+          path: vendor/ogdf/build-wasm
+          key: ogdf-wasm-${{ hashFiles('vendor/ogdf/**') }}
 
       - uses: mymindstorm/setup-emsdk@v14
         with:
           version: latest
 
+      # No other checkout and no pnpm: vendor/ogdf is in this repo, which is the
+      # whole point of vendoring it, and the script needs neither node_modules
+      # nor the JBrowse siblings. This job used to clone BandageNG and hand the
+      # script a BANDAGE_DIR it never read.
       - name: Rebuild
-        working-directory: plugin
-        run: BANDAGE_DIR="$GITHUB_WORKSPACE/BandageNG" ./scripts/build-wasm.sh
+        run: ./scripts/build-wasm.sh
 
-      # Emscripten output is not byte-reproducible (it embeds paths and toolchain
-      # version), so compare behaviour and size rather than bytes.
       - name: Smoke test the rebuilt engine
-        working-directory: plugin
         run: node scripts/smoke-wasm.mjs
 
-      - name: Report drift against the committed artifact
-        working-directory: plugin
+      # The artifact's BYTES are not reproducible — Emscripten embeds paths and
+      # its own version — so comparing the file says nothing. Compare the
+      # drawing, which is what every committed force-directed figure is a
+      # function of and the only thing a reader would notice changing.
+      - name: Report drift in the drawing
         run: |
-          if git diff --quiet -- src/bandage/bandage-layout.js; then
-            echo "Rebuild matches the committed artifact byte for byte."
+          node scripts/layout-digest.mjs > /tmp/after.txt
+          if diff -u /tmp/before.txt /tmp/after.txt > /tmp/drift.txt; then
+            echo "Rebuild draws exactly what the committed engine draws."
+            echo "### Engine reproducible: no coordinate moved" >> "$GITHUB_STEP_SUMMARY"
           else
-            committed=$(git show HEAD:src/bandage/bandage-layout.js | wc -c)
-            rebuilt=$(wc -c < src/bandage/bandage-layout.js)
-            echo "::notice::Rebuilt engine differs from committed \
-            (committed ${committed} bytes, rebuilt ${rebuilt} bytes). \
-            Expected when the toolchain or sources moved; download the artifact \
-            below and commit it if the change is intended."
+            {
+              echo "### Rebuilt engine draws something different"
+              echo
+              echo "Every line below is a figure that would need regenerating."
+              echo "Expected after an intended change to \`src/bandage/native\`"
+              echo "or \`vendor/ogdf\`; otherwise the toolchain moved under us."
+              echo
+              echo '```diff'
+              cat /tmp/drift.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Rebuilt engine draws differently — see the job summary"
           fi
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandage-layout.js
-          path: plugin/src/bandage/bandage-layout.js
+          path: src/bandage/bandage-layout.js
