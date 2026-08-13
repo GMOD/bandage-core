@@ -24,6 +24,11 @@ export default defineConfig(
       // is here too because CMake writes a compiler_depend.ts into it.
       'src/bandage/bandage-layout.js',
       '.wasm-build/**',
+      // vendored OGDF (vendor/README.md). Nothing in the committed sources is
+      // JS or TS, but its own build tree lands here and CMake writes the same
+      // compiler_depend.ts into that one — gitignored, and per the note above
+      // flat config does not read .gitignore.
+      'vendor/**',
     ],
   },
   {

@@ -1,0 +1,47 @@
+Make OGDF elderberry-202309 build for wasm32-unknown-emscripten.
+
+**Already applied to `vendor/ogdf`.** The build does not run this; it is the
+record of how that tree differs from the upstream tag, and what to reapply when
+bumping to a newer one. See vendor/README.md.
+
+1. `-march=native` is fatal, not merely useless. OGDF adds it for any compiler
+   identifying as GNU or Clang, and emcc identifies as Clang, so a stock
+   checkout fails outright:
+
+     clang++: error: unsupported option '-march=' for target
+              'wasm32-unknown-emscripten'
+
+   Dropping Clang from the guard is also the right answer for a COMMITTED
+   artifact even where the flag is accepted: `native` means "whatever CPU ran
+   the build", which is the opposite of a byte-reproducible engine.
+
+   This is the patch BandageNG carries in its own vendored OGDF, arrived at
+   independently and kept identical on purpose — it is what the engine has been
+   built against since it was ported, so it is also what every committed
+   force-directed figure was drawn with.
+
+2. `<chrono>` is used but not included. Newer libc++ stopped pulling it in
+   transitively, so the file fails to compile. Nothing in the layout path calls
+   it; it is in the same translation unit set, so it still has to build.
+
+--- a/cmake/compiler-specifics.cmake
++++ b/cmake/compiler-specifics.cmake
+@@ -13,7 +13,7 @@
+ endif()
+
+ # use native arch (ie, activate things like SSE)
+-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "^arm")
++if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "^arm")
+   # cannot use add_definitions() here because it does not work with check-sse3.cmake
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+ endif()
+--- a/src/ogdf/cluster/HananiTutteCPlanarity.cpp
++++ b/src/ogdf/cluster/HananiTutteCPlanarity.cpp
+@@ -37,6 +37,7 @@
+ #include <ogdf/cluster/ClusterPlanarity.h>
+ #include <ogdf/cluster/HananiTutteCPlanarity.h>
+
++#include <chrono>
+ #include <map>
+ #include <unordered_map>
+

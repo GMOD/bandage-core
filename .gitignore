@@ -17,3 +17,6 @@ test-screenshots/
 .test-jbrowse-*/
 .vscode
 .wasm-build/
+# OGDF's own build tree, inside the vendored sources. ~85 MB of objects and one
+# libOGDF.a; the sources beside it ARE committed (see vendor/README.md).
+vendor/ogdf/build-wasm/

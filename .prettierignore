@@ -1,2 +1,6 @@
 pnpm-lock.yaml
 src/bandage/bandage-layout.js
+# vendored OGDF, which `prettier --write .` would otherwise reformat: 26 md and
+# yml files upstream owns, turning the next version bump into a diff against our
+# own whitespace. See vendor/README.md.
+vendor/

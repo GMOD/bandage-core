@@ -1,10 +1,15 @@
 #!/bin/bash
 # Rebuilds src/bandage/bandage-layout.js from src/bandage/native.
 #
-# The engine's C++ lives in this repo; OGDF does not, because it is ~85MB of
-# build tree that compiles for far longer than the port does. Point OGDF_DIR at
-# a checkout (a BandageNG one has it under thirdparty/ogdf) and this builds it
-# once with Emscripten, then reuses libOGDF.a.
+# Everything it needs is in this repo except the Emscripten SDK. OGDF is
+# vendored at vendor/ogdf (see vendor/README.md for the tag and the patch), so
+# there is no checkout to find, no network, and no version to get wrong.
+#
+# It used to want a BandageNG checkout at a hard-coded path under $HOME, which
+# meant a fresh clone of this repo could not rebuild its own engine, and the
+# OGDF it linked against was whatever that unrelated tree happened to be at.
+#
+# OGDF_DIR still points it somewhere else if you are testing an upstream bump.
 #
 # The artifact is committed, so this only needs running when native/ changes.
 
@@ -16,13 +21,7 @@ NATIVE_DIR="$ROOT/src/bandage/native"
 # tsc and eslint would both try to parse it.
 BUILD_DIR="$ROOT/.wasm-build"
 DEST="$ROOT/src/bandage/bandage-layout.js"
-OGDF_DIR="${OGDF_DIR:-$HOME/src/vendor/BandageNG/thirdparty/ogdf}"
-
-if [ ! -d "$OGDF_DIR" ]; then
-    echo "ERROR: no OGDF checkout at $OGDF_DIR" >&2
-    echo "Clone https://github.com/ogdf/ogdf or set OGDF_DIR" >&2
-    exit 1
-fi
+OGDF_DIR="${OGDF_DIR:-$ROOT/vendor/ogdf}"
 
 if ! command -v emcc &> /dev/null; then
     for p in "$HOME/emsdk/emsdk_env.sh" /opt/emsdk/emsdk_env.sh; do
@@ -38,6 +37,12 @@ if ! command -v emcc &> /dev/null; then
     echo "ERROR: emcc not found. Install the Emscripten SDK:" >&2
     echo "  git clone https://github.com/emscripten-core/emsdk.git" >&2
     echo "  cd emsdk && ./emsdk install latest && ./emsdk activate latest" >&2
+    exit 1
+fi
+
+if [ ! -f "$OGDF_DIR/CMakeLists.txt" ]; then
+    echo "ERROR: no OGDF sources at $OGDF_DIR" >&2
+    echo "vendor/ogdf is committed; see vendor/README.md if it is missing." >&2
     exit 1
 fi
 
