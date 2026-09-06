@@ -4,4 +4,4 @@ allowBuilds:
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@jbrowse/mobx-state-tree@6.0.0 || 6.2.0 || 6.3.0'
-  - '@gmod/gbz-base@1.1.0'
+  - '@gmod/gbz-base@1.1.0 || 2.1.0'
