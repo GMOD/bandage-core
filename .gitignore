@@ -4,7 +4,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-node_modules/
+# No trailing slash: `node_modules/` matches a directory only, so a SYMLINK by
+# that name — which is how a worktree under .claude/worktrees resolves its
+# `link:` siblings without a second install — read as an untracked file and
+# landed in an `add -A`.
+node_modules
 dist/
 *.tsbuildinfo
 .npm
