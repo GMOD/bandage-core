@@ -72,13 +72,17 @@ function digest(positions) {
 }
 
 const first = digest(nodePositions)
-const again = digest(engine.computeLayout({ nodes, edges }, options).nodePositions)
+const again = digest(
+  engine.computeLayout({ nodes, edges }, options).nodePositions,
+)
 if (first !== again) {
   throw new Error('layout is not deterministic across two runs')
 }
 
 const fresh = await createModule()
-if (digest(fresh.computeLayout({ nodes, edges }, options).nodePositions) !== first) {
+if (
+  digest(fresh.computeLayout({ nodes, edges }, options).nodePositions) !== first
+) {
   throw new Error('layout is not deterministic across module instances')
 }
 

@@ -67,9 +67,7 @@ function ogdfNodeCount(graph, opts) {
   return n
 }
 
-console.log(
-  'nodes\tspread\t\t\tOGDF nodes\tq=0\tq=1\tq=2\tq=3\tq=4  (ms)',
-)
+console.log('nodes\tspread\t\t\tOGDF nodes\tq=0\tq=1\tq=2\tq=3\tq=4  (ms)')
 for (const nB of [10, 40, 120, 400]) {
   const graph = bubbleChain(nB)
   for (const [label, minNodeLength] of SPREADS) {

@@ -86,7 +86,10 @@ async function readGfa(path, limit = Infinity) {
   const pairs = []
   let sawAllSegments = false
 
-  for await (const line of createInterface({ input: stream, crlfDelay: Infinity })) {
+  for await (const line of createInterface({
+    input: stream,
+    crlfDelay: Infinity,
+  })) {
     const kind = line.charCodeAt(0)
     if (line.charCodeAt(1) !== 9) continue
     if (kind === 83 /* S */) {
@@ -175,11 +178,15 @@ for (let i = 2; i < process.argv.length; i++) {
   else files.push(a)
 }
 if (!files.length) {
-  console.error('usage: node scripts/bench-gfa-layout.mjs <file.gfa[.gz]> [...]')
+  console.error(
+    'usage: node scripts/bench-gfa-layout.mjs <file.gfa[.gz]> [...]',
+  )
   process.exit(1)
 }
 
-const sizes = (flags.sizes ?? '100,250,500,1000,2000,5000,10000,25000').split(',')
+const sizes = (flags.sizes ?? '100,250,500,1000,2000,5000,10000,25000').split(
+  ',',
+)
 const qualities = (flags.qualities ?? '2').split(',').map(Number)
 const spread = flags.spread ?? 'auto'
 const timeoutMs = Number(flags.timeout ?? 120) * 1000
@@ -198,7 +205,9 @@ for (const file of files) {
         { timeout: timeoutMs, encoding: 'utf8', maxBuffer: 1 << 24 },
       )
       if (r.signal === 'SIGTERM' || r.error?.code === 'ETIMEDOUT') {
-        console.log(`${label}\t${size}\t-\t-\t${quality}\t-\t>${timeoutMs / 1000}s TIMEOUT`)
+        console.log(
+          `${label}\t${size}\t-\t-\t${quality}\t-\t>${timeoutMs / 1000}s TIMEOUT`,
+        )
         continue
       }
       let out
@@ -206,7 +215,9 @@ for (const file of files) {
         out = JSON.parse(r.stdout.trim().split('\n').pop())
       } catch {
         const why = (r.stderr || '').trim().split('\n').slice(-2).join(' | ')
-        console.log(`${label}\t${size}\t-\t-\t${quality}\t-\tFAILED: ${why.slice(0, 200)}`)
+        console.log(
+          `${label}\t${size}\t-\t-\t${quality}\t-\tFAILED: ${why.slice(0, 200)}`,
+        )
         continue
       }
       console.log(
