@@ -34,3 +34,7 @@ vendor/ogdf/build-wasm/
 # on build-wasm/ would silently relink the committed engine against it.
 .profile-build/
 vendor/ogdf/build-native/
+# scripts/layout-lab build products: the esbuild bundle of the plugin layouts and
+# the native OGDF driver (see its README.md)
+scripts/layout-lab/plugin-layouts.mjs
+scripts/layout-lab/native/driver
