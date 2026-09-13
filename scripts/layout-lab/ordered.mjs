@@ -116,5 +116,5 @@ export function orderedLayout(
       { x: cx + w / 2, y: y.get(n.id) },
     ]
   }
-  return { positions, ms: performance.now() - t0 }
+  return { positions, ms: performance.now() - t0, layers, layerOf: layer }
 }

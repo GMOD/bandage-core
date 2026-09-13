@@ -54,6 +54,9 @@ crude per-path ribbons. `--notitle` names outputs by variant instead of index.
 node scripts/layout-lab/bubbles.mjs <bubbles.bed.gz> 'GRCh38#0#chr6' 160525000 160655000 out.svg 'title'
 node scripts/layout-lab/copycount.mjs kiv2_eight.gfa GRCh38 160616002 160646753 5548 copies.svg
 node scripts/layout-lab/popbubble.mjs kiv2.gfa array.gfa s338859,s338860,...
+node scripts/layout-lab/graphBubbles.mjs kiv2_eight.gfa GRCh38 out.svg
+node scripts/layout-lab/validate-decomp.mjs kiv2_eight.gfa GRCh38 all
+node scripts/layout-lab/collapse.mjs kiv2_eight.gfa GRCh38 out.svg
 ```
 
 `bubbles.mjs` draws a variant map from gfatools' bubble rows (the hosted
@@ -61,7 +64,11 @@ node scripts/layout-lab/popbubble.mjs kiv2.gfa array.gfa s338859,s338860,...
 from the row. `copycount.mjs` reads a path GFA and reports the bp each walk
 carries between a window's flanking reference nodes, as repeat units, plus
 per-node carriage. `popbubble.mjs` cuts one bubble's segments out of a GFA so
-`one.mjs` can draw it alone.
+`one.mjs` can draw it alone. `graphBubbles.mjs` derives the bubbles from the
+graph alone, off the layered order, the prototype of
+`src/GraphGenomeView/bubbles/bubblesFromGraph.ts`; `validate-decomp.mjs` checks
+that against the walks, and `collapse.mjs` merges runs of equal carriage and
+draws thickness by haplotype count.
 
 ## Files
 

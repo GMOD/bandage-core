@@ -26,6 +26,7 @@ export function renderSvg(graph, positions, out, opts = {}) {
     paths = null,
     region = null,
     scheme = 'reference',
+    thicknessOf = null,
   } = opts
   let minX = Infinity,
     minY = Infinity,
@@ -83,8 +84,9 @@ export function renderSvg(graph, positions, out, opts = {}) {
         (p, i) => `${i ? 'L' : 'M'}${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`,
       )
       .join(' ')
+    const sw = thicknessOf && n ? thicknessOf(n) : thickness
     parts.push(
-      `<path d="${d}" fill="none" stroke="${color}" stroke-width="${thickness}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path d="${d}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`,
     )
     if (labels && n) {
       const m = pts[Math.floor(pts.length / 2)]
