@@ -48,6 +48,21 @@ does from the cut region. `--window s-e` cuts a path GFA to a reference window
 first. `--ref name` picks the reference path of a path GFA. `--paths` draws
 crude per-path ribbons. `--notitle` names outputs by variant instead of index.
 
+## Variants rather than nodes
+
+```
+node scripts/layout-lab/bubbles.mjs <bubbles.bed.gz> 'GRCh38#0#chr6' 160525000 160655000 out.svg 'title'
+node scripts/layout-lab/copycount.mjs kiv2_eight.gfa GRCh38 160616002 160646753 5548 copies.svg
+node scripts/layout-lab/popbubble.mjs kiv2.gfa array.gfa s338859,s338860,...
+```
+
+`bubbles.mjs` draws a variant map from gfatools' bubble rows (the hosted
+`hprc-v2.1-mc-grch38.bubbles.bed.gz`): one glyph per bubble, typed and sized
+from the row. `copycount.mjs` reads a path GFA and reports the bp each walk
+carries between a window's flanking reference nodes, as repeat units, plus
+per-node carriage. `popbubble.mjs` cuts one bubble's segments out of a GFA so
+`one.mjs` can draw it alone.
+
 ## Files
 
 - `gfa.mjs`: GFA reader mirroring `gfaConverter.ts`, path anchoring, window cuts

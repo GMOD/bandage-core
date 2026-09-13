@@ -87,14 +87,16 @@ export function orderedLayout(
     const free = ideal.filter(e => !e.pinned).sort((a, b) => a.ideal - b.ideal)
     for (const e of pinned) y.set(e.id, 0)
     // greedy: place each free node at the nearest free slot to its ideal, slots
-    // at multiples of laneGap, slot 0 taken when a backbone node is here
-    const taken = new Set(pinned.length ? [0] : [])
+    // at multiples of laneGap. Slot 0 is the reference line and stays reserved
+    // even in a layer with no backbone node, or an allele between two backbone
+    // segments reads as reference.
+    const taken = new Set([0])
     for (const e of free) {
       let slot = Math.round(e.ideal / laneGap)
       if (slot === 0) slot = e.ideal >= 0 ? 1 : -1
       for (let d = 0; ; d++) {
         const cands = d === 0 ? [slot] : [slot + d, slot - d]
-        const c = cands.find(s => !taken.has(s) && (s !== 0 || !pinned.length))
+        const c = cands.find(s => !taken.has(s))
         if (c !== undefined) {
           slot = c
           break

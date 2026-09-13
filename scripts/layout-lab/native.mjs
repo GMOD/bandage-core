@@ -36,9 +36,17 @@ export function runNative(graph, mode, opts = {}, { seeds, drawn } = {}) {
 }
 
 // Seeds for a reference-anchored graph: backbone laid end to end along x at
-// drawn length, each off-reference node at its anchor's x with a y offset that
-// grows with how far it is from the backbone (BFS depth), alternating sides so
-// two alleles at one anchor do not start on top of each other.
+// drawn length, each off-reference node at the midpoint of the backbone node it
+// was reached from (BFS), with a y offset by BFS depth, below the line by
+// default (`side`: below | above | alt). Two alleles off one anchor at one depth
+// get the same seed; FMMM separates them.
+//
+// FMMM only honours these at its coarsest multilevel graph (OGDF applies
+// create_initial_placement there and re-derives finer levels from the coarse
+// solar system with jitter), so on any graph over minGraphSize (50 OGDF nodes)
+// what survives is the coarse shape of the backbone, not the allele offsets.
+// That is why the seeded drawings wave, and why `singleLevel` would honour
+// every seed exactly (untested here).
 export function referenceSeeds(
   graph,
   scale,
@@ -80,8 +88,12 @@ export function referenceSeeds(
       }
     }
   }
+  // nodes no backbone reaches: spread along x in file order rather than piled
+  // on one point
+  let k2 = 0
   for (const n of graph.nodes)
-    if (!seeds.has(n.id)) seeds.set(n.id, { x: 0, y: laneGap * 3 })
+    if (!seeds.has(n.id))
+      seeds.set(n.id, { x: (k2++ * x) / graph.nodes.length, y: laneGap * 3 })
   return seeds
 }
 
