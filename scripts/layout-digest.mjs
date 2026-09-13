@@ -99,6 +99,41 @@ function awkward() {
   }
 }
 
+// What the view sends for a reference-anchored graph (referenceSeeds.ts):
+// the backbone end to end along x at drawn length, each allele at the midpoint
+// of the backbone node before it, one lane down. `b<i>+` is the backbone in
+// bubbleChain and `a<i>+`/`c<i>+` hang off `b<i>+`.
+function seedBubbleChain(graph, scale) {
+  const drawn = length =>
+    Math.max(
+      (scale.nodeLengthPerMegabase * length) / 1e6,
+      scale.minimumNodeLength,
+    )
+  const seeds = new Map()
+  let x = 0
+  for (const node of graph.nodes) {
+    if (node.id.startsWith('b')) {
+      seeds.set(node.id, { x, y: 0 })
+      x += drawn(node.length) + scale.edgeLength
+    }
+  }
+  return {
+    ...graph,
+    nodes: graph.nodes.map(node => {
+      const own = seeds.get(node.id)
+      if (own) {
+        return { ...node, ...own }
+      }
+      const anchor = graph.nodes.find(n => n.id === `b${node.id.slice(1)}`)
+      return {
+        ...node,
+        x: seeds.get(anchor.id).x + drawn(anchor.length) / 2,
+        y: 30,
+      }
+    }),
+  }
+}
+
 function bandageAutoScale(graph, minNodeLength) {
   const total = graph.nodes.reduce((s, n) => s + n.length, 0)
   const mb = total / 1e6
@@ -138,6 +173,31 @@ const SPREADS = [
   ['wide', 400],
 ]
 
+async function report(head, graph, options) {
+  // A throw is a result too, and one worth diffing: the engine used to
+  // abort outright on any graph whose segment names are not plain
+  // integers, which is every minigraph rGFA.
+  let nodePositions
+  try {
+    const engine = await createModule()
+    ;({ nodePositions } = engine.computeLayout(graph, options))
+  } catch (e) {
+    console.log(`${head} THREW ${String(e.message ?? e).slice(0, 40)}`)
+    return
+  }
+  const points = Object.values(nodePositions).flat()
+  const finite = points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))
+  console.log(
+    [
+      head,
+      `nodes=${Object.keys(nodePositions).length}`.padEnd(11),
+      `pts=${points.length}`.padEnd(10),
+      finite ? 'finite' : 'NON-FINITE',
+      digest(nodePositions),
+    ].join(' '),
+  )
+}
+
 for (const [graphName, graph] of GRAPHS) {
   for (const [spreadName, minNodeLength] of SPREADS) {
     const scale = bandageAutoScale(graph, minNodeLength)
@@ -149,35 +209,31 @@ for (const [graphName, graph] of GRAPHS) {
           `q${quality}`,
           linearLayout ? 'linear' : 'force ',
         ].join(' ')
-        // A throw is a result too, and one worth diffing: the engine used to
-        // abort outright on any graph whose segment names are not plain
-        // integers, which is every minigraph rGFA.
-        let nodePositions
-        try {
-          const engine = await createModule()
-          ;({ nodePositions } = engine.computeLayout(graph, {
-            quality,
-            linearLayout,
-            ...scale,
-          }))
-        } catch (e) {
-          console.log(`${head} THREW ${String(e.message ?? e).slice(0, 40)}`)
-          continue
-        }
-        const points = Object.values(nodePositions).flat()
-        const finite = points.every(
-          p => Number.isFinite(p.x) && Number.isFinite(p.y),
-        )
-        console.log(
-          [
-            head,
-            `nodes=${Object.keys(nodePositions).length}`.padEnd(11),
-            `pts=${points.length}`.padEnd(10),
-            finite ? 'finite' : 'NON-FINITE',
-            digest(nodePositions),
-          ].join(' '),
-        )
+        await report(head, graph, { quality, linearLayout, ...scale })
       }
+    }
+  }
+}
+
+// The seeded path, which is what an anchored graph takes under 'force'
+for (const [graphName, graph] of GRAPHS) {
+  if (!graphName.startsWith('bubbleChain')) {
+    continue
+  }
+  for (const [spreadName, minNodeLength] of SPREADS) {
+    const scale = bandageAutoScale(graph, minNodeLength)
+    for (const quality of [0, 2, 4]) {
+      const head = [
+        graphName.padEnd(19),
+        spreadName.padEnd(13),
+        `q${quality}`,
+        'seeded',
+      ].join(' ')
+      await report(head, seedBubbleChain(graph, scale), {
+        quality,
+        rotateComponents: false,
+        ...scale,
+      })
     }
   }
 }
