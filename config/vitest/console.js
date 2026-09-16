@@ -1,14 +1,5 @@
-const originalLog = console.log
 const originalError = console.error
 const originalWarn = console.warn
-
-console.log = (...args) => {
-  const r = String(args)
-  if (r.includes('SharedArrayBuffer available, using fast atomic abort')) {
-    return undefined
-  }
-  originalLog.call(console, ...args)
-}
 
 console.error = (...args) => {
   const r = String(args)
