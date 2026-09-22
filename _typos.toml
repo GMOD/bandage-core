@@ -9,6 +9,8 @@ extend-exclude = [
   # conflict against the next version bump, and the whole point of vendoring at
   # a pinned tag is that the tree matches upstream byte for byte.
   "vendor/",
+  # C++ native code: variable names and upstream OGDF API
+  "scripts/layout-lab/native/",
 ]
 
 [default.extend-words]
@@ -19,3 +21,15 @@ LOD = "LOD"
 # colons. Scoped as narrowly as the tool allows; it is one hyphenated compound,
 # and rewording correct prose to satisfy a spellchecker is the wrong trade.
 mis = "mis"
+# Genome assembly names: panTro (Pan troglodytes), gorGor (Gorilla gorilla), etc.
+# Typos detects "Tro" as a substring and flags it; mark it as correct.
+Tro = "Tro"
+# PNG is Portable Network Graphics. Typos treats "PN" substring as wrong.
+PN = "PN"
+# Commit hashes — treat as correct to avoid flagging partial hashes
+ba = "ba"
+# Test field names and data structure identifiers
+STRUC = "STRUC"
+REPID = "REPID"
+# Intentional misspelling in test case checking that misspellings are rejected
+Reigon = "Reigon"
