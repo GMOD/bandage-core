@@ -7,3 +7,6 @@ src/bandage/bandage-layout.js
 # yml files upstream owns, turning the next version bump into a diff against our
 # own whitespace. See vendor/README.md.
 vendor/
+# git-cliff generates CHANGELOG.md — reformatting would fight the generator on
+# every release
+CHANGELOG.md
