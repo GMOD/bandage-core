@@ -1,15 +1,8 @@
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  // esbuild.mjs supplies this at build time; tests never fetch the chunk, but
-  // importing GraphComputeLayout must not blow up on an undefined global
-  define: { __BANDAGE_CHUNK__: JSON.stringify('bandage-layout.js') },
-  // The linked jbrowse-components2 source resolves these from its own
-  // node_modules, so without deduping, two copies load and MST flows fail with
-  // "a mst flow must always have a parent context", and a component rendering
-  // MUI through core's ui fails with a null React dispatcher. In the browser
-  // these are a single host global (esbuild externalizes them); here we force
-  // one copy.
+  // One copy of each host global, as the browser has: with two, MST flows
+  // fail with "a mst flow must always have a parent context".
   resolve: {
     dedupe: [
       'mobx',
