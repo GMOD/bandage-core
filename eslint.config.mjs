@@ -20,6 +20,9 @@ export default defineConfig(
       // but flat config does not consult .gitignore, so a demo run would
       // otherwise fail lint on hundreds of bundled files
       '.test-jbrowse-*/**',
+      // other sessions' worktrees, whose half-done edits failed the release's
+      // lint in the primary checkout
+      '.claude/**',
       // generated Emscripten output, see src/bandage/README.md. The build tree
       // is here too because CMake writes a compiler_depend.ts into it.
       'src/bandage/bandage-layout.js',
