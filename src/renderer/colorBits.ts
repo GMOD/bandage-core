@@ -8,17 +8,10 @@ import {
 
 // The one ABGR helper core does not have. Everything else the renderer needs —
 // the packing, the channel accessors, both css formatters — comes straight from
-// `@jbrowse/core/util/colorBits`, which is a deep path absent from
-// ReExports/list.ts and therefore BUNDLED rather than bound to the host: safe on
-// every released JBrowse, whatever its own core exports.
-//
-// This module used to carry hand-copied versions of all of them, on the stated
-// grounds that the published `@jbrowse/core` does not export that subpath. That
-// is true and beside the point for a bundled path, and the copies cost nothing
-// to drop: esbuild tree-shakes the css colour parsing the rest of that module
-// pulls in, so the built plugin is byte-identical either way (37,723 B). What
-// the copies did cost is a second statement of the bit layout, which has to
-// agree with core's for a colour to survive a round trip through it.
+// `@jbrowse/core/util/colorBits`, which ReExports/list.ts now names, so the
+// plugin bundle binds it to the host's copy. The plugin targets the latest
+// JBrowse beta; 5.0.0-beta.4 serves that module without `packAbgr`, and the
+// plugin fails to install there.
 
 // Scale a packed color's channels, clamped at full brightness and leaving alpha
 // alone. factor === 1 returns the color unchanged.
