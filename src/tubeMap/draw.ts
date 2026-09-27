@@ -289,20 +289,32 @@ export function drawTubeMap(
 const MISMATCH_FONT_PX = 12
 const MIN_MISMATCH_FONT_PX = 6
 
+export function mismatchesLegible(yScale: number) {
+  return MISMATCH_FONT_PX * yScale >= MIN_MISMATCH_FONT_PX
+}
+
+export function mismatchOnScreen(
+  m: TubeMapMismatch,
+  { x, width }: Pick<TubeMapFrame, 'x' | 'width'>,
+) {
+  const [x0, x1] = m.kind === 'insertion' ? [m.x, m.x] : [m.x0, m.x1]
+  return x(x1) >= 0 && x(x0) <= width
+}
+
 function drawMismatches(
   ctx: CanvasRenderingContext2D,
   marks: readonly TubeMapMismatch[],
-  { x, y, yScale, width, darkMode }: TubeMapFrame,
+  frame: TubeMapFrame,
 ) {
-  const fontPx = MISMATCH_FONT_PX * yScale
-  if (fontPx < MIN_MISMATCH_FONT_PX || marks.length === 0) {
+  const { x, y, yScale, darkMode } = frame
+  if (!mismatchesLegible(yScale) || marks.length === 0) {
     return
   }
-  const onScreen = (x0: number, x1: number) => x(x1) >= 0 && x(x0) <= width
+  const fontPx = MISMATCH_FONT_PX * yScale
   ctx.fillStyle = 'grey'
   ctx.beginPath()
   for (const m of marks) {
-    if (m.kind === 'deletion' && onScreen(m.x0, m.x1)) {
+    if (m.kind === 'deletion' && mismatchOnScreen(m, frame)) {
       const left = x(m.x0)
       const top = y(m.y)
       ctx.rect(left, top, x(m.x1) - left, y(m.y + m.height) - top)
@@ -313,9 +325,12 @@ function drawMismatches(
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = darkMode ? '#ffffff' : '#000000'
   for (const m of marks) {
-    if (m.kind === 'substitution' && onScreen(m.x0, m.x1)) {
+    if (!mismatchOnScreen(m, frame)) {
+      continue
+    }
+    if (m.kind === 'substitution') {
       ctx.fillText(m.seq, x(m.x0) + 1, y(m.y + m.height))
-    } else if (m.kind === 'insertion' && onScreen(m.x, m.x)) {
+    } else if (m.kind === 'insertion') {
       ctx.fillText('*', x(m.x) - 3, y(m.y + m.height))
     }
   }

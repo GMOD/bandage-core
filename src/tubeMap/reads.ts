@@ -155,8 +155,8 @@ export function tubeMapReads(
 
 // sequenceTubeMap's read palettes: blues forward, reds reverse, staggered by
 // read so neighbours differ
-const FORWARD_READ_COLORS = ['#6baed6', '#4292c6', '#2171b5', '#08519c']
-const REVERSE_READ_COLORS = ['#fb6a4a', '#ef3b2c', '#cb181d', '#a50f15']
+export const FORWARD_READ_COLORS = ['#6baed6', '#4292c6', '#2171b5', '#08519c']
+export const REVERSE_READ_COLORS = ['#fb6a4a', '#ef3b2c', '#cb181d', '#a50f15']
 
 export function readColor(read: { id: number; is_reverse?: boolean }) {
   const colors = read.is_reverse ? REVERSE_READ_COLORS : FORWARD_READ_COLORS

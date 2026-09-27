@@ -2,7 +2,7 @@ import { layoutTubeMap } from '@gmod/tubemap-core'
 
 import { isBackbone } from '../anchoredNodes'
 import { pathOrigin } from '../pathAnchoring'
-import { pathCssColor } from '../pathColors'
+import { pathCssColor, pathGreyCssColor } from '../pathColors'
 import {
   canonicalStrand,
   readColor,
@@ -42,6 +42,8 @@ export interface TubeMapColumn {
 
 export interface TubeMapDrawing {
   layout: TubeMapLayout
+  // each path's tube colour, in the order the graph states its paths
+  pathColors: string[]
   // tube y minus this is the drawing's y, so the drawing starts at 0
   yOffset: number
   // set on the reference axis, sorted by order
@@ -143,14 +145,15 @@ function runTubeMap(graph: Graph) {
   const reads = graph.reads
     ? tubeMapReads(graph, graph.reads, paths.length)
     : []
-  return layoutTubeMap(tubeMapNodes(graph), tracks, reads, {
+  const tubeColor = reads.length > 0 ? pathGreyCssColor : pathCssColor
+  const pathColors = paths.map((_, i) => tubeColor(i, paths.length))
+  const layout = layoutTubeMap(tubeMapNodes(graph), tracks, reads, {
     nodeWidthOption: 'compressed',
     trackWidth: tubeWidth(tracks.length),
     trackColor: track =>
-      track.type === 'read'
-        ? readColor(track)
-        : pathCssColor(track.id, paths.length),
+      track.type === 'read' ? readColor(track) : pathColors[track.id]!,
   })
+  return layout ? { layout, pathColors } : undefined
 }
 
 // Drawn nodes only: an unreached one has no x.
@@ -180,10 +183,11 @@ function extentOf(layout: TubeMapLayout, yOffset: number) {
 }
 
 export function tubeMapLayout(graph: Graph): LayoutResult | undefined {
-  const layout = hasTubeMapPaths(graph) ? runTubeMap(graph) : undefined
-  if (!layout) {
+  const run = hasTubeMapPaths(graph) ? runTubeMap(graph) : undefined
+  if (!run) {
     return undefined
   }
+  const { layout, pathColors } = run
   const yOffset = layout.bounds.minY
   const nodePositions: Record<string, NodeSegment[]> = {}
   for (const node of drawnNodes(layout)) {
@@ -197,7 +201,7 @@ export function tubeMapLayout(graph: Graph): LayoutResult | undefined {
   const { minY, maxY } = extentOf(layout, yOffset)
   return {
     nodePositions,
-    tubeMap: { layout, yOffset },
+    tubeMap: { layout, yOffset, pathColors },
     extent: {
       minX: layout.bounds.minX,
       maxX: layout.bounds.maxX,
@@ -266,10 +270,11 @@ function pathsReachBackbone(graph: Graph) {
 }
 
 export function tubeMapReferenceLayout(graph: Graph): LayoutResult | undefined {
-  const layout = pathsReachBackbone(graph) ? runTubeMap(graph) : undefined
-  if (!layout) {
+  const run = pathsReachBackbone(graph) ? runTubeMap(graph) : undefined
+  if (!run) {
     return undefined
   }
+  const { layout, pathColors } = run
   const columns = tubeMapColumns(graph, layout)
   const byOrder = new Map(columns.map(c => [c.order, c]))
   const yOffset = layout.bounds.minY
@@ -280,7 +285,7 @@ export function tubeMapReferenceLayout(graph: Graph): LayoutResult | undefined {
   }
   return {
     nodePositions,
-    tubeMap: { layout, yOffset, columns },
+    tubeMap: { layout, yOffset, columns, pathColors },
     referenceAxis: true,
     pixelRows: true,
     extent: extentOf(layout, yOffset),

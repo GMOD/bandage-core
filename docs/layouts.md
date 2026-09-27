@@ -114,9 +114,12 @@ tabix -p gaf reads.gaf.gz
   in `readsLocation`), the plugin reads the file whole, up to 50 MB
 - Only gbz-base tracks take reads; an rGFA track, or a GFA file opened with
   **Add → Graph genome view**, has no reads input
-- Up to 5000 reads a cut, sampled evenly past that; blues forward, reds reverse
+- Up to 5000 reads a cut, sampled evenly past that; blues forward, reds reverse.
+  Beside reads the haplotype tubes turn grey, as sequenceTubeMap draws them, so
+  no tube shares a read's colour
 - The cs tag's edits are drawn on the reads: substituted bases, `*` for an
-  insertion, grey for a deletion, hidden when zoomed out
+  insertion, grey for a deletion, hidden when zoomed out. The legend names the
+  strands and each kind of edit in view
 
 ![The pggb E. coli subgraph as a tube map on both axes](../img/tube_map.png)
 
@@ -127,8 +130,11 @@ and as a view:
 
 ![MICB's exons 2–4 as a tube map on its own axis](../img/tube_map_micb.png)
 
-sequenceTubeMap's cactus test graph with NA12879's reads under its three
-haplotypes, zoomed in far enough to letter each read's mismatches:
+sequenceTubeMap's cactus test graph with NA12879's reads under its three paths,
+zoomed in far enough to letter each read's mismatches. The paths are vg generic
+paths, which the legend names by contig; a haplotype index beside the database
+(`gbz-haplotype-index --from-db cactus.gbz.db cactus.haplotype-index.db`) is
+what names the two that are not the reference:
 
 ![GAF reads under the haplotypes of a tube map track, with their mismatches](../img/tube_map_reads.png)
 

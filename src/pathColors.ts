@@ -1,3 +1,4 @@
+import { isGenericSample } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 
 import type { GraphPath } from './types'
@@ -65,6 +66,14 @@ export function pathCssColor(index: number, count: number) {
   }%)`
 }
 
+// Beside reads, which take the blues and the reds, a tube map's paths step
+// from dark grey to light, as sequenceTubeMap draws them under reads, so no
+// tube shares a read's colour
+export function pathGreyCssColor(index: number, count: number) {
+  const lightness = count > 1 ? 25 + (45 * index) / (count - 1) : 45
+  return `hsl(0, 0%, ${lightness}%)`
+}
+
 // A path is named the way its file names it — `K12#1#chr:1004500-1004961` for a
 // P record `odgi extract` wrote, `HG00738#1` for a W record — and neither is a
 // legend entry. The label is the least of that name which still tells the paths
@@ -72,9 +81,16 @@ export function pathCssColor(index: number, count: number) {
 // not, the whole stable name where even that repeats. Widening it for every row
 // rather than only for the colliding ones, because a legend where one entry is
 // `HG00738#1` and its neighbour is `HG01071` reads as two kinds of thing.
+// A generic path, which vg files under a placeholder sample
+// (`_gbwt_ref#0#GI262359905`), is named by its contig alone.
 function labelTiers(name: string) {
   const parts = pathOrigin(name).name.split('#')
-  return [parts[0]!, parts.slice(0, 2).join('#'), parts.join('#')]
+  const full = parts.join('#')
+  if (parts.length >= 3 && isGenericSample(parts[0]!)) {
+    const contig = parts.slice(2).join('#')
+    return [contig, contig, full]
+  }
+  return [parts[0]!, parts.slice(0, 2).join('#'), full]
 }
 
 // Locale-independent, unlike toLocaleString: a figure regenerated on a machine
@@ -99,7 +115,12 @@ export interface PathLegendEntry {
   color: string
 }
 
-export function pathLegend(paths: GraphPath[]): PathLegendEntry[] {
+// `colors` is what each path was actually drawn in, where that is not
+// pathCssColor's hue
+export function pathLegend(
+  paths: GraphPath[],
+  colors?: readonly string[],
+): PathLegendEntry[] {
   const named = paths.map(p => labelTiers(p.name))
   // narrowest first, and the offset is tried before the next name tier: two
   // copies of one operon are told apart by where they are, not by widening a
@@ -117,6 +138,6 @@ export function pathLegend(paths: GraphPath[]): PathLegendEntry[] {
   return paths.map((path, i) => ({
     name: path.name,
     label: labels[i]!,
-    color: pathCssColor(i, paths.length),
+    color: colors?.[i] ?? pathCssColor(i, paths.length),
   }))
 }

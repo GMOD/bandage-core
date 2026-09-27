@@ -7,6 +7,7 @@ import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
+import { pathCssColor, pathGreyCssColor } from '../pathColors'
 
 // Nodes 240..280 of sequenceTubeMap's cactus example, a run of SNP bubbles,
 // with the NA12879 reads vg giraffe aligned over them. Node lengths used below:
@@ -84,5 +85,27 @@ test('the tube map stacks the reads in the node boxes', () => {
   ).toBeGreaterThan(0)
   expect(layout.bounds.maxY - layout.bounds.minY).toBeGreaterThan(
     bare.bounds.maxY - bare.bounds.minY,
+  )
+})
+
+// sequenceTubeMap's convention: the reads take the blues and the reds, so the
+// tubes beside them go grey rather than take a hue a read could share
+test('beside reads the tubes are grey, and the drawing names their colours', () => {
+  const bare = tubeMapLayout(cactus())!.tubeMap!
+  const withReads = tubeMapLayout({
+    ...cactus(),
+    reads: parseGaf(GAF),
+  })!.tubeMap!
+  expect(bare.pathColors).toEqual([0, 1, 2].map(i => pathCssColor(i, 3)))
+  expect(withReads.pathColors).toEqual(
+    [0, 1, 2].map(i => pathGreyCssColor(i, 3)),
+  )
+  const tubeColors = new Set(
+    withReads.layout.shapes.rectangles
+      .filter(r => r.type === 'haplotype')
+      .map(r => r.color),
+  )
+  expect([...tubeColors].every(c => withReads.pathColors.includes(c))).toBe(
+    true,
   )
 })

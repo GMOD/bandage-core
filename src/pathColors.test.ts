@@ -81,3 +81,26 @@ test('two haplotypes at the same offset widen the name instead', () => {
     ]).map(e => e.label),
   ).toEqual(['HG00738#1', 'HG00738#2'])
 })
+
+// vg files a path that names no sample under `_gbwt_ref`, and a gbz-base cut
+// resolved through a haplotype index names its walks that way
+test('a generic path is labelled by its contig, not the placeholder sample', () => {
+  expect(
+    pathLegend([
+      { name: '_gbwt_ref#0#ref:23438-23804', nodeIds: [] },
+      { name: '_gbwt_ref#0#GI262359905:57387-57753', nodeIds: [] },
+      { name: '_gbwt_ref#0#GI528476558:23418-23785', nodeIds: [] },
+    ]).map(e => e.label),
+  ).toEqual(['ref', 'GI262359905', 'GI528476558'])
+})
+
+test('a legend names the colours the paths were drawn in where given', () => {
+  const paths = [
+    { name: 'HG00738#1', nodeIds: [] },
+    { name: 'HG00738#2', nodeIds: [] },
+  ]
+  expect(pathLegend(paths, ['#111', '#222']).map(e => e.color)).toEqual([
+    '#111',
+    '#222',
+  ])
+})

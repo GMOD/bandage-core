@@ -1,5 +1,10 @@
 import { isBackbone } from './anchoredNodes'
-import { panSNContig, panSNHaplotype, panSNSample } from './pansn'
+import {
+  isGenericSample,
+  panSNContig,
+  panSNHaplotype,
+  panSNSample,
+} from './pansn'
 
 import type { Graph, PathOrigin } from './types'
 
@@ -48,15 +53,9 @@ export function wellKnownSample(assemblyName: string) {
   return WELL_KNOWN_SAMPLES.get(assemblyName.toLowerCase())
 }
 
-// vg names a reference path that states no sample `_gbwt_ref`, and gbz-base
-// writes its walk as `W _gbwt_ref 0 chr6`
-const GENERIC_SAMPLES = new Set(['_gbwt_ref'])
-
 function sampleOf(refName: string) {
   const sample = refName.includes('#') ? panSNSample(refName) : undefined
-  return sample === undefined || GENERIC_SAMPLES.has(sample)
-    ? undefined
-    : sample
+  return sample === undefined || isGenericSample(sample) ? undefined : sample
 }
 
 // `HG002#1`, or the sample of a two-part name, which states no haplotype

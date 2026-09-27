@@ -11,6 +11,14 @@ export function panSNSample(refName: string) {
   return refName.split(SEP)[0]!
 }
 
+// vg names a reference path that states no sample `_gbwt_ref`, and gbz-base
+// writes its walk as `W _gbwt_ref 0 chr6`
+const GENERIC_SAMPLES = new Set(['_gbwt_ref'])
+
+export function isGenericSample(sample: string) {
+  return GENERIC_SAMPLES.has(sample)
+}
+
 // The haplotype a three-part PanSN name belongs to, `sample#hap`, which is the
 // assembly that contributed it where one sample is two haplotypes (HPRC release
 // 2.1 names every node `NA20809#2#CM094351.1`); undefined for a name that
