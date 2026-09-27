@@ -74,9 +74,3 @@ changes nothing about that: it was already linked in.
 
 `package.json` publishes only `dist` and `src`, so this directory is not in the
 npm tarball.
-
-## `tubemap-core/` — `@gmod/tubemap-core` 0.1.0, built
-
-- The tube map layouts' engine, packed from `packages/tubemap-core` in
-  [cmdcolin/sequenceTubeMap](https://github.com/cmdcolin/sequenceTubeMap)
-- Here only until it is on npm; then `package.json` names `^0.1.0` and this goes
