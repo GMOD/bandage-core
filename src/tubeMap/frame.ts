@@ -61,7 +61,7 @@ export function tubeMapNodeAt(
   { x, y }: TubeMapTransform,
   sx: number,
   sy: number,
-) {
+): string | null {
   let hit: string | null = null
   drawing.layout.nodes.forEach(node => {
     if (
