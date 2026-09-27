@@ -1,5 +1,4 @@
 import { tubeSpan } from './axis'
-import { refNameBinding } from '../reference'
 
 import type { ReferenceBoxes } from './axis'
 import type { TubeMapFrame } from './draw'
@@ -14,15 +13,14 @@ export interface TubeMapGene {
   exons: { x0: number; x1: number }[]
 }
 
+// A gene takes the boxes of the refName it equals, as in genePins
 export function tubeMapGenes(
   byRefName: ReferenceBoxes,
   genes: readonly GeneModel[],
 ): TubeMapGene[] {
   const out: TubeMapGene[] = []
-  const bind = refNameBinding(byRefName.keys())
   for (const gene of genes) {
-    const refName = bind(gene.refName)
-    const boxes = refName === undefined ? undefined : byRefName.get(refName)
+    const boxes = byRefName.get(gene.refName)
     const first = boxes?.[0]
     const last = boxes?.at(-1)
     if (!boxes || !first || !last) {

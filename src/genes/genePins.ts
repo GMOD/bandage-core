@@ -1,6 +1,5 @@
 import { firstNodeAtOrAfter, isBackbone } from '../anchoredNodes'
 import { polylineSlice } from '../layout/mergeRuns'
-import { refNameBinding } from '../reference'
 import { svgPath } from '../util/geometry'
 
 import type { AnchoredNode } from '../anchoredNodes'
@@ -41,9 +40,9 @@ interface RefNameBackbone {
   reach: number
 }
 
-// A gene lands on the backbone refName its own refName names (refNameBinding):
-// `GRCh38#0#chr6` only on that, `chr6` on the one backbone refName with that
-// contig, and on none where two share it.
+// A gene lands on the backbone refName it equals. An assembly's `chr6` lands
+// on none, so a host renames its genes onto the graph's `GRCh38#0#chr6` with
+// featuresOnBackbone once it knows the backbone lies on that assembly.
 export function genePins(
   graph: Graph,
   genes: GeneModel[],
@@ -53,11 +52,9 @@ export function genePins(
   // Every gene used to read every backbone node on each frame of a node drag:
   // 199 ms for 100 genes over 15k nodes, now 12.
   const byRefName = new Map<string, RefNameBackbone>()
-  const refNames = new Set<string>()
   for (const node of graph.nodes) {
     if (isBackbone(node)) {
       const { refName } = node.stable
-      refNames.add(refName)
       if (positions[node.id]?.length) {
         const entry =
           byRefName.get(refName) ??
@@ -70,11 +67,9 @@ export function genePins(
   for (const { nodes } of byRefName.values()) {
     nodes.sort((a, b) => a.stable.start - b.stable.start)
   }
-  const bind = refNameBinding(refNames)
   const pins: GenePin[] = []
   for (const gene of genes) {
-    const refName = bind(gene.refName)
-    const backbone = refName === undefined ? undefined : byRefName.get(refName)
+    const backbone = byRefName.get(gene.refName)
     if (!backbone) {
       continue
     }

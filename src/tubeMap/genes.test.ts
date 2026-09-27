@@ -20,8 +20,8 @@ const GFA = fs.readFileSync(
 function cactus() {
   const graph = anchorGraph(convertGFAToGraph(parseGFA(GFA)), 'ref')
   const layout = tubeMapLayout(graph)!.tubeMap!.layout
-  const byContig = referenceBoxes(graph, layout)
-  return { byContig, boxes: rulerBoxes(byContig)! }
+  const byRefName = referenceBoxes(graph, layout)
+  return { byRefName, boxes: rulerBoxes(byRefName)! }
 }
 
 function gene(fields: Partial<GeneModel>): GeneModel {
@@ -55,9 +55,9 @@ test('a bp maps into the box that holds it, linearly', () => {
 })
 
 test('a gene takes its span and exons in tube x, clipped to the cut', () => {
-  const { byContig, boxes } = cactus()
+  const { byRefName, boxes } = cactus()
   const end = boxes.at(-1)!.bp1
-  const [g] = tubeMapGenes(byContig, [
+  const [g] = tubeMapGenes(byRefName, [
     gene({
       start: 20,
       end: end + 500,
@@ -73,24 +73,24 @@ test('a gene takes its span and exons in tube x, clipped to the cut', () => {
 })
 
 test('genes off the cut or on another contig are left out', () => {
-  const { byContig, boxes } = cactus()
+  const { byRefName, boxes } = cactus()
   const end = boxes.at(-1)!.bp1
   expect(
-    tubeMapGenes(byContig, [
+    tubeMapGenes(byRefName, [
       gene({ start: end + 1, end: end + 10 }),
       gene({ refName: 'other', start: 0, end: 10 }),
     ]),
   ).toEqual([])
 })
 
-test('a gene takes the refName it names, or the one refName with its contig', () => {
-  const boxes = cactus().byContig.get('ref')!
+test('a gene takes the refName it equals, and a bare contig none', () => {
+  const boxes = cactus().byRefName.get('ref')!
   const one = new Map([['GRCh38#0#chr6', boxes]])
   const two = new Map([...one, ['CHM13#0#chr6', boxes]])
   const lands = (refName: string, reference: ReferenceBoxes) =>
     tubeMapGenes(reference, [gene({ refName, end: 10 })]).length
   expect(lands('GRCh38#0#chr6', one)).toBe(1)
-  expect(lands('chr6', one)).toBe(1)
+  expect(lands('chr6', one)).toBe(0)
   expect(lands('CHM13#0#chr6', one)).toBe(0)
   expect(lands('chr6', two)).toBe(0)
   expect(lands('CHM13#0#chr6', two)).toBe(1)

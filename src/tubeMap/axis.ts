@@ -76,10 +76,10 @@ export function tubeSpan(boxes: readonly Box[], start: number, end: number) {
   return { x0: Math.min(a, b), x1: Math.max(a, b) }
 }
 
-// The contig most of the cut's reference lies on, for the ruler
-export function rulerBoxes(byContig: ReferenceBoxes) {
+// The refName most of the cut's reference lies on, for the ruler
+export function rulerBoxes(byRefName: ReferenceBoxes) {
   let best: Box[] | undefined
-  for (const boxes of byContig.values()) {
+  for (const boxes of byRefName.values()) {
     if (!best || boxes.length > best.length) {
       best = boxes
     }

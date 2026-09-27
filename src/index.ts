@@ -106,6 +106,7 @@ export { genePins } from './genes/genePins'
 export type { GeneModel, GenePin } from './genes/genePins'
 export {
   WELL_KNOWN_SAMPLES,
+  assemblyWalk,
   backboneAssembly,
   featuresOnBackbone,
   graphBackbone,

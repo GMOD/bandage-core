@@ -1,7 +1,7 @@
 import { isBackbone } from './anchoredNodes'
 import { panSNContig, panSNHaplotype, panSNSample } from './pansn'
 
-import type { Graph } from './types'
+import type { Graph, PathOrigin } from './types'
 
 // A graph's backbone names the sample it lies on (`GRCh38#0#chr6`), not an
 // assembly, and a bare contig (`chr6`) is in every human assembly at once. A
@@ -19,9 +19,13 @@ export interface BackboneContig {
 
 export interface Backbone {
   contigs: BackboneContig[]
-  // The PanSN prefixes every contig shares, sample then haplotype: `GRCh38`,
-  // `GRCh38#0`. Empty for bare contig names, or where the samples differ.
+  // The PanSN prefixes that name the backbone, sample then haplotype:
+  // `GRCh38`, `GRCh38#0`. The sample drops out where the graph walks another
+  // haplotype of it, as a diploid's `HG002` names `HG002#1` and `HG002#2`.
   prefixes: string[]
+  // Whether the contigs name one real sample: false where every contig is bare
+  // (`chr6`) or generic (`_gbwt_ref#0#chr6`), or where the samples differ
+  named: boolean
 }
 
 export interface AssemblyNames {
@@ -43,14 +47,63 @@ export function wellKnownSample(assemblyName: string) {
   return WELL_KNOWN_SAMPLES.get(assemblyName.toLowerCase())
 }
 
-function sharedPrefixes(refNames: string[]) {
-  return [panSNSample, panSNHaplotype].flatMap(prefixOf => {
-    const prefixes = new Set(
-      refNames.map(n => (n.includes('#') ? prefixOf(n) : undefined)),
-    )
-    const [only] = prefixes
-    return prefixes.size === 1 && only ? [only] : []
-  })
+// vg names a reference path that states no sample `_gbwt_ref`, and gbz-base
+// writes its walk as `W _gbwt_ref 0 chr6`
+const GENERIC_SAMPLES = new Set(['_gbwt_ref'])
+
+function sampleOf(refName: string) {
+  const sample = refName.includes('#') ? panSNSample(refName) : undefined
+  return sample === undefined || GENERIC_SAMPLES.has(sample)
+    ? undefined
+    : sample
+}
+
+// `HG002#1`, or the sample of a two-part name, which states no haplotype
+function haplotypeOf(refName: string) {
+  return panSNHaplotype(refName) ?? panSNSample(refName)
+}
+
+// Each sample's haplotypes among the graph's walks and node refNames
+function graphHaplotypes(graph: Graph) {
+  const refNames = new Set((graph.anchorPaths ?? []).map(p => p.name))
+  for (const node of graph.nodes) {
+    if (node.stable) {
+      refNames.add(node.stable.refName)
+    }
+  }
+  const bySample = new Map<string, Set<string>>()
+  for (const refName of refNames) {
+    const sample = sampleOf(refName)
+    if (sample !== undefined) {
+      const haplotypes =
+        bySample.get(sample) ?? bySample.set(sample, new Set()).get(sample)!
+      haplotypes.add(haplotypeOf(refName))
+    }
+  }
+  return bySample
+}
+
+function backboneFrom(
+  contigs: BackboneContig[],
+  haplotypes: Map<string, Set<string>>,
+): Backbone {
+  const samples = new Set(contigs.map(c => sampleOf(c.refName)))
+  const [sample] = samples
+  if (samples.size !== 1 || sample === undefined) {
+    return { contigs, prefixes: [], named: false }
+  }
+  const own = new Set(contigs.map(c => haplotypeOf(c.refName)))
+  const unique = [...(haplotypes.get(sample) ?? [])].every(h => own.has(h))
+  const shared = new Set(contigs.map(c => panSNHaplotype(c.refName)))
+  const [haplotype] = shared
+  return {
+    contigs,
+    prefixes: [
+      ...(unique ? [sample] : []),
+      ...(shared.size === 1 && haplotype ? [haplotype] : []),
+    ],
+    named: true,
+  }
 }
 
 // The rank-0 nodes' refNames and the span each covers
@@ -76,24 +129,57 @@ export function graphBackbone(graph: Graph): Backbone | undefined {
   }
   const contigs = [...spans.values()]
   return contigs.length
-    ? { contigs, prefixes: sharedPrefixes(contigs.map(c => c.refName)) }
+    ? backboneFrom(contigs, graphHaplotypes(graph))
     : undefined
 }
 
-// The first assembly named by one of the backbone's prefixes, through its name
-// or an alias, else through the well-known sample of one of those. A backbone
-// of bare contig names has no prefix, so it binds to none.
+// The assembly the backbone's haplotype names by its name or an alias, else
+// the one its sample names, else the one whose well-known sample it is. A
+// backbone with no prefix binds to none.
 export function backboneAssembly<T extends AssemblyNames>(
   backbone: Backbone | undefined,
   assemblies: T[],
 ): T | undefined {
-  const prefixes = new Set(backbone?.prefixes.map(p => p.toLowerCase()))
   const names = (a: T) => [a.name, ...(a.aliases ?? [])]
-  const named = (candidates: (string | undefined)[]) =>
-    candidates.some(n => n !== undefined && prefixes.has(n.toLowerCase()))
-  return (
-    assemblies.find(a => named(names(a))) ??
-    assemblies.find(a => named(names(a).map(wellKnownSample)))
+  const naming = (prefix: string) => (a: T) =>
+    names(a).some(n => n.toLowerCase() === prefix.toLowerCase())
+  const prefixes = [...(backbone?.prefixes ?? [])].reverse()
+  const sample = backbone?.prefixes.find(p => !p.includes('#'))?.toLowerCase()
+  for (const prefix of prefixes) {
+    const assembly = assemblies.find(naming(prefix))
+    if (assembly) {
+      return assembly
+    }
+  }
+  return sample === undefined
+    ? undefined
+    : assemblies.find(a =>
+        names(a).some(n => wellKnownSample(n)?.toLowerCase() === sample),
+      )
+}
+
+// The first of the graph's walks that a backbone along it would bind to
+// `assembly`, for putting x on the assembly a cut was made for
+export function assemblyWalk(
+  graph: Graph,
+  assembly: AssemblyNames,
+): PathOrigin | undefined {
+  const haplotypes = graphHaplotypes(graph)
+  return graph.anchorPaths?.find(walk =>
+    backboneAssembly(
+      backboneFrom(
+        [
+          {
+            refName: walk.name,
+            contig: panSNContig(walk.name),
+            start: walk.start,
+            end: walk.start + walk.length,
+          },
+        ],
+        haplotypes,
+      ),
+      [assembly],
+    ),
   )
 }
 
@@ -109,8 +195,9 @@ export function refNameBinding(refNames: Iterable<string>) {
   return (name: string) => (exact.has(name) ? name : byContig.get(name))
 }
 
-// The features on the backbone, each renamed to the backbone's refName for it,
-// so an assembly's `chr6` becomes the graph's `GRCh38#0#chr6`
+// An assembly's features on a backbone that binds to it, each renamed to the
+// backbone's refName for it, so the assembly's `chr6` becomes the graph's
+// `GRCh38#0#chr6`. genePins and tubeMapGenes take only the renamed.
 export function featuresOnBackbone<T extends { refName: string }>(
   features: readonly T[],
   backbone: Backbone,

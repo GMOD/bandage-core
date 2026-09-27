@@ -4,6 +4,7 @@ import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
 import { anchorFromPaths, anchorGraph } from './pathAnchoring'
 import {
+  assemblyWalk,
   backboneAssembly,
   featuresOnBackbone,
   graphBackbone,
@@ -52,12 +53,23 @@ function hostPins(graph: Graph, assembly: AssemblyNames, genes: GeneModel[]) {
     : []
 }
 
+// what a host draws where the user said which assembly the graph is on: an
+// unnamed backbone takes it, a named one only by its prefix
+function declaredPins(
+  graph: Graph,
+  declared: AssemblyNames,
+  genes: GeneModel[],
+) {
+  const backbone = graphBackbone(graph)
+  return backbone && (!backbone.named || backboneAssembly(backbone, [declared]))
+    ? pinned(graph, featuresOnBackbone(genes, backbone))
+    : []
+}
+
 const HG38 = { name: 'hg38', aliases: ['GRCh38'] }
 const HS1 = { name: 'hs1', aliases: [] }
 
-// GRCh38 and CHM13 walk chr6 at overlapping coordinates, so hg38's chr6:1002-
-// 1008 lies over segment 1 whichever of them is the backbone.
-const CHR6 = [
+const SEGMENTS = [
   'S\t1\tAAAAAAAAAA',
   'S\t2\tCCCCCCCCCC',
   'S\t3\tGGGGGGGGGG',
@@ -66,8 +78,21 @@ const CHR6 = [
   'L\t1\t+\t3\t+\t0M',
   'L\t2\t+\t4\t+\t0M',
   'L\t3\t+\t4\t+\t0M',
+]
+
+// GRCh38 and CHM13 walk chr6 at overlapping coordinates, so hg38's chr6:1002-
+// 1008 lies over segment 1 whichever of them is the backbone.
+const CHR6 = [
+  ...SEGMENTS,
   'W\tGRCh38\t0\tchr6\t1000\t1030\t>1>2>4',
   'W\tCHM13\t0\tchr6\t1005\t1035\t>1>3>4',
+]
+
+// HG002's two haplotypes of chr6, which the sample alone doesn't tell apart
+const DIPLOID = [
+  ...SEGMENTS,
+  'W\tHG002\t1\tchr6\t1000\t1030\t>1>2>4',
+  'W\tHG002\t2\tchr6\t1000\t1030\t>1>3>4',
 ]
 
 describe('graphBackbone', () => {
@@ -77,24 +102,63 @@ describe('graphBackbone', () => {
         { refName: 'GRCh38#0#chr6', contig: 'chr6', start: 1000, end: 1030 },
       ],
       prefixes: ['GRCh38', 'GRCh38#0'],
+      named: true,
     })
   })
 
-  test('shares no prefix across bare names or different samples', () => {
+  test('names no sample for bare names or different samples', () => {
     const rgfa = (...names: string[]) =>
       load(
         names.map(
           (name, i) => `S\ts${i}\t*\tLN:i:10\tSN:Z:${name}\tSO:i:0\tSR:i:0`,
         ),
       )
-    expect(graphBackbone(rgfa('chr6'))?.prefixes).toEqual([])
-    expect(
-      graphBackbone(rgfa('GRCh38#0#chr6', 'CHM13#0#chr7'))?.prefixes,
-    ).toEqual([])
-    expect(
-      graphBackbone(rgfa('GRCh38#0#chr6', 'GRCh38#1#chr6'))?.prefixes,
-    ).toEqual(['GRCh38'])
+    const named = (graph: Graph) => {
+      const b = graphBackbone(graph)
+      return b && { prefixes: b.prefixes, named: b.named }
+    }
+    expect(named(rgfa('chr6'))).toEqual({ prefixes: [], named: false })
+    expect(named(rgfa('GRCh38#0#chr6', 'CHM13#0#chr7'))).toEqual({
+      prefixes: [],
+      named: false,
+    })
+    expect(named(rgfa('GRCh38#0#chr6', 'GRCh38#1#chr6'))).toEqual({
+      prefixes: ['GRCh38'],
+      named: true,
+    })
     expect(graphBackbone(load(['S\t1\tACGT']))).toBeUndefined()
+  })
+
+  test('drops the sample where the graph walks another haplotype of it', () => {
+    const hap2 = graphBackbone(load(DIPLOID, 'HG002#2#chr6'))
+    expect(hap2?.contigs.map(c => c.refName)).toEqual(['HG002#2#chr6'])
+    expect(hap2?.prefixes).toEqual(['HG002#2'])
+    expect(hap2?.named).toBe(true)
+  })
+})
+
+describe('a vg graph’s generic reference', () => {
+  const VG = [
+    ...SEGMENTS,
+    'W\t_gbwt_ref\t0\tchr6\t1000\t1030\t>1>2>4',
+    'W\tHG002\t1\tchr6\t1005\t1035\t>1>3>4',
+  ]
+
+  test('names no sample', () => {
+    expect(graphBackbone(load(VG))).toEqual({
+      contigs: [
+        { refName: '_gbwt_ref#0#chr6', contig: 'chr6', start: 1000, end: 1030 },
+      ],
+      prefixes: [],
+      named: false,
+    })
+  })
+
+  test('takes the genes of the assembly a host declares it on', () => {
+    const genes = [gene('HLA', 'chr6', 1002, 1008)]
+    const vg = load(VG)
+    expect(declaredPins(vg, HG38, genes)).toEqual(['HLA@1005,0'])
+    expect(declaredPins(anchorFromPaths(vg, 'HG002'), HG38, genes)).toEqual([])
   })
 })
 
@@ -127,6 +191,25 @@ describe('backboneAssembly', () => {
     expect(backboneAssembly(backboneOf('CHM13'), [chm13v2, chm13])).toBe(chm13)
   })
 
+  test('prefers the assembly the haplotype names to the one the sample does', () => {
+    const grch38 = backboneOf('GRCh38')
+    const bySample = { name: 'GRCh38-any', aliases: ['GRCh38'] }
+    const byHaplotype = { name: 'GRCh38-hap0', aliases: ['GRCh38#0'] }
+    expect(backboneAssembly(grch38, [bySample, byHaplotype])).toBe(byHaplotype)
+  })
+
+  test('binds a diploid’s haplotype only by its haplotype-level name', () => {
+    const diploid = load(DIPLOID, 'HG002#1#chr6')
+    const hap2 = anchorFromPaths(diploid, 'HG002#2#chr6')
+    const bySample = { name: 'HG002.1', aliases: ['HG002'] }
+    const byHaplotype = { name: 'HG002.1', aliases: ['HG002#1'] }
+    const genes = [gene('HLA', 'chr6', 1002, 1008)]
+    expect(hostPins(diploid, byHaplotype, genes)).toEqual(['HLA@1005,0'])
+    expect(hostPins(hap2, byHaplotype, genes)).toEqual([])
+    expect(hostPins(hap2, bySample, genes)).toEqual([])
+    expect(hostPins(diploid, bySample, genes)).toEqual([])
+  })
+
   test('never binds a bare contig name', () => {
     const bare = graphBackbone(
       load(['S\ts\t*\tLN:i:10\tSN:Z:chr6\tSO:i:0\tSR:i:0']),
@@ -145,8 +228,12 @@ describe('genes on the backbone', () => {
     const onCHM13 = anchorFromPaths(onGRCh38, 'CHM13')
     expect(hostPins(onGRCh38, HG38, genes)).toEqual(['HLA@1005,0'])
     expect(hostPins(onCHM13, HG38, genes)).toEqual([])
-    // genePins alone takes a bare contig on the one backbone refName with it
-    expect(pinned(onCHM13, genes)).toEqual(['HLA@1005,0'])
+  })
+
+  test('genePins pins no gene the host has not renamed onto the backbone', () => {
+    const genes = [gene('HLA', 'chr6', 1002, 1008)]
+    expect(pinned(load(CHR6, 'GRCh38'), genes)).toEqual([])
+    expect(pinned(load(CHR6, 'CHM13'), genes)).toEqual([])
   })
 
   test('a gene named for one sample pins on that sample only', () => {
@@ -181,6 +268,25 @@ describe('genes on the backbone', () => {
     ])
   })
 
+  test('a two-part sample#contig backbone binds by its sample', () => {
+    const ecoli = load([
+      `S\ta\t${'A'.repeat(20)}`,
+      `S\tb\t${'C'.repeat(20)}`,
+      'L\ta\t+\tb\t+\t0M',
+      'P\tK12#chr:500-540\ta+,b+\t*',
+      'P\tSakai#chr:900-940\ta+,b+\t*',
+    ])
+    const genes = [gene('thrL', 'chr', 504, 506)]
+    expect(graphBackbone(ecoli)).toMatchObject({
+      contigs: [{ refName: 'K12#chr', contig: 'chr' }],
+      prefixes: ['K12'],
+      named: true,
+    })
+    expect(hostPins(ecoli, { name: 'K12' }, genes)).toEqual(['thrL@505,0'])
+    expect(hostPins(ecoli, { name: 'Sakai' }, genes)).toEqual([])
+    expect(pinned(ecoli, genes)).toEqual([])
+  })
+
   test('a plant backbone of two chromosomes puts each gene on its own', () => {
     const plant = load([
       'S\tc1a\t*\tLN:i:100\tSN:Z:Col-0#1#Chr1\tSO:i:0\tSR:i:0',
@@ -195,6 +301,7 @@ describe('genes on the backbone', () => {
         { refName: 'Col-0#1#Chr2', contig: 'Chr2', start: 0, end: 100 },
       ],
       prefixes: ['Col-0', 'Col-0#1'],
+      named: true,
     })
     expect(
       hostPins(plant, tair10, [
@@ -220,5 +327,24 @@ describe('genes on the backbone', () => {
     expect(
       featuresOnBackbone([gene('A', 'chr6', 2, 4)], graphBackbone(haplotypes)!),
     ).toEqual([])
+  })
+})
+
+describe('assemblyWalk', () => {
+  test('finds the walk an assembly lies on, wherever it is in the file', () => {
+    const chm13First = load([...SEGMENTS, CHR6.at(-1)!, CHR6.at(-2)!])
+    expect(assemblyWalk(chm13First, HG38)?.name).toBe('GRCh38#0#chr6')
+    expect(assemblyWalk(chm13First, HS1)?.name).toBe('CHM13#0#chr6')
+    expect(assemblyWalk(chm13First, { name: 'mm39' })).toBeUndefined()
+  })
+
+  test('finds a diploid’s haplotype only by its haplotype-level name', () => {
+    const diploid = load(DIPLOID)
+    expect(
+      assemblyWalk(diploid, { name: 'HG002.2', aliases: ['HG002#2'] })?.name,
+    ).toBe('HG002#2#chr6')
+    expect(
+      assemblyWalk(diploid, { name: 'HG002.2', aliases: ['HG002'] }),
+    ).toBeUndefined()
   })
 })
