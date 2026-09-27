@@ -181,15 +181,16 @@ export function fittedTranslateY(
 // when it has extent, since an anchored window holding only backbone puts every
 // node on row 0. A row layout (`pixelRows`) fits on x alone and keeps y in
 // screen px; an isotropic one fits on whichever axis binds. Below `minScale`
-// the drawing overflows x instead, its left end at the padding.
+// the drawing overflows x instead, its left end at the padding. `padLeft`
+// widens the left gap past the row labels pinned to that edge.
 export function fitTransform(
   bounds: { minX: number; minY: number; w: number; h: number },
   paneWidth: number,
   paneHeight: number,
   pixelRows: boolean,
-  minScale = 0,
+  { minScale = 0, padLeft = FIT_PADDING } = {},
 ) {
-  const usableWidth = paneWidth - FIT_PADDING * 2
+  const usableWidth = paneWidth - padLeft - FIT_PADDING
   const usableHeight = paneHeight - FIT_PADDING * 2
   if (
     usableWidth <= 0 ||
@@ -206,7 +207,7 @@ export function fitTransform(
   const leftoverX = usableWidth - bounds.w * scale
   return {
     scale,
-    translateX: FIT_PADDING - bounds.minX * scale + Math.max(0, leftoverX) / 2,
+    translateX: padLeft - bounds.minX * scale + Math.max(0, leftoverX) / 2,
     translateY: fittedTranslateY(bounds, usableHeight, pixelRows ? 1 : scale),
   }
 }
