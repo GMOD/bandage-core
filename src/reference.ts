@@ -5,8 +5,9 @@ import type { Graph, PathOrigin } from './types'
 
 // A graph's backbone names the sample it lies on (`GRCh38#0#chr6`), not an
 // assembly, and a bare contig (`chr6`) is in every human assembly at once. A
-// host binds genes and links to an assembly only where the backbone's PanSN
-// prefix is that assembly's name, one of its aliases, or its well-known sample.
+// backbone binds to an assembly where its PanSN prefix is that assembly's name,
+// one of its aliases, or its well-known sample. One that names no sample binds
+// only where the host knows the assembly otherwise, as a track's config does.
 
 export interface BackboneContig {
   // as the graph names it, `GRCh38#0#chr6`

@@ -183,11 +183,15 @@ HLA-DRB6's and HLA-DRB1's:
 ![MHC class II, force-directed, with genes on the backbone](../img/force_mhc.png)
 
 The view draws genes only on a backbone of the assembly it read them for. A
-backbone names a sample by PanSN (`GRCh38#0#chr6`), never an assembly, so the
-view binds it to the cut's assembly by that assembly's name, a session alias,
-the prefix the graph track's `assemblyNameToPanSN` maps it to, or a reference
-assembly's well-known sample (hg38 is GRCh38, hs1 is CHM13). A backbone of bare
-contig names (`chr6`) names no sample, so it takes the assembly the track's
-config puts the graph on: always for an rGFA, whose backbone is fixed, and for a
-path graph only along the path it loaded with. Drawing x along another walk
-hides the genes until x goes back.
+backbone names a sample by PanSN (`GRCh38#0#chr6`), never an assembly. A walk
+names the cut's assembly where its sample or haplotype is that assembly's name,
+a session alias, the prefix the graph track's `assemblyNameToPanSN` maps it to,
+or a reference assembly's well-known sample (hg38 is GRCh38, hs1 is CHM13). A
+path graph opens with x along that walk, else along the first one, which is the
+walk a gbz-base cut follows: the adapter's `referenceSample`, the database's
+only reference sample, or vg's generic `_gbwt_ref`. The graph track's config
+puts that walk, like an rGFA's fixed backbone, on the cut's assembly, so it
+takes the genes whatever its name. Once "Draw x along" picks another walk, the
+genes stay only where that walk names their assembly. A sample-level name
+(`HG002`) names no haplotype of a diploid, and a bare (`chr6`) or generic name
+names none.
