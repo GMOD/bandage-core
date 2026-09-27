@@ -13,6 +13,21 @@ g++ -O2 -std=c++17 -fcx-limited-range -Ivendor/ogdf/include -Ivendor/ogdf/build-
   -o scripts/layout-lab/native/driver
 ```
 
+## Loci
+
+The figures use six HPRC release 2 windows from the
+[HPRC tutorials](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc/). Each
+cuts to under 300 nodes and shows a different kind of variation:
+
+| Locus        | Window                         | What it shows                       |
+| ------------ | ------------------------------ | ----------------------------------- |
+| LPA KIV-2    | `chr6:160,525,000-160,655,000` | the kringle repeat, copy per loop   |
+| MHC class II | `chr6:32,510,000-32,600,000`   | DRB haplotypes, dozens of alleles   |
+| AMY1         | `chr1:103,690,000-103,780,000` | amylase copy number                 |
+| C4           | `chr6:31,980,000-32,050,000`   | one bubble over the C4 duplication  |
+| CFH          | `chr1:196,640,000-196,900,000` | an 84 kb deletion as a bare edge    |
+| KIR          | `chr19:54,750,000-54,840,000`  | the KIR cluster, densest of the six |
+
 ## Cut a locus
 
 ```

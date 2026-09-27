@@ -39,13 +39,10 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 ### Reads
 
 - GAF from `vg giraffe`, minigraph or GraphAligner, set as a gbz-base track's
-  `reads` (or `readsLocation` + `readsIndex`)
+  `reads` (or `readsLocation`)
 - Step names have to be the cut's segment names: numeric ids, or
   `vg giraffe --named-coordinates` on a graph with renamed or chopped segments
-- Indexed: `bgzip` and `tabix -p gaf` a GAF sorted by node id (`vg gamsort -G`);
-  each cut queries its node id range. Needs a `@gmod/tabix` that reads the GAF
-  preset
-- Unindexed: plain or gzipped, read whole, up to 50 MB
+- Plain or gzipped, read whole, up to 50 MB
 - Up to 5000 reads a cut, sampled evenly past that; blues forward, reds reverse
 - The cs tag's edits are drawn on the reads: substituted bases, `*` for an
   insertion, grey for a deletion, hidden when zoomed out
@@ -93,18 +90,3 @@ superbubble covering the DRB block reads as HLA-DRB5's, and the indels after it
 as HLA-DRB6's and HLA-DRB1's:
 
 ![MHC class II, force-directed, with genes on the backbone](../img/force_mhc.png)
-
-## Demonstration loci
-
-The layout screenshots use six HPRC release 2 windows from the
-[HPRC tutorials](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc/). Each
-cuts to under 300 nodes and shows a different kind of variation:
-
-| Locus        | Window                         | What it shows                       |
-| ------------ | ------------------------------ | ----------------------------------- |
-| LPA KIV-2    | `chr6:160,525,000-160,655,000` | the kringle repeat, copy per loop   |
-| MHC class II | `chr6:32,510,000-32,600,000`   | DRB haplotypes, dozens of alleles   |
-| AMY1         | `chr1:103,690,000-103,780,000` | amylase copy number                 |
-| C4           | `chr6:31,980,000-32,050,000`   | one bubble over the C4 duplication  |
-| CFH          | `chr1:196,640,000-196,900,000` | an 84 kb deletion as a bare edge    |
-| KIR          | `chr19:54,750,000-54,840,000`  | the KIR cluster, densest of the six |
