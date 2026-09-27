@@ -23,6 +23,8 @@ import type { Graph, NodeSegment } from './types'
 export const REFERENCE_STRIP_PX = 10
 // the strip, and the gap under it the fit leaves the drawing
 export const REFERENCE_STRIP_ZONE_PX = REFERENCE_STRIP_PX + 8
+// a triangle at a strip end: reference the graph draws runs past that edge
+const OVERHANG_PX = 5
 
 export interface StripBlock {
   node: string
@@ -78,6 +80,28 @@ function span(frame: BpFrame, bp0: number, bp1: number): [number, number] {
 // A SNP's block is a sliver, so the pointer gets a few px either side of one
 const HIT_SLOP_PX = 2
 
+// How much backbone the graph draws past each edge of the window, in bp
+export function stripOverhang(
+  blocks: readonly StripBlock[],
+  frame: BpFrame,
+  width: number,
+) {
+  const a = -frame.translateX / frame.scale
+  const b = (width - frame.translateX) / frame.scale
+  const lo = Math.min(a, b)
+  const hi = Math.max(a, b)
+  let below = 0
+  let above = 0
+  for (const block of blocks) {
+    below += Math.max(0, Math.min(block.bp1, lo) - block.bp0)
+    above += Math.max(0, block.bp1 - Math.max(block.bp0, hi))
+  }
+  // a reversed window puts low bp on the right
+  return frame.scale >= 0
+    ? { left: Math.round(below), right: Math.round(above) }
+    : { left: Math.round(above), right: Math.round(below) }
+}
+
 export function stripBlockAt(
   blocks: readonly StripBlock[],
   frame: BpFrame,
@@ -115,6 +139,21 @@ export interface StripLit {
   anchor?: { x: number; y: number }
 }
 
+// A triangle with its tip on the strip's edge, pointing off it; `inward` is
+// +1 from the left edge and -1 from the right
+function drawOverhang(
+  ctx: CanvasRenderingContext2D,
+  tipX: number,
+  inward: number,
+) {
+  const mid = REFERENCE_STRIP_PX / 2
+  const baseX = tipX + inward * (OVERHANG_PX + 1)
+  ctx.moveTo(tipX + inward, mid)
+  ctx.lineTo(baseX, mid - OVERHANG_PX / 1.4)
+  ctx.lineTo(baseX, mid + OVERHANG_PX / 1.4)
+  ctx.closePath()
+}
+
 export function drawReferenceStrip(
   ctx: CanvasRenderingContext2D,
   blocks: readonly StripBlock[],
@@ -123,8 +162,13 @@ export function drawReferenceStrip(
     width,
     lit,
     darkMode,
-  }: { width: number; lit?: StripLit; darkMode?: boolean },
+  }: {
+    width: number
+    lit?: StripLit
+    darkMode?: boolean
+  },
 ) {
+  const ink = darkMode ? '#ffffff' : '#18181c'
   ctx.fillStyle = darkMode ? '#1f1f1f' : '#ffffff'
   ctx.fillRect(0, 0, width, REFERENCE_STRIP_ZONE_PX)
   for (const b of blocks) {
@@ -134,8 +178,22 @@ export function drawReferenceStrip(
       ctx.fillRect(x0, 0, Math.max(x1 - x0, 1), REFERENCE_STRIP_PX)
     }
   }
+  const overhang = stripOverhang(blocks, frame, width)
+  if (overhang.left > 0 || overhang.right > 0) {
+    ctx.beginPath()
+    if (overhang.left > 0) {
+      drawOverhang(ctx, 0, 1)
+    }
+    if (overhang.right > 0) {
+      drawOverhang(ctx, width, -1)
+    }
+    ctx.fillStyle = ink
+    ctx.fill()
+    ctx.strokeStyle = darkMode ? '#1f1f1f' : '#ffffff'
+    ctx.lineWidth = 1
+    ctx.stroke()
+  }
   if (lit) {
-    const ink = darkMode ? '#ffffff' : '#18181c'
     const [x0, x1] = span(frame, lit.start, lit.end)
     const w = Math.max(x1 - x0, 3)
     const left = (x0 + x1) / 2 - w / 2

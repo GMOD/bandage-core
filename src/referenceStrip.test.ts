@@ -2,6 +2,7 @@ import {
   nodeAnchor,
   referenceStripBlocks,
   stripBlockAt,
+  stripOverhang,
 } from './referenceStrip'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
 
@@ -71,6 +72,20 @@ test('a block is hit where the linear view places its bp', () => {
   // reversed, the strip runs right to left
   const reversed = { scale: -0.5, translateX: 600 }
   expect(stripBlockAt(blocks, reversed, 75, 4)).toBe('a')
+})
+
+test('the overhang is the backbone drawn past each edge of the window', () => {
+  const blocks = referenceStripBlocks(graph, { colorScheme: 'uniform' })
+  // bp 1020 to 1180 across 80 px
+  const frame = { scale: 0.5, translateX: -510 }
+  expect(stripOverhang(blocks, frame, 80)).toEqual({ left: 20, right: 20 })
+  expect(stripOverhang(blocks, { scale: 0.5, translateX: -500 }, 100)).toEqual({
+    left: 0,
+    right: 0,
+  })
+  // reversed, low bp is on the right
+  const reversed = { scale: -0.5, translateX: 600 }
+  expect(stripOverhang(blocks, reversed, 90)).toEqual({ left: 0, right: 20 })
 })
 
 test('a node is anchored at the middle of its polyline', () => {

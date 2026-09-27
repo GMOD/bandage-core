@@ -36,8 +36,9 @@ ramp a hue on the strip finds its node below. Hovering either one boxes the
 node's reference span on the strip and draws a leader to the node; an allele's
 span runs between its flanks. Hovering a bubble's name does the same for the
 bubble's span. While the Walk picker lifts a haplotype, the reference segments
-it skips fade on the strip as they do in the graph. The track menu's **Reference
-strip at bp** turns it off.
+it skips fade on the strip as they do in the graph. A triangle at either end of
+the strip says the graph draws reference past that edge of the window. The track
+menu's **Reference strip at bp** turns the strip off.
 
 ![KIV-2's 68 kb allele hovered: the strip boxes the span between its flanks, and the linear view bands it](../img/force_kiv2_hover.png)
 
@@ -136,10 +137,12 @@ haplotypes, zoomed in far enough to letter each read's mismatches:
 The plugin reads `gfatools bubble` output from `<prefix>.bubbles.bed.gz` beside
 the rGFA index, which HPRC's hosted graph has and `scripts/build_rgfa_tabix.sh`
 in jbrowse-components writes. For a GBZ cut, a pggb file or a popped bubble, the
-plugin derives bubbles from the ordered layout's layering. Node layouts draw
-bubbles as halos, and the variant map draws them as glyphs.
+plugin derives bubbles from the ordered layout's layering. The variant map draws
+bubbles as glyphs. With **Mark bubbles** on, the node layouts draw each as a
+halo along its nodes, coloured by kind, which the legend names. It is off by
+default, since at base level every SNP's halo is a blob.
 
-![KIV-2, force-directed, with its bubbles marked](../img/force_kiv2.png)
+![KIV-2, force-directed, with its bubbles marked](../img/force_kiv2_bubbles.png)
 
 A bubble's label opens its nodes on their own, with a button back to the window.
 The popped graph derives its own bubbles, so a superbubble opens level by level.
