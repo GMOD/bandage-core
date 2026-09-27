@@ -13,13 +13,16 @@ import type { Graph, GraphPath } from '../types'
 // so a copy count is not a visit count; it is the sequence a walk spends
 // between the reference nodes flanking the window, divided by the unit. Runs
 // distinguish sequence the reference walk also carries from sequence it does
-// not, so an expansion is the purple stretch of a row.
+// not, so an expansion is the off-reference stretch of a row.
 
 export interface WalkRun {
   // bp offset from the start of this walk's slice
   start: number
   bp: number
   onReference: boolean
+  // reference bp an on-reference run starts at; the run covers that much
+  // reference contiguously, so a copy of a repeat unit states which unit it is
+  referenceStart?: number
 }
 
 export interface WalkRow {
@@ -106,7 +109,6 @@ export function walkRows(
     return undefined
   }
   const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
-  const onReference = new Set(reference.nodeIds)
   const referenceStart =
     graph.anchorPaths?.find(p => p.name === pathOrigin(reference.name).name)
       ?.start ?? 0
@@ -136,12 +138,16 @@ export function walkRows(
     let offReferenceBp = 0
     for (const id of ids) {
       const len = lengthOf.get(id) ?? 0
-      const shared = onReference.has(id)
+      const referenceStart = span.get(id)?.start
+      const shared = referenceStart !== undefined
       const last = runs.at(-1)
-      if (last?.onReference === shared) {
+      if (
+        last?.onReference === shared &&
+        (!shared || last.referenceStart! + last.bp === referenceStart)
+      ) {
         last.bp += len
       } else {
-        runs.push({ start: bp, bp: len, onReference: shared })
+        runs.push({ start: bp, bp: len, onReference: shared, referenceStart })
       }
       bp += len
       if (!shared) {

@@ -503,7 +503,9 @@ const REFERENCE_RAMP_LIGHTNESS = 0.5
 //
 // Distinct from the light grey a node with no reference coordinates at all gets:
 // this one is anchored and off-reference, that one is unplaceable.
-const REFERENCE_RAMP_ALT_COLOR = packAbgr(60, 65, 72, 255)
+const REFERENCE_RAMP_ALT_RGB = [60, 65, 72] as const
+const REFERENCE_RAMP_ALT_COLOR = packAbgr(...REFERENCE_RAMP_ALT_RGB, 255)
+export const REFERENCE_RAMP_ALT_CSS = `rgb(${REFERENCE_RAMP_ALT_RGB.join(', ')})`
 
 export interface ReferenceRamp {
   start: number

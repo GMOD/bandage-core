@@ -13,10 +13,11 @@ The plugin ships eight layouts:
 - **Anchored**: x is reference bp, one row per stable rank, aligned under a
   linear view.
 - **Sample rows**: x is reference bp, one row per contributing assembly.
-- **Walk rows**: x is each walk's own bp, one bar per haplotype. Blue marks
-  sequence the reference shares and purple sequence it lacks, so a repeat
-  expansion reads as bar length. The Repeat picker tiles the bars by a repeat
-  annotation's unit and marks the allele a genotyper called.
+- **Walk rows**: x is each walk's own bp, one bar per haplotype, so a repeat
+  expansion reads as bar length. Sequence shared with the reference takes its
+  reference-position hue and haplotype-only sequence is charcoal; under other
+  colour schemes they are blue and purple. The Repeat picker tiles the bars by a
+  repeat annotation's unit and marks the allele a genotyper called.
 - **Tube map**: [sequenceTubeMap](https://github.com/vgteam/sequenceTubeMap)'s
   drawing, every path a coloured tube through boxed nodes, with columns in node
   order and node widths log-scaled.

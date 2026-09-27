@@ -39,18 +39,35 @@ test('one row per non-reference path, longest first, bp summed over its nodes', 
   expect(result.reference.offReferenceBp).toBe(0)
 })
 
-test('runs alternate and cover the row without gaps', () => {
+test('runs cover the row without gaps, splitting shared sequence where its reference jumps', () => {
   const { rows } = walkRows(pggbGraph())!
   for (const row of rows) {
     let pos = 0
     row.runs.forEach((run, i) => {
       expect(run.start).toBe(pos)
-      if (i > 0) {
-        expect(run.onReference).not.toBe(row.runs[i - 1]!.onReference)
+      const prev = row.runs[i - 1]
+      if (prev?.onReference && run.onReference) {
+        expect(run.referenceStart).not.toBe(prev.referenceStart! + prev.bp)
+      } else if (prev) {
+        expect(run.onReference).not.toBe(prev.onReference)
       }
+      expect(run.referenceStart !== undefined).toBe(run.onReference)
       pos += run.bp
     })
   }
+})
+
+test('the reference row is one run spanning its own coordinates', () => {
+  const graph = pggbGraph()
+  const { reference, origin } = walkRows(graph)!
+  expect(reference.runs).toEqual([
+    {
+      start: 0,
+      bp: reference.bp,
+      onReference: true,
+      referenceStart: origin,
+    },
+  ])
 })
 
 test('a region measures between its flanking reference nodes', () => {
