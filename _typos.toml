@@ -35,3 +35,5 @@ REPID = "REPID"
 Reigon = "Reigon"
 # vg's graph alignment format
 GAM = "GAM"
+# E. coli's thr operon genes (thrL, thrA) in the reference tests
+thr = "thr"
