@@ -46,10 +46,30 @@ export function tubeMapGenes(
   return out
 }
 
-const ROW_PX = 22
+export const GENE_ROW_PX = 22
+const MAX_GENE_ROWS = 4
 const EXON_PX = 8
 const NAME_FONT = '11px sans-serif'
 const NAME_GAP_PX = 8
+
+// The rows the genes need at least: as many as overlap at one point, which
+// holds at every zoom. A name wider than its gene can want more, and shares
+// the top row.
+export function tubeMapGeneRows(genes: readonly TubeMapGene[]) {
+  const edges = genes
+    .flatMap(g => [
+      { x: g.x0, step: 1 },
+      { x: g.x1, step: -1 },
+    ])
+    .sort((a, b) => a.x - b.x || a.step - b.step)
+  let depth = 0
+  let most = 0
+  for (const { step } of edges) {
+    depth += step
+    most = Math.max(most, depth)
+  }
+  return Math.min(MAX_GENE_ROWS, most)
+}
 
 // Rows of genes above the tubes, bottom row nearest them, packed so neither
 // glyphs nor names overlap. Packed per frame, since the reference axis warps x
@@ -62,7 +82,7 @@ export function drawTubeMapGenes(
   top = 0,
 ) {
   const { x, width, darkMode } = frame
-  const rows = Math.max(1, Math.floor((bottom - top) / ROW_PX))
+  const rows = Math.max(1, Math.floor((bottom - top) / GENE_ROW_PX))
   const rowEnds: number[] = []
   const ink = darkMode ? '#e0e0e6' : '#1c1c22'
   ctx.font = NAME_FONT
@@ -88,7 +108,7 @@ export function drawTubeMapGenes(
       row = Math.min(rowEnds.length, rows - 1)
     }
     rowEnds[row] = Math.max(rowEnds[row] ?? -Infinity, right)
-    const glyphY = bottom - row * ROW_PX - EXON_PX / 2
+    const glyphY = bottom - row * GENE_ROW_PX - EXON_PX / 2
     ctx.beginPath()
     ctx.moveTo(s0, glyphY + 0.5)
     ctx.lineTo(s1, glyphY + 0.5)

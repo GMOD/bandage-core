@@ -2,13 +2,14 @@ import fs from 'fs'
 import path from 'path'
 
 import { referenceBoxes, rulerBoxes, tubeX } from './axis'
-import { tubeMapGenes } from './genes'
+import { tubeMapGeneRows, tubeMapGenes } from './genes'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
 
 import type { ReferenceBoxes } from './axis'
+import type { TubeMapGene } from './genes'
 import type { GeneModel } from '../genes/genePins'
 
 const GFA = fs.readFileSync(
@@ -100,4 +101,15 @@ test('a span on a box boundary stays off the curves either side', () => {
   const [a, b] = boxes
   expect(tubeX(boxes, a!.bp1)).toBe(b!.x0)
   expect(tubeX(boxes, a!.bp1, true)).toBe(a!.x1)
+})
+
+function span(x0: number, x1: number): TubeMapGene {
+  return { gene: gene({}), x0, x1, exons: [] }
+}
+
+test('the genes need as many rows as overlap at one point, up to four', () => {
+  expect(tubeMapGeneRows([])).toBe(0)
+  expect(tubeMapGeneRows([span(0, 10), span(10, 20)])).toBe(1)
+  expect(tubeMapGeneRows([span(0, 100), span(20, 30), span(25, 60)])).toBe(3)
+  expect(tubeMapGeneRows(Array.from({ length: 6 }, () => span(0, 10)))).toBe(4)
 })

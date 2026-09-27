@@ -40,8 +40,9 @@ and Tube map need W or P lines, and Tube map on reference needs both.
   taller for wider tubes
 - In a view of its own, the session's genes draw in rows above the tubes, mapped
   through the reference's boxes, so on the own axis an exon is as wide as the
-  boxes that carry it. A linear view has them in their own track, at their bp,
-  and draws none over the tubes
+  boxes that carry it. The fit leaves as many rows as genes overlap at one
+  point, up to four. A linear view has them in their own track, at their bp, and
+  draws none over the tubes
 - On the own axis in a linear view, a band runs from each reference node's bp on
   the ruler down to its box, as the LD display ties its matrix columns to their
   variants. The wedges between bands are the curves and inserted sequence, which

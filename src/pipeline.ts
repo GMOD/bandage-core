@@ -171,9 +171,10 @@ export function fittedTranslateY(
   bounds: { minY: number; h: number },
   usableHeight: number,
   yScale: number,
+  padTop = FIT_PADDING,
 ) {
   const leftoverY = usableHeight - bounds.h * yScale
-  return FIT_PADDING - bounds.minY * yScale + Math.max(0, leftoverY) / 2
+  return padTop - bounds.minY * yScale + Math.max(0, leftoverY) / 2
 }
 
 // The transform that fits `bounds` in the pane, or undefined when there is
@@ -182,16 +183,17 @@ export function fittedTranslateY(
 // node on row 0. A row layout (`pixelRows`) fits on x alone and keeps y in
 // screen px; an isotropic one fits on whichever axis binds. Below `minScale`
 // the drawing overflows x instead, its left end at the padding. `padLeft`
-// widens the left gap past the row labels pinned to that edge.
+// widens the left gap past the row labels pinned to that edge, `padTop` the
+// top one for the gene rows over a tube map.
 export function fitTransform(
   bounds: { minX: number; minY: number; w: number; h: number },
   paneWidth: number,
   paneHeight: number,
   pixelRows: boolean,
-  { minScale = 0, padLeft = FIT_PADDING } = {},
+  { minScale = 0, padLeft = FIT_PADDING, padTop = FIT_PADDING } = {},
 ) {
   const usableWidth = paneWidth - padLeft - FIT_PADDING
-  const usableHeight = paneHeight - FIT_PADDING * 2
+  const usableHeight = paneHeight - padTop - FIT_PADDING
   if (
     usableWidth <= 0 ||
     usableHeight <= 0 ||
@@ -208,7 +210,12 @@ export function fitTransform(
   return {
     scale,
     translateX: padLeft - bounds.minX * scale + Math.max(0, leftoverX) / 2,
-    translateY: fittedTranslateY(bounds, usableHeight, pixelRows ? 1 : scale),
+    translateY: fittedTranslateY(
+      bounds,
+      usableHeight,
+      pixelRows ? 1 : scale,
+      padTop,
+    ),
   }
 }
 
