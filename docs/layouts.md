@@ -57,11 +57,33 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 
 ### Reads
 
-- GAF from `vg giraffe`, minigraph or GraphAligner, set as a gbz-base track's
-  `reads` (or `readsLocation`)
-- Step names have to be the cut's segment names: numeric ids, or
-  `vg giraffe --named-coordinates` on a graph with renamed or chopped segments
-- Plain or gzipped, read whole, up to 50 MB
+GAF reads draw under the haplotypes of a gbz-base track in both tube map
+layouts. The adapter names the file:
+
+```json
+{
+  "type": "GbzBaseSyntenyAdapter",
+  "uri": "graph.gbz.db",
+  "reads": "reads.gaf",
+  "assemblyNames": ["hg38"]
+}
+```
+
+`vg giraffe` aligns reads to the same GBZ, building its distance and minimizer
+indexes on the first run:
+
+```console
+vg giraffe -Z graph.gbz -f reads.fq -o gaf > reads.gaf
+```
+
+- GAF from minigraph or GraphAligner works too. Step names have to be the cut's
+  segment names: numeric ids, or `vg giraffe --named-coordinates` on a graph
+  with renamed or chopped segments
+- The plugin reads the file whole, plain or gzipped, up to 50 MB. A gzipped GAF
+  goes in `"readsLocation": { "uri": "reads.gaf.gz" }`: the `reads` shorthand
+  gives a `.gz` a `tabix -p gaf` index, which `@gmod/tabix` 3.8.3 can't read
+- Only gbz-base tracks take reads; an rGFA track, or a GFA file opened with
+  **Add → Graph genome view**, has no reads input
 - Up to 5000 reads a cut, sampled evenly past that; blues forward, reds reverse
 - The cs tag's edits are drawn on the reads: substituted bases, `*` for an
   insertion, grey for a deletion, hidden when zoomed out
