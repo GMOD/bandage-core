@@ -39,8 +39,9 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 - The session's genes draw in rows above the tubes, mapped through the
   reference's boxes, so on the own axis an exon is as wide as the boxes that
   carry it
-- Outside a linear view a reference ruler runs under the tubes; on the own axis
-  its ticks bunch in long boxes, which shows the log scale
+- Outside a linear view a reference ruler runs under the tubes. On the own axis
+  a long box's log width squeezes its bp, so its stretch of ruler zigzags,
+  carries no ticks, and shows the box's length where the label fits
 - A box's outline fades below 12 px wide, so a zoomed-out cut shows its tubes
 - On the own axis the fit stops at 5 px tubes: a longer cut opens at its left
   end and you pan along it, as in sequenceTubeMap, or zoom out for the whole cut

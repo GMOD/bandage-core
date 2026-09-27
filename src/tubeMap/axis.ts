@@ -1,4 +1,5 @@
 import { isBackbone } from '../anchoredNodes'
+import { formatBp } from '../graphLabels'
 
 import type { TubeMapFrame } from './draw'
 import type { Graph } from '../types'
@@ -93,6 +94,8 @@ export function rulerBoxes(byContig: ReferenceBoxes) {
 const TICK_PX = 5
 const LABEL_GAP_PX = 10
 const TARGET_TICK_PX = 110
+const ZIGZAG_PX = 4
+const ZIGZAG_AMPLITUDE_PX = 2.5
 
 function niceStep(raw: number) {
   const pow = 10 ** Math.floor(Math.log10(raw))
@@ -100,60 +103,149 @@ function niceStep(raw: number) {
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * pow
 }
 
-// Reference bp along the tubes. On the own axis the ticks bunch in a long box
-// and spread in a short one, which is the log scale made visible; a label
-// that would collide with the one before it is dropped, not its tick.
+interface Label {
+  text: string
+  at: number
+  width: number
+}
+
+export interface RulerMarks {
+  from: number
+  to: number
+  ticks: number[]
+  // screen spans of the boxes too narrow for the ticks their bp would get
+  squeezed: { x0: number; x1: number }[]
+  labels: { text: string; at: number }[]
+}
+
+// Screen x of the ruler's marks. The tick step suits the cut's bp per px as a
+// whole, so a box that crams a step into under half the usual spacing, as a
+// long node's log width does on the own axis, would bunch its ticks. The ruler
+// gives such a box none, squeezes its stretch, and labels it with its length.
+// Positions take the label row first, then lengths; the ruler drops a label
+// that would overlap one already placed, but keeps its tick.
+export function rulerMarks(
+  boxes: readonly Box[],
+  x: (tx: number) => number,
+  width: number,
+  measure: (text: string) => number,
+): RulerMarks | undefined {
+  const first = boxes[0]
+  const last = boxes.at(-1)
+  if (!first || !last) {
+    return undefined
+  }
+  const from = x(first.x0)
+  const to = x(last.x1)
+  const bpSpan = last.bp1 - first.bp0
+  if (to <= from || bpSpan <= 0) {
+    return undefined
+  }
+  const step = niceStep((bpSpan / (to - from)) * TARGET_TICK_PX)
+  const squeezedBoxes = boxes.filter(box => {
+    const bp = box.bp1 - box.bp0
+    return (
+      bp >= step && ((x(box.x1) - x(box.x0)) * step) / bp < TARGET_TICK_PX / 2
+    )
+  })
+  const squeezed: RulerMarks['squeezed'] = []
+  const lengths: Label[] = []
+  for (const box of squeezedBoxes) {
+    const x0 = x(box.x0)
+    const x1 = x(box.x1)
+    if (x1 >= 0 && x0 <= width) {
+      squeezed.push({ x0, x1 })
+      const text = formatBp(box.bp1 - box.bp0)
+      lengths.push({ text, at: (x0 + x1) / 2, width: measure(text) })
+    }
+  }
+  const ticks: number[] = []
+  const positions: Label[] = []
+  let k = 0
+  for (
+    let bp = Math.ceil(first.bp0 / step) * step;
+    bp <= last.bp1;
+    bp += step
+  ) {
+    while (k < squeezedBoxes.length && squeezedBoxes[k]!.bp1 <= bp) {
+      k++
+    }
+    if (k < squeezedBoxes.length && squeezedBoxes[k]!.bp0 < bp) {
+      continue
+    }
+    const sx = Math.round(x(tubeX(boxes, bp))) + 0.5
+    if (sx >= 0 && sx <= width) {
+      ticks.push(sx)
+      const text = bp.toLocaleString('en-US')
+      positions.push({ text, at: sx, width: measure(text) })
+    }
+  }
+  const placed: Label[] = []
+  const clear = (a: Label) =>
+    placed.every(
+      b => Math.abs(a.at - b.at) >= (a.width + b.width) / 2 + LABEL_GAP_PX,
+    )
+  for (const label of [...positions, ...lengths]) {
+    if (clear(label)) {
+      placed.push(label)
+    }
+  }
+  return {
+    from,
+    to,
+    ticks,
+    squeezed,
+    labels: placed.map(({ text, at }) => ({ text, at })),
+  }
+}
+
+function zigzag(
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  x1: number,
+  y: number,
+) {
+  const teeth = Math.max(1, Math.round((x1 - x0) / ZIGZAG_PX))
+  const dx = (x1 - x0) / teeth
+  for (let i = 0; i < teeth; i++) {
+    ctx.lineTo(x0 + (i + 0.5) * dx, y + (i % 2 ? 1 : -1) * ZIGZAG_AMPLITUDE_PX)
+  }
+  ctx.lineTo(x1, y)
+}
+
+// Reference bp along the tubes, a zigzag where a box squeezes its bp
 export function drawTubeMapRuler(
   ctx: CanvasRenderingContext2D,
   boxes: readonly Box[],
   frame: TubeMapFrame,
   top: number,
 ) {
-  const first = boxes[0]
-  const last = boxes.at(-1)
-  if (!first || !last) {
-    return
-  }
   const { x, width, darkMode } = frame
-  const s0 = x(first.x0)
-  const s1 = x(last.x1)
-  const bpSpan = last.bp1 - first.bp0
-  if (s1 <= s0 || bpSpan <= 0) {
+  ctx.font = '10px sans-serif'
+  const marks = rulerMarks(boxes, x, width, text => ctx.measureText(text).width)
+  if (!marks) {
     return
   }
-  const step = niceStep((bpSpan / (s1 - s0)) * TARGET_TICK_PX)
   const ink = darkMode ? '#b0b0b8' : '#55555c'
+  const y = top + 0.5
   ctx.strokeStyle = ink
   ctx.fillStyle = ink
   ctx.lineWidth = 1
-  ctx.font = '10px sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
   ctx.beginPath()
-  ctx.moveTo(Math.max(0, s0), top + 0.5)
-  ctx.lineTo(Math.min(width, s1), top + 0.5)
-  let labelRight = -Infinity
-  const labels: { text: string; at: number }[] = []
-  for (
-    let bp = Math.ceil(first.bp0 / step) * step;
-    bp <= last.bp1;
-    bp += step
-  ) {
-    const sx = Math.round(x(tubeX(boxes, bp))) + 0.5
-    if (sx < 0 || sx > width) {
-      continue
-    }
+  ctx.moveTo(Math.max(0, marks.from), y)
+  for (const { x0, x1 } of marks.squeezed) {
+    ctx.lineTo(x0, y)
+    zigzag(ctx, x0, x1, y)
+  }
+  ctx.lineTo(Math.min(width, marks.to), y)
+  for (const sx of marks.ticks) {
     ctx.moveTo(sx, top)
     ctx.lineTo(sx, top + TICK_PX)
-    const text = bp.toLocaleString('en-US')
-    const half = ctx.measureText(text).width / 2
-    if (sx - half >= labelRight + LABEL_GAP_PX) {
-      labels.push({ text, at: sx })
-      labelRight = sx + half
-    }
   }
   ctx.stroke()
-  for (const { text, at } of labels) {
+  for (const { text, at } of marks.labels) {
     ctx.fillText(text, at, top + TICK_PX + 2)
   }
 }
