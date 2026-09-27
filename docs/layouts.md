@@ -48,10 +48,11 @@ and Tube map need W or P lines, and Tube map on reference needs both.
   variants. The wedges between bands are the curves and inserted sequence, which
   cover no reference. Hovering a band picks out its node, and a cut too long for
   the track fans out from the stretch of ruler on screen
-- On the own axis a reference ruler runs under the tubes. A long box's log width
-  squeezes its bp, so its stretch of ruler zigzags, carries no ticks, and shows
-  the box's length where the label fits; the legend explains the zigzag while
-  one is on screen
+- On the own axis a box is as wide as the log of its length (2 bp is 8 px, 100
+  bp 56, 1 kb 84, 22 kb 121), so no box is to scale, and the legend says so. The
+  ruler under the tubes treats every box alike: a bracket with a tick at each
+  end, the box's length where it fits inside, and positions at box boundaries,
+  the ends of what is on screen first
 - A box's outline fades below 12 px wide, so a zoomed-out cut shows its tubes
 - On the own axis the fit stops at 5 px tubes: a longer cut opens at its left
   end and you pan along it, as in sequenceTubeMap, or zoom out for the whole cut
