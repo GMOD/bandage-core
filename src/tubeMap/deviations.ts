@@ -97,8 +97,12 @@ export function deviationMarks(
   return marks
 }
 
-// A tick at least a px wide across the tube, dark on light and light on dark,
-// since the tubes themselves carry every hue
+// Dark on light and light on dark, since the tubes themselves carry every hue
+export function deviationInk(darkMode?: boolean) {
+  return darkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)'
+}
+
+// A tick at least a px wide across the tube
 export function drawDeviationMarks(
   ctx: CanvasRenderingContext2D,
   marks: readonly DeviationMark[],
@@ -107,7 +111,7 @@ export function drawDeviationMarks(
   if (marks.length === 0) {
     return
   }
-  ctx.fillStyle = darkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)'
+  ctx.fillStyle = deviationInk(darkMode)
   ctx.beginPath()
   for (const m of marks) {
     const left = x(m.x0)

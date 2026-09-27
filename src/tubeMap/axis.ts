@@ -90,8 +90,12 @@ export function rulerBoxes(byContig: ReferenceBoxes) {
 const TICK_PX = 5
 const LABEL_GAP_PX = 10
 const TARGET_TICK_PX = 110
-const ZIGZAG_PX = 4
-const ZIGZAG_AMPLITUDE_PX = 2.5
+export const ZIGZAG_PX = 4
+export const ZIGZAG_AMPLITUDE_PX = 2.5
+
+export function rulerInk(darkMode?: boolean) {
+  return darkMode ? '#b0b0b8' : '#55555c'
+}
 
 function niceStep(raw: number) {
   const pow = 10 ** Math.floor(Math.log10(raw))
@@ -222,7 +226,7 @@ export function drawTubeMapRuler(
   if (!marks) {
     return
   }
-  const ink = darkMode ? '#b0b0b8' : '#55555c'
+  const ink = rulerInk(darkMode)
   const y = top + 0.5
   ctx.strokeStyle = ink
   ctx.fillStyle = ink
