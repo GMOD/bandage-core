@@ -89,6 +89,7 @@ export function rulerBoxes(byRefName: ReferenceBoxes) {
 
 const TICK_PX = 5
 const LABEL_GAP_PX = 10
+const TARGET_TICK_PX = 110
 // narrower than this a box draws as one tick rather than a bracket
 const MIN_BRACKET_PX = 3
 
@@ -102,6 +103,27 @@ interface Label {
   width: number
 }
 
+function niceStep(raw: number) {
+  const pow = 10 ** Math.floor(Math.log10(raw))
+  const m = raw / pow
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * pow
+}
+
+// In order, dropping any that would overlap one already placed
+function placeLabels(candidates: readonly Label[]) {
+  const placed: Label[] = []
+  for (const a of candidates) {
+    if (
+      placed.every(
+        b => Math.abs(a.at - b.at) >= (a.width + b.width) / 2 + LABEL_GAP_PX,
+      )
+    ) {
+      placed.push(a)
+    }
+  }
+  return placed.map(({ text, at }) => ({ text, at }))
+}
+
 export interface RulerMarks {
   // each box's span; the gaps between them stay blank, since the lane changes
   // drawn there cover no reference
@@ -110,14 +132,54 @@ export interface RulerMarks {
   labels: { text: string; at: number }[]
 }
 
+// On the reference axis the boxes sit on their bp, so one scale runs across
+// the ruler and its ticks fall on round positions.
+function scaleMarks(
+  boxes: readonly Box[],
+  x: (tx: number) => number,
+  width: number,
+  measure: (text: string) => number,
+): RulerMarks | undefined {
+  const first = boxes[0]
+  const last = boxes.at(-1)
+  if (!first || !last) {
+    return undefined
+  }
+  const from = x(first.x0)
+  const to = x(last.x1)
+  const bpSpan = last.bp1 - first.bp0
+  if (to <= from || bpSpan <= 0) {
+    return undefined
+  }
+  const step = niceStep((bpSpan / (to - from)) * TARGET_TICK_PX)
+  const ticks: number[] = []
+  const positions: Label[] = []
+  for (
+    let bp = Math.ceil(first.bp0 / step) * step;
+    bp <= last.bp1;
+    bp += step
+  ) {
+    const sx = Math.round(x(tubeX(boxes, bp))) + 0.5
+    if (sx >= 0 && sx <= width) {
+      ticks.push(sx)
+      const text = bp.toLocaleString('en-US')
+      positions.push({ text, at: sx, width: measure(text) })
+    }
+  }
+  return {
+    spans: [{ x0: from, x1: to }],
+    ticks,
+    labels: placeLabels(positions),
+  }
+}
+
 // On the own axis every box is as wide as the log of its length (tubemap-core's
 // compressed widths: 2 bp is 8 px, 100 bp 56, 1 kb 84, 22 kb 121), so no box is
 // to scale and no one scale runs across them. The ruler treats every box alike:
 // a bracket under it, a tick at each end, its length where that fits inside it,
 // and positions at box boundaries. Labels are placed in that order after the
-// two ends of what is on screen, and one that would overlap a placed one is
-// dropped.
-export function rulerMarks(
+// two ends of what is on screen.
+function boxMarks(
   boxes: readonly Box[],
   x: (tx: number) => number,
   width: number,
@@ -160,33 +222,41 @@ export function rulerMarks(
     position(first.box.bp0, first.s0),
     position(last.box.bp1, last.s1),
   ]
-  const placed: Label[] = []
-  const clear = (a: Label) =>
-    placed.every(
-      b => Math.abs(a.at - b.at) >= (a.width + b.width) / 2 + LABEL_GAP_PX,
-    )
-  for (const l of [...ends, ...lengths, ...boundaries]) {
-    if (clear(l)) {
-      placed.push(l)
-    }
-  }
   return {
     spans,
     ticks,
-    labels: placed.map(({ text, at }) => ({ text, at })),
+    labels: placeLabels([...ends, ...lengths, ...boundaries]),
   }
 }
 
-// Reference bp along the tubes: a bracket per box, lengths and boundaries
+export function rulerMarks(
+  boxes: readonly Box[],
+  x: (tx: number) => number,
+  width: number,
+  measure: (text: string) => number,
+  referenceAxis = false,
+) {
+  return (referenceAxis ? scaleMarks : boxMarks)(boxes, x, width, measure)
+}
+
+// Reference bp along the tubes: round positions on the reference axis, a
+// bracket per box on the own axis
 export function drawTubeMapRuler(
   ctx: CanvasRenderingContext2D,
   boxes: readonly Box[],
   frame: TubeMapFrame,
   top: number,
+  referenceAxis = false,
 ) {
   const { x, width, darkMode } = frame
   ctx.font = '10px sans-serif'
-  const marks = rulerMarks(boxes, x, width, text => ctx.measureText(text).width)
+  const marks = rulerMarks(
+    boxes,
+    x,
+    width,
+    text => ctx.measureText(text).width,
+    referenceAxis,
+  )
   if (!marks) {
     return
   }

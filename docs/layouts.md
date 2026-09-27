@@ -52,7 +52,9 @@ and Tube map need W or P lines, and Tube map on reference needs both.
   bp 56, 1 kb 84, 22 kb 121), so no box is to scale, and the legend says so. The
   ruler under the tubes treats every box alike: a bracket with a tick at each
   end, the box's length where it fits inside, and positions at box boundaries,
-  the ends of what is on screen first
+  the ends of what is on screen first. On the reference axis the boxes are to
+  scale, so its ruler is one line with round positions, and in a linear view the
+  view's own ruler is the axis
 - A box's outline fades below 12 px wide, so a zoomed-out cut shows its tubes
 - On the own axis the fit stops at 5 px tubes: a longer cut opens at its left
   end and you pan along it, as in sequenceTubeMap, or zoom out for the whole cut

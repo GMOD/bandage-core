@@ -65,3 +65,19 @@ test('placed labels keep clear of each other', () => {
     expect(spans[i]![0]!).toBeGreaterThan(spans[i - 1]![1]!)
   }
 })
+
+test('on the reference axis the ruler is one line with ticks at round positions', () => {
+  // ten 100 bp boxes as wide as their bp, 20 px apart
+  const boxes = Array.from({ length: 10 }, (_, i) => ({
+    bp0: i * 100,
+    bp1: (i + 1) * 100,
+    x0: i * 120,
+    x1: i * 120 + 100,
+  }))
+  const marks = rulerMarks(boxes, identity, 2000, measure, true)!
+  expect(marks.spans).toEqual([{ x0: 0, x1: 1180 }])
+  expect(marks.labels.length).toBeGreaterThan(3)
+  for (const { text } of marks.labels) {
+    expect(Number(text.replaceAll(',', '')) % 100).toBe(0)
+  }
+})
