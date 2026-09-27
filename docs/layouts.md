@@ -28,17 +28,13 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 
 ## Tube maps
 
-`@gmod/tubemap-core`, the layout sequenceTubeMap draws with, places the tubes;
-the plugin feeds it the graph's P and W lines, reference first, and draws its
-shapes on a canvas over the graph pane. A path that walks a segment against the
-strand it is drawn in runs through its box right to left.
-
-On the reference axis the tube map still changes lanes between columns, and
-adjacent reference nodes abut, so each boundary takes up to 24 px from the
-columns beside it for the curves. A column of inserted sequence covers no
-reference and shares its boundary's room. In a linear view's track the stack of
-tubes is squeezed to the track's height, and dragging the track taller gives the
-tubes back their width. Tubes narrow as haplotypes are added, down to 3 px.
+- Laid out by `@gmod/tubemap-core`, sequenceTubeMap's layout, from the P and W
+  lines, reference first
+- A reverse-strand walk runs through its boxes right to left
+- On the reference axis each column boundary takes up to 24 px for its curves;
+  inserted sequence covers no reference
+- In a linear view's track the tubes squeeze to the track's height; drag it
+  taller for wider tubes
 
 ![The pggb E. coli subgraph as a tube map on both axes, and a GBZ cut of the MICB locus as a track of a linear view](../img/tube_map.png)
 
