@@ -20,9 +20,11 @@ export interface WalkRun {
   start: number
   bp: number
   onReference: boolean
-  // reference bp an on-reference run starts at; the run covers that much
+  // lowest reference bp an on-reference run covers; the run covers `bp` of
   // reference contiguously, so a copy of a repeat unit states which unit it is
   referenceStart?: number
+  // the walk crosses that reference from its end back to its start
+  reversed?: true
 }
 
 export interface WalkRow {
@@ -136,21 +138,37 @@ export function walkRows(
     const runs: WalkRun[] = []
     let bp = 0
     let offReferenceBp = 0
+    // which way the last run steps through the reference, 0 while it holds
+    // one node
+    let step = 0
     for (const id of ids) {
       const len = lengthOf.get(id) ?? 0
-      const referenceStart = span.get(id)?.start
-      const shared = referenceStart !== undefined
+      const s = span.get(id)
       const last = runs.at(-1)
-      if (
-        last?.onReference === shared &&
-        (!shared || last.referenceStart! + last.bp === referenceStart)
-      ) {
+      const at = last?.referenceStart
+      const forward =
+        s && at !== undefined && step >= 0 && at + last!.bp === s.start
+      const backward = s && at !== undefined && step <= 0 && s.end === at
+      if (!s && last && !last.onReference) {
         last.bp += len
+      } else if (forward || backward) {
+        last!.bp += len
+        if (!forward) {
+          last!.referenceStart = s.start
+          last!.reversed = true
+        }
+        step = forward ? 1 : -1
       } else {
-        runs.push({ start: bp, bp: len, onReference: shared, referenceStart })
+        runs.push({
+          start: bp,
+          bp: len,
+          onReference: s !== undefined,
+          referenceStart: s?.start,
+        })
+        step = 0
       }
       bp += len
-      if (!shared) {
+      if (!s) {
         offReferenceBp += len
       }
     }

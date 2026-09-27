@@ -193,3 +193,39 @@ test('a walk that crosses the window backwards reads in reference direction', ()
   expect(row.complete).toBe(true)
   expect(row.runs).toEqual(forward.runs)
 })
+
+test('a walk crossing the reference backwards with no cut keeps its runs whole', () => {
+  const graph = pggbGraph()
+  const forward = walkRows(graph)!.rows.find(r =>
+    r.runs.some(run => run.onReference && run.bp > 100 && !run.reversed),
+  )!
+  const path = graph.paths!.find(p => p.name === forward.name)!
+  const backwards = {
+    ...path,
+    name: 'backwards',
+    nodeIds: [...path.nodeIds].reverse(),
+  }
+  const row = walkRows({
+    ...graph,
+    paths: [...graph.paths!, backwards],
+  })!.rows.find(r => r.name === 'backwards')!
+  expect(row.runs.map(r => [r.bp, r.referenceStart])).toEqual(
+    forward.runs.map(r => [r.bp, r.referenceStart]).reverse(),
+  )
+  expect(row.runs.filter(r => r.onReference && r.reversed)).not.toHaveLength(0)
+})
+
+test('a node the reference revisits keeps the coordinate of its first visit', () => {
+  const graph = pggbGraph()
+  const reference = graph.paths!.find(
+    p => pathOrigin(p.name).name === graph.referencePath,
+  )!
+  const first = reference.nodeIds[0]!
+  const looped = { ...reference, nodeIds: [...reference.nodeIds, first] }
+  const { reference: row, origin } = walkRows({
+    ...graph,
+    paths: graph.paths!.map(p => (p === reference ? looped : p)),
+  })!
+  expect(row.runs).toHaveLength(2)
+  expect(row.runs[1]!.referenceStart).toBe(origin)
+})
