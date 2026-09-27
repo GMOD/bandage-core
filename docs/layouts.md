@@ -36,6 +36,20 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 - In a linear view's track the tubes squeeze to the track's height; drag it
   taller for wider tubes
 
+### Reads
+
+- GAF from `vg giraffe`, minigraph or GraphAligner, set as a gbz-base track's
+  `reads` (or `readsLocation` + `readsIndex`)
+- Step names have to be the cut's segment names: numeric ids, or
+  `vg giraffe --named-coordinates` on a graph with renamed or chopped segments
+- Indexed: `bgzip` and `tabix -p gaf` a GAF sorted by node id (`vg gamsort -G`);
+  each cut queries its node id range. Needs a `@gmod/tabix` that reads the GAF
+  preset
+- Unindexed: plain or gzipped, read whole, up to 50 MB
+- Up to 5000 reads a cut, sampled evenly past that; blues forward, reds reverse
+- The cs tag's edits are drawn on the reads: substituted bases, `*` for an
+  insertion, grey for a deletion, hidden when zoomed out
+
 ![The pggb E. coli subgraph as a tube map on both axes, and a GBZ cut of the MICB locus as a track of a linear view](../img/tube_map.png)
 
 ## Bubbles
