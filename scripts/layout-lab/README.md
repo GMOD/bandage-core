@@ -1,8 +1,8 @@
 # Layout lab
 
-The harness behind `docs/layout-experiments.md`. It runs layouts on a GFA
-outside the browser and writes PNGs, so a layout idea can be judged on a real
-HPRC cut in seconds. Nothing here ships in the plugin.
+The harness behind `agent-docs/adr-042-reference-seeded-layouts-and-bubbles.md`.
+It runs layouts on a GFA outside the browser and writes PNGs, so a layout idea
+can be judged on a real HPRC cut in seconds. Nothing here ships in the plugin.
 
 Needs node, `rsvg-convert` and ImageMagick's `magick` on the path. The native
 variants also need `scripts/profile/build.sh` to have built OGDF once, then:

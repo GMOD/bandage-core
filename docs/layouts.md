@@ -108,6 +108,3 @@ cuts to under 300 nodes and shows a different kind of variation:
 | C4           | `chr6:31,980,000-32,050,000`   | one bubble over the C4 duplication  |
 | CFH          | `chr1:196,640,000-196,900,000` | an 84 kb deletion as a bare edge    |
 | KIR          | `chr19:54,750,000-54,840,000`  | the KIR cluster, densest of the six |
-
-[layout-experiments.md](layout-experiments.md) draws all six in every current
-and proposed layout, and `scripts/layout-lab/` reproduces the figures.
