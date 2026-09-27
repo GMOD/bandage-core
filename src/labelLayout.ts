@@ -51,6 +51,8 @@ export interface LabelLayoutSource {
   translateY: number
   contigThickness: number
   legendSize: { width: number; height: number }
+  // the band along the top a reference strip draws in
+  referenceStripZonePx?: number
   drawnRowLabels: { label: string; y: number }[]
   bubbleHalos: BubbleHalo[]
   bubbleGlyphs: BubbleGlyph[]
@@ -93,12 +95,16 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   const reserved: Box[] = m.drawnRowLabels.map(({ label, y }) =>
     rowLabelBox(label, y * scaleY + translateY),
   )
+  const stripPx = m.referenceStripZonePx ?? 0
+  if (stripPx > 0) {
+    reserved.push({ x0: 0, x1: width, y0: 0, y1: stripPx })
+  }
   if (m.legendSize.width > 0) {
     reserved.push({
       x0: width - LEGEND_INSET_PX - m.legendSize.width,
       x1: width,
       y0: 0,
-      y1: LEGEND_INSET_PX + m.legendSize.height,
+      y1: stripPx + LEGEND_INSET_PX + m.legendSize.height,
     })
   }
   if (m.poppedFrom) {

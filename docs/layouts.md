@@ -29,6 +29,13 @@ The plugin ships eight layouts:
 Variant map, Ordered and Anchored need an rGFA or a reference path; Walk rows
 and Tube map need W or P lines, and Tube map on reference needs both.
 
+In a track of a linear view, a force-directed or ordered drawing has no bp axis
+of its own. A strip along the top of the track draws each reference segment at
+its bp, in the colour its node has in the graph, so under the reference-position
+ramp a hue on the strip finds its node below. Hovering either one boxes the
+node's reference span on the strip and draws a leader to the node; an allele's
+span runs between its flanks.
+
 ## Tube maps
 
 - Laid out by `@gmod/tubemap-core`, sequenceTubeMap's layout, from the P and W

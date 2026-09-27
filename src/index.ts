@@ -56,6 +56,13 @@ export type { NodeInk } from './util/hitDetection'
 export type { AxisScale } from './util/geometry'
 export { wheelZoomFactor } from './util/wheelZoom'
 // the tube map layouts draw their own shapes rather than the batch above
+export {
+  REFERENCE_STRIP_ZONE_PX,
+  drawReferenceStrip,
+  referenceStripBlocks,
+  stripBlockAt,
+} from './referenceStrip'
+export type { StripBlock } from './referenceStrip'
 export { drawTubeMap, tubeMapPicture } from './tubeMap/draw'
 export type { TubeMapFrame, TubeMapPicture } from './tubeMap/draw'
 export { referenceKnots, warpX } from './tubeMap/warp'
