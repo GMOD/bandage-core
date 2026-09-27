@@ -49,6 +49,11 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 
 ![The pggb E. coli subgraph as a tube map on both axes, and a GBZ cut of the MICB locus as a track of a linear view](../img/tube_map.png)
 
+sequenceTubeMap's cactus test graph with NA12879's reads under its three
+haplotypes, zoomed in far enough to letter each read's mismatches:
+
+![GAF reads under the haplotypes of a tube map track, with their mismatches](../img/tube_map_reads.png)
+
 ## Bubbles
 
 The plugin reads `gfatools bubble` output from `<prefix>.bubbles.bed.gz` beside
@@ -61,7 +66,7 @@ bubbles as halos, and the variant map draws them as glyphs.
 
 A bubble's label opens its nodes on their own, with a button back to the window.
 The popped graph derives its own bubbles, so a superbubble opens level by level.
-The KIV-2 array opens to 29 segments:
+The KIV-2 array opens to 27 segments:
 
 ![The KIV-2 array popped open](../img/force_kiv2_popped.png)
 
@@ -81,6 +86,12 @@ fades, and a readout gives its length against the reference. HG00133 carries 116
 kb more than GRCh38 through the array:
 
 ![HG00133's walk lifted out of the KIV-2 cut](../img/force_kiv2_walk.png)
+
+Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
+the curated VNTR track, each bar is tiled in KIV-2's 5,548 bp unit, so the copy
+number reads off directly: 6 units in GRCh38, 27 in HG00133:
+
+![KIV-2 walk rows tiled by the repeat unit](../img/walk_rows_kiv2.png)
 
 ## Genes on the graph
 
