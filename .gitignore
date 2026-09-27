@@ -10,8 +10,6 @@ yarn-error.log*
 # landed in an `add -A`.
 node_modules
 dist/
-# the built package vendor/README.md describes
-!vendor/tubemap-core/dist/
 *.tsbuildinfo
 .npm
 .eslintcache
