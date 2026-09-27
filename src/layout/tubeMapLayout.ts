@@ -50,7 +50,7 @@ export interface TubeMapDrawing {
 // Strand of every visit a path makes to a segment, in walk order, so the k-th
 // time a path reaches a segment reads the k-th entry. Visits name a path
 // without the range suffix `odgi extract` appends (pathOrigin).
-function visitStrands(graph: Graph) {
+export function visitStrands(graph: Graph) {
   const strands = new Map<string, ('+' | '-')[]>()
   for (const [segment, visits] of graph.pathVisits ?? []) {
     for (const visit of visits) {

@@ -85,6 +85,28 @@ graph alone, off the layered order, the prototype of
 that against the walks, and `collapse.mjs` merges runs of equal carriage and
 draws thickness by haplotype count.
 
+## Coarsen a tube map
+
+```
+node scripts/layout-lab/cut-gbz.mjs cuts/ micb=chr6:31492000-31514000
+node_modules/.bin/esbuild scripts/layout-lab/coarsen-tubemap.entry.ts \
+  --bundle --format=esm --platform=node --outfile=/tmp/coarsen-tubemap.mjs
+node /tmp/coarsen-tubemap.mjs cuts/micb.gfa:31492000-31514000 --sigma 3,10,50
+```
+
+`cut-gbz.mjs` saves the GFA the hosted HPRC demo's gbz-base track cuts for a
+window, walks included, which the rGFA pair above lacks and a tube map needs.
+`coarsen-tubemap.entry.ts` runs `packages/core/src/tubeMap/coarsen.ts` at each σ
+and reports columns, whether the own axis fits 1388 px at 5 px tubes, the share
+of the pane the reference axis's curve gaps take, the time, the cuts by cause,
+and any walk whose length the fold did not conserve. On 2026-09-27:
+
+| Cut         | Raw columns | σ=3 | σ=10 | σ=50 |
+| ----------- | ----------- | --- | ---- | ---- |
+| MICB 22 kb  | 475         | 34  | 13   | 1    |
+| C4 25 kb    | 184         | 4   | 4    | 4    |
+| KIV-2 33 kb | 2,995       | 70  | 17   | 13   |
+
 ## Files
 
 - `gfa.mjs`: GFA reader mirroring `gfaConverter.ts`, path anchoring, window cuts
