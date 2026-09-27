@@ -33,3 +33,5 @@ STRUC = "STRUC"
 REPID = "REPID"
 # Intentional misspelling in test case checking that misspellings are rejected
 Reigon = "Reigon"
+# vg's graph alignment format
+GAM = "GAM"
