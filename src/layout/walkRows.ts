@@ -21,7 +21,9 @@ export interface WalkRun {
   bp: number
   onReference: boolean
   // lowest reference bp an on-reference run covers; the run covers `bp` of
-  // reference contiguously, so a copy of a repeat unit states which unit it is
+  // reference contiguously. In a tandem array that is the reference copy the
+  // graph threads this copy through, which need not be the one it most
+  // resembles.
   referenceStart?: number
   // the walk crosses that reference from its end back to its start
   reversed?: true
@@ -31,6 +33,7 @@ export interface WalkRow {
   name: string
   label: string
   sample: string
+  haplotype?: number
   bp: number
   offReferenceBp: number
   // false when the walk does not reach both flanking reference nodes, in which
@@ -176,6 +179,7 @@ export function walkRows(
       name: path.name,
       label: labelOf(path),
       sample: sampleOf(path),
+      haplotype: path.haplotype,
       bp,
       offReferenceBp,
       complete,

@@ -14,10 +14,12 @@ The plugin ships eight layouts:
   linear view.
 - **Sample rows**: x is reference bp, one row per contributing assembly.
 - **Walk rows**: x is each walk's own bp, one bar per haplotype, so a repeat
-  expansion reads as bar length. Sequence shared with the reference takes its
-  reference-position hue and haplotype-only sequence is charcoal; under other
-  colour schemes they are blue and purple. The Repeat picker tiles the bars by a
-  repeat annotation's unit and marks the allele a genotyper called.
+  expansion reads as bar length. Sequence shared with the reference takes the
+  reference-position hue of the stretch the graph threads it through, and
+  haplotype-only sequence is charcoal; under other colour schemes they are blue
+  and purple. The Repeat picker tiles the bars by a repeat annotation's unit and
+  marks the allele a genotyper called. A VCF 4.5 `<CNV:TR>` record stating each
+  allele's repeat sequences paints every copy by its unit instead.
 - **Tube map**: [sequenceTubeMap](https://github.com/vgteam/sequenceTubeMap)'s
   drawing, every path a coloured tube through boxed nodes, with columns in node
   order and node widths log-scaled.
@@ -111,10 +113,26 @@ kb more than GRCh38 through the array:
 ![HG00133's walk lifted out of the KIV-2 cut](../img/force_kiv2_walk.png)
 
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
-the curated VNTR track, each bar is tiled in KIV-2's 5,548 bp unit, so the copy
-number reads off directly: 6 units in GRCh38, 27 in HG00133:
+the KIV-2 copies track, a VCF 4.5 `<CNV:TR>` record, each copy takes the colour
+of its unit and the copy number reads off directly: 6 in GRCh38, 27 in HG00133.
+KIV-2 copies come in two units about 2.3% apart, the two repeat types long-read
+studies of LPA report. Unit 2 opens five of the eight arrays and sits fourth in
+GRCh38's:
 
-![KIV-2 walk rows tiled by the repeat unit](../img/walk_rows_kiv2.png)
+![KIV-2 walk rows, each copy coloured by its unit](../img/walk_rows_kiv2.png)
+
+`scripts/tandem-repeat-vcf.mjs` wrote that record from the graph cut. It splits
+each walk into copies where the reference array's first 24 bases recur, groups
+copies within 1% of each other into a unit, and writes one repeat sequence per
+run of a unit, with every copy's length in `RUB`. The record's phased `GT` puts
+each allele on its PanSN haplotype, so a walk takes its own allele even beside a
+haplotype of the same length. Output from a repeat finder draws the same way
+once it is written in those fields.
+
+Under the reference-position ramp without such a record, a copy's hue is the
+reference copy the graph threads it through. In a tandem array that is the
+aligner's pick among near-identical copies: at KIV-2, 13 of the 32 threaded
+copies take the hue of a reference copy of the other unit.
 
 ## Genes on the graph
 
