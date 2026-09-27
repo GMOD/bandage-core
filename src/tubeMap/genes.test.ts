@@ -8,6 +8,7 @@ import { parseGFA } from '../gfa-core/index'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
 
+import type { ReferenceBoxes } from './axis'
 import type { GeneModel } from '../genes/genePins'
 
 const GFA = fs.readFileSync(
@@ -81,12 +82,17 @@ test('genes off the cut or on another contig are left out', () => {
   ).toEqual([])
 })
 
-test('a PanSN contig matches the gene track by its last field', () => {
-  const { byContig } = cactus()
-  const renamed = new Map([['chr6', byContig.get('ref')!]])
-  expect(
-    tubeMapGenes(renamed, [gene({ refName: 'GRCh38#0#chr6', end: 10 })]),
-  ).toHaveLength(1)
+test('a gene takes the refName it names, or the one refName with its contig', () => {
+  const boxes = cactus().byContig.get('ref')!
+  const one = new Map([['GRCh38#0#chr6', boxes]])
+  const two = new Map([...one, ['CHM13#0#chr6', boxes]])
+  const lands = (refName: string, reference: ReferenceBoxes) =>
+    tubeMapGenes(reference, [gene({ refName, end: 10 })]).length
+  expect(lands('GRCh38#0#chr6', one)).toBe(1)
+  expect(lands('chr6', one)).toBe(1)
+  expect(lands('CHM13#0#chr6', one)).toBe(0)
+  expect(lands('chr6', two)).toBe(0)
+  expect(lands('CHM13#0#chr6', two)).toBe(1)
 })
 
 test('a span on a box boundary stays off the curves either side', () => {

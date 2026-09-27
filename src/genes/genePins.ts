@@ -1,5 +1,6 @@
 import { firstNodeAtOrAfter, isBackbone } from '../anchoredNodes'
 import { polylineSlice } from '../layout/mergeRuns'
+import { refNameBinding } from '../reference'
 import { svgPath } from '../util/geometry'
 
 import type { AnchoredNode } from '../anchoredNodes'
@@ -32,51 +33,48 @@ export interface GenePin {
   covered: number
 }
 
-// A backbone node names its sequence the way the graph does, `GRCh38#0#chr6`,
-// and a gene the way the assembly does, `chr6`; the contig is the part they
-// share.
-function contig(name: string) {
-  return name.split('#').at(-1)!
-}
-
-// The backbone of one contig in offset order, for finding the nodes a gene
+// The backbone of one refName in offset order, for finding the nodes a gene
 // lies over without reading the rest. `reach` is the longest node: a node over
 // a gene's start begins no further before it than that.
-interface ContigBackbone {
+interface RefNameBackbone {
   nodes: AnchoredNode[]
   reach: number
 }
 
+// A gene lands on the backbone refName its own refName names (refNameBinding):
+// `GRCh38#0#chr6` only on that, `chr6` on the one backbone refName with that
+// contig, and on none where two share it.
 export function genePins(
   graph: Graph,
   genes: GeneModel[],
   positions: Record<string, NodeSegment[]>,
 ): GenePin[] {
-  // Per contig and sorted once, so a gene reads the few nodes it lies over.
-  // Every gene used to read every backbone node, splitting both names each
-  // time, on each frame of a node drag: 199 ms for 100 genes over 15k nodes,
-  // now 12.
-  const byContig = new Map<string, ContigBackbone>()
-  const contigOf = new Map<string, string>()
+  // Per refName and sorted once, so a gene reads the few nodes it lies over.
+  // Every gene used to read every backbone node on each frame of a node drag:
+  // 199 ms for 100 genes over 15k nodes, now 12.
+  const byRefName = new Map<string, RefNameBackbone>()
+  const refNames = new Set<string>()
   for (const node of graph.nodes) {
-    if (isBackbone(node) && positions[node.id]?.length) {
+    if (isBackbone(node)) {
       const { refName } = node.stable
-      const name =
-        contigOf.get(refName) ??
-        contigOf.set(refName, contig(refName)).get(refName)!
-      const entry =
-        byContig.get(name) ??
-        byContig.set(name, { nodes: [], reach: 0 }).get(name)!
-      entry.nodes.push(node)
-      entry.reach = Math.max(entry.reach, node.length)
+      refNames.add(refName)
+      if (positions[node.id]?.length) {
+        const entry =
+          byRefName.get(refName) ??
+          byRefName.set(refName, { nodes: [], reach: 0 }).get(refName)!
+        entry.nodes.push(node)
+        entry.reach = Math.max(entry.reach, node.length)
+      }
     }
   }
-  for (const { nodes } of byContig.values()) {
+  for (const { nodes } of byRefName.values()) {
     nodes.sort((a, b) => a.stable.start - b.stable.start)
   }
+  const bind = refNameBinding(refNames)
   const pins: GenePin[] = []
   for (const gene of genes) {
-    const backbone = byContig.get(contig(gene.refName))
+    const refName = bind(gene.refName)
+    const backbone = refName === undefined ? undefined : byRefName.get(refName)
     if (!backbone) {
       continue
     }

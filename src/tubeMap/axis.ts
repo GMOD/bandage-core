@@ -17,21 +17,17 @@ export interface Box {
   x1: number
 }
 
-// The graph names the reference `GRCh38#0#chr6`, the gene track `chr6`
-export function contig(name: string) {
-  return name.split('#').at(-1)!
-}
-
+// keyed by the graph's refName, `GRCh38#0#chr6`
 export function referenceBoxes(graph: Graph, layout: TubeMapLayout) {
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const byContig = new Map<string, Box[]>()
+  const byRefName = new Map<string, Box[]>()
   // sparse: an unreached node has no entry
   layout.nodes.forEach(node => {
     const graphNode = nodeById.get(node.name)
     if (node.order >= 0 && graphNode && isBackbone(graphNode)) {
       const { refName, start } = graphNode.stable
-      const name = contig(refName)
-      const boxes = byContig.get(name) ?? byContig.set(name, []).get(name)!
+      const boxes =
+        byRefName.get(refName) ?? byRefName.set(refName, []).get(refName)!
       boxes.push({
         bp0: start,
         bp1: start + node.sequenceLength,
@@ -40,10 +36,10 @@ export function referenceBoxes(graph: Graph, layout: TubeMapLayout) {
       })
     }
   })
-  for (const boxes of byContig.values()) {
+  for (const boxes of byRefName.values()) {
     boxes.sort((a, b) => a.bp0 - b.bp0)
   }
-  return byContig
+  return byRefName
 }
 
 export type ReferenceBoxes = ReturnType<typeof referenceBoxes>

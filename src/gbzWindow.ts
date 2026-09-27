@@ -1,4 +1,5 @@
 import { panSNMatchesPrefix, panSNSample } from './pansn.ts'
+import { wellKnownSample } from './reference.ts'
 
 import type { GBZBase, PathName, PathQuery, RangeOptions } from '@gmod/gbz-base'
 
@@ -47,17 +48,9 @@ export async function referenceSamplesOf(db: GBZBase) {
     .filter(sample => sample !== '')
 }
 
-const SAMPLE_ALIASES: Record<string, string> = {
-  hg38: 'grch38',
-  hg19: 'grch37',
-  hs1: 'chm13',
-  't2t-chm13': 'chm13',
-  chm13v2: 'chm13',
-}
-
 function aliasedSample(anchorSample: string, referenceSamples: string[]) {
   const lower = anchorSample.toLowerCase()
-  const alias = SAMPLE_ALIASES[lower]
+  const alias = wellKnownSample(anchorSample)?.toLowerCase()
   return (
     referenceSamples.find(s => s === anchorSample) ??
     referenceSamples.find(s => s.toLowerCase() === lower) ??

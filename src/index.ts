@@ -104,6 +104,15 @@ export type { BubbleGlyph, LabelLayout, LabelLayoutSource } from './labelLayout'
 export { formatBp } from './graphLabels'
 export { genePins } from './genes/genePins'
 export type { GeneModel, GenePin } from './genes/genePins'
+export {
+  WELL_KNOWN_SAMPLES,
+  backboneAssembly,
+  featuresOnBackbone,
+  graphBackbone,
+  refNameBinding,
+  wellKnownSample,
+} from './reference'
+export type { AssemblyNames, Backbone, BackboneContig } from './reference'
 export { LABEL_CHAR_PX, LABEL_PAD, LABEL_PX } from './overlayLabels'
 
 export type {
