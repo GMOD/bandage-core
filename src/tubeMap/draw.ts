@@ -88,6 +88,7 @@ interface Layer {
 }
 
 export interface TubeMapPicture {
+  bounds: TubeMapLayout['bounds']
   layers: Layer[]
   nodes: { name: string; commands: Command[]; x0: number; x1: number }[]
   mismatches: TubeMapMismatch[]
@@ -145,6 +146,7 @@ export function tubeMapPicture(layout: TubeMapLayout): TubeMapPicture {
     }
   })
   return {
+    bounds: layout.bounds,
     layers: [layerOf(layout, 'haplotype'), layerOf(layout, 'read')],
     nodes,
     mismatches: tubeMapMismatches(layout).filter(
@@ -236,6 +238,15 @@ function fillByColor<T extends Filled>(
   ctx.globalAlpha = 1
 }
 
+// Zoomed out, a box is a few px of outline and a cut's boxes ink over the
+// tubes between them, so an outline fades as its box narrows
+const FULL_OUTLINE_PX = 12
+const MIN_OUTLINE_ALPHA = 0.15
+
+function outlineAlpha(screenWidth: number) {
+  return Math.max(MIN_OUTLINE_ALPHA, Math.min(1, screenWidth / FULL_OUTLINE_PX))
+}
+
 export function drawTubeMap(
   ctx: CanvasRenderingContext2D,
   picture: TubeMapPicture,
@@ -265,7 +276,9 @@ export function drawTubeMap(
       ctx.fillStyle = lit ? 'rgba(255,192,203,0.5)' : fill
       ctx.strokeStyle = lit ? '#ff0000' : stroke
       ctx.fill()
+      ctx.globalAlpha = lit ? 1 : outlineAlpha(x(node.x1) - x(node.x0))
       ctx.stroke()
+      ctx.globalAlpha = 1
     }
   }
   drawMismatches(ctx, picture.mismatches, frame)

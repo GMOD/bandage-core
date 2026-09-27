@@ -61,6 +61,15 @@ export type { TubeMapFrame, TubeMapPicture } from './tubeMap/draw'
 export { referenceKnots, warpX } from './tubeMap/warp'
 export { tubeMapFrame, tubeMapNodeAt } from './tubeMap/frame'
 export type { TubeMapTransform, TubeMapView } from './tubeMap/frame'
+export {
+  drawTubeMapRuler,
+  referenceBoxes,
+  rulerBoxes,
+  tubeX,
+} from './tubeMap/axis'
+export type { Box as TubeMapBox, ReferenceBoxes } from './tubeMap/axis'
+export { drawTubeMapGenes, tubeMapGenes } from './tubeMap/genes'
+export type { TubeMapGene } from './tubeMap/genes'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export { deletionEdges } from './deletionEdges'
