@@ -1,6 +1,6 @@
 # Layouts
 
-The plugin ships six layouts:
+The plugin ships eight layouts:
 
 - **Force-directed**: the graph's shape, from the OGDF FMMM engine in
   [Bandage](https://github.com/rrwick/Bandage), seeded along the reference to
@@ -17,9 +17,30 @@ The plugin ships six layouts:
   sequence the reference shares and purple sequence it lacks, so a repeat
   expansion reads as bar length. The Repeat picker tiles the bars by a repeat
   annotation's unit and marks the allele a genotyper called.
+- **Tube map**: [sequenceTubeMap](https://github.com/vgteam/sequenceTubeMap)'s
+  drawing, every path a coloured tube through boxed nodes, with columns in node
+  order and node widths log-scaled.
+- **Tube map on reference**: the same tubes with each column at the reference bp
+  its node covers, so they line up with the tracks around them.
 
 Variant map, Ordered and Anchored need an rGFA or a reference path; Walk rows
-needs W or P lines.
+and Tube map need W or P lines, and Tube map on reference needs both.
+
+## Tube maps
+
+`@gmod/tubemap-core`, the layout sequenceTubeMap draws with, places the tubes;
+the plugin feeds it the graph's P and W lines, reference first, and draws its
+shapes on a canvas over the graph pane. A path that walks a segment against the
+strand it is drawn in runs through its box right to left.
+
+On the reference axis the tube map still changes lanes between columns, and
+adjacent reference nodes abut, so each boundary takes up to 24 px from the
+columns beside it for the curves. A column of inserted sequence covers no
+reference and shares its boundary's room. In a linear view's track the stack of
+tubes is squeezed to the track's height, and dragging the track taller gives the
+tubes back their width. Tubes narrow as haplotypes are added, down to 3 px.
+
+![The pggb E. coli subgraph as a tube map on both axes, and a GBZ cut of the MICB locus as a track of a linear view](../img/tube_map.png)
 
 ## Bubbles
 
