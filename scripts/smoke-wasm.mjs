@@ -143,6 +143,37 @@ if (
   throw new Error('linear layout of named segments is degenerate')
 }
 
+// A link's strands name the ends it joins. The graph holds one node per
+// segment, so `L a + b -` has no b- to attach to and has to reach b+'s END, and
+// `L c - a +` has to leave c+'s START. The engine used to read `from` and `to`
+// alone, so 41 of the 71 links in a de novo assembly pulled the wrong ends
+// together.
+const strandEngine = await createModule()
+const long = ['a', 'b', 'c'].map(id => ({
+  id: `${id}+`,
+  name: `${id}+`,
+  length: 20000,
+  depth: 1,
+}))
+const stranded = strandEngine.computeLayout(
+  {
+    nodes: long,
+    edges: [
+      { from: 'a+', to: 'b+', toStrand: '-', overlap: 0 },
+      { from: 'c+', fromStrand: '-', to: 'a+', overlap: 0 },
+    ],
+  },
+  options,
+).nodePositions
+const gap = (p, q) => Math.hypot(p.x - q.x, p.y - q.y)
+const [a, b, c] = ['a+', 'b+', 'c+'].map(id => stranded[id])
+if (gap(a.at(-1), b.at(-1)) >= gap(a.at(-1), b[0])) {
+  throw new Error("a link read `b -` did not attach at b's end")
+}
+if (gap(c[0], a[0]) >= gap(c.at(-1), a[0])) {
+  throw new Error("a link read `c -` did not leave from c's start")
+}
+
 console.log(
-  `ok: ${laidOut.length} nodes, ${points.length} points, spread ${spread.toFixed(1)}, deterministic; linear layout of named segments ok`,
+  `ok: ${laidOut.length} nodes, ${points.length} points, spread ${spread.toFixed(1)}, deterministic; linear layout of named segments ok; link strands ok`,
 )
