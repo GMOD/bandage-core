@@ -10,6 +10,7 @@ import {
   tubeMapReads,
 } from '../tubeMap/reads'
 
+import type { Coarsened } from '../tubeMap/coarsen'
 import type { Graph, LayoutResult, NodeSegment } from '../types'
 import type {
   InputNode,
@@ -45,6 +46,9 @@ export interface TubeMapDrawing {
   yOffset: number
   // set on the reference axis, sorted by order
   columns?: TubeMapColumn[]
+  // set when the cut was folded before layout (coarsen.ts): the drawing's node
+  // ids are the coarse graph's, not the cut's
+  coarse?: Coarsened
 }
 
 // Strand of every visit a path makes to a segment, in walk order, so the k-th

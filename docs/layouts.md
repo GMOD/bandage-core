@@ -54,6 +54,15 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 - A box's outline fades below 12 px wide, so a zoomed-out cut shows its tubes
 - On the own axis the fit stops at 5 px tubes: a longer cut opens at its left
   end and you pan along it, as in sequenceTubeMap, or zoom out for the whole cut
+- **Fold variants** folds every variant under a size into the reference, after
+  svSTM
+  ([van den Brandt et al., EuroVis 2025](https://doi.org/10.2312/evs.20251091)):
+  the reference between two larger ones is one box, and each walk marks what it
+  carries there as a tick on its tube at the variant's bp. A human window is
+  mostly SNPs, so MICB's 22 kb cut goes from 475 columns to 34 under 3 bp and to
+  one box under 50, where it reads as a SNP strip per haplotype. A repeat array
+  keeps one box per distinct copy route. Off by default, and off while reads are
+  shown, since they are placed by the segments a fold merges
 
 ### Reads
 
