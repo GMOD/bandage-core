@@ -36,9 +36,15 @@ and Tube map need W or P lines, and Tube map on reference needs both.
   inserted sequence covers no reference
 - In a linear view's track the tubes squeeze to the track's height; drag it
   taller for wider tubes
-- The session's genes draw in rows above the tubes, mapped through the
-  reference's boxes, so on the own axis an exon is as wide as the boxes that
-  carry it
+- In a view of its own, the session's genes draw in rows above the tubes, mapped
+  through the reference's boxes, so on the own axis an exon is as wide as the
+  boxes that carry it. A linear view has them in their own track, at their bp,
+  and draws none over the tubes
+- On the own axis in a linear view, a band runs from each reference node's bp on
+  the ruler down to its box, as the LD display ties its matrix columns to their
+  variants. The wedges between bands are the curves and inserted sequence, which
+  cover no reference. Hovering a band picks out its node, and a cut too long for
+  the track fans out from the stretch of ruler on screen
 - Outside a linear view a reference ruler runs under the tubes. On the own axis
   a long box's log width squeezes its bp, so its stretch of ruler zigzags,
   carries no ticks, and shows the box's length where the label fits
@@ -59,10 +65,10 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 
 ![The pggb E. coli subgraph as a tube map on both axes](../img/tube_map.png)
 
-Eight HPRC haplotypes over MICB, as a track under the RefSeq genes and as a view
-of exons 2–4:
+Eight HPRC haplotypes over MICB's exons 2–4, as a track under the RefSeq genes
+and as a view:
 
-![MICB as a tube map track, genes above the tubes](../img/tube_map_micb_track.png)
+![MICB's exons 2–4 as a tube map track, each reference node tied to its bp on the ruler](../img/tube_map_micb_track.png)
 
 ![MICB's exons 2–4 as a tube map on its own axis](../img/tube_map_micb.png)
 
@@ -113,8 +119,9 @@ number reads off directly: 6 units in GRCh38, 27 in HG00133:
 ## Genes on the graph
 
 The session's gene track draws exons as dark stretches along the backbone and
-pins each gene's name under its midpoint. Tube maps draw genes in rows above the
-tubes instead (see Tube maps). In MHC class II, one 254-segment superbubble
+pins each gene's name under its midpoint. A tube map in a view of its own draws
+genes in rows above the tubes instead, and one in a linear view leaves them to
+the gene track (see Tube maps). In MHC class II, one 254-segment superbubble
 covering the DRB block reads as HLA-DRB5's, and the indels after it as
 HLA-DRB6's and HLA-DRB1's:
 
