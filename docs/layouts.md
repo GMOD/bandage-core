@@ -34,9 +34,10 @@ of its own. A strip along the top of the track draws each reference segment at
 its bp, in the colour its node has in the graph, so under the reference-position
 ramp a hue on the strip finds its node below. Hovering either one boxes the
 node's reference span on the strip and draws a leader to the node; an allele's
-span runs between its flanks. While the Walk picker lifts a haplotype, the
-reference segments it skips fade on the strip as they do in the graph. The track
-menu's **Reference strip at bp** turns it off.
+span runs between its flanks. Hovering a bubble's name does the same for the
+bubble's span. While the Walk picker lifts a haplotype, the reference segments
+it skips fade on the strip as they do in the graph. The track menu's **Reference
+strip at bp** turns it off.
 
 ![KIV-2's 68 kb allele hovered: the strip boxes the span between its flanks, and the linear view bands it](../img/force_kiv2_hover.png)
 
@@ -162,6 +163,13 @@ fades, and a readout gives its length against the reference. HG00133 carries 116
 kb more than GRCh38 through the array:
 
 ![HG00133's walk lifted out of the KIV-2 cut](../img/force_kiv2_walk.png)
+
+In a track, the reference strip shows what a lifted walk skips at its bp. GSTM1
+is deleted on six of the eight haplotypes; with HG00133 lifted, the 18 kb it
+lacks fades on the strip under the RefSeq gene, and its route takes the shortcut
+past the faded loop:
+
+![HG00133's walk lifted at GSTM1, its 18 kb deletion faded on the reference strip](../img/force_gstm1_walk.png)
 
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
 the KIV-2 copies track, a VCF 4.5 `<CNV:TR>` record, each copy takes the colour

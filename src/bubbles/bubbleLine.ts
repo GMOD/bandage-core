@@ -60,6 +60,11 @@ export function parseBubbleLine(line: string): MinigraphBubble {
   }
 }
 
+// A bubble is its span on the reference, whichever array it was read into
+export function sameBubble(a: MinigraphBubble, b: MinigraphBubble) {
+  return a.refName === b.refName && a.start === b.start && a.end === b.end
+}
+
 // How far apart the two extreme alleles are, which is the concrete thing a
 // bubble says: this stretch is between min and max bases long depending on the
 // haplotype.
