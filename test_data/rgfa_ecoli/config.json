@@ -14,7 +14,7 @@
   ],
   "tracks": [
     {
-      "type": "FeatureTrack",
+      "type": "GraphTrack",
       "trackId": "ecoli_minigraph_segments",
       "name": "minigraph graph segments (rGFA)",
       "assemblyNames": ["K12"],

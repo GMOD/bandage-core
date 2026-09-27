@@ -11,7 +11,7 @@
   ],
   "tracks": [
     {
-      "type": "FeatureTrack",
+      "type": "GraphTrack",
       "trackId": "hprc_minigraph_segments",
       "name": "HPRC release 2 graph (Minigraph-Cactus sv.gfa, rGFA segments)",
       "assemblyNames": ["hg38"],
