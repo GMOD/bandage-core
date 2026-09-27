@@ -42,6 +42,8 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 - Outside a linear view a reference ruler runs under the tubes; on the own axis
   its ticks bunch in long boxes, which shows the log scale
 - A box's outline fades below 12 px wide, so a zoomed-out cut shows its tubes
+- On the own axis the fit stops at 5 px tubes: a longer cut opens at its left
+  end and you pan along it, as in sequenceTubeMap, or zoom out for the whole cut
 
 ### Reads
 
