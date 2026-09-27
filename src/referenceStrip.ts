@@ -2,9 +2,11 @@ import { abgrToCssRgba } from '@jbrowse/core/util/colorBits'
 
 import { isBackbone } from './anchoredNodes'
 import {
+  FADED_ALPHA,
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
+import { fadeAbgr } from './renderer/colorBits'
 
 import type { ResolvedColorScheme } from './colorSchemes'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
@@ -12,8 +14,9 @@ import type { Graph, NodeSegment } from './types'
 
 // A force or ordered drawing inside a linear view has no bp axis, so a strip
 // along the top of the track draws each reference segment at its bp there, in
-// the colour its node has in the graph below. Under the reference-position
-// ramp that is the hue a reader matches between the two; the lit node gets a
+// the colour its node has in the graph below, faded where the graph fades it
+// off a lifted walk. Under the reference-position ramp that is the hue a
+// reader matches between the two; the lit node gets a
 // leader from its span on the strip to where the graph drew it, as the
 // variant matrix ties a column to its variant.
 
@@ -30,18 +33,30 @@ export interface StripBlock {
 
 export function referenceStripBlocks(
   graph: Graph,
-  colorScheme: ResolvedColorScheme,
-  referenceRamp: ReferenceRamp | undefined,
+  {
+    colorScheme,
+    referenceRamp,
+    walkNodes,
+  }: {
+    colorScheme: ResolvedColorScheme
+    referenceRamp?: ReferenceRamp
+    walkNodes?: ReadonlySet<string>
+  },
 ) {
   const range = { ...computeColorSchemeRange(graph), referenceRamp }
   const out: StripBlock[] = []
   graph.nodes.forEach((node, index) => {
     if (isBackbone(node)) {
+      const own = getNodeColor(node, index, colorScheme, range)
       out.push({
         node: node.id,
         bp0: node.stable.start,
         bp1: node.stable.start + node.length,
-        color: abgrToCssRgba(getNodeColor(node, index, colorScheme, range)),
+        color: abgrToCssRgba(
+          walkNodes && !walkNodes.has(node.id)
+            ? fadeAbgr(own, FADED_ALPHA)
+            : own,
+        ),
       })
     }
   })

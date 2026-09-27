@@ -56,7 +56,7 @@ const DELETION_THICKNESS_FACTOR = 2.2
 // to keeps every colour scheme's hues, only dimmer, on any background.
 const EDGE_WALK_COLOR = packAbgr(30, 30, 36, 245)
 const WALK_EDGE_THICKNESS_FACTOR = 1.8
-const FADED_ALPHA = 0.18
+export const FADED_ALPHA = 0.18
 // Dash period in screen px, so a dashed arc looks the same at any zoom. Dashes
 // are geometry rather than a stroke style, because only one of the two backends
 // has one; see dashCurves.

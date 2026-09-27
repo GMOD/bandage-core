@@ -34,7 +34,11 @@ of its own. A strip along the top of the track draws each reference segment at
 its bp, in the colour its node has in the graph, so under the reference-position
 ramp a hue on the strip finds its node below. Hovering either one boxes the
 node's reference span on the strip and draws a leader to the node; an allele's
-span runs between its flanks.
+span runs between its flanks. While the Walk picker lifts a haplotype, the
+reference segments it skips fade on the strip as they do in the graph. The track
+menu's **Reference strip at bp** turns it off.
+
+![KIV-2's 68 kb allele hovered: the strip boxes the span between its flanks, and the linear view bands it](../img/force_kiv2_hover.png)
 
 ## Tube maps
 

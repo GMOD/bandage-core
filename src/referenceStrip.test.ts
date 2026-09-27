@@ -36,7 +36,10 @@ const graph: Graph = {
 
 test('the strip is the backbone in bp order, painted the hue of its node', () => {
   const ramp = computeReferenceRamp(graph, { start: 1000, end: 1200 })
-  const blocks = referenceStripBlocks(graph, 'reference-position', ramp)
+  const blocks = referenceStripBlocks(graph, {
+    colorScheme: 'reference-position',
+    referenceRamp: ramp,
+  })
   expect(blocks.map(b => [b.node, b.bp0, b.bp1])).toEqual([
     ['a', 1000, 1100],
     ['b', 1100, 1150],
@@ -47,8 +50,20 @@ test('the strip is the backbone in bp order, painted the hue of its node', () =>
   expect(new Set(blocks.map(b => b.color)).size).toBe(3)
 })
 
+test('off a lifted walk a block fades as its node does', () => {
+  const blocks = referenceStripBlocks(graph, {
+    colorScheme: 'uniform',
+    walkNodes: new Set(['a', 'x', 'c']),
+  })
+  expect(blocks.map(b => b.color)).toEqual([
+    'rgba(52,152,219,1)',
+    expect.stringMatching(/^rgba\(52,152,219,0\.18/),
+    'rgba(52,152,219,1)',
+  ])
+})
+
 test('a block is hit where the linear view places its bp', () => {
-  const blocks = referenceStripBlocks(graph, 'uniform', undefined)
+  const blocks = referenceStripBlocks(graph, { colorScheme: 'uniform' })
   const frame = { scale: 0.5, translateX: -500 }
   expect(stripBlockAt(blocks, frame, 25, 4)).toBe('a')
   expect(stripBlockAt(blocks, frame, 60, 4)).toBe('b')
