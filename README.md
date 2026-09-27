@@ -24,6 +24,5 @@ the worked example.
 Lives in the plugin repo as a pnpm workspace package. The plugin imports its
 source directly, so a change here needs no publish to reach the plugin.
 
-```
-pnpm release:core   # from the repo root: checks, bumps, tags core-v*, pushes
-```
+The core releases with the plugin: `pnpm version patch` at the repo root bumps
+both, and the plugin's publish workflow publishes both from the `v*` tag.
