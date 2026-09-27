@@ -19,13 +19,14 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src"],
+  "include": ["src", "packages/core/src"],
   "exclude": [
     "**/dist/",
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
+    "packages/core/src/**/*.test.ts",
     "src/launchSubgraph/testEnv.ts",
-    "src/GraphGenomeView/renderer/recordingCanvas.ts",
-    "src/bandage/bandage-layout.js"
+    "packages/core/src/renderer/recordingCanvas.ts",
+    "packages/core/src/bandage/bandage-layout.js"
   ]
 }

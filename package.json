@@ -1,0 +1,48 @@
+{
+  "name": "@jbrowse/bandage-core",
+  "version": "0.1.0",
+  "description": "Pangenome graph layout and drawing with no host: GFA in, the Bandage force-directed engine and reference-anchored layouts, a Canvas2D renderer, hit testing and labels out",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "pangenome",
+    "graph",
+    "gfa",
+    "bandage"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@gmod/gbz-base": "^2.8.0",
+    "@gmod/tubemap-core": "^0.1.0",
+    "@jbrowse/core": "5.0.0-beta.9",
+    "@jbrowse/render-core": "5.0.0-beta.9"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3"
+  }
+}

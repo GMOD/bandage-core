@@ -20,7 +20,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     environmentOptions: { jsdom: { url: 'http://localhost' } },
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'packages/*/src/**/*.test.ts',
+    ],
     setupFiles: [
       './config/vitest/textEncoder.js',
       './config/vitest/structuredClone.js',

@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const path = require.resolve('../src/bandage/bandage-layout.js')
+const path = require.resolve('../packages/core/src/bandage/bandage-layout.js')
 const createModule = (await import(path)).default
 const engine = await createModule()
 
@@ -36,7 +36,7 @@ function bubbleChain(nBubbles) {
   return { nodes, edges }
 }
 
-// mirrors src/GraphGenomeView/layout/drawnScale.ts bandageAutoScale
+// mirrors packages/core/src/layout/drawnScale.ts bandageAutoScale
 function bandageAutoScale(graph, minNodeLength = 5) {
   const total = graph.nodes.reduce((s, n) => s + n.length, 0)
   const mb = total / 1e6

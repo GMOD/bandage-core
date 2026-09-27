@@ -1,5 +1,5 @@
 #!/bin/bash
-# Rebuilds src/bandage/bandage-layout.js from src/bandage/native.
+# Rebuilds packages/core/src/bandage/bandage-layout.js from packages/core/src/bandage/native.
 #
 # Everything it needs is in this repo except the Emscripten SDK. OGDF is
 # vendored at vendor/ogdf (see vendor/README.md for the tag and the patch), so
@@ -16,11 +16,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-NATIVE_DIR="$ROOT/src/bandage/native"
+NATIVE_DIR="$ROOT/packages/core/src/bandage/native"
 # Out of src/, because CMake writes a compiler_depend.ts into its build tree and
 # tsc and eslint would both try to parse it.
 BUILD_DIR="$ROOT/.wasm-build"
-DEST="$ROOT/src/bandage/bandage-layout.js"
+DEST="$ROOT/packages/core/src/bandage/bandage-layout.js"
 OGDF_DIR="${OGDF_DIR:-$ROOT/vendor/ogdf}"
 
 if ! command -v emcc &> /dev/null; then
@@ -101,7 +101,7 @@ cp "$BUILD_DIR/bandage-layout.js" "$DEST"
 # it cost a long investigation that blamed tabix, bgzf, the CDN, the compressor
 # and the bundler in turn before landing here.
 #
-# Copy before decoding. Patched here rather than in src/bandage by hand, because
+# Copy before decoding. Patched here rather than in packages/core/src/bandage by hand, because
 # that file is overwritten by the cp above. Idempotent, and fails loudly if
 # emscripten changes the shape.
 decode='return UTF8Decoder.decode(heapOrArray.subarray(idx,endPtr))'

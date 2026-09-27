@@ -11,6 +11,8 @@ export default defineConfig(
       'eslint.config.mjs',
       'esbuild.mjs',
       'dist/*',
+      'packages/*/dist/*',
+      'packages/*/build.mjs',
       'scripts/*',
       // build/test config, outside tsconfig.eslint.json's `src` project so
       // typed linting cannot parse them
@@ -23,9 +25,10 @@ export default defineConfig(
       // other sessions' worktrees, whose half-done edits failed the release's
       // lint in the primary checkout
       '.claude/**',
-      // generated Emscripten output, see src/bandage/README.md. The build tree
-      // is here too because CMake writes a compiler_depend.ts into it.
-      'src/bandage/bandage-layout.js',
+      // generated Emscripten output, see packages/core/src/bandage/README.md.
+      // The build tree is here too because CMake writes a compiler_depend.ts
+      // into it.
+      'packages/core/src/bandage/bandage-layout.js',
       '.wasm-build/**',
       // vendored OGDF (vendor/README.md). Nothing in the committed sources is
       // JS or TS, but its own build tree lands here and CMake writes the same

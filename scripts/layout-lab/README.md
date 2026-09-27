@@ -81,7 +81,7 @@ carries between a window's flanking reference nodes, as repeat units, plus
 per-node carriage. `popbubble.mjs` cuts one bubble's segments out of a GFA so
 `one.mjs` can draw it alone. `graphBubbles.mjs` derives the bubbles from the
 graph alone, off the layered order, the prototype of
-`src/GraphGenomeView/bubbles/bubblesFromGraph.ts`; `validate-decomp.mjs` checks
+`packages/core/src/bubbles/bubblesFromGraph.ts`; `validate-decomp.mjs` checks
 that against the walks, and `collapse.mjs` merges runs of equal carriage and
 draws thickness by haplotype count.
 

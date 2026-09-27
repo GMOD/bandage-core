@@ -1,14 +1,14 @@
 // Prints a digest of what the committed engine draws, over a spread of graph
 // shapes and every option the view actually sends.
 //
-// This is the check that a rebuild of `src/bandage/native` changed only what it
+// This is the check that a rebuild of `packages/core/src/bandage/native` changed only what it
 // meant to. The artifact is 425kb of minified glue whose bytes move for reasons
 // that have nothing to do with the layout — a different emscripten, a different
 // build host — so comparing the file is useless and comparing the DRAWING is
 // what matters. Every committed force-directed figure is a function of these
 // numbers.
 //
-//   git show HEAD:src/bandage/bandage-layout.js > /tmp/old-engine.mjs
+//   git show HEAD:packages/core/src/bandage/bandage-layout.js > /tmp/old-engine.mjs
 //   node scripts/layout-digest.mjs /tmp/old-engine.mjs > before.txt
 //   pnpm build:wasm
 //   node scripts/layout-digest.mjs > after.txt
@@ -25,7 +25,8 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 const path =
-  process.argv[2] ?? require.resolve('../src/bandage/bandage-layout.js')
+  process.argv[2] ??
+  require.resolve('../packages/core/src/bandage/bandage-layout.js')
 const createModule = (await import(path)).default
 
 // Deterministic pseudo-randomness, so a shape is the same on every machine and

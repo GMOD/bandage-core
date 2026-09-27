@@ -7,7 +7,7 @@
 // Each case runs in its own child process with a wall clock, because the engine
 // is synchronous WASM: a case that runs long cannot be interrupted from here,
 // and one that aborts poisons the module for every later call in that worker
-// (see src/bandage/README.md). One process per case makes both survivable, and
+// (see packages/core/src/bandage/README.md). One process per case makes both survivable, and
 // makes "did not finish in N s" and "out of memory" reportable results rather
 // than a dead run.
 //
@@ -29,7 +29,7 @@ import process from 'node:process'
 
 const require = createRequire(import.meta.url)
 
-// mirrors src/GraphGenomeView/layout/drawnScale.ts bandageAutoScale
+// mirrors packages/core/src/layout/drawnScale.ts bandageAutoScale
 const MEAN_NODE_LENGTH = 40
 const MIN_TOTAL_GRAPH_LENGTH = 500
 const BANDAGE_MINIMUM_NODE_LENGTH = 5
@@ -137,7 +137,8 @@ if (process.argv[2] === '--one') {
   const opts = bandageAutoScale(nodes, SPREADS[spreadArg])
   const ogdf = ogdfNodeCount(nodes, opts)
 
-  const enginePath = require.resolve('../src/bandage/bandage-layout.js')
+  const enginePath =
+    require.resolve('../packages/core/src/bandage/bandage-layout.js')
   const engine = await (await import(enginePath)).default()
 
   const t1 = performance.now()

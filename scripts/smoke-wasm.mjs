@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const path = require.resolve('../src/bandage/bandage-layout.js')
+const path = require.resolve('../packages/core/src/bandage/bandage-layout.js')
 
 const createModule = (await import(path)).default
 const engine = await createModule()

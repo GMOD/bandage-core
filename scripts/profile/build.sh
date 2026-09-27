@@ -39,7 +39,7 @@ mkdir -p "$OUT"
 g++ $FLAGS -std=c++17 \
     -I"$OGDF_DIR/include" -I"$BUILD/include" \
     "$ROOT/scripts/profile/gfa-layout-profile.cpp" \
-    "$ROOT/src/bandage/native/src/graphlayout.cpp" \
+    "$ROOT/packages/core/src/bandage/native/src/graphlayout.cpp" \
     -L"$BUILD" -lOGDF -lpthread \
     -o "$OUT/gfa-layout-profile"
 

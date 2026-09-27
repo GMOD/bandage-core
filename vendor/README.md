@@ -2,7 +2,7 @@
 
 ## `ogdf/` — OGDF `elderberry-202309`, patched
 
-The graph layout library behind the force-directed drawing. `src/bandage/native`
+The graph layout library behind the force-directed drawing. `packages/core/src/bandage/native`
 is a port of Bandage's FMMM layout, and FMMM is OGDF's; `scripts/build-wasm.sh`
 compiles this tree to `libOGDF.a` with Emscripten and links the engine against
 it.
@@ -25,7 +25,7 @@ version, forever.
 It costs 26 MB on disk and about 4 MB in a clone. That buys `pnpm build:wasm`
 working from nothing but this repo and the Emscripten SDK. Note that `pnpm
 build` — the ordinary one — needs none of it: the engine is committed at
-`src/bandage/bandage-layout.js` and this tree is only an input to regenerating
+`packages/core/src/bandage/bandage-layout.js` and this tree is only an input to regenerating
 that.
 
 ### The patch is required, not a preference
@@ -60,7 +60,7 @@ rm -rf /tmp/ogdf/.git && rm -rf vendor/ogdf && mv /tmp/ogdf vendor/ogdf
 pnpm build:wasm
 ```
 
-Then diff the drawing, not the artifact — `src/bandage/README.md` has the
+Then diff the drawing, not the artifact — `packages/core/src/bandage/README.md` has the
 `layout-digest.mjs` recipe. **Expect it to move.** A different OGDF is a
 different FMMM, and every force-directed figure will need regenerating; that is
 the cost of the bump, and it should be a deliberate commit of its own rather

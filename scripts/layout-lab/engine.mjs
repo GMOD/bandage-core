@@ -4,7 +4,7 @@ import { bandageAutoScale, isBackbone } from './gfa.mjs'
 
 const require = createRequire(import.meta.url)
 const enginePath = new URL(
-  '../../src/bandage/bandage-layout.js',
+  '../../packages/core/src/bandage/bandage-layout.js',
   import.meta.url,
 ).pathname
 let engine

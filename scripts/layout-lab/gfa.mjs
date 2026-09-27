@@ -1,4 +1,4 @@
-// Minimal GFA reader mirroring src/GraphGenomeView/gfa/gfaConverter.ts:
+// Minimal GFA reader mirroring packages/core/src/gfa/gfaConverter.ts:
 // one node per segment on its canonical strand, edges from L lines, paths from
 // P/W lines, stable coordinates from rGFA tags or derived from a reference path.
 import { readFileSync } from 'node:fs'

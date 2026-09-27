@@ -16,9 +16,9 @@
 //
 //   ./gfa-layout-profile <file.gfa> <segment-cap|all> <quality> [minNodeLength]
 
-#include "../../src/bandage/native/include/graph.h"
-#include "../../src/bandage/native/include/graphlayout.h"
-#include "../../src/bandage/native/include/settings.h"
+#include "../../packages/core/src/bandage/native/include/graph.h"
+#include "../../packages/core/src/bandage/native/include/graphlayout.h"
+#include "../../packages/core/src/bandage/native/include/settings.h"
 
 #include <chrono>
 #include <cstdio>
@@ -30,7 +30,7 @@
 
 namespace {
 
-// mirrors src/GraphGenomeView/layout/drawnScale.ts bandageAutoScale
+// mirrors packages/core/src/layout/drawnScale.ts bandageAutoScale
 constexpr double MEAN_NODE_LENGTH = 40;
 constexpr double MIN_TOTAL_GRAPH_LENGTH = 500;
 constexpr double BANDAGE_MINIMUM_NODE_LENGTH = 5;

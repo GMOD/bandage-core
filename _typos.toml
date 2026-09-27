@@ -1,7 +1,7 @@
 [files]
 extend-exclude = [
   # generated Emscripten output; the inlined wasm reads as endless typos
-  "src/bandage/bandage-layout.js",
+  "packages/core/src/bandage/bandage-layout.js",
   "pnpm-lock.yaml",
   "dist/",
   # vendored OGDF (vendor/README.md). 2,281 hits, all in upstream's own prose,

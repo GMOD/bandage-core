@@ -1,11 +1,11 @@
 name: Rebuild Bandage engine
 
-# Proves src/bandage/bandage-layout.js is still reproducible from the C++ and
+# Proves packages/core/src/bandage/bandage-layout.js is still reproducible from the C++ and
 # the OGDF it claims to come from — the point of committing sources rather than
 # an opaque blob.
 #
 # Not run per-push: OGDF is a multi-minute compile, and the artifact only moves
-# when src/bandage/native or vendor/ogdf does.
+# when packages/core/src/bandage/native or vendor/ogdf does.
 on:
   schedule:
     - cron: '0 6 * * 1'
@@ -64,7 +64,7 @@ jobs:
               echo "### Rebuilt engine draws something different"
               echo
               echo "Every line below is a figure that would need regenerating."
-              echo "Expected after an intended change to \`src/bandage/native\`"
+              echo "Expected after an intended change to \`packages/core/src/bandage/native\`"
               echo "or \`vendor/ogdf\`; otherwise the toolchain moved under us."
               echo
               echo '```diff'
@@ -77,4 +77,4 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandage-layout.js
-          path: src/bandage/bandage-layout.js
+          path: packages/core/src/bandage/bandage-layout.js
