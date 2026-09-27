@@ -36,6 +36,12 @@ and Tube map need W or P lines, and Tube map on reference needs both.
   inserted sequence covers no reference
 - In a linear view's track the tubes squeeze to the track's height; drag it
   taller for wider tubes
+- The session's genes draw in rows above the tubes, mapped through the
+  reference's boxes, so on the own axis an exon is as wide as the boxes that
+  carry it
+- Outside a linear view a reference ruler runs under the tubes; on the own axis
+  its ticks bunch in long boxes, which shows the log scale
+- A box's outline fades below 12 px wide, so a zoomed-out cut shows its tubes
 
 ### Reads
 
@@ -48,7 +54,14 @@ and Tube map need W or P lines, and Tube map on reference needs both.
 - The cs tag's edits are drawn on the reads: substituted bases, `*` for an
   insertion, grey for a deletion, hidden when zoomed out
 
-![The pggb E. coli subgraph as a tube map on both axes, and a GBZ cut of the MICB locus as a track of a linear view](../img/tube_map.png)
+![The pggb E. coli subgraph as a tube map on both axes](../img/tube_map.png)
+
+Eight HPRC haplotypes over MICB, as a track under the RefSeq genes and as a view
+of exons 2–4:
+
+![MICB as a tube map track, genes above the tubes](../img/tube_map_micb_track.png)
+
+![MICB's exons 2–4 as a tube map on its own axis](../img/tube_map_micb.png)
 
 sequenceTubeMap's cactus test graph with NA12879's reads under its three
 haplotypes, zoomed in far enough to letter each read's mismatches:
@@ -97,8 +110,9 @@ number reads off directly: 6 units in GRCh38, 27 in HG00133:
 ## Genes on the graph
 
 The session's gene track draws exons as dark stretches along the backbone and
-pins each gene's name under its midpoint. In MHC class II, one 254-segment
-superbubble covering the DRB block reads as HLA-DRB5's, and the indels after it
-as HLA-DRB6's and HLA-DRB1's:
+pins each gene's name under its midpoint. Tube maps draw genes in rows above the
+tubes instead (see Tube maps). In MHC class II, one 254-segment superbubble
+covering the DRB block reads as HLA-DRB5's, and the indels after it as
+HLA-DRB6's and HLA-DRB1's:
 
 ![MHC class II, force-directed, with genes on the backbone](../img/force_mhc.png)
