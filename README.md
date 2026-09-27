@@ -14,6 +14,8 @@ npm install @jbrowse/bandage-core
 - A Canvas2D renderer (`buildGeometry`, `Canvas2DRenderer`), hit testing and
   label placement
 - Bubbles, deletion edges, path colors, gbz-base windows cut to GFA
+- Which assembly a backbone lies on (`graphBackbone`, `backboneAssembly`), and
+  the genes on it (`featuresOnBackbone`, `genePins`)
 
 Nothing here imports React, MobX or a JBrowse host. BandageJS's
 [`src/main.ts`](https://github.com/cmdcolin/BandageJS/blob/main/src/main.ts) is
