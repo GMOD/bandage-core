@@ -132,5 +132,7 @@ backbone names a sample by PanSN (`GRCh38#0#chr6`), never an assembly, so the
 view binds it to the cut's assembly by that assembly's name, a session alias,
 the prefix the graph track's `assemblyNameToPanSN` maps it to, or a reference
 assembly's well-known sample (hg38 is GRCh38, hs1 is CHM13). A backbone of bare
-contig names (`chr6`) names no sample and takes no genes. Drawing x along
-another sample's walk hides the genes until x goes back to the cut's assembly.
+contig names (`chr6`) names no sample, so it takes the assembly the track's
+config puts the graph on: always for an rGFA, whose backbone is fixed, and for a
+path graph only along the path it loaded with. Drawing x along another walk
+hides the genes until x goes back.
