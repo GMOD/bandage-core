@@ -28,6 +28,8 @@ export const LEGEND_INSET_PX = 6
 // routes whose own stretches are drawn on top of each other stack their chips
 const ROUTE_STACK = 8
 const GENE_PIN_DROP_PX = 18
+// a gene's name drops a row or two rather than vanish under a bubble's
+const GENE_STACK = 2
 // the variant map's names stack in rows above its reference line, keeping
 // this much of the line's height for the glyphs
 const GLYPH_ROOM_PX = 60
@@ -175,6 +177,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
         x,
         y: y + m.contigThickness + GENE_PIN_DROP_PX,
         text: pin.covered < 0.98 ? `${pin.gene.name} …` : pin.gene.name,
+        stack: GENE_STACK,
       }
     }),
     frame,

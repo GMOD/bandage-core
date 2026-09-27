@@ -126,7 +126,24 @@ test('a row label holds its space against a gene pin', () => {
       drawnRowLabels: [{ label: 'Rank 1', y: pinY - 4 }],
     }),
   )
-  expect(layout.genes).toEqual([])
+  expect(layout.genes.map(l => l.y)).not.toContain(pinY)
+})
+
+// MHC class II lost HLA-DRB1's name under "2.7 kb ref → 0 bp–2.9 kb, 49
+// alleles", placed first as the bubble's.
+test('a gene name under a bubble name drops a row instead of vanishing', () => {
+  const at = { x: 300, y: 100 }
+  const without = layoutLabels(source({ genePins: [pin(at)] }))
+  const pinY = without.genes[0]!.y
+  const layout = layoutLabels(
+    source({
+      genePins: [pin(at)],
+      bubbleHalos: [halo({ x: 300, y: pinY + 6 * 3.4 * 0.5 + 6 })],
+    }),
+  )
+  expect(layout.bubbles.map(l => l.y)).toEqual([pinY])
+  expect(layout.genes.map(l => l.text)).toEqual(['hemA'])
+  expect(layout.genes[0]!.y).toBeGreaterThan(pinY)
 })
 
 test('a gene name outranks a route chip on the same spot', () => {
