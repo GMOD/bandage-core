@@ -5,6 +5,7 @@ import {
   referenceStripBlocks,
   stripBlockAt,
   stripOverhang,
+  stripPixels,
 } from './referenceStrip'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
 
@@ -71,6 +72,33 @@ test('under lifted walks a block takes the reference lane, grey without one, and
     walkColors: new Map([['a', lane]]),
   })
   expect(blocks[0]!.color).toBe('rgba(10,20,30,1)')
+  expect(blocks.map(b => b.faded)).toEqual([false, true, false])
+})
+
+test('blocks fill whole pixels, none shared, so neighbours leave no seam', () => {
+  const blocks = [
+    { node: 'a', bp0: 0, bp1: 10.3, color: 'a', faded: false },
+    { node: 's', bp0: 10.3, bp1: 10.4, color: 's', faded: true },
+    { node: 't', bp0: 10.4, bp1: 10.5, color: 't', faded: true },
+    { node: 'b', bp0: 10.5, bp1: 20, color: 'b', faded: false },
+  ]
+  const px = stripPixels(blocks, { scale: 1, translateX: 0 }, 100, 1)
+  // s takes its pixel from b, and t, sharing it, is not drawn
+  expect(px).toEqual([
+    { color: 'a', x0: 0, x1: 10 },
+    { color: 's', x0: 10, x1: 11 },
+    { color: 'b', x0: 11, x1: 20 },
+  ])
+  // at dpr 2, edges land on half css px
+  expect(
+    stripPixels(blocks.slice(0, 1), { scale: 1, translateX: 0 }, 100, 2),
+  ).toEqual([{ color: 'a', x0: 0, x1: 10.5 }])
+  // reversed, b is leftmost
+  expect(
+    stripPixels(blocks, { scale: -1, translateX: 20 }, 100, 1).map(
+      p => p.color,
+    ),
+  ).toEqual(['b', 't', 'a'])
 })
 
 test('a block is hit where the linear view places its bp', () => {

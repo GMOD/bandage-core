@@ -32,6 +32,8 @@ export interface StripBlock {
   bp0: number
   bp1: number
   color: string
+  // off every lifted walk, so the strip pales it as the graph does
+  faded: boolean
 }
 
 export function referenceStripBlocks(
@@ -57,15 +59,13 @@ export function referenceStripBlocks(
       const own = walkNodes
         ? (walkColors?.get(node.id) ?? LIFT_BACKDROP_COLOR)
         : getNodeColor(node, index, colorScheme, range)
+      const faded = !!walkNodes && !walkNodes.has(node.id)
       out.push({
         node: node.id,
         bp0: node.stable.start,
         bp1: node.stable.start + node.length,
-        color: abgrToCssRgba(
-          walkNodes && !walkNodes.has(node.id)
-            ? fadeAbgr(own, FADED_ALPHA)
-            : own,
-        ),
+        color: abgrToCssRgba(faded ? fadeAbgr(own, FADED_ALPHA) : own),
+        faded,
       })
     }
   })
@@ -146,6 +146,42 @@ export interface StripLit {
   anchor?: { x: number; y: number }
 }
 
+// Each block in whole device pixels, left to right, none sharing a pixel.
+// Fractional edges antialias: two opaque neighbours leave a pale seam between
+// them and two faded ones a dark seam where they overlap, stripes that read
+// as data. A block narrower than a pixel gets its pixel unless a block to its
+// left already has it.
+export function stripPixels(
+  blocks: readonly StripBlock[],
+  frame: BpFrame,
+  width: number,
+  dpr: number,
+) {
+  const placed = blocks
+    .map(b => {
+      const [x0, x1] = span(frame, b.bp0, b.bp1)
+      const px0 = Math.round(x0 * dpr)
+      return {
+        color: b.color,
+        x0,
+        px0,
+        px1: Math.max(Math.round(x1 * dpr), px0 + 1),
+      }
+    })
+    .filter(b => b.px1 > 0 && b.px0 < width * dpr)
+    .sort((a, b) => a.x0 - b.x0)
+  const out: { color: string; x0: number; x1: number }[] = []
+  let claimed = -Infinity
+  for (const { color, px0, px1 } of placed) {
+    const start = Math.max(px0, claimed)
+    if (px1 > start) {
+      out.push({ color, x0: start / dpr, x1: px1 / dpr })
+      claimed = px1
+    }
+  }
+  return out
+}
+
 // A triangle with its tip on the strip's edge, pointing off it; `inward` is
 // +1 from the left edge and -1 from the right
 function drawOverhang(
@@ -169,21 +205,20 @@ export function drawReferenceStrip(
     width,
     lit,
     darkMode,
+    dpr = 1,
   }: {
     width: number
     lit?: StripLit
     darkMode?: boolean
+    dpr?: number
   },
 ) {
   const ink = darkMode ? '#ffffff' : '#18181c'
   ctx.fillStyle = darkMode ? '#1f1f1f' : '#ffffff'
   ctx.fillRect(0, 0, width, REFERENCE_STRIP_ZONE_PX)
-  for (const b of blocks) {
-    const [x0, x1] = span(frame, b.bp0, b.bp1)
-    if (x1 >= 0 && x0 <= width) {
-      ctx.fillStyle = b.color
-      ctx.fillRect(x0, 0, Math.max(x1 - x0, 1), REFERENCE_STRIP_PX)
-    }
+  for (const b of stripPixels(blocks, frame, width, dpr)) {
+    ctx.fillStyle = b.color
+    ctx.fillRect(b.x0, 0, b.x1 - b.x0, REFERENCE_STRIP_PX)
   }
   const overhang = stripOverhang(blocks, frame, width)
   if (overhang.left > 0 || overhang.right > 0) {
