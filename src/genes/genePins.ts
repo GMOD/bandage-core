@@ -24,6 +24,8 @@ export interface GenePin {
   gene: GeneModel
   // an SVG path of the exon stretches, in layout units
   exons: string
+  // the same stretches per backbone node, for a drawing sized to each node
+  exonsByNode: { nodeId: string; d: string }[]
   // where the name goes: the backbone point at the gene's midpoint, or the
   // nearest backbone point inside the gene where the midpoint is not in the cut
   at: NodeSegment
@@ -74,6 +76,7 @@ export function genePins(
       continue
     }
     const parts: string[] = []
+    const exonsByNode: GenePin['exonsByNode'] = []
     let at: NodeSegment | undefined
     let atDistance = Infinity
     let covered = 0
@@ -92,6 +95,7 @@ export function genePins(
       }
       const line = positions[node.id]!
       covered += Math.min(nodeEnd, gene.end) - Math.max(nodeStart, gene.start)
+      const nodeParts: string[] = []
       for (const exon of gene.exons) {
         const a = Math.max(exon.start, nodeStart)
         const b = Math.min(exon.end, nodeEnd)
@@ -106,7 +110,11 @@ export function genePins(
         if (stretch.length === 1) {
           stretch.push({ ...stretch[0]! })
         }
-        parts.push(svgPath(stretch))
+        nodeParts.push(svgPath(stretch))
+      }
+      if (nodeParts.length > 0) {
+        parts.push(...nodeParts)
+        exonsByNode.push({ nodeId: node.id, d: nodeParts.join('') })
       }
       const pinBp = Math.min(Math.max(mid, nodeStart), nodeEnd)
       const distance = Math.abs(pinBp - mid)
@@ -124,6 +132,7 @@ export function genePins(
       pins.push({
         gene,
         exons: parts.join(''),
+        exonsByNode,
         at,
         covered: covered / (gene.end - gene.start),
       })

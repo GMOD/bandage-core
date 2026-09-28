@@ -1,4 +1,4 @@
-import { layoutLabels } from './labelLayout'
+import { geneCoverageNote, layoutLabels } from './labelLayout'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
@@ -52,6 +52,7 @@ function pin(at: NodeSegment): GenePin {
       exons: [],
     },
     exons: '',
+    exonsByNode: [],
     at,
     covered: 1,
   }
@@ -210,4 +211,18 @@ test('the legend holds its own box, and no box when none is drawn', () => {
     layoutLabels(source({ ...corner, legendSize: { width: 170, height: 40 } }))
       .sizes,
   ).toEqual([])
+})
+
+test('a gene the cut carries only part of says how much, in its own unit', () => {
+  const at = { x: 300, y: 200 }
+  const lpa = {
+    ...pin(at),
+    gene: { ...pin(at).gene, name: 'LPA', start: 0, end: 132_800 },
+    covered: 35_000 / 132_800,
+  }
+  expect(geneCoverageNote(lpa)).toBe('35 of 132.8 kb')
+  expect(geneCoverageNote(pin(at))).toBeUndefined()
+  expect(
+    layoutLabels(source({ genePins: [lpa] })).genes.map(l => l.text),
+  ).toEqual(['LPA · 35 of 132.8 kb'])
 })

@@ -62,6 +62,23 @@ export interface LabelLayout {
   sizes: GraphLabel[]
 }
 
+// How much of a gene the cut's backbone carries, when that is not all of it,
+// in the unit of the gene's length: `35 of 132.8 kb`
+export function geneCoverageNote(pin: GenePin) {
+  const length = pin.gene.end - pin.gene.start
+  if (pin.covered >= 0.98) {
+    return undefined
+  }
+  const [per, unit] =
+    length >= 1_000_000
+      ? [1_000_000, 'Mb']
+      : length >= 1000
+        ? [1000, 'kb']
+        : [1, 'bp']
+  const amount = (bp: number) => +(bp / per).toFixed(per === 1 ? 0 : 1)
+  return `${amount(pin.covered * length)} of ${amount(length)} ${unit}`
+}
+
 function byExtent<T>(items: T[], extent: (item: T) => number) {
   return [...items].sort((a, b) => extent(b) - extent(a))
 }
@@ -132,11 +149,12 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   const genes = placeLabels(
     byExtent(m.genePins, pin => pin.gene.end - pin.gene.start).map(pin => {
       const { x, y } = screen(pin.at)
+      const note = geneCoverageNote(pin)
       return {
         item: pin,
         x,
         y: y + m.contigThickness + GENE_PIN_DROP_PX,
-        text: pin.covered < 0.98 ? `${pin.gene.name} …` : pin.gene.name,
+        text: note ? `${pin.gene.name} · ${note}` : pin.gene.name,
         stack: GENE_STACK,
       }
     }),

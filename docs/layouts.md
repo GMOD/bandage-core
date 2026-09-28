@@ -241,8 +241,8 @@ on each haplotype:
 
 ![1q21.1 side by side: HG002 and HG01123's first haplotype run against GRCh38, HG005 and HG01123's second](../img/force_1q21_strand.png)
 
-While walks are lifted, a gene's exons draw as a faint band across their lanes,
-and node lengths are not labelled, since both would sit on the lanes.
+While walks are lifted, node lengths are not labelled, since they would sit on
+the lanes.
 
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
 the curated VNTR track, each bar runs between the KIV-2 array's flanking
@@ -262,12 +262,15 @@ and right-click a VCF 4.5 `<CNV:TR>` record stating each allele's copies.
 
 ## Genes on the graph
 
-The session's gene track draws exons as dark stretches along the backbone and
-pins each gene's name under its midpoint. A tube map in a view of its own draws
-genes in rows above the tubes instead, and one in a linear view leaves them to
-the gene track (see Tube maps). In MHC class II, one 254-segment superbubble
-covering the DRB block reads as HLA-DRB5's, and the indels after it as
-HLA-DRB6's and HLA-DRB1's:
+The session's gene track draws each exon as a goldenrod outline, the gene
+track's CDS colour, around the backbone stretch that carries it, and pins each
+gene's name under its midpoint. The outline clears the node, and any lifted
+lanes on it, so the colour inside stays the node's own. A gene the cut carries
+only part of says how much: `LPA · 35 of 132.8 kb`. A tube map in a view of its
+own draws genes in rows above the tubes instead, and one in a linear view leaves
+them to the gene track (see Tube maps). In MHC class II, one 254-segment
+superbubble covering the DRB block reads as HLA-DRB5's, and the indels after it
+as HLA-DRB6's and HLA-DRB1's:
 
 ![MHC class II, force-directed, with genes on the backbone](../img/force_mhc.png)
 
