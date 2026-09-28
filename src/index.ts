@@ -92,16 +92,6 @@ export { walkHighlight } from './walkHighlight'
 export { pathColorsLegible, pathLegend } from './pathColors'
 export { bubblesFromGraph } from './bubbles/bubblesFromGraph'
 export { bubbleHalos } from './bubbles/bubbleHalos'
-export {
-  NOT_CROSSED,
-  haplotypeMatrix,
-  routeDelta,
-} from './bubbles/haplotypeMatrix'
-export type {
-  HaplotypeMatrix,
-  MatrixColumn,
-  MatrixRoute,
-} from './bubbles/haplotypeMatrix'
 export type { BubbleHalo } from './bubbles/bubbleHalos'
 export {
   BUBBLE_KIND_COLORS,

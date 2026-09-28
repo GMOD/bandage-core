@@ -1,14 +1,11 @@
 # Layouts
 
-The plugin ships eight layouts:
+The plugin ships seven layouts:
 
 - **Force-directed**: the graph's shape, from the OGDF FMMM engine in
   [Bandage](https://github.com/rrwick/Bandage), seeded along the reference to
   read left to right. The engine lays out unbranching runs, so a base-level cut
   of 15,000 nodes draws in a few seconds.
-- **Haplotype matrix**: a row per haplotype, a column per site where the walks
-  take more than one route, each cell coloured by the route its walk takes.
-  Clicking a cell opens the site's graph.
 - **Ordered**: x is reference order, so every node gets room and a bubble reads
   as a lens. It scrolls sideways.
 - **Anchored**: x is reference bp, one row per stable rank, aligned under a
@@ -27,8 +24,8 @@ The plugin ships eight layouts:
 - **Tube map on reference**: the same tubes with each column at the reference bp
   its node covers, so they line up with the tracks around them.
 
-Ordered and Anchored need an rGFA or a reference path; Walk rows, Haplotype
-matrix and Tube map need W or P lines, and Tube map on reference needs both.
+Ordered and Anchored need an rGFA or a reference path; Walk rows and Tube map
+need W or P lines, and Tube map on reference needs both.
 
 In a track of a linear view, a force-directed or ordered drawing has no bp axis
 of its own. A strip along the top of the track draws each reference segment at
@@ -42,34 +39,6 @@ the strip says the graph draws reference past that edge of the window. The track
 menu's **Reference strip at bp** turns the strip off.
 
 ![KIV-2's 68 kb allele hovered: the strip boxes the span between its flanks, and the linear view bands it](../img/force_kiv2_hover.png)
-
-## Haplotype matrix
-
-The haplotype matrix draws what a multi-sample variant display draws, read off
-the graph's walks instead of a VCF. Each bubble the plugin derives records every
-route its walks take through it. A row is a haplotype, a column is a site where
-the walks take more than one route, and a cell's colour is the route that
-haplotype takes: grey for the reference walk's, then the other routes in Tableau
-hues, most taken first. A white cell is a walk that does not cross the site in
-the cut. Where a cell has room, it states its route's length against the
-reference's.
-
-The matrix spaces its columns evenly, since a KIV-2 cut holds twenty SNPs in 1.5
-kb beside a 30 kb array. A band ties each column to the bp its site spans: in a
-track, on the linear view's ruler, and in a view of its own, on a ruler of the
-cut drawn above the matrix. A strip over each column takes the colour of the
-site's kind, which the legend names.
-
-Rows run from the reference, each beside the haplotype it differs from least, so
-haplotypes that share a block of routes read as a block. At KIV-2, HG00133 and
-HG01109 take the same route at every site outside the array and differ by 22 kb
-inside it.
-
-Hovering a cell names the haplotype, the site and the route, and lights the
-site's span in the linear view. Clicking a cell opens the site's graph
-force-directed, and the Back button returns to the matrix.
-
-![The KIV-2 array's eight HPRC haplotypes as a haplotype matrix, each column tied to a ruler of the cut](../img/haplotype_matrix_kiv2.png)
 
 ## Tube maps
 
