@@ -3,7 +3,7 @@ import { parseGFA } from './gfa-core/index'
 import { anchorGraph } from './pathAnchoring'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
 import { NO_VALUE_COLOR, encodedColor, schemeColor } from './walkEncoding'
-import { walkHighlight, walkLift } from './walkHighlight'
+import { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3, taking a1 in place of v2. The a1->v3
 // link is written the other way round in the file, so the walk's step has to
@@ -165,4 +165,21 @@ test('reference position is charcoal off the reference, and may take the rainbow
   expect(alt!.encoding.scheme).toBe('blue')
   expect(alt!.colors.get('a1+')).toBe(NO_VALUE_COLOR)
   expect(inv!.colors.get('v1+')).toBe(schemeColor('rainbow', 2 / 9))
+})
+
+test('a facet lifts each walk alone on the shared scale, unless its layer states its own', () => {
+  const layers = [
+    { walk: 'ref#0#chr' },
+    { walk: 'alt#1#chr', color: { scheme: 'green' as const } },
+  ]
+  const [ref, alt] = facetLifts(walks, walkLift(walks, layers)!, layers)
+  expect(ref!.walks.map(w => w.encoding)).toEqual([
+    { field: 'progress', scheme: 'red' },
+  ])
+  expect(alt!.walks[0]!.encoding).toEqual({
+    field: 'progress',
+    scheme: 'green',
+  })
+  expect(alt!.nodeIds).toEqual(new Set(['v1+', 'a1+', 'v3+']))
+  expect(alt!.walks[0]!.colors.get('a1+')).toBe(schemeColor('green', 7 / 13))
 })

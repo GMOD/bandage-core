@@ -196,6 +196,41 @@ export function walkLift(
       reversedBp: bp,
     }
   })
+  return liftOf(walks, ramp)
+}
+
+// The scale every facet panel shares, as a faceted plot shares its axes
+const FACET_COLOR: Partial<WalkEncoding> = { field: 'progress', scheme: 'red' }
+
+// A lift split into one lift per walk, each walk alone on the scale the panels
+// share, unless its layer states a colour of its own
+export function facetLifts(
+  graph: Graph,
+  lift: WalkLift,
+  layers: readonly WalkLayer[],
+  ramp?: ReferenceRamp,
+) {
+  return lift.walks.map(walk => {
+    const stated = layers.find(l => l.walk === walk.name)?.color
+    const encoding = resolveEncoding(
+      { walk: walk.name, color: { ...FACET_COLOR, ...stated } },
+      walk.reference,
+      0,
+    )
+    return liftOf(
+      [
+        {
+          ...walk,
+          encoding,
+          colors: laneColors(graph, walk, encoding, ramp),
+        },
+      ],
+      ramp,
+    )
+  })
+}
+
+function liftOf(walks: LiftedWalk[], ramp?: ReferenceRamp): WalkLift {
   return {
     walks,
     referenceDomain: ramp

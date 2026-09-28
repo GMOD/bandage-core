@@ -163,10 +163,11 @@ per haplotype:
 ![KIV-2 over gbz-base, eight haplotypes, force-directed](../img/force_kiv2_gbz.png)
 
 The Walks picker lifts haplotypes out of the drawing, and the rest of the graph
-fades to grey. A walk lifted alone shades light to dark along itself, so it can
-be followed round a loop; its key is that gradient with the walk's first and
-last coordinate on its own contig at either end. At GSTM1, HG00133 runs cyan to
-navy past the loop its 18 kb deletion skips:
+fades to grey. A tube map has no picker, since its tubes already are the walks.
+A walk lifted alone shades light to dark along itself, so it can be followed
+round a loop; its key is that gradient with the walk's first and last coordinate
+on its own contig at either end. At GSTM1, HG00133 runs cyan to navy past the
+loop its 18 kb deletion skips:
 
 ![HG00133's walk lifted at GSTM1, shading along itself past the loop it skips](../img/force_gstm1_walk.png)
 
@@ -186,14 +187,22 @@ which colour. A panel's title is its key, and clicking it lifts that walk alone:
 
 ![The KIV-2 cut side by side, one panel per walk](../img/force_kiv2_facet.png)
 
-A session states the walks, and the facet, as layers:
+The panels share one view, so a pan, zoom, drag or hover in one moves or marks
+them all. As many go across as draws each panel largest, the way `facet_wrap`
+picks its grid: four square drawings go two by two in a tall pane and four
+across in a wide one. **Columns** in the Walk menu fixes the count. A track
+whose x the linear view places stacks its panels full width, so each keeps the
+ruler's bp.
+
+A session states the walks, the facet and any column count:
 
 ```json
 "walkLayers": [
   { "walk": "GRCh38#0#chr6" },
   { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } }
 ],
-"facet": "walk"
+"facet": "walk",
+"facetColumns": 2
 ```
 
 ### Colouring lifted walks

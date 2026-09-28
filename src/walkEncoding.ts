@@ -2,7 +2,6 @@ import { packAbgr } from '@jbrowse/core/util/colorBits'
 
 import {
   REFERENCE_RAMP_ALT_COLOR,
-  REFERENCE_RAMP_ALT_CSS,
   REFERENCE_RAMP_MAX_HUE,
   hslToRgb,
 } from './renderer/GeometryBuilder'
@@ -23,17 +22,9 @@ import {
 //   ]
 
 export const WALK_FIELDS = [
-  {
-    value: 'progress',
-    label: 'Progress along the walk',
-    legend: 'light where each walk starts, dark where it ends',
-  },
-  { value: 'walk', label: 'One colour for the walk', legend: '' },
-  {
-    value: 'reference',
-    label: 'Reference position',
-    legend: 'along the reference left to right, charcoal off it',
-  },
+  { value: 'progress', label: 'Progress along the walk' },
+  { value: 'walk', label: 'One colour for the walk' },
+  { value: 'reference', label: 'Reference position' },
 ] as const
 
 export type WalkField = (typeof WALK_FIELDS)[number]['value']
@@ -162,7 +153,6 @@ export function encodedColor({ field, scheme }: WalkEncoding, t?: number) {
 }
 
 export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
-export const NO_VALUE_CSS = REFERENCE_RAMP_ALT_CSS
 
 // A swatch for the legend: the walk's colour, or the scheme across the field
 export function encodingSwatchCss({ field, scheme }: WalkEncoding) {
@@ -174,8 +164,4 @@ export function encodingSwatchCss({ field, scheme }: WalkEncoding) {
     return `${schemeCss(scheme, t)} ${t * 100}%`
   })
   return `linear-gradient(to right, ${stops.join(', ')})`
-}
-
-export function fieldLegend(field: WalkField) {
-  return WALK_FIELDS.find(f => f.value === field)!.legend
 }

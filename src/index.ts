@@ -88,13 +88,12 @@ export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export { deletionEdges } from './deletionEdges'
 export type { DeletionEdge } from './deletionEdges'
-export { walkHighlight, walkLift } from './walkHighlight'
+export { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 export type { LiftedWalk, WalkLift } from './walkHighlight'
 export {
   WALK_FIELDS,
   WALK_SCHEMES,
   encodingSwatchCss,
-  fieldLegend,
   resolveEncoding,
   schemeCss,
 } from './walkEncoding'
