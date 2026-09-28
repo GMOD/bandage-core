@@ -16,8 +16,7 @@ The plugin ships seven layouts:
   reference-position hue of the stretch the graph threads it through, and
   haplotype-only sequence is charcoal; under other colour schemes they are blue
   and purple. The Repeat picker tiles the bars by a repeat annotation's unit and
-  marks the allele a genotyper called. A VCF 4.5 `<CNV:TR>` record stating each
-  allele's repeat sequences paints every copy by its unit instead.
+  marks the allele a genotyper called.
 - **Tube map**: [sequenceTubeMap](https://github.com/vgteam/sequenceTubeMap)'s
   drawing, every path a coloured tube through boxed nodes, with columns in node
   order and node widths log-scaled.
@@ -177,26 +176,20 @@ past the faded loop:
 ![HG00133's walk lifted at GSTM1, its 18 kb deletion faded on the reference strip](../img/force_gstm1_walk.png)
 
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
-the KIV-2 copies track, a VCF 4.5 `<CNV:TR>` record, each copy takes the colour
-of its unit and the copy number reads off directly: 6 in GRCh38, 27 in HG00133.
-KIV-2 copies come in two units about 2.3% apart, the two repeat types long-read
-studies of LPA report. Unit 2 opens five of the eight arrays and sits fourth in
-GRCh38's:
+the curated VNTR track, each bar runs between the KIV-2 array's flanking
+reference nodes and is tiled by its 5,548 bp kringle unit, so the copy number
+reads off the bar: about 6 in GRCh38, 27 in HG00133. Purple is copies GRCh38
+does not carry:
 
-![KIV-2 walk rows, each copy coloured by its unit](../img/walk_rows_kiv2.png)
+![KIV-2 walk rows, each bar tiled by the kringle unit](../img/walk_rows_kiv2.png)
 
-`scripts/tandem-repeat-vcf.mjs` wrote that record from the graph cut. It splits
-each walk into copies where the reference array's first 24 bases recur, groups
-copies within 1% of each other into a unit, and writes one repeat sequence per
-run of a unit, with every copy's length in `RUB`. The record's phased `GT` puts
-each allele on its PanSN haplotype, so a walk takes its own allele even beside a
-haplotype of the same length. Output from a repeat finder draws the same way
-once it is written in those fields.
-
-Under the reference-position ramp without such a record, a copy's hue is the
-reference copy the graph threads it through. In a tandem array that is the
-aligner's pick among near-identical copies: at KIV-2, 13 of the 32 threaded
-copies take the hue of a reference copy of the other unit.
+Under the reference-position ramp, a copy's hue is the reference copy the graph
+threads it through. In a tandem array that is the aligner's pick among
+near-identical copies: at KIV-2, 13 of the 32 threaded copies take the hue of a
+reference copy of the other repeat type. To colour each copy by the unit it
+actually is, load
+[jbrowse-plugin-tandem-repeat](https://github.com/GMOD/jbrowse-plugin-tandem-repeat)
+and right-click a VCF 4.5 `<CNV:TR>` record stating each allele's copies.
 
 ## Genes on the graph
 
