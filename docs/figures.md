@@ -8,38 +8,39 @@ screen with, so a figure matches what the viewer showed, and the same spec makes
 the same figure again: two runs of one spec write identical files.
 
 ```console
-npx -p @jbrowse/bandage-core bandage-figure figures/1q21_sample.json -o 1q21.svg
+npx -p @jbrowse/bandage-core bandage-figure figures/kiv2_walks.json -o kiv2.svg
 ```
 
-[figures/1q21_sample.json](../figures/1q21_sample.json) cuts the 1q21.1
-inversion from the HPRC release 2 graph, lifts five walks and puts each sample's
-haplotypes in a row:
+[figures/kiv2_walks.json](../figures/kiv2_walks.json) cuts LPA's KIV-2 repeat
+array from the HPRC release 2 graph and lifts four walks through it, a panel
+each:
 
 ```json
 {
   "gbz": {
     "db": "hprc",
-    "region": "chr1:144,480,000-144,482,000",
-    "haplotypes": ["HG002#1", "HG005#1", "HG01123#1", "HG01123#2"]
+    "region": "chr6:160,614,798-160,647,758",
+    "haplotypes": ["HG00097#1", "HG01960#1", "HG00133#1"]
   },
   "layout": "force",
   "walks": [
-    "GRCh38#0#chr1",
-    "HG005#1#JAHEPO020000011.1",
-    "HG01123#1#CM089081.1",
-    "HG01123#2#CM089095.1",
-    "HG002#1#chr1"
+    "GRCh38#0#chr6",
+    "HG00097#1#JBIRDD010000043.1",
+    "HG01960#1#JBHIHM010000036.1",
+    "HG00133#1#CM090050.1"
   ],
-  "facet": "sample",
-  "width": 1000
+  "facet": "walk",
+  "width": 1000,
+  "columns": 2
 }
 ```
 
-![1q21.1 by sample: HG01123 carries one orientation on each haplotype](../img/figure_1q21_sample.svg)
+![The KIV-2 array, a panel per walk: each haplotype takes its own loops](../img/figure_kiv2_walks.svg)
 
-Each panel shades its walk yellow where it starts and red where it ends, so a
-walk that runs red to yellow crosses the region the other way from GRCh38.
-HG01123's row holds both orientations.
+Each panel shades its walk yellow where it starts and red where it ends, on the
+same layout, so the walks compare by the loops they take. GRCh38 takes the small
+ones; HG00097 adds one (+22.2 kb); HG01960 skips most of GRCh38's for the big
+one (+49.9 kb); HG00133 takes both (+116.4 kb).
 
 ## The spec
 

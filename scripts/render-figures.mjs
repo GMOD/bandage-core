@@ -5,7 +5,7 @@
 // core first (`node packages/core/build.mjs` in packages/core).
 //
 //   node scripts/render-figures.mjs              # every spec
-//   node scripts/render-figures.mjs mapt_sample  # one
+//   node scripts/render-figures.mjs kiv2_walks   # one
 import { execFileSync } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
