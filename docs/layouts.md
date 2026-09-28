@@ -29,16 +29,18 @@ need W or P lines, and Tube map on reference needs both.
 In a track of a linear view, a force-directed or ordered drawing has no bp axis
 of its own. A strip along the top of the track draws each reference segment at
 its bp, in the colour its node has in the graph, so under the reference-position
-ramp a hue on the strip finds its node below. Touching segments alternate
-between two tiers, as a feature track stacks features, over the linear view's
-gridlines, so each reads as a feature at its bp. Hovering either one boxes the
-node's reference span on the strip and draws a leader to the node; an allele's
-span runs between its flanks. Hovering a bubble's name does the same for the
-bubble's span. While the Walks picker lifts haplotypes, the strip gives each
-lifted walk a row in its lane's colours, pale where that walk skips a reference
-segment, so a deletion is a pale gap in one haplotype's row. A triangle at
-either end of the strip says the graph draws reference past that edge of the
-window. The track menu's **Reference strip at bp** turns the strip off.
+ramp a hue on the strip finds its node below. The linear view's gridlines show
+through it, so each segment reads as a feature at its bp, and while the segments
+on screen average 12 px or more, touching ones alternate between two tiers, as a
+feature track stacks features. A base-level cut, whose backbone splits at every
+SNP, draws as one band. Hovering either one boxes the node's reference span on
+the strip and draws a leader to the node; an allele's span runs between its
+flanks. Hovering a bubble's name does the same for the bubble's span. While the
+Walks picker lifts haplotypes, the strip gives each lifted walk a row in its
+lane's colours, pale where that walk skips a reference segment, so a deletion is
+a pale gap in one haplotype's row. A triangle at either end of the strip says
+the graph draws reference past that edge of the window. The track menu's
+**Reference strip at bp** turns the strip off.
 
 Where does KIV-2's longest allele go on GRCh38? Hovering HG02391's 68 kb segment
 boxes its span between its flanks on the strip, and the linear view bands the

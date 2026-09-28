@@ -82,22 +82,34 @@ test('blocks fill whole pixels, none shared, so neighbours leave no seam', () =>
   ]
   const px = stripPixels(blocks, { scale: 1, translateX: 0 }, 100, 1)
   // s takes its pixel from b, and t, sharing it, is not drawn
-  // and touching blocks alternate tiers, so each reads as its own
+  // and, 7 px apiece on average, they draw as one band rather than in tiers
   expect(px).toEqual([
-    { colors: ['a'], x0: 0, x1: 10, tier: 0 },
-    { colors: ['s'], x0: 10, x1: 11, tier: 1 },
-    { colors: ['b'], x0: 11, x1: 20, tier: 0 },
+    { colors: ['a'], x0: 0, x1: 10 },
+    { colors: ['s'], x0: 10, x1: 11 },
+    { colors: ['b'], x0: 11, x1: 20 },
   ])
   // at dpr 2, edges land on half css px
   expect(
     stripPixels(blocks.slice(0, 1), { scale: 1, translateX: 0 }, 100, 2),
-  ).toEqual([{ colors: ['a'], x0: 0, x1: 10.5, tier: 0 }])
+  ).toEqual([{ colors: ['a'], x0: 0, x1: 10.5 }])
   // reversed, b is leftmost
   expect(
     stripPixels(blocks, { scale: -1, translateX: 20 }, 100, 1).map(
       p => p.colors[0],
     ),
   ).toEqual(['b', 't', 'a'])
+})
+
+test('blocks wide enough to read one by one alternate tiers where they touch', () => {
+  const blocks = [
+    { node: 'a', bp0: 0, bp1: 20, colors: ['a'], faded: false },
+    { node: 'b', bp0: 20, bp1: 40, colors: ['b'], faded: false },
+    { node: 'c', bp0: 40, bp1: 60, colors: ['c'], faded: false },
+    { node: 'd', bp0: 70, bp1: 90, colors: ['d'], faded: false },
+  ]
+  expect(
+    stripPixels(blocks, { scale: 1, translateX: 0 }, 100, 1).map(p => p.tier),
+  ).toEqual([0, 1, 0, 0])
 })
 
 test('a block is hit where the linear view places its bp', () => {

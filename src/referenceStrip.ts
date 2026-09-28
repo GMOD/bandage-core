@@ -17,10 +17,12 @@ import type { Graph, NodeSegment } from './types'
 // along the top of the track draws each reference segment at its bp there, in
 // the colour its node has in the graph below: the reference-position ramp's
 // hue, or while walks are lifted a row per walk in its lane's colours, pale
-// where that walk skips the segment. Touching segments alternate between two
-// tiers, as a feature track stacks features that would touch, and the strip
-// leaves the linear view's gridlines showing between them, so each block reads
-// as a feature at its bp. The lit node gets a leader from its span on the strip
+// where that walk skips the segment. The strip leaves the linear view's
+// gridlines showing, so each block reads as a feature at its bp, and while the
+// blocks on screen are wide enough to read one by one, touching ones alternate
+// between two tiers, as a feature track stacks features that would touch. A
+// base-level cut splits the backbone at every SNP, and tiers there would be a
+// barcode that reads as data, so it draws as one band. The lit node gets a leader from its span on the strip
 // to where the graph drew it, as the variant matrix ties a column to its
 // variant.
 
@@ -31,6 +33,8 @@ export const REFERENCE_STRIP_ZONE_PX = REFERENCE_STRIP_PX + 8
 // graph draws runs past that edge
 const OVERHANG_PX = 8
 const OVERHANG_CAP_PX = OVERHANG_PX + 3
+// the average width, in css px, the blocks on screen need to be staggered
+const MIN_STAGGER_PX = 12
 
 export interface StripBlock {
   node: string
@@ -158,12 +162,20 @@ export interface StripLit {
 // them and two faded ones a dark seam where they overlap, stripes that read
 // as data. A block narrower than a pixel gets its pixel unless a block to its
 // left already has it.
+export interface StripPixel {
+  colors: string[]
+  x0: number
+  x1: number
+  // the tier a staggered strip draws the block in
+  tier?: number
+}
+
 export function stripPixels(
   blocks: readonly StripBlock[],
   frame: BpFrame,
   width: number,
   dpr: number,
-) {
+): StripPixel[] {
   const placed = blocks
     .map(b => {
       const [x0, x1] = span(frame, b.bp0, b.bp1)
@@ -177,7 +189,7 @@ export function stripPixels(
     })
     .filter(b => b.px1 > 0 && b.px0 < width * dpr)
     .sort((a, b) => a.x0 - b.x0)
-  const out: { colors: string[]; x0: number; x1: number; tier: number }[] = []
+  const out: StripPixel[] = []
   let claimed = -Infinity
   // where each tier's last block ends, in device px
   const tierEnds = [-Infinity, -Infinity]
@@ -190,7 +202,10 @@ export function stripPixels(
       claimed = px1
     }
   }
-  return out
+  const covered = out.length > 0 ? out.at(-1)!.x1 - out[0]!.x0 : 0
+  return covered >= out.length * MIN_STAGGER_PX
+    ? out
+    : out.map(({ tier: _, ...b }) => b)
 }
 
 // A triangle the strip's height with its tip at the strip's edge, pointing
@@ -240,10 +255,12 @@ export function drawReferenceStrip(
   const ink = darkMode ? '#ffffff' : '#18181c'
   ctx.clearRect(0, 0, width, REFERENCE_STRIP_ZONE_PX)
   for (const b of stripPixels(blocks, frame, width, dpr)) {
-    // a row per lifted walk, else the block's tier
-    const rows = b.colors.length > 1 ? b.colors.length : 2
+    // a row per lifted walk, else the block's tier, else the whole strip
+    const { tier } = b
+    const staggered = tier !== undefined && b.colors.length === 1
+    const rows = staggered ? 2 : b.colors.length
     b.colors.forEach((color, i) => {
-      const row = b.colors.length > 1 ? i : b.tier
+      const row = staggered ? tier : i
       const y0 = rowEdge(row, rows, dpr)
       ctx.fillStyle = color
       ctx.fillRect(b.x0, y0, b.x1 - b.x0, rowEdge(row + 1, rows, dpr) - y0)
