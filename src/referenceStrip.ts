@@ -17,11 +17,14 @@ import type { Graph, NodeSegment } from './types'
 // along the top of the track draws each reference segment at its bp there, in
 // the colour its node has in the graph below: the reference-position ramp's
 // hue, or while walks are lifted a row per walk in its lane's colours, pale
-// where that walk skips the segment. The lit node gets a leader from its span
-// on the strip to where the graph drew it, as the variant matrix ties a column
-// to its variant.
+// where that walk skips the segment. Touching segments alternate between two
+// tiers, as a feature track stacks features that would touch, and the strip
+// leaves the linear view's gridlines showing between them, so each block reads
+// as a feature at its bp. The lit node gets a leader from its span on the strip
+// to where the graph drew it, as the variant matrix ties a column to its
+// variant.
 
-export const REFERENCE_STRIP_PX = 10
+export const REFERENCE_STRIP_PX = 12
 // the strip, and the gap under it the fit leaves the drawing
 export const REFERENCE_STRIP_ZONE_PX = REFERENCE_STRIP_PX + 8
 // a triangle at a strip end, in a cap cleared of the strip: reference the
@@ -174,12 +177,16 @@ export function stripPixels(
     })
     .filter(b => b.px1 > 0 && b.px0 < width * dpr)
     .sort((a, b) => a.x0 - b.x0)
-  const out: { colors: string[]; x0: number; x1: number }[] = []
+  const out: { colors: string[]; x0: number; x1: number; tier: number }[] = []
   let claimed = -Infinity
+  // where each tier's last block ends, in device px
+  const tierEnds = [-Infinity, -Infinity]
   for (const { colors, px0, px1 } of placed) {
     const start = Math.max(px0, claimed)
     if (px1 > start) {
-      out.push({ colors, x0: start / dpr, x1: px1 / dpr })
+      const tier = tierEnds[0]! < start ? 0 : 1
+      tierEnds[tier] = px1
+      out.push({ colors, x0: start / dpr, x1: px1 / dpr, tier })
       claimed = px1
     }
   }
@@ -193,11 +200,10 @@ function drawOverhang(
   ctx: CanvasRenderingContext2D,
   edgeX: number,
   inward: number,
-  { ink, paper }: { ink: string; paper: string },
+  ink: string,
 ) {
   const capX = inward > 0 ? edgeX : edgeX - OVERHANG_CAP_PX
-  ctx.fillStyle = paper
-  ctx.fillRect(capX, 0, OVERHANG_CAP_PX, REFERENCE_STRIP_PX)
+  ctx.clearRect(capX, 0, OVERHANG_CAP_PX, REFERENCE_STRIP_PX)
   const tipX = edgeX + inward
   const baseX = tipX + inward * OVERHANG_PX
   ctx.beginPath()
@@ -232,12 +238,12 @@ export function drawReferenceStrip(
   },
 ) {
   const ink = darkMode ? '#ffffff' : '#18181c'
-  const paper = darkMode ? '#1f1f1f' : '#ffffff'
-  ctx.fillStyle = paper
-  ctx.fillRect(0, 0, width, REFERENCE_STRIP_ZONE_PX)
+  ctx.clearRect(0, 0, width, REFERENCE_STRIP_ZONE_PX)
   for (const b of stripPixels(blocks, frame, width, dpr)) {
-    const rows = b.colors.length
-    b.colors.forEach((color, row) => {
+    // a row per lifted walk, else the block's tier
+    const rows = b.colors.length > 1 ? b.colors.length : 2
+    b.colors.forEach((color, i) => {
+      const row = b.colors.length > 1 ? i : b.tier
       const y0 = rowEdge(row, rows, dpr)
       ctx.fillStyle = color
       ctx.fillRect(b.x0, y0, b.x1 - b.x0, rowEdge(row + 1, rows, dpr) - y0)
@@ -245,10 +251,10 @@ export function drawReferenceStrip(
   }
   const overhang = stripOverhang(blocks, frame, width)
   if (overhang.left > 0) {
-    drawOverhang(ctx, 0, 1, { ink, paper })
+    drawOverhang(ctx, 0, 1, ink)
   }
   if (overhang.right > 0) {
-    drawOverhang(ctx, width, -1, { ink, paper })
+    drawOverhang(ctx, width, -1, ink)
   }
   if (lit) {
     const [x0, x1] = span(frame, lit.start, lit.end)

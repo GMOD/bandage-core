@@ -71,6 +71,10 @@ export class Canvas2DRenderer
     const ctx = this.ctx
     const { width, height } = ctx.canvas
 
+    // a clear colour short of opaque leaves what is under the canvas showing
+    if (clearColor[3] < 1) {
+      ctx.clearRect(0, 0, width, height)
+    }
     ctx.fillStyle = normalizedRgbToCssRgba(
       [clearColor[0], clearColor[1], clearColor[2]],
       clearColor[3],

@@ -82,15 +82,16 @@ test('blocks fill whole pixels, none shared, so neighbours leave no seam', () =>
   ]
   const px = stripPixels(blocks, { scale: 1, translateX: 0 }, 100, 1)
   // s takes its pixel from b, and t, sharing it, is not drawn
+  // and touching blocks alternate tiers, so each reads as its own
   expect(px).toEqual([
-    { colors: ['a'], x0: 0, x1: 10 },
-    { colors: ['s'], x0: 10, x1: 11 },
-    { colors: ['b'], x0: 11, x1: 20 },
+    { colors: ['a'], x0: 0, x1: 10, tier: 0 },
+    { colors: ['s'], x0: 10, x1: 11, tier: 1 },
+    { colors: ['b'], x0: 11, x1: 20, tier: 0 },
   ])
   // at dpr 2, edges land on half css px
   expect(
     stripPixels(blocks.slice(0, 1), { scale: 1, translateX: 0 }, 100, 2),
-  ).toEqual([{ colors: ['a'], x0: 0, x1: 10.5 }])
+  ).toEqual([{ colors: ['a'], x0: 0, x1: 10.5, tier: 0 }])
   // reversed, b is leftmost
   expect(
     stripPixels(blocks, { scale: -1, translateX: 20 }, 100, 1).map(
