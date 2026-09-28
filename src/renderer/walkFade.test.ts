@@ -3,6 +3,7 @@ import { abgrAlpha } from '@jbrowse/core/util/colorBits'
 import { buildGeometry } from './GeometryBuilder'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3. Lifting alt out fades v2 and the
@@ -117,5 +118,36 @@ test('a node painted in path stripes fades off the lifted walk too', () => {
   expect(alphasOf(lifted, 'v1+')).toEqual(alphasOf(plain, 'v1+'))
   for (const [i, alpha] of alphasOf(lifted, 'v2+').entries()) {
     expect(alpha).toBeLessThan(alphasOf(plain, 'v2+')[i]! / 4)
+  }
+})
+
+// inv crosses the reference's nodes end first, so its lane dashes there
+const INVERTED = `${GFA}
+W\tinv\t1\tchr\t0\t9\t<v3<v2<v1`
+
+test("a walk running against the reference dashes its lane, the reference's stays solid", () => {
+  const anchored = anchorGraph(convertGFAToGraph(parseGFA(INVERTED)), 'ref')
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: positions,
+    graph: anchored,
+    nodeById: new Map(anchored.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 5,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: walkLift(anchored, [
+      { walk: 'ref#0#chr' },
+      { walk: 'inv#1#chr' },
+    ]),
+  })
+  const { start, count } = batch.nodeStrokeRuns.get('v2+')!
+  const [refLane, ...invDashes] = batch.nodeStrokes.slice(start, start + count)
+  expect(refLane!.points).toHaveLength(2)
+  // 10 units at 5 on, 5 off
+  expect(invDashes.length).toBeGreaterThanOrEqual(1)
+  const span = (p: { x: number }[]) => Math.abs(p.at(-1)!.x - p[0]!.x)
+  for (const dash of invDashes) {
+    expect(span(dash.points)).toBeLessThanOrEqual(5 + 1e-9)
   }
 })

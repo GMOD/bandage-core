@@ -3,6 +3,7 @@ import {
   curveMidpoint,
   curvePointAt,
   dashCurves,
+  dashPolyline,
   projectLine,
   selfLinkOf,
   translateCurves,
@@ -494,5 +495,34 @@ describe('anisotropic axes', () => {
     expect(
       computeEdgeCurves(inXUnits.from, inXUnits.to, false, 3, 7, iso(), []),
     ).toEqual(computeEdgeCurves(inXUnits.from, inXUnits.to, false, 3, 7, iso()))
+  })
+})
+
+describe('dashPolyline', () => {
+  const line = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 20, y: 0 },
+  ]
+  const spans = (pieces: { x: number }[][]) =>
+    pieces.map(p => [p[0]!.x, p.at(-1)!.x])
+
+  test('alternates on and off across the polyline, corners included', () => {
+    expect(spans(dashPolyline(line, 5))).toEqual([
+      [0, 5],
+      [10, 15],
+    ])
+  })
+
+  test('a phase carries the pattern on from where the last polyline stopped', () => {
+    expect(spans(dashPolyline(line, 5, 5))).toEqual([
+      [5, 10],
+      [15, 20],
+    ])
+    expect(spans(dashPolyline(line, 5, 12))).toEqual([
+      [0, 3],
+      [8, 13],
+      [18, 20],
+    ])
   })
 })

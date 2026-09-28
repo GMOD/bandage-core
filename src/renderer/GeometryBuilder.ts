@@ -12,7 +12,9 @@ import { referenceMidpoints } from '../referenceSpan'
 import { baseEdgeCurves } from '../util/edgeCurves'
 import {
   dashCurves,
+  dashPolyline,
   pathRibbonOffsets,
+  polylineLength,
   translateCurves,
   yToXOf,
 } from '../util/geometry'
@@ -87,6 +89,9 @@ const MIN_PATH_STRIPE_PX = 1.2
 // A lifted walk's lane is never thinner than this, so a node carrying three
 // lifted walks widens rather than splitting into hairlines
 const MIN_WALK_LANE_PX = 3
+// Where a lifted walk runs against the reference its lane is dashed, this long
+// on and this long off in screen px
+const LANE_DASH_PX = 5
 // Guards the screen-px-to-world division below against a degenerate transform.
 const MIN_SCALE_FOR_OFFSET = 1e-6
 
@@ -1009,14 +1014,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         if (viewportBounds && !isBezierInBounds(curves, viewportBounds)) {
           return
         }
-        edgeCurves.push({
-          curves,
-          thickness: laneWidth / 2,
-          color:
-            walk.colors.get(edge.from) ??
-            walk.colors.get(edge.to) ??
-            plainEdgeColor,
-        })
+        const color =
+          walk.colors.get(edge.from) ??
+          walk.colors.get(edge.to) ??
+          plainEdgeColor
+        const thickness = laneWidth / 2
+        if (walk.reversed.has(edge.from) && walk.reversed.has(edge.to)) {
+          for (const dash of dashCurves(curves, LANE_DASH_PX / scale)) {
+            edgeCurves.push({ curves: dash, thickness, color })
+          }
+        } else {
+          edgeCurves.push({ curves, thickness, color })
+        }
       })
     } else if (!ribbons) {
       buildSingleEdge(0, 0, edgeColor, edgeColor)
@@ -1055,6 +1064,19 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       arrowRuns.set(ei, { start: arrowStart, count: arrowCount })
     }
   }
+
+  // How far along its dash pattern each reversed node's lane starts, so a
+  // reversed run of short nodes continues one pattern in the walk's order
+  const lanePhase = new Map<string, number>()
+  highlight?.walks.forEach((walk, lane) => {
+    let along = 0
+    for (const id of walk.progress.keys()) {
+      if (walk.reversed.has(id)) {
+        lanePhase.set(`${lane} ${id}`, along)
+        along += polylineLength(nodePositions[id] ?? [], yToX)
+      }
+    }
+  })
 
   for (const [nodeId, segments] of Object.entries(nodePositions)) {
     const node = nodeById.get(nodeId)
@@ -1104,14 +1126,25 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         }
         const offset =
           (lane - (lanes.length - 1) / 2) * laneWidth * worldPerScreenPx
-        nodeStrokes.push({
-          points:
-            lanes.length === 1
-              ? segments
-              : offsetPolyline(segments, normals, offset, yToX),
-          thickness: laneWidth / 2,
-          color: laneColor,
-        })
+        const points =
+          lanes.length === 1
+            ? segments
+            : offsetPolyline(segments, normals, offset, yToX)
+        const thickness = laneWidth / 2
+        const phase = lanePhase.get(`${lane} ${nodeId}`)
+        if (phase === undefined) {
+          nodeStrokes.push({ points, thickness, color: laneColor })
+        } else {
+          // the walk crosses the node end first
+          for (const dash of dashPolyline(
+            [...points].reverse(),
+            LANE_DASH_PX * worldPerScreenPx,
+            phase,
+            yToX,
+          )) {
+            nodeStrokes.push({ points: dash, thickness, color: laneColor })
+          }
+        }
       })
     } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
       const normals = pointNormalsOf(segments, yToX)

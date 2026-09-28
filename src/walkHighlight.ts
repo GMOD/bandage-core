@@ -1,10 +1,5 @@
 import { pathOrigin } from './pathAnchoring'
-import {
-  NO_VALUE_COLOR,
-  STRAND_T,
-  resolveEncoding,
-  schemeColor,
-} from './walkEncoding'
+import { encodedColor, resolveEncoding } from './walkEncoding'
 
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { Graph } from './types'
@@ -31,6 +26,10 @@ export interface LiftedWalk extends WalkHighlight {
   encoding: WalkEncoding
   // the lane colour at each node the walk visits
   colors: Map<string, number>
+  // the nodes it crosses the other way from the reference walk, which its
+  // lane dashes, and their bp; empty for the reference and where unmarked
+  reversed: Set<string>
+  reversedBp: number
 }
 
 // The walks lifted together, reference first and the rest in the order they
@@ -100,51 +99,51 @@ export function walkHighlight(
   }
 }
 
-// Each node's value for a field, mapped through the walk's scheme
+// Each node's value for the walk's field, through its scheme
 function laneColors(
   graph: Graph,
   walk: WalkHighlight,
-  { field, scheme }: WalkEncoding,
+  encoding: WalkEncoding,
   ramp: ReferenceRamp | undefined,
 ) {
-  const colors = new Map<string, number>()
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
-  const walkPath = pathOrigin(walk.name).name
-  const reference = referenceOf(graph)
-  const referencePath = reference ? pathOrigin(reference.name).name : undefined
-  const path = graph.paths!.find(p => p.name === walk.name)!
-  const visits = new Map<string, number>()
-  for (const id of path.nodeIds) {
-    visits.set(id, (visits.get(id) ?? 0) + 1)
-  }
-  const strandOf = (segment: string, of: string | undefined) =>
-    graph.pathVisits?.get(segment)?.find(v => v.path === of)?.strand
+  const colors = new Map<string, number>()
   for (const [id, progress] of walk.progress) {
     const node = byId.get(id)
-    let t: number | undefined
-    if (field === 'progress') {
-      t = progress
-    } else if (field === 'visits') {
-      t = (Math.min(visits.get(id) ?? 1, 4) - 1) / 3
-    } else if (field === 'reference') {
-      const mid = ramp?.midpoints.get(id)
-      t =
-        ramp && mid !== undefined && !(node?.stable && node.stable.rank > 0)
+    const mid = ramp?.midpoints.get(id)
+    const t =
+      encoding.field === 'progress'
+        ? progress
+        : ramp && mid !== undefined && !(node?.stable && node.stable.rank > 0)
           ? (mid - ramp.start) / ramp.span
           : undefined
-    } else if (node) {
-      const own = strandOf(node.name, walkPath)
-      const theirs = strandOf(node.name, referencePath)
-      t =
-        own && theirs
-          ? own === theirs
-            ? STRAND_T.same
-            : STRAND_T.reversed
-          : undefined
-    }
-    colors.set(id, t === undefined ? NO_VALUE_COLOR : schemeColor(scheme, t))
+    colors.set(id, encodedColor(encoding, t))
   }
   return colors
+}
+
+// The nodes a walk reads on the other strand from the reference walk
+function reversedNodes(graph: Graph, walk: WalkHighlight) {
+  const reference = referenceOf(graph)
+  const reversed = new Set<string>()
+  let bp = 0
+  if (!reference || walk.reference) {
+    return { reversed, bp }
+  }
+  const walkPath = pathOrigin(walk.name).name
+  const referencePath = pathOrigin(reference.name).name
+  const byId = new Map(graph.nodes.map(n => [n.id, n]))
+  for (const id of walk.progress.keys()) {
+    const node = byId.get(id)
+    const visits = node ? graph.pathVisits?.get(node.name) : undefined
+    const own = visits?.find(v => v.path === walkPath)?.strand
+    const theirs = visits?.find(v => v.path === referencePath)?.strand
+    if (own && theirs && own !== theirs) {
+      reversed.add(id)
+      bp += node!.length
+    }
+  }
+  return { reversed, bp }
 }
 
 export function walkLift(
@@ -170,10 +169,16 @@ export function walkLift(
       walk.reference,
       walk.reference ? 0 : picked++,
     )
+    const { reversed, bp } =
+      layer.reversedMark === false
+        ? { reversed: new Set<string>(), bp: 0 }
+        : reversedNodes(graph, walk)
     return {
       ...walk,
       encoding,
       colors: laneColors(graph, walk, encoding, ramp),
+      reversed,
+      reversedBp: bp,
     }
   })
   return {

@@ -166,9 +166,10 @@ The Walks picker lifts any number of haplotypes out of the drawing. Each lifted
 walk draws a lane of its own through the nodes it visits, the rest of the graph
 fades, and a readout gives each walk's length against the reference. Where one
 lifted walk visits a node and another does not, the second walk's lane is
-missing there, which is where their routes part. Through the KIV-2 array GRCh38
-takes the rainbow, HG00097 blues and HG00133 reds; HG00097 carries 22 kb more
-than GRCh38, HG00133 116 kb more:
+missing there, which is where their routes part. The reference walk's lane comes
+first, then the others in the order they were picked. Through the KIV-2 array
+GRCh38 takes the rainbow, HG00097 blue and HG00133 vermillion; HG00097 carries
+22 kb more than GRCh38, HG00133 116 kb more:
 
 ![GRCh38, HG00097 and HG00133 lifted out of the KIV-2 cut, a lane each](../img/force_kiv2_walk.png)
 
@@ -183,37 +184,48 @@ shortcut past the faded loop:
 
 A lifted walk colours its lane by an encoding: a field, the quantity the walk
 has at each node it visits, drawn through a scheme, the scale from that quantity
-to a colour. Any field goes with any scheme.
+to a colour.
 
-| Field                        | What the colour says                                                              |
-| ---------------------------- | --------------------------------------------------------------------------------- |
-| Progress along the walk      | how far through the walk a node is, pale at the start and deep at the end         |
-| Reference position           | where the node sits on the reference, charcoal off it                             |
-| Strand against the reference | pale where the walk crosses a node as the reference does, deep where it runs back |
-| Visits                       | how many times the walk passes through the node, pale once and deep four or more  |
+| Field                   | What the colour says                                                           |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| One colour for the walk | which walk the lane is, and nothing else                                       |
+| Progress along the walk | how far through its own length the walk is, pale at the start, deep at the end |
+| Reference position      | where the node sits on the reference, charcoal off it                          |
 
-The schemes are Rainbow, the reference-position ramp's hues, and the
-pale-to-deep families Blues, Reds, Greens, Oranges, Purples and Greys. The
-reference walk takes reference position in the rainbow by default, and each
-other walk takes progress in the next family, blues first. Progress shows which
-way a walk runs round a loop. The **Walk** menu sets each lifted walk's field
-and palette, and a session states them per walk, leaving out whatever takes the
-default:
+The schemes are Okabe and Ito's blue, vermillion, bluish green, orange and
+reddish purple, which stay apart under the common colour vision deficiencies,
+and the rainbow, which is the reference-position ramp and goes with reference
+position only. The reference walk takes reference position in the rainbow by
+default, and each other walk one colour of its own, in that order. Progress
+shows which way a walk runs round a loop. The **Walk** menu sets each lifted
+walk's field and palette, and a session states them per walk, leaving out
+whatever takes the default:
 
 ```json
 "walkLayers": [
-  { "walk": "GRCh38#0#chr17" },
-  { "walk": "HG00097#1#JBIRDD010000008.1", "color": { "field": "strand" } },
-  { "walk": "HG002#1#chr17", "color": { "field": "strand" } }
+  { "walk": "GRCh38#0#chr6" },
+  { "walk": "HG00133#1#CM090050.1", "color": { "field": "progress" } }
 ]
 ```
 
-Strand is how a force drawing shows an inversion. Both orientations of an
-inverted haplotype visit the same nodes, so without it the drawing looks the
-same either way. HG002's first haplotype carries the H2 inversion at MAPT, and
-HG00097's does not:
+Which way a walk runs is a mark rather than a colour, so a lane's hue keeps
+naming its walk. Where a lifted walk crosses the reference's nodes the other
+way, its lane is dashed, and the readout names each such walk with the bp it
+runs reversed. That is how a force drawing shows an inversion: both orientations
+of an inverted haplotype visit the same nodes, so without the dashes the drawing
+looks the same either way. HG002's first haplotype carries the H2 inversion at
+MAPT, and HG00097's does not:
 
-![MAPT with GRCh38, HG00097 and HG002 lifted, HG002's lane deep where it runs against the reference](../img/force_mapt_strand.png)
+![MAPT with GRCh38, HG00097 and HG002 lifted, HG002's lane dashed where it runs against the reference](../img/force_mapt_strand.png)
+
+At the 1q21.1 inversion GRCh38 reads the minority orientation: 333 of 455 HPRC
+haplotypes, CHM13 among them, run the other way. HG01123 carries one orientation
+on each haplotype, so its two lanes sit side by side, one dashed:
+
+![1q21.1 with GRCh38, HG005, HG002 and both HG01123 haplotypes lifted, the reversed lanes dashed](../img/force_1q21_strand.png)
+
+The Walk menu's **Dash where it runs against the reference** turns the mark off
+for one walk, and a session states it as `"reversedMark": false`.
 
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
 the curated VNTR track, each bar runs between the KIV-2 array's flanking

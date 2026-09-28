@@ -91,6 +91,7 @@ export type { DeletionEdge } from './deletionEdges'
 export { walkHighlight, walkLift } from './walkHighlight'
 export type { LiftedWalk, WalkLift } from './walkHighlight'
 export {
+  REVERSED_SWATCH_CSS,
   WALK_FIELDS,
   WALK_SCHEMES,
   encodingSwatchCss,

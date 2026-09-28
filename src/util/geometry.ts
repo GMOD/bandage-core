@@ -142,6 +142,69 @@ export function dashCurves(
   return out
 }
 
+interface Point {
+  x: number
+  y: number
+}
+
+// Lengths in layout units, y taken to x's scale by `yToX`
+export function polylineLength(points: readonly Point[], yToX = 1) {
+  let length = 0
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!
+    const b = points[i]!
+    length += Math.hypot(b.x - a.x, (b.y - a.y) * yToX)
+  }
+  return length
+}
+
+// The drawn pieces of a polyline dashed `dash` on and `dash` off, starting
+// `phase` along that pattern. A run of short nodes dashed one after another,
+// each starting where the last left off, reads as one dashed line rather than
+// as a solid one of first dashes.
+export function dashPolyline(
+  points: readonly Point[],
+  dash: number,
+  phase = 0,
+  yToX = 1,
+) {
+  const out: Point[][] = []
+  if (!(dash > 0) || points.length < 2) {
+    return out
+  }
+  const on = (at: number) => Math.floor(at / dash) % 2 === 0
+  let at = phase
+  let piece: Point[] | undefined = on(at) ? [points[0]!] : undefined
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!
+    const b = points[i]!
+    const length = Math.hypot(b.x - a.x, (b.y - a.y) * yToX)
+    const end = at + length
+    // a boundary on a corner toggles here, so the next segment starts past it
+    for (
+      let edge = (Math.floor(at / dash) + 1) * dash;
+      edge <= end;
+      edge += dash
+    ) {
+      const f = (edge - at) / length
+      const p = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
+      if (piece) {
+        piece.push(p)
+        out.push(piece)
+        piece = undefined
+      } else {
+        piece = [p]
+      }
+    }
+    piece?.push(b)
+    at = end
+  }
+  if (piece && polylineLength(piece, yToX) > 0) {
+    out.push(piece)
+  }
+  return out
+}
+
 export function translateCurves(
   curves: BezierCurve[],
   dx: number,
