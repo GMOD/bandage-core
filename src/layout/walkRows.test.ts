@@ -141,6 +141,29 @@ test.skipIf(!existsSync(KIV2))(
   },
 )
 
+test('a piece of a walk that meets no reference node draws no row of its own', () => {
+  const graph = pggbGraph()
+  const reference = graph.paths!.find(
+    p => pathOrigin(p.name).name === graph.referencePath,
+  )!
+  const onReference = new Set(reference.nodeIds)
+  const offReference = graph.nodes
+    .filter(n => !onReference.has(n.id))
+    .map(n => n.id)
+    .slice(0, 2)
+  expect(offReference.length).toBeGreaterThan(0)
+  const walk = graph.paths!.find(p => p !== reference)!
+  const stray = { ...walk, nodeIds: offReference }
+  const lone = { ...walk, name: 'lone', nodeIds: offReference }
+  const rows = walkRows({
+    ...graph,
+    paths: [...graph.paths!, stray, lone],
+  })!
+  expect(rows.rows.filter(r => r.name === walk.name)).toHaveLength(1)
+  // a walk with no other piece keeps its row, whatever it meets
+  expect(rows.rows.filter(r => r.name === 'lone')).toHaveLength(1)
+})
+
 test('a cut that stops at the window leaves whole walks, not partial ones', () => {
   const graph = pggbGraph()
   const byId = new Map(graph.nodes.map(n => [n.id, n.length]))

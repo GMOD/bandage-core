@@ -187,13 +187,22 @@ export function walkRows(
     }
   }
 
+  // A cut can hand one walk back in pieces, and a piece reached only through
+  // context meets no reference node, so nothing places it against the window.
+  // It is dropped when another piece of the same walk does meet the reference.
+  const meetsReference = (p: GraphPath) => p.nodeIds.some(id => span.has(id))
+  const placedWalks = new Set(
+    paths.filter(p => p !== reference && meetsReference(p)).map(p => p.name),
+  )
   const origin = cut ? cut.start : referenceStart
   return {
     origin,
     unit,
     reference: rowOf(reference),
     rows: paths
-      .filter(p => p !== reference)
+      .filter(
+        p => p !== reference && (meetsReference(p) || !placedWalks.has(p.name)),
+      )
       .map(rowOf)
       .sort(
         (a, b) =>
