@@ -9,11 +9,13 @@ npm install @jbrowse/bandage-core
 ```
 
 - GFA and rGFA text in (`loadGraph`)
-- Layouts: Bandage's FMMM engine as WASM (`loadBandage`, `forceLayout`), variant
-  map, ordered, anchored, sample rows, walk rows, tube map
+- Layouts: Bandage's FMMM engine as WASM (`loadBandage`, `forceLayout`),
+  ordered, anchored, sample rows, walk rows, tube map
 - A Canvas2D renderer (`buildGeometry`, `Canvas2DRenderer`), hit testing and
   label placement
 - Bubbles, deletion edges, path colors, gbz-base windows cut to GFA
+- Walks lifted out of the drawing (`walkLift`), one facet panel per walk
+  (`facetLifts`, `facetGrid`) and each walk's key in words (`walkKey`)
 - Which assembly a backbone lies on (`graphBackbone`, `backboneAssembly`,
   `assemblyWalk`), and the genes on it: `featuresOnBackbone` renames an
   assembly's genes onto the backbone's refNames, and `genePins` pins only those

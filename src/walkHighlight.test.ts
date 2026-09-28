@@ -4,6 +4,7 @@ import { anchorGraph } from './pathAnchoring'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
 import { NO_VALUE_COLOR, encodedColor, schemeColor } from './walkEncoding'
 import { facetLifts, walkHighlight, walkLift } from './walkHighlight'
+import { walkKey } from './walkKey'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3, taking a1 in place of v2. The a1->v3
 // link is written the other way round in the file, so the walk's step has to
@@ -182,4 +183,32 @@ test('a facet lifts each walk alone on the shared scale, unless its layer states
   })
   expect(alt!.nodeIds).toEqual(new Set(['v1+', 'a1+', 'v3+']))
   expect(alt!.walks[0]!.colors.get('a1+')).toBe(schemeColor('green', 7 / 13))
+})
+
+test('a walk key writes the stretch a shading lane runs over, and leaves a flat one to hover', () => {
+  const [inv] = walkLift(walks, [{ walk: 'inv#1#chr' }], ramp)!.walks
+  expect(walkKey(inv!)).toEqual({
+    delta: '',
+    reversed: ', 9 bp reversed',
+    shades: true,
+    scale: 'chr:0-9 (9 bp)',
+    hover: undefined,
+  })
+  const [alt] = walkLift(walks, [
+    { walk: 'alt#1#chr', color: { field: 'walk' } },
+  ])!.walks
+  expect(walkKey(alt!)).toMatchObject({
+    delta: ' +4 bp',
+    shades: false,
+    scale: undefined,
+    hover: 'chr:0-13 (13 bp)',
+  })
+  const [onReference] = walkLift(
+    walks,
+    [{ walk: 'alt#1#chr', color: { field: 'reference' } }],
+    ramp,
+  )!.walks
+  expect(walkKey(onReference!, { name: 'chr1', start: 0, end: 9 }).scale).toBe(
+    'chr1:0-9 (9 bp)',
+  )
 })

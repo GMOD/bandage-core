@@ -89,6 +89,14 @@ export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 export { deletionEdges } from './deletionEdges'
 export type { DeletionEdge } from './deletionEdges'
 export { facetLifts, walkHighlight, walkLift } from './walkHighlight'
+export { walkKey } from './walkKey'
+export {
+  FACET_GAP_PX,
+  FACET_PAD_PX,
+  FACET_TITLE_PX,
+  facetGrid,
+} from './facetGrid'
+export type { FacetGrid } from './facetGrid'
 export type { LiftedWalk, WalkLift } from './walkHighlight'
 export {
   WALK_FIELDS,
