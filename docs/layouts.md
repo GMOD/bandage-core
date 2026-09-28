@@ -193,13 +193,16 @@ to a colour.
 | Reference position      | where the node sits on the reference, charcoal off it                          |
 
 Every lane shades by progress by default, so a walk can be followed round a loop
-from pale to deep. The reference takes grey, so that no hue on a lane means
-anything but a haplotype, and each other walk takes one of Okabe and Ito's blue,
-vermillion, bluish green, reddish purple and orange, in that order, which stay
-apart under the common colour vision deficiencies. The rainbow is the
-reference-position ramp and goes with reference position only. The **Walk** menu
-sets each lifted walk's field and palette, and a session states them per walk,
-leaving out whatever takes the default:
+from its start to its end. Each shading runs from a light colour to a dark one
+of another hue, and no two share a stretch of the colour wheel: the reference
+runs grey to black, so that no hue on a lane means anything but a haplotype, and
+each other walk takes, in the order picked, cyan to navy, yellow to red, pink to
+plum and lime to forest. A reader with red-green colour blindness sees only a
+blue to yellow axis, so the first two stay apart for every reader and the other
+two fold into them. The rainbow is the reference-position ramp and goes with
+reference position only. The **Walk** menu sets each lifted walk's field and
+palette, and a session states them per walk, leaving out whatever takes the
+default:
 
 ```json
 "walkLayers": [
@@ -208,11 +211,20 @@ leaving out whatever takes the default:
 ]
 ```
 
+Each lifted walk's legend row is the scale its lane is drawn on: a bar in the
+lane's colours with the walk's first and last coordinate on its own contig at
+either end, the way the reference-position key states its interval, and the
+walk's length against the reference above it. A lane coloured by reference
+position takes the reference's interval instead. While walks are lifted the rest
+of the graph fades in grey, the reference strip of a track takes the reference
+walk's lane colours, or grey when the reference is not lifted, and the
+reference-position key goes: rainbow appears only on a lane that asks for it.
+
 A walk that crosses the reference's nodes the other way shades the other way
-along them, pale where the reference's lane is deep, and the readout gives the
-bp it runs reversed. Both orientations of an inverted haplotype visit the same
-nodes, so this is the only way a force drawing shows an inversion. HG002's first
-haplotype carries the H2 inversion at MAPT, and HG00097's does not:
+along them, light where the reference's lane is dark, and its legend row gives
+the bp it runs reversed. Both orientations of an inverted haplotype visit the
+same nodes, so this is the only way a force drawing shows an inversion. HG002's
+first haplotype carries the H2 inversion at MAPT, and HG00097's does not:
 
 ![MAPT with GRCh38, HG00097 and HG002 lifted, HG002's lane shading against the reference's](../img/force_mapt_strand.png)
 

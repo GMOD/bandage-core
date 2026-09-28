@@ -190,9 +190,14 @@ export function fitTransform(
   paneWidth: number,
   paneHeight: number,
   pixelRows: boolean,
-  { minScale = 0, padLeft = FIT_PADDING, padTop = FIT_PADDING } = {},
+  {
+    minScale = 0,
+    padLeft = FIT_PADDING,
+    padTop = FIT_PADDING,
+    padRight = FIT_PADDING,
+  } = {},
 ) {
-  const usableWidth = paneWidth - padLeft - FIT_PADDING
+  const usableWidth = paneWidth - padLeft - padRight
   const usableHeight = paneHeight - padTop - FIT_PADDING
   if (
     usableWidth <= 0 ||

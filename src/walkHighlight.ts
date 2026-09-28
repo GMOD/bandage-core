@@ -1,3 +1,4 @@
+import { panSNContig } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { encodedColor, resolveEncoding } from './walkEncoding'
 
@@ -20,6 +21,9 @@ export interface WalkHighlight {
   steps: number
   bp: number
   referenceBp?: number
+  // where the walk's stretch of the cut sits on its own contig, from its W or
+  // P record: its start where it begins and its end where it ends
+  range?: { contig: string; start: number; end: number }
 }
 
 export interface LiftedWalk extends WalkHighlight {
@@ -37,6 +41,8 @@ export interface LiftedWalk extends WalkHighlight {
 // of them keeps its ink.
 export interface WalkLift {
   walks: LiftedWalk[]
+  // the reference interval a lane coloured by reference position spans
+  referenceDomain?: { start: number; end: number }
   nodeIds: Set<string>
   edgeIndexes: Set<number>
   names: Set<string>
@@ -84,9 +90,20 @@ export function walkHighlight(
     before += length
   }
   const reference = referenceOf(graph)
+  const originName = pathOrigin(name).name
+  const origin =
+    graph.anchorPaths?.find(a => a.name === originName && a.length === bp) ??
+    graph.anchorPaths?.find(a => a.name === originName)
   return {
     name,
     reference: reference === path,
+    range: origin
+      ? {
+          contig: path.contig ?? panSNContig(origin.name),
+          start: origin.start,
+          end: origin.start + origin.length,
+        }
+      : undefined,
     nodeIds: new Set(path.nodeIds),
     edgeIndexes,
     progress,
@@ -180,6 +197,9 @@ export function walkLift(
   })
   return {
     walks,
+    referenceDomain: ramp
+      ? { start: ramp.start, end: ramp.start + ramp.span }
+      : undefined,
     nodeIds: new Set(walks.flatMap(w => [...w.nodeIds])),
     edgeIndexes: new Set(walks.flatMap(w => [...w.edgeIndexes])),
     names: new Set(walks.map(w => w.name)),

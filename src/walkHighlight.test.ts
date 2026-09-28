@@ -80,15 +80,21 @@ test('every lane shades along its walk, the reference in grey and each other wal
   expect(lift.walks.map(w => [w.name, w.encoding])).toEqual([
     ['ref#0#chr', { field: 'progress', scheme: 'grey' }],
     ['alt#1#chr', { field: 'progress', scheme: 'blue' }],
-    ['inv#1#chr', { field: 'progress', scheme: 'vermillion' }],
+    ['inv#1#chr', { field: 'progress', scheme: 'red' }],
   ])
   const [ref, , inv] = lift.walks
   expect(ref!.colors.get('v1+')).toBe(schemeColor('grey', 2 / 9))
   expect(ref!.colors.get('v3+')).toBe(schemeColor('grey', 7.5 / 9))
   // inv crosses the same nodes from v3, so it shades the other way
-  expect(inv!.colors.get('v3+')).toBe(schemeColor('vermillion', 1.5 / 9))
-  expect(inv!.colors.get('v1+')).toBe(schemeColor('vermillion', 7 / 9))
+  expect(inv!.colors.get('v3+')).toBe(schemeColor('red', 1.5 / 9))
+  expect(inv!.colors.get('v1+')).toBe(schemeColor('red', 7 / 9))
   expect(lift.nodeIds).toEqual(new Set(['v1+', 'v2+', 'v3+', 'a1+']))
+})
+
+test('a walk states where its stretch sits on its own contig, from its record', () => {
+  const lift = walkLift(walks, [{ walk: 'alt#1#chr' }], ramp)!
+  expect(lift.walks[0]!.range).toEqual({ contig: 'chr', start: 0, end: 13 })
+  expect(lift.referenceDomain).toEqual({ start: 0, end: 9 })
 })
 
 test('one colour for the walk paints it flat', () => {
@@ -112,7 +118,7 @@ test('a stranger lifts nothing, a repeat lifts once, and what this build lacks r
   const lift = walkLift(walks, [
     { walk: 'nobody' },
     { walk: 'alt#1#chr', color: { field: 'visits', scheme: 'greys' } },
-    { walk: 'alt#1#chr', color: { scheme: 'orange' } },
+    { walk: 'alt#1#chr', color: { scheme: 'purple' } },
   ] as never)!
   expect(lift.walks.map(w => w.encoding)).toEqual([
     { field: 'progress', scheme: 'blue' },

@@ -3,6 +3,7 @@ import { abgrToCssRgba } from '@jbrowse/core/util/colorBits'
 import { isBackbone } from './anchoredNodes'
 import {
   FADED_ALPHA,
+  LIFT_BACKDROP_COLOR,
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
@@ -39,17 +40,23 @@ export function referenceStripBlocks(
     colorScheme,
     referenceRamp,
     walkNodes,
+    walkColors,
   }: {
     colorScheme: ResolvedColorScheme
     referenceRamp?: ReferenceRamp
+    // the nodes lifted walks visit, and the reference walk's lane colours
+    // when it is one of them: the strip then takes those, else grey
     walkNodes?: ReadonlySet<string>
+    walkColors?: ReadonlyMap<string, number>
   },
 ) {
   const range = { ...computeColorSchemeRange(graph), referenceRamp }
   const out: StripBlock[] = []
   graph.nodes.forEach((node, index) => {
     if (isBackbone(node)) {
-      const own = getNodeColor(node, index, colorScheme, range)
+      const own = walkNodes
+        ? (walkColors?.get(node.id) ?? LIFT_BACKDROP_COLOR)
+        : getNodeColor(node, index, colorScheme, range)
       out.push({
         node: node.id,
         bp0: node.stable.start,

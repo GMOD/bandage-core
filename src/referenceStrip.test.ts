@@ -1,3 +1,5 @@
+import { packAbgr } from '@jbrowse/core/util/colorBits'
+
 import {
   nodeAnchor,
   referenceStripBlocks,
@@ -51,16 +53,24 @@ test('the strip is the backbone in bp order, painted the hue of its node', () =>
   expect(new Set(blocks.map(b => b.color)).size).toBe(3)
 })
 
-test('off a lifted walk a block fades as its node does', () => {
+test('under lifted walks a block takes the reference lane, grey without one, and fades off them', () => {
+  const walkNodes = new Set(['a', 'x', 'c'])
+  expect(
+    referenceStripBlocks(graph, { colorScheme: 'uniform', walkNodes }).map(
+      b => b.color,
+    ),
+  ).toEqual([
+    'rgba(160,160,160,1)',
+    expect.stringMatching(/^rgba\(160,160,160,0\.18/),
+    'rgba(160,160,160,1)',
+  ])
+  const lane = packAbgr(10, 20, 30, 255)
   const blocks = referenceStripBlocks(graph, {
     colorScheme: 'uniform',
-    walkNodes: new Set(['a', 'x', 'c']),
+    walkNodes,
+    walkColors: new Map([['a', lane]]),
   })
-  expect(blocks.map(b => b.color)).toEqual([
-    'rgba(52,152,219,1)',
-    expect.stringMatching(/^rgba\(52,152,219,0\.18/),
-    'rgba(52,152,219,1)',
-  ])
+  expect(blocks[0]!.color).toBe('rgba(10,20,30,1)')
 })
 
 test('a block is hit where the linear view places its bp', () => {

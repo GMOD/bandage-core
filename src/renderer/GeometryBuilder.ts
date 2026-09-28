@@ -54,6 +54,7 @@ const DELETION_THICKNESS_FACTOR = 2.2
 // A lifted walk's links keep their plain ink, since the walk's lanes in the
 // nodes carry it, and the rest fades. The alpha they fade to keeps every colour
 // scheme's hues, only dimmer, on any background.
+export const LIFT_BACKDROP_COLOR = packAbgr(160, 160, 160, 255)
 export const FADED_ALPHA = 0.18
 // Dash period in screen px, so a dashed arc looks the same at any zoom. Dashes
 // are geometry rather than a stroke style, because only one of the two backends
@@ -1066,13 +1067,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       continue
     }
 
-    const own = getNodeColor(
-      node,
-      nodeIndexMap.get(nodeId) ?? 0,
-      colorScheme,
-      colorRange,
-    )
     const faded = highlight !== undefined && !highlight.nodeIds.has(nodeId)
+    // Under lifted walks the lanes carry every colour, so the rest fades in
+    // grey rather than in a scheme no lane is drawn in
+    const own = faded
+      ? LIFT_BACKDROP_COLOR
+      : getNodeColor(
+          node,
+          nodeIndexMap.get(nodeId) ?? 0,
+          colorScheme,
+          colorRange,
+        )
     const color = faded ? fadeAbgr(own, FADED_ALPHA) : own
     const width = nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
     const nodeThickness = width / 2
