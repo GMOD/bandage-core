@@ -3,6 +3,8 @@ import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'
+import { graphBackbone } from './reference'
+import { version } from './version'
 
 const GFA = `S\tv1\tAAAA
 S\tv2\tCC
@@ -57,4 +59,52 @@ test('by sample, a sample takes a row and its haplotypes the columns', () => {
   expect(one![1]).toBe(two![1])
   expect(one![1]).toBeGreaterThan(ref![1])
   expect(svg).toContain('9 bp reversed')
+})
+
+const backbone = graphBackbone(graph)!.contigs[0]!.refName
+const genes = [
+  {
+    name: 'GENE1',
+    refName: backbone,
+    start: 1,
+    end: 8,
+    strand: 1,
+    exons: [
+      { start: 1, end: 3 },
+      { start: 5, end: 8 },
+    ],
+  },
+]
+
+test('genes outline their exons and are named under their pins', () => {
+  const svg = figureSvg(graph, layout, { width: 600, genes })
+  expect(svg).toContain('mask="url(#exons0)"')
+  expect(svg).toContain(
+    '<tspan font-style="italic" font-weight="600">GENE1</tspan>',
+  )
+})
+
+test('the SVG names the version that drew it and the spec it drew', () => {
+  const spec = { gfa: 'walks.gfa', layout: 'ordered' }
+  const svg = figureSvg(graph, layout, { width: 600, spec })
+  const metadata = /<metadata>(.*?)<\/metadata>/.exec(svg)![1]!
+  expect(JSON.parse(metadata.replaceAll('&quot;', '"'))).toEqual({
+    generator: `@jbrowse/bandage-core@${version}`,
+    spec,
+  })
+})
+
+// A change to what a figure draws shows here as a diff of the saved figure,
+// to be accepted with `vitest -u` when it is meant
+test('one figure draws as it did', async () => {
+  const svg = figureSvg(graph, layout, {
+    width: 600,
+    walks,
+    facet: 'sample',
+    genes,
+    spec: { fixture: 'walks' },
+  })
+  await expect(
+    svg.replace(/bandage-core@[^&]+/, 'bandage-core@VERSION'),
+  ).toMatchFileSnapshot('__snapshots__/figure_walks.svg')
 })

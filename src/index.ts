@@ -89,8 +89,16 @@ export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 export { deletionEdges } from './deletionEdges'
 export type { DeletionEdge } from './deletionEdges'
 export { facetLifts, walkHighlight, walkLift } from './walkHighlight'
-export { rangeText, walkKey } from './walkKey'
+export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
+export {
+  genesFromBed,
+  genesFromGff3Lines,
+  genesFromText,
+} from './genes/geneFiles'
+export { HPRC_GBZ, cutGbzRegion, openGbz, parseRegion } from './gbzCut'
+export type { GbzSource } from './gbzCut'
+export { version } from './version'
 export type { FigureOptions } from './figure'
 export { svgCanvas } from './renderer/svgCanvas'
 export {

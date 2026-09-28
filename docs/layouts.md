@@ -203,10 +203,11 @@ facets a plot. **A panel per walk** draws the same layout once per lifted walk,
 each panel with its walk alone on one shared scale, yellow where the walk starts
 and red where it ends. Walks then compare by where they go rather than by which
 lane is which colour. A panel's title is its key, and clicking it lifts that
-walk alone. Through the KIV-2 array, which the curated annotation above puts at
-GRCh38's 35 kb, each haplotype takes its own loops: HG00097 adds one to GRCh38's
-(+22.2 kb), HG01960 skips most of GRCh38's for the big teardrop (+49.9 kb), and
-HG00133 takes both (+116.4 kb):
+walk alone. While a node is hovered, each walk's key gives where that node sits
+on the walk's own contig, or says the walk does not visit it. Through the KIV-2
+array, which the curated annotation above puts at GRCh38's 35 kb, each haplotype
+takes its own loops: HG00097 adds one to GRCh38's (+22.2 kb), HG01960 skips most
+of GRCh38's for the big teardrop (+49.9 kb), and HG00133 takes both (+116.4 kb):
 
 ![The KIV-2 array side by side under the curated KIV-2 annotation: GRCh38, HG00097, HG01960 and HG00133 each take their own loops](../img/force_kiv2_facet.png)
 

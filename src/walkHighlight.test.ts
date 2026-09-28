@@ -4,7 +4,7 @@ import { anchorGraph } from './pathAnchoring'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
 import { NO_VALUE_COLOR, encodedColor, schemeColor } from './walkEncoding'
 import { facetLifts, walkHighlight, walkLift } from './walkHighlight'
-import { walkKey } from './walkKey'
+import { walkKey, walkPosition } from './walkKey'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3, taking a1 in place of v2. The a1->v3
 // link is written the other way round in the file, so the walk's step has to
@@ -211,4 +211,14 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
   expect(walkKey(onReference!, { name: 'chr1', start: 0, end: 9 }).scale).toBe(
     'chr1:0-9 (9 bp)',
   )
+})
+
+test("a node's position on a walk is its stretch on the walk's own contig", () => {
+  const [alt, inv] = walkLift(walks, [
+    { walk: 'alt#1#chr' },
+    { walk: 'inv#1#chr' },
+  ])!.walks
+  expect(walkPosition(alt!, 'a1+', 6)).toBe('chr:4-10')
+  expect(walkPosition(inv!, 'v1+', 4)).toBe('chr:5-9')
+  expect(walkPosition(inv!, 'a1+', 6)).toBeUndefined()
 })

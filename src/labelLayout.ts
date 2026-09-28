@@ -79,6 +79,27 @@ export function geneCoverageNote(pin: GenePin) {
   return `${amount(pin.covered * length)} of ${amount(length)} ${unit}`
 }
 
+// Each gene's name under its pin, the longest gene first, with how much of
+// it the cut carries where that is not all of it
+export function geneLabelCandidates(
+  pins: GenePin[],
+  screen: (p: { x: number; y: number }) => { x: number; y: number },
+  contigThickness: number,
+) {
+  return byExtent(pins, pin => pin.gene.end - pin.gene.start).map(pin => {
+    const { x, y } = screen(pin.at)
+    const note = geneCoverageNote(pin)
+    return {
+      item: pin,
+      x,
+      y: y + contigThickness + GENE_PIN_DROP_PX,
+      text: note ? `${pin.gene.name} · ${note}` : pin.gene.name,
+      fallback: note ? `${pin.gene.name} …` : undefined,
+      stack: GENE_STACK,
+    }
+  })
+}
+
 function byExtent<T>(items: T[], extent: (item: T) => number) {
   return [...items].sort((a, b) => extent(b) - extent(a))
 }
@@ -147,18 +168,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   )
 
   const genes = placeLabels(
-    byExtent(m.genePins, pin => pin.gene.end - pin.gene.start).map(pin => {
-      const { x, y } = screen(pin.at)
-      const note = geneCoverageNote(pin)
-      return {
-        item: pin,
-        x,
-        y: y + m.contigThickness + GENE_PIN_DROP_PX,
-        text: note ? `${pin.gene.name} · ${note}` : pin.gene.name,
-        fallback: note ? `${pin.gene.name} …` : undefined,
-        stack: GENE_STACK,
-      }
-    }),
+    geneLabelCandidates(m.genePins, screen, m.contigThickness),
     frame,
     take,
   )

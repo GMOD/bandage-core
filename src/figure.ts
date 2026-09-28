@@ -7,12 +7,22 @@ import {
   facetCells,
   facetGrid,
 } from './facetGrid'
-import { LABEL_CHAR_PX } from './overlayLabels'
+import { genePins } from './genes/genePins'
+import { geneLabelCandidates } from './labelLayout'
+import { nodeInk } from './nodeWidths'
+import {
+  LABEL_CHAR_PX,
+  LABEL_PAD,
+  LABEL_PX,
+  occupancy,
+  placeLabels,
+} from './overlayLabels'
 import { pathLegend } from './pathColors'
 import { FIT_PADDING, drawingBounds, fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { svgCanvas } from './renderer/svgCanvas'
+import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
 import { facetLifts, walkLift } from './walkHighlight'
@@ -20,15 +30,17 @@ import { rangeText, walkKey } from './walkKey'
 
 import type { ColorScheme } from './colorSchemes'
 import type { FacetBy } from './facetGrid'
+import type { GeneModel, GenePin } from './genes/genePins'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
 import type { LiftedWalk, WalkLift } from './walkHighlight'
 
 // A graph drawn to a standalone SVG, the way the plugin and BandageJS draw it
-// on screen: the same geometry through the same renderer, with the lifted
-// walks' keys and, faceted, a panel per walk or a row per sample. It reads no
-// DOM, so a script can make the figure from a spec and make it again.
+// on screen: the same geometry through the same renderer, the genes on its
+// backbone, the lifted walks' keys and, faceted, a panel per walk or a row per
+// sample. It reads no DOM, so a script can make the figure from a spec and make
+// it again; the SVG names the version that drew it and the spec it drew.
 
 export interface FigureOptions {
   width?: number
@@ -45,8 +57,11 @@ export interface FigureOptions {
   // the window the graph was cut for, which the anchored layouts and the
   // reference-position ramp span
   region?: { refName: string; start: number; end: number }
-  // how the figure was made, kept in the SVG
-  metadata?: string
+  // genes on the backbone's refNames (featuresOnBackbone), outlined on the
+  // nodes that carry their exons and named under them
+  genes?: GeneModel[]
+  // how the figure was made, kept in the SVG beside the version that drew it
+  spec?: unknown
 }
 
 const FONT = 'font-family="Helvetica, Arial, sans-serif" font-size="11"'
@@ -54,6 +69,13 @@ const BAR_PX = 48
 const SWATCH_PX = 18
 const KEY_GAP_PX = 16
 const FADED = 'rgb(160,160,160)'
+// the gene track's CDS colour, round each exon, as the viewer draws it
+const EXON_COLOR = '#daa520'
+const GENE_INK = '#1c1c22'
+// a lifted walk's lane at the least, as the geometry draws it
+const MIN_LANE_PX = 4
+const EXON_GAP_PX = 1
+const EXON_LINE_PX = 2
 
 function esc(s: string) {
   return s
@@ -119,6 +141,22 @@ function walkKeySvg(
   )
 }
 
+// `d`, a path of absolute M and L commands in layout units, in screen px
+function screenPath(
+  d: string,
+  t: { scaleX: number; scaleY: number; translateX: number; translateY: number },
+) {
+  return d.replaceAll(
+    /([ML])(-?[\d.e-]+),(-?[\d.e-]+)/g,
+    (_, cmd: string, x: string, y: string) =>
+      `${cmd}${+(Number(x) * t.scaleX + t.translateX).toFixed(1)},${+(Number(y) * t.scaleY + t.translateY).toFixed(1)}`,
+  )
+}
+
+function chip(x: number, y: number, w: number, name: string, note: string) {
+  return `<rect x="${x - w / 2}" y="${y - LABEL_PX - LABEL_PAD + 2}" width="${w}" height="${LABEL_PX + LABEL_PAD * 2 - 2}" rx="3" fill="#fff" fill-opacity="0.85" stroke="${EXON_COLOR}"/><text x="${x}" y="${y}" font-family="Helvetica, Arial, sans-serif" font-size="${LABEL_PX}" fill="${GENE_INK}" text-anchor="middle"><tspan font-style="italic" font-weight="600">${esc(name)}</tspan>${note ? esc(note) : ''}</text>`
+}
+
 export function figureSvg(
   graph: Graph,
   layout: LayoutResult,
@@ -160,6 +198,81 @@ export function figureSvg(
     ...lift.referenceDomain,
     name: region?.refName,
   }
+  const contigThickness = o.contigThickness ?? 6
+  const nodeWidth = o.nodeWidth ?? 'depth'
+  const pins: GenePin[] =
+    o.genes?.length && !layout.tubeMap
+      ? genePins(graph, o.genes, layout.nodePositions)
+      : []
+  const ink = nodeInk(graph, nodeById, contigThickness, nodeWidth)
+  let masks = 0
+
+  // Exons outlined round their stretch of each node, clear of its ink, and
+  // the genes named under their pins; a row layout names its rows
+  function overlays(
+    highlight: WalkLift | undefined,
+    t: {
+      scaleX: number
+      scaleY: number
+      translateX: number
+      translateY: number
+    },
+    w: number,
+    h: number,
+  ) {
+    const out: string[] = []
+    const inkPx = (nodeId: string) => {
+      const own = ink.halfWidthPx(nodeId) * 2
+      return highlight?.nodeIds.has(nodeId)
+        ? Math.max(own, highlight.walks.length * MIN_LANE_PX)
+        : own
+    }
+    const stretches = pins.flatMap(pin =>
+      pin.exonsByNode.map(({ nodeId, d }) => ({
+        d: screenPath(d, t),
+        inner: inkPx(nodeId) + 2 * EXON_GAP_PX,
+      })),
+    )
+    if (stretches.length > 0) {
+      const id = `exons${masks++}`
+      const stroke = (color: string, width: number, d: string) =>
+        `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`
+      out.push(
+        `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}">${stretches
+          .map(s => stroke('#fff', s.inner + 2 * EXON_LINE_PX, s.d))
+          .join('')}${stretches
+          .map(s => stroke('#000', s.inner, s.d))
+          .join(
+            '',
+          )}</mask><rect width="${w}" height="${h}" fill="${EXON_COLOR}" mask="url(#${id})"/>`,
+      )
+    }
+    const screen = (p: { x: number; y: number }) => ({
+      x: p.x * t.scaleX + t.translateX,
+      y: p.y * t.scaleY + t.translateY,
+    })
+    const frame = { width: w, height: h }
+    for (const { item: pin, x, y, w: cw, text } of placeLabels(
+      geneLabelCandidates(pins, screen, contigThickness),
+      frame,
+      occupancy(frame),
+    )) {
+      const pinY = screen(pin.at).y + contigThickness / 2
+      out.push(
+        `<line x1="${x}" x2="${x}" y1="${y - LABEL_PX - 2}" y2="${pinY}" stroke="${GENE_INK}" stroke-width="0.8" stroke-opacity="0.6"/>`,
+        chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
+      )
+    }
+    for (const { label, y } of layout.rowLabels ?? []) {
+      const sy = y * t.scaleY + t.translateY
+      if (sy >= 0 && sy <= h) {
+        out.push(
+          `<text x="6" y="${sy + 4}" ${FONT} stroke="#fff" stroke-width="3" paint-order="stroke">${esc(label)}</text>`,
+        )
+      }
+    }
+    return out.join('')
+  }
 
   function drawing(highlight: WalkLift | undefined, w: number, h: number) {
     const fit = fitTransform(
@@ -188,10 +301,10 @@ export function figureSvg(
         graph,
         nodeById,
         colorScheme,
-        contigThickness: o.contigThickness ?? 6,
+        contigThickness,
         connectorThickness: o.connectorThickness ?? 2,
         drawPaths: false,
-        nodeWidth: o.nodeWidth ?? 'depth',
+        nodeWidth,
         highlight,
         axis,
         referenceRamp,
@@ -201,15 +314,15 @@ export function figureSvg(
         ),
       }),
     )
-    renderer.updateTransform({
+    const t = {
       scaleX: axis.scaleX,
       scaleY: axis.scaleY,
       translateX: fit.translateX,
       translateY: fit.translateY,
-      dpr: 1,
-    })
+    }
+    renderer.updateTransform({ ...t, dpr: 1 })
     renderer.render([1, 1, 1, 1])
-    return markup()
+    return markup() + overlays(highlight, t, w, h)
   }
 
   const parts: string[] = []
@@ -293,5 +406,9 @@ export function figureSvg(
     )
     height = header + h
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${o.metadata ? `<metadata>${esc(o.metadata)}</metadata>` : ''}<rect width="${width}" height="${height}" fill="#fff"/>${parts.join('')}</svg>\n`
+  const metadata = JSON.stringify({
+    generator: `@jbrowse/bandage-core@${version}`,
+    ...(o.spec === undefined ? {} : { spec: o.spec }),
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><metadata>${esc(metadata)}</metadata><rect width="${width}" height="${height}" fill="#fff"/>${parts.join('')}</svg>\n`
 }
