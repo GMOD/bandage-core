@@ -29,7 +29,9 @@ need W or P lines, and Tube map on reference needs both.
 In a track of a linear view, a force-directed or ordered drawing has no bp axis
 of its own. A strip along the top of the track draws each reference segment at
 its bp, in the colour its node has in the graph, so under the reference-position
-ramp a hue on the strip finds its node below. Hovering either one boxes the
+ramp a hue on the strip finds its node below. Touching segments alternate
+between two tiers, as a feature track stacks features, over the linear view's
+gridlines, so each reads as a feature at its bp. Hovering either one boxes the
 node's reference span on the strip and draws a leader to the node; an allele's
 span runs between its flanks. Hovering a bubble's name does the same for the
 bubble's span. While the Walks picker lifts haplotypes, the strip gives each
@@ -38,7 +40,11 @@ segment, so a deletion is a pale gap in one haplotype's row. A triangle at
 either end of the strip says the graph draws reference past that edge of the
 window. The track menu's **Reference strip at bp** turns the strip off.
 
-![KIV-2's 68 kb allele hovered: the strip boxes the span between its flanks, and the linear view bands it](../img/force_kiv2_hover.png)
+Where does KIV-2's longest allele go on GRCh38? Hovering HG02391's 68 kb segment
+boxes its span between its flanks on the strip, and the linear view bands the
+same bp across the curated KIV-2 array:
+
+![KIV-2's 68 kb allele hovered: the strip boxes the span between its flanks, and the linear view bands it over the KIV-2 annotation](../img/force_kiv2_hover.png)
 
 ## Tube maps
 
@@ -119,14 +125,22 @@ tabix -p gaf reads.gaf.gz
   insertion, grey for a deletion, hidden when zoomed out. The legend names the
   strands and each kind of edit in view
 
-![The pggb E. coli subgraph as a tube map on both axes](../img/tube_map.png)
+Eight HPRC haplotypes over MICB's exons 2–4, one of the most polymorphic genes
+in the genome, as tracks under the RefSeq genes. On the reference axis each
+column sits at its bp, so the variant columns in an exon sit under that exon:
 
-Eight HPRC haplotypes over MICB's exons 2–4, as a track under the RefSeq genes
-and as a view:
+![MICB's exons 2–4 as a tube map on the reference axis, each variant column under its bp in the gene track](../img/tube_map_micb_ref.png)
 
-![MICB's exons 2–4 as a tube map track, each reference node tied to its bp on the ruler](../img/tube_map_micb_track.png)
+On the tube map's own axis the columns go in node order, and a band ties each
+reference node back to its bp on the view's ruler:
 
-![MICB's exons 2–4 as a tube map on its own axis](../img/tube_map_micb.png)
+![MICB's exons 2–4 as a tube map track on its own axis, each reference node tied to its bp](../img/tube_map_micb_track.png)
+
+Opened as a view under the linear view, the cut draws MICB's exons above the
+tubes, and hovering a box bands its bp in the linear view. Here it is GRCh38's
+base at 31,505,769 in exon 2, which three of the nine walks carry:
+
+![The MICB cut as a view under its linear view, a variant's box hovered and its bp banded in exon 2](../img/tube_map_micb.png)
 
 sequenceTubeMap's cactus test graph with NA12879's reads under its three paths,
 zoomed in far enough to letter each read's mismatches. The paths are vg generic
@@ -146,22 +160,24 @@ on, the node layouts draw each as a halo along its nodes, coloured by kind,
 which the legend names. It is off by default, since at base level every SNP's
 halo is a blob.
 
-![KIV-2, force-directed, with its bubbles marked](../img/force_kiv2_bubbles.png)
+The HPRC bubbles track draws the same `gfatools bubble` records at their bp, so
+each halo is a feature above it: the 3,018–174,966 bp record, 29 segments and up
+to 129 paths, is the halo named "3.0–175 kb repeat array (KIV-2), 129 routes":
+
+![KIV-2 with its bubbles marked, under the HPRC bubbles track that draws the same records at their bp](../img/force_kiv2_bubbles.png)
 
 A bubble's label opens its nodes on their own, with a button back to the window.
 The popped graph derives its own bubbles, so a superbubble opens level by level.
-The KIV-2 array opens to 27 segments:
+Opened in the track, the KIV-2 array keeps its strip, and its reference segments
+sit at their bp under the curated KIV-2 annotation:
 
-![The KIV-2 array popped open](../img/force_kiv2_popped.png)
+![The KIV-2 array popped open in the track, its strip under the KIV-2 annotation](../img/force_kiv2_popped.png)
 
 ## Haplotype walks
 
 A gbz-base cut carries the haplotypes' walks. A node draws thicker the more
 walks carry it, as Bandage draws depth. Each route through a bubble carries a
-label with its haplotypes and length, so the KIV-2 array reads as one copy count
-per haplotype:
-
-![KIV-2 over gbz-base, eight haplotypes, force-directed](../img/force_kiv2_gbz.png)
+label with its haplotypes and length.
 
 The Walks picker lifts haplotypes out of the drawing, and the rest of the graph
 fades to grey. A tube map has no picker, since its tubes already are the walks.
@@ -175,19 +191,19 @@ At GSTM1, HG00133 runs cyan to navy past the loop its 18 kb deletion skips:
 Walks lifted together each take one flat colour, like the lines of a metro map,
 and draw a lane each through the nodes they visit; a lane missing from a node is
 a walk that does not go there. The reference is grey, so no hue means anything
-but a haplotype. Through the KIV-2 array HG00097 carries 22 kb more than GRCh38
-and HG00133 116 kb more:
-
-![GRCh38, HG00097 and HG00133 lifted out of the KIV-2 cut, a flat colour each](../img/force_kiv2_walk.png)
+but a haplotype.
 
 The Walk menu's **Side by side** facets the pane, the way a grammar of graphics
 facets a plot. **A panel per walk** draws the same layout once per lifted walk,
 each panel with its walk alone on one shared scale, yellow where the walk starts
 and red where it ends. Walks then compare by where they go rather than by which
 lane is which colour. A panel's title is its key, and clicking it lifts that
-walk alone:
+walk alone. Through the KIV-2 array, which the curated annotation above puts at
+GRCh38's 35 kb, each haplotype takes its own loops: HG00097 adds one to GRCh38's
+(+22.2 kb), HG01960 skips most of GRCh38's for the big teardrop (+49.9 kb), and
+HG00133 takes both (+116.4 kb):
 
-![The KIV-2 cut side by side, one panel per walk](../img/force_kiv2_facet.png)
+![The KIV-2 array side by side under the curated KIV-2 annotation: GRCh38, HG00097, HG01960 and HG00133 each take their own loops](../img/force_kiv2_facet.png)
 
 The panels share one view, so a pan, zoom, drag or hover in one moves or marks
 them all. As many go across as draws each panel largest, the way `facet_wrap`
@@ -234,16 +250,8 @@ walks' lane colours, a row each.
 A walk that crosses the reference's nodes the other way runs the other way along
 them, and its key gives the bp it runs reversed. Both orientations of an
 inverted haplotype visit the same nodes, so side by side is how a force drawing
-shows an inversion. HG002's first haplotype carries the H2 inversion at MAPT,
-and runs red to yellow where GRCh38 and HG00097 run yellow to red:
-
-![MAPT side by side: HG002's walk runs against GRCh38's and HG00097's](../img/force_mapt_strand.png)
-
-At the 1q21.1 inversion GRCh38 reads the minority orientation: 333 of 455 HPRC
-haplotypes, CHM13 among them, run the other way. By sample, HG01123's row shows
-it carries one orientation on each haplotype:
-
-![1q21.1 by sample: HG002 and HG01123's first haplotype run against GRCh38, HG005 and HG01123's second](../img/force_1q21_strand.png)
+shows an inversion: at MAPT, HG002's first haplotype carries the H2 inversion
+and runs red to yellow where GRCh38 runs yellow to red.
 
 **Export SVG** in the view's menu saves the drawing, its walks' keys and panels
 as a vector figure. The same renderer makes figures from a JSON spec with no
@@ -256,9 +264,10 @@ Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
 the curated VNTR track, each bar runs between the KIV-2 array's flanking
 reference nodes and is tiled by its 5,548 bp kringle unit, so the copy number
 reads off the bar: about 6 in GRCh38, 27 in HG00133. Purple is copies GRCh38
-does not carry:
+does not carry. GRCh38's six units are the six LPA exon pairs the gene track
+draws over the curated array, one pair per kringle:
 
-![KIV-2 walk rows, each bar tiled by the kringle unit](../img/walk_rows_kiv2.png)
+![KIV-2 walk rows under LPA and the curated KIV-2 annotation, each bar tiled by the kringle unit](../img/walk_rows_kiv2.png)
 
 Under the reference-position ramp, a copy's hue is the reference copy the graph
 threads it through. In a tandem array that is the aligner's pick among
@@ -276,11 +285,15 @@ gene's name under its midpoint. The outline clears the node, and any lifted
 lanes on it, so the colour inside stays the node's own. A gene the cut carries
 only part of says how much: `LPA · 35 of 132.8 kb`. A tube map in a view of its
 own draws genes in rows above the tubes instead, and one in a linear view leaves
-them to the gene track (see Tube maps). In MHC class II, one 254-segment
-superbubble covering the DRB block reads as HLA-DRB5's, and the indels after it
-as HLA-DRB6's and HLA-DRB1's:
+them to the gene track (see Tube maps).
 
-![MHC class II, force-directed, with genes on the backbone](../img/force_mhc.png)
+In MHC class II the gene track's HLA-DRB5, HLA-DRB6 and HLA-DRB1 sit over their
+exons on the graph's backbone. HLA-DR haplotypes differ in which DRB genes they
+carry, and the longest allele off the reference is HG01071's own 46.9 kb.
+Hovering it shows where it goes: in place of 173 bp of GRCh38, between HLA-DRB5
+and HLA-DRB6:
+
+![MHC class II under its genes, HG01071's 46.9 kb allele hovered: the strip and the linear view mark the 173 bp it replaces, between HLA-DRB5 and HLA-DRB6](../img/force_mhc.png)
 
 The view draws genes only on a backbone of the assembly it read them for. A
 backbone names a sample by PanSN (`GRCh38#0#chr6`), never an assembly. A walk
