@@ -10,10 +10,10 @@ import {
 // How a lifted walk colours its lane, stated the way a grammar of graphics
 // states an encoding: a field, the quantity the walk has at each node it
 // visits, mapped through a scheme, the scale from that quantity to a colour.
-// By default every lane shades pale to deep along its walk, the reference in
-// grey and each haplotype in a hue of its own, so hue names the walk and
-// lightness follows it round a loop. A walk crossing the reference's nodes the
-// other way shades against the reference's lane beside it.
+// Colour does one job at a time by default: a walk lifted alone shades light
+// to dark along itself, which follows it round a loop, and walks lifted
+// together each take one flat colour, which says which lane is which. The
+// reference takes grey, so no hue means anything but a haplotype.
 //
 // A session states it per walk, and leaves out whatever takes the default:
 //
@@ -81,9 +81,10 @@ export function resolveEncoding(
   layer: WalkLayer,
   reference: boolean,
   picked: number,
+  alone = true,
 ): WalkEncoding {
   const { field: askedField, scheme: askedScheme } = layer.color ?? {}
-  const field = isField(askedField) ? askedField : 'progress'
+  const field = isField(askedField) ? askedField : alone ? 'progress' : 'walk'
   const family = reference ? 'grey' : FAMILIES[picked % FAMILIES.length]!
   const scheme = isScheme(askedScheme)
     ? askedScheme === 'rainbow' && field !== 'reference'

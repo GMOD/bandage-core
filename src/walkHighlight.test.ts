@@ -71,24 +71,31 @@ W\tinv\t1\tchr\t0\t9\t<v3<v2<v1`
 const walks = anchorGraph(convertGFAToGraph(parseGFA(WALKS)), 'ref')
 const ramp = computeReferenceRamp(walks, { start: 0, end: 9 })
 
-test('every lane shades along its walk, the reference in grey and each other walk a hue of its own', () => {
+test('walks lifted together each take one flat colour, the reference grey', () => {
   const lift = walkLift(
     walks,
     [{ walk: 'alt#1#chr' }, { walk: 'ref#0#chr' }, { walk: 'inv#1#chr' }],
     ramp,
   )!
   expect(lift.walks.map(w => [w.name, w.encoding])).toEqual([
-    ['ref#0#chr', { field: 'progress', scheme: 'grey' }],
-    ['alt#1#chr', { field: 'progress', scheme: 'blue' }],
-    ['inv#1#chr', { field: 'progress', scheme: 'red' }],
+    ['ref#0#chr', { field: 'walk', scheme: 'grey' }],
+    ['alt#1#chr', { field: 'walk', scheme: 'blue' }],
+    ['inv#1#chr', { field: 'walk', scheme: 'red' }],
   ])
-  const [ref, , inv] = lift.walks
+  const [ref] = lift.walks
+  expect(new Set(ref!.colors.values()).size).toBe(1)
+  expect(lift.nodeIds).toEqual(new Set(['v1+', 'v2+', 'v3+', 'a1+']))
+})
+
+test('a walk lifted alone shades light to dark along itself', () => {
+  const [ref] = walkLift(walks, [{ walk: 'ref#0#chr' }], ramp)!.walks
+  expect(ref!.encoding).toEqual({ field: 'progress', scheme: 'grey' })
   expect(ref!.colors.get('v1+')).toBe(schemeColor('grey', 2 / 9))
   expect(ref!.colors.get('v3+')).toBe(schemeColor('grey', 7.5 / 9))
   // inv crosses the same nodes from v3, so it shades the other way
-  expect(inv!.colors.get('v3+')).toBe(schemeColor('red', 1.5 / 9))
-  expect(inv!.colors.get('v1+')).toBe(schemeColor('red', 7 / 9))
-  expect(lift.nodeIds).toEqual(new Set(['v1+', 'v2+', 'v3+', 'a1+']))
+  const [inv] = walkLift(walks, [{ walk: 'inv#1#chr' }], ramp)!.walks
+  expect(inv!.colors.get('v3+')).toBe(schemeColor('blue', 1.5 / 9))
+  expect(inv!.colors.get('v1+')).toBe(schemeColor('blue', 7 / 9))
 })
 
 test('a walk states where its stretch sits on its own contig, from its record', () => {

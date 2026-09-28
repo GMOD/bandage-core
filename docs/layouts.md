@@ -162,77 +162,75 @@ per haplotype:
 
 ![KIV-2 over gbz-base, eight haplotypes, force-directed](../img/force_kiv2_gbz.png)
 
-The Walks picker lifts any number of haplotypes out of the drawing. Each lifted
-walk draws a lane of its own through the nodes it visits, the rest of the graph
-fades, and a readout gives each walk's length against the reference. Where one
-lifted walk visits a node and another does not, the second walk's lane is
-missing there, which is where their routes part. The reference walk's lane comes
-first, then the others in the order they were picked. Through the KIV-2 array
-GRCh38 takes the rainbow, HG00097 blue and HG00133 vermillion; HG00097 carries
-22 kb more than GRCh38, HG00133 116 kb more:
+The Walks picker lifts haplotypes out of the drawing, and the rest of the graph
+fades to grey. A walk lifted alone shades light to dark along itself, so it can
+be followed round a loop; its key is that gradient with the walk's first and
+last coordinate on its own contig at either end. At GSTM1, HG00133 runs cyan to
+navy past the loop its 18 kb deletion skips:
 
-![GRCh38, HG00097 and HG00133 lifted out of the KIV-2 cut, a lane each](../img/force_kiv2_walk.png)
+![HG00133's walk lifted at GSTM1, shading along itself past the loop it skips](../img/force_gstm1_walk.png)
 
-In a track, the reference strip shows what the lifted walks skip at its bp.
-GSTM1 is deleted on six of the eight haplotypes; with HG00133 lifted, the 18 kb
-it lacks fades on the strip under the RefSeq gene, and its lane takes the
-shortcut past the faded loop:
+Walks lifted together each take one flat colour, like the lines of a metro map,
+and draw a lane each through the nodes they visit; a lane missing from a node is
+a walk that does not go there. The reference is grey, so no hue means anything
+but a haplotype. Through the KIV-2 array HG00097 carries 22 kb more than GRCh38
+and HG00133 116 kb more:
 
-![HG00133's walk lifted at GSTM1, its 18 kb deletion faded on the reference strip](../img/force_gstm1_walk.png)
+![GRCh38, HG00097 and HG00133 lifted out of the KIV-2 cut, a flat colour each](../img/force_kiv2_walk.png)
 
-### Colouring lifted walks
+The Walk menu's **Side by side** facets the pane by walk, the way a grammar of
+graphics facets a plot: the same layout drawn once per lifted walk, each panel
+with its walk alone on one shared scale, yellow where the walk starts and red
+where it ends. Walks then compare by where they go rather than by which lane is
+which colour. A panel's title is its key, and clicking it lifts that walk alone:
 
-A lifted walk colours its lane by an encoding: a field, the quantity the walk
-has at each node it visits, drawn through a scheme, the scale from that quantity
-to a colour.
+![The KIV-2 cut side by side, one panel per walk](../img/force_kiv2_facet.png)
 
-| Field                   | What the colour says                                                           |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| Progress along the walk | how far through its own length the walk is, pale at the start, deep at the end |
-| One colour for the walk | which walk the lane is, and nothing else                                       |
-| Reference position      | where the node sits on the reference, charcoal off it                          |
-
-Every lane shades by progress by default, so a walk can be followed round a loop
-from its start to its end. Each shading runs from a light colour to a dark one
-of another hue, and no two share a stretch of the colour wheel: the reference
-runs grey to black, so that no hue on a lane means anything but a haplotype, and
-each other walk takes, in the order picked, cyan to navy, yellow to red, pink to
-plum and lime to forest. A reader with red-green colour blindness sees only a
-blue to yellow axis, so the first two stay apart for every reader and the other
-two fold into them. The rainbow is the reference-position ramp and goes with
-reference position only. The **Walk** menu sets each lifted walk's field and
-palette, and a session states them per walk, leaving out whatever takes the
-default:
+A session states the walks, and the facet, as layers:
 
 ```json
 "walkLayers": [
   { "walk": "GRCh38#0#chr6" },
   { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } }
-]
+],
+"facet": "walk"
 ```
 
-Each lifted walk's legend row is the scale its lane is drawn on: a bar in the
-lane's colours with the walk's first and last coordinate on its own contig at
-either end, the way the reference-position key states its interval, and the
-walk's length against the reference above it. A lane coloured by reference
-position takes the reference's interval instead. While walks are lifted the rest
-of the graph fades in grey, the reference strip of a track takes the reference
-walk's lane colours, or grey when the reference is not lifted, and the
-reference-position key goes: rainbow appears only on a lane that asks for it.
+### Colouring lifted walks
 
-A walk that crosses the reference's nodes the other way shades the other way
-along them, light where the reference's lane is dark, and its legend row gives
-the bp it runs reversed. Both orientations of an inverted haplotype visit the
-same nodes, so this is the only way a force drawing shows an inversion. HG002's
-first haplotype carries the H2 inversion at MAPT, and HG00097's does not:
+A lifted walk colours its lane by an encoding: a field, the quantity the walk
+has at each node it visits, drawn through a scheme, the scale from that quantity
+to a colour. The **Walk** menu sets both per walk, overriding the defaults
+above.
 
-![MAPT with GRCh38, HG00097 and HG002 lifted, HG002's lane shading against the reference's](../img/force_mapt_strand.png)
+| Field                   | What the colour says                                                            |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| Progress along the walk | how far through its own length the walk is, light at the start, dark at the end |
+| One colour for the walk | which walk the lane is, and nothing else                                        |
+| Reference position      | where the node sits on the reference, charcoal off it                           |
+
+Each scheme runs from a light colour to a dark one of another hue, and no two
+share a stretch of the colour wheel: grey to black for the reference, then cyan
+to navy, yellow to red, pink to plum and lime to forest, in the order walks are
+picked. A reader with red-green colour blindness sees only a blue to yellow
+axis, so the first two stay apart for every reader. The rainbow is the
+reference-position ramp and goes with reference position only; while walks are
+lifted it appears nowhere else, and a track's reference strip takes the
+reference walk's lane colours, or grey when the reference is not lifted.
+
+A walk that crosses the reference's nodes the other way runs the other way along
+them, and its key gives the bp it runs reversed. Both orientations of an
+inverted haplotype visit the same nodes, so side by side is how a force drawing
+shows an inversion. HG002's first haplotype carries the H2 inversion at MAPT,
+and runs red to yellow where GRCh38 and HG00097 run yellow to red:
+
+![MAPT side by side: HG002's walk runs against GRCh38's and HG00097's](../img/force_mapt_strand.png)
 
 At the 1q21.1 inversion GRCh38 reads the minority orientation: 333 of 455 HPRC
 haplotypes, CHM13 among them, run the other way. HG01123 carries one orientation
-on each haplotype, so its two lanes sit side by side, shading opposite ways:
+on each haplotype:
 
-![1q21.1 with GRCh38, HG005, HG002 and both HG01123 haplotypes lifted, the reversed lanes shading against the reference's](../img/force_1q21_strand.png)
+![1q21.1 side by side: HG002 and HG01123's first haplotype run against GRCh38, HG005 and HG01123's second](../img/force_1q21_strand.png)
 
 While walks are lifted, a gene's exons draw as a faint band across their lanes,
 and node lengths are not labelled, since both would sit on the lanes.

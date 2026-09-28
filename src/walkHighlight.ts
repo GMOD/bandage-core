@@ -185,6 +185,7 @@ export function walkLift(
       layer,
       walk.reference,
       walk.reference ? 0 : picked++,
+      lifted.length === 1,
     )
     const { reversed, bp } = reversedNodes(graph, walk)
     return {
