@@ -50,53 +50,51 @@ test('the strip is the backbone in bp order, painted the hue of its node', () =>
     ['c', 1150, 1200],
   ])
   // a's midpoint is a quarter along the ramp: hue 75
-  expect(blocks[0]!.color).toBe('rgba(172,217,38,1)')
-  expect(new Set(blocks.map(b => b.color)).size).toBe(3)
+  expect(blocks[0]!.colors).toEqual(['rgba(172,217,38,1)'])
+  expect(new Set(blocks.map(b => b.colors[0])).size).toBe(3)
 })
 
-test('under lifted walks a block takes the reference lane, grey without one, and fades off them', () => {
-  const walkNodes = new Set(['a', 'x', 'c'])
-  expect(
-    referenceStripBlocks(graph, { colorScheme: 'uniform', walkNodes }).map(
-      b => b.color,
-    ),
-  ).toEqual([
-    'rgba(160,160,160,1)',
-    expect.stringMatching(/^rgba\(160,160,160,0\.18/),
-    'rgba(160,160,160,1)',
-  ])
-  const lane = packAbgr(10, 20, 30, 255)
+test('under lifted walks a block is a row per walk in its lane, pale where the walk skips it', () => {
+  const ref = packAbgr(10, 20, 30, 255)
+  const hap = packAbgr(40, 50, 60, 255)
   const blocks = referenceStripBlocks(graph, {
     colorScheme: 'uniform',
-    walkNodes,
-    walkColors: new Map([['a', lane]]),
+    walks: [
+      { colors: new Map(['a', 'b', 'c'].map(id => [id, ref])) },
+      { colors: new Map(['a', 'x', 'c'].map(id => [id, hap])) },
+    ],
   })
-  expect(blocks[0]!.color).toBe('rgba(10,20,30,1)')
+  const pale = expect.stringMatching(/^rgba\(160,160,160,0\.18/)
+  expect(blocks.map(b => b.colors)).toEqual([
+    ['rgba(10,20,30,1)', 'rgba(40,50,60,1)'],
+    ['rgba(10,20,30,1)', pale],
+    ['rgba(10,20,30,1)', 'rgba(40,50,60,1)'],
+  ])
   expect(blocks.map(b => b.faded)).toEqual([false, true, false])
 })
 
 test('blocks fill whole pixels, none shared, so neighbours leave no seam', () => {
   const blocks = [
-    { node: 'a', bp0: 0, bp1: 10.3, color: 'a', faded: false },
-    { node: 's', bp0: 10.3, bp1: 10.4, color: 's', faded: true },
-    { node: 't', bp0: 10.4, bp1: 10.5, color: 't', faded: true },
-    { node: 'b', bp0: 10.5, bp1: 20, color: 'b', faded: false },
+    { node: 'a', bp0: 0, bp1: 10.3, colors: ['a'], faded: false },
+    { node: 's', bp0: 10.3, bp1: 10.4, colors: ['s'], faded: true },
+    { node: 't', bp0: 10.4, bp1: 10.5, colors: ['t'], faded: true },
+    { node: 'b', bp0: 10.5, bp1: 20, colors: ['b'], faded: false },
   ]
   const px = stripPixels(blocks, { scale: 1, translateX: 0 }, 100, 1)
   // s takes its pixel from b, and t, sharing it, is not drawn
   expect(px).toEqual([
-    { color: 'a', x0: 0, x1: 10 },
-    { color: 's', x0: 10, x1: 11 },
-    { color: 'b', x0: 11, x1: 20 },
+    { colors: ['a'], x0: 0, x1: 10 },
+    { colors: ['s'], x0: 10, x1: 11 },
+    { colors: ['b'], x0: 11, x1: 20 },
   ])
   // at dpr 2, edges land on half css px
   expect(
     stripPixels(blocks.slice(0, 1), { scale: 1, translateX: 0 }, 100, 2),
-  ).toEqual([{ color: 'a', x0: 0, x1: 10.5 }])
+  ).toEqual([{ colors: ['a'], x0: 0, x1: 10.5 }])
   // reversed, b is leftmost
   expect(
     stripPixels(blocks, { scale: -1, translateX: 20 }, 100, 1).map(
-      p => p.color,
+      p => p.colors[0],
     ),
   ).toEqual(['b', 't', 'a'])
 })

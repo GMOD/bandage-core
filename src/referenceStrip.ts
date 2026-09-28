@@ -15,57 +15,61 @@ import type { Graph, NodeSegment } from './types'
 
 // A force or ordered drawing inside a linear view has no bp axis, so a strip
 // along the top of the track draws each reference segment at its bp there, in
-// the colour its node has in the graph below, faded where the graph fades it
-// off a lifted walk. Under the reference-position ramp that is the hue a
-// reader matches between the two; the lit node gets a
-// leader from its span on the strip to where the graph drew it, as the
-// variant matrix ties a column to its variant.
+// the colour its node has in the graph below: the reference-position ramp's
+// hue, or while walks are lifted a row per walk in its lane's colours, pale
+// where that walk skips the segment. The lit node gets a leader from its span
+// on the strip to where the graph drew it, as the variant matrix ties a column
+// to its variant.
 
 export const REFERENCE_STRIP_PX = 10
 // the strip, and the gap under it the fit leaves the drawing
 export const REFERENCE_STRIP_ZONE_PX = REFERENCE_STRIP_PX + 8
-// a triangle at a strip end: reference the graph draws runs past that edge
-const OVERHANG_PX = 5
+// a triangle at a strip end, in a cap cleared of the strip: reference the
+// graph draws runs past that edge
+const OVERHANG_PX = 8
+const OVERHANG_CAP_PX = OVERHANG_PX + 3
 
 export interface StripBlock {
   node: string
   bp0: number
   bp1: number
-  color: string
-  // off every lifted walk, so the strip pales it as the graph does
+  // top to bottom: a row per lifted walk, else the node's own colour
+  colors: string[]
+  // pale on some row
   faded: boolean
 }
+
+const PALE = abgrToCssRgba(fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA))
 
 export function referenceStripBlocks(
   graph: Graph,
   {
     colorScheme,
     referenceRamp,
-    walkNodes,
-    walkColors,
+    walks,
   }: {
     colorScheme: ResolvedColorScheme
     referenceRamp?: ReferenceRamp
-    // the nodes lifted walks visit, and the reference walk's lane colours
-    // when it is one of them: the strip then takes those, else grey
-    walkNodes?: ReadonlySet<string>
-    walkColors?: ReadonlyMap<string, number>
+    // the lifted walks' lane colours at the nodes each visits
+    walks?: readonly { colors: ReadonlyMap<string, number> }[]
   },
 ) {
   const range = { ...computeColorSchemeRange(graph), referenceRamp }
   const out: StripBlock[] = []
   graph.nodes.forEach((node, index) => {
     if (isBackbone(node)) {
-      const own = walkNodes
-        ? (walkColors?.get(node.id) ?? LIFT_BACKDROP_COLOR)
-        : getNodeColor(node, index, colorScheme, range)
-      const faded = !!walkNodes && !walkNodes.has(node.id)
+      const colors = walks
+        ? walks.map(w => {
+            const lane = w.colors.get(node.id)
+            return lane === undefined ? PALE : abgrToCssRgba(lane)
+          })
+        : [abgrToCssRgba(getNodeColor(node, index, colorScheme, range))]
       out.push({
         node: node.id,
         bp0: node.stable.start,
         bp1: node.stable.start + node.length,
-        color: abgrToCssRgba(faded ? fadeAbgr(own, FADED_ALPHA) : own),
-        faded,
+        colors,
+        faded: colors.includes(PALE),
       })
     }
   })
@@ -162,7 +166,7 @@ export function stripPixels(
       const [x0, x1] = span(frame, b.bp0, b.bp1)
       const px0 = Math.round(x0 * dpr)
       return {
-        color: b.color,
+        colors: b.colors,
         x0,
         px0,
         px1: Math.max(Math.round(x1 * dpr), px0 + 1),
@@ -170,31 +174,45 @@ export function stripPixels(
     })
     .filter(b => b.px1 > 0 && b.px0 < width * dpr)
     .sort((a, b) => a.x0 - b.x0)
-  const out: { color: string; x0: number; x1: number }[] = []
+  const out: { colors: string[]; x0: number; x1: number }[] = []
   let claimed = -Infinity
-  for (const { color, px0, px1 } of placed) {
+  for (const { colors, px0, px1 } of placed) {
     const start = Math.max(px0, claimed)
     if (px1 > start) {
-      out.push({ color, x0: start / dpr, x1: px1 / dpr })
+      out.push({ colors, x0: start / dpr, x1: px1 / dpr })
       claimed = px1
     }
   }
   return out
 }
 
-// A triangle with its tip on the strip's edge, pointing off it; `inward` is
-// +1 from the left edge and -1 from the right
+// A triangle the strip's height with its tip at the strip's edge, pointing
+// off it, in a cap cleared of the strip; `inward` is +1 from the left edge and
+// -1 from the right
 function drawOverhang(
   ctx: CanvasRenderingContext2D,
-  tipX: number,
+  edgeX: number,
   inward: number,
+  { ink, paper }: { ink: string; paper: string },
 ) {
-  const mid = REFERENCE_STRIP_PX / 2
-  const baseX = tipX + inward * (OVERHANG_PX + 1)
-  ctx.moveTo(tipX + inward, mid)
-  ctx.lineTo(baseX, mid - OVERHANG_PX / 1.4)
-  ctx.lineTo(baseX, mid + OVERHANG_PX / 1.4)
+  const capX = inward > 0 ? edgeX : edgeX - OVERHANG_CAP_PX
+  ctx.fillStyle = paper
+  ctx.fillRect(capX, 0, OVERHANG_CAP_PX, REFERENCE_STRIP_PX)
+  const tipX = edgeX + inward
+  const baseX = tipX + inward * OVERHANG_PX
+  ctx.beginPath()
+  ctx.moveTo(tipX, REFERENCE_STRIP_PX / 2)
+  ctx.lineTo(baseX, 0)
+  ctx.lineTo(baseX, REFERENCE_STRIP_PX)
   ctx.closePath()
+  ctx.fillStyle = ink
+  ctx.fill()
+}
+
+// Rows split the strip's height at whole device pixels, as blocks split its
+// width
+function rowEdge(row: number, rows: number, dpr: number) {
+  return Math.round((row * REFERENCE_STRIP_PX * dpr) / rows) / dpr
 }
 
 export function drawReferenceStrip(
@@ -214,26 +232,23 @@ export function drawReferenceStrip(
   },
 ) {
   const ink = darkMode ? '#ffffff' : '#18181c'
-  ctx.fillStyle = darkMode ? '#1f1f1f' : '#ffffff'
+  const paper = darkMode ? '#1f1f1f' : '#ffffff'
+  ctx.fillStyle = paper
   ctx.fillRect(0, 0, width, REFERENCE_STRIP_ZONE_PX)
   for (const b of stripPixels(blocks, frame, width, dpr)) {
-    ctx.fillStyle = b.color
-    ctx.fillRect(b.x0, 0, b.x1 - b.x0, REFERENCE_STRIP_PX)
+    const rows = b.colors.length
+    b.colors.forEach((color, row) => {
+      const y0 = rowEdge(row, rows, dpr)
+      ctx.fillStyle = color
+      ctx.fillRect(b.x0, y0, b.x1 - b.x0, rowEdge(row + 1, rows, dpr) - y0)
+    })
   }
   const overhang = stripOverhang(blocks, frame, width)
-  if (overhang.left > 0 || overhang.right > 0) {
-    ctx.beginPath()
-    if (overhang.left > 0) {
-      drawOverhang(ctx, 0, 1)
-    }
-    if (overhang.right > 0) {
-      drawOverhang(ctx, width, -1)
-    }
-    ctx.fillStyle = ink
-    ctx.fill()
-    ctx.strokeStyle = darkMode ? '#1f1f1f' : '#ffffff'
-    ctx.lineWidth = 1
-    ctx.stroke()
+  if (overhang.left > 0) {
+    drawOverhang(ctx, 0, 1, { ink, paper })
+  }
+  if (overhang.right > 0) {
+    drawOverhang(ctx, width, -1, { ink, paper })
   }
   if (lit) {
     const [x0, x1] = span(frame, lit.start, lit.end)

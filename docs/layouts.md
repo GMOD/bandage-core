@@ -32,8 +32,9 @@ its bp, in the colour its node has in the graph, so under the reference-position
 ramp a hue on the strip finds its node below. Hovering either one boxes the
 node's reference span on the strip and draws a leader to the node; an allele's
 span runs between its flanks. Hovering a bubble's name does the same for the
-bubble's span. While the Walks picker lifts haplotypes, the reference segments
-none of them visits fade on the strip as they do in the graph. A triangle at
+bubble's span. While the Walks picker lifts haplotypes, the strip gives each
+lifted walk a row in its lane's colours, pale where that walk skips a reference
+segment, so a deletion is a pale gap in one haplotype's row. A triangle at
 either end of the strip says the graph draws reference past that edge of the
 window. The track menu's **Reference strip at bp** turns the strip off.
 
@@ -227,8 +228,8 @@ to navy, yellow to red, pink to plum and lime to forest, in the order walks are
 picked. A reader with red-green colour blindness sees only a blue to yellow
 axis, so the first two stay apart for every reader. The rainbow is the
 reference-position ramp and goes with reference position only; while walks are
-lifted it appears nowhere else, and a track's reference strip takes the
-reference walk's lane colours, or grey when the reference is not lifted.
+lifted it appears nowhere else, and a track's reference strip takes the lifted
+walks' lane colours, a row each.
 
 A walk that crosses the reference's nodes the other way runs the other way along
 them, and its key gives the bp it runs reversed. Both orientations of an
