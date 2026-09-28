@@ -165,9 +165,9 @@ per haplotype:
 The Walks picker lifts haplotypes out of the drawing, and the rest of the graph
 fades to grey. A tube map has no picker, since its tubes already are the walks.
 A walk lifted alone shades light to dark along itself, so it can be followed
-round a loop; its key is that gradient with the walk's first and last coordinate
-on its own contig at either end. At GSTM1, HG00133 runs cyan to navy past the
-loop its 18 kb deletion skips:
+round a loop; its key is a short bar of that gradient, with the stretch it runs
+over on the walk's own contig written under it as `contig:start-end (length)`.
+At GSTM1, HG00133 runs cyan to navy past the loop its 18 kb deletion skips:
 
 ![HG00133's walk lifted at GSTM1, shading along itself past the loop it skips](../img/force_gstm1_walk.png)
 
