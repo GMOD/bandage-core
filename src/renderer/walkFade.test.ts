@@ -121,12 +121,16 @@ test('a node painted in path stripes fades off the lifted walk too', () => {
   }
 })
 
-// inv crosses the reference's nodes end first, so its lane dashes there
+// inv crosses the reference's nodes end first
 const INVERTED = `${GFA}
 W\tinv\t1\tchr\t0\t9\t<v3<v2<v1`
 
-test("a walk running against the reference dashes its lane, the reference's stays solid", () => {
+test('a walk running against the reference draws a whole lane beside it', () => {
   const anchored = anchorGraph(convertGFAToGraph(parseGFA(INVERTED)), 'ref')
+  const both = walkLift(anchored, [
+    { walk: 'ref#0#chr' },
+    { walk: 'inv#1#chr' },
+  ])!
   const batch = buildGeometry({
     axis: { scaleX: 1, scaleY: 1 },
     nodePositions: positions,
@@ -136,18 +140,12 @@ test("a walk running against the reference dashes its lane, the reference's stay
     contigThickness: 5,
     connectorThickness: 2,
     drawPaths: false,
-    highlight: walkLift(anchored, [
-      { walk: 'ref#0#chr' },
-      { walk: 'inv#1#chr' },
-    ]),
+    highlight: both,
   })
   const { start, count } = batch.nodeStrokeRuns.get('v2+')!
-  const [refLane, ...invDashes] = batch.nodeStrokes.slice(start, start + count)
-  expect(refLane!.points).toHaveLength(2)
-  // 10 units at 5 on, 5 off
-  expect(invDashes.length).toBeGreaterThanOrEqual(1)
-  const span = (p: { x: number }[]) => Math.abs(p.at(-1)!.x - p[0]!.x)
-  for (const dash of invDashes) {
-    expect(span(dash.points)).toBeLessThanOrEqual(5 + 1e-9)
-  }
+  const lanes = batch.nodeStrokes.slice(start, start + count)
+  expect(lanes.map(l => l.points.length)).toEqual([2, 2])
+  expect(lanes.map(l => l.color)).toEqual(
+    both.walks.map(w => w.colors.get('v2+')),
+  )
 })

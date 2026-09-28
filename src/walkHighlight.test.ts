@@ -71,23 +71,32 @@ W\tinv\t1\tchr\t0\t9\t<v3<v2<v1`
 const walks = anchorGraph(convertGFAToGraph(parseGFA(WALKS)), 'ref')
 const ramp = computeReferenceRamp(walks, { start: 0, end: 9 })
 
-test('the reference walk takes the rainbow by position, each other walk one colour of its own', () => {
+test('every lane shades along its walk, the reference in grey and each other walk a hue of its own', () => {
   const lift = walkLift(
     walks,
     [{ walk: 'alt#1#chr' }, { walk: 'ref#0#chr' }, { walk: 'inv#1#chr' }],
     ramp,
   )!
   expect(lift.walks.map(w => [w.name, w.encoding])).toEqual([
-    ['ref#0#chr', { field: 'reference', scheme: 'rainbow' }],
-    ['alt#1#chr', { field: 'walk', scheme: 'blue' }],
-    ['inv#1#chr', { field: 'walk', scheme: 'vermillion' }],
+    ['ref#0#chr', { field: 'progress', scheme: 'grey' }],
+    ['alt#1#chr', { field: 'progress', scheme: 'blue' }],
+    ['inv#1#chr', { field: 'progress', scheme: 'vermillion' }],
   ])
-  const [ref, alt] = lift.walks
-  expect(ref!.colors.get('v1+')).toBe(schemeColor('rainbow', 2 / 9))
-  expect(ref!.colors.get('v3+')).toBe(schemeColor('rainbow', 7.5 / 9))
+  const [ref, , inv] = lift.walks
+  expect(ref!.colors.get('v1+')).toBe(schemeColor('grey', 2 / 9))
+  expect(ref!.colors.get('v3+')).toBe(schemeColor('grey', 7.5 / 9))
+  // inv crosses the same nodes from v3, so it shades the other way
+  expect(inv!.colors.get('v3+')).toBe(schemeColor('vermillion', 1.5 / 9))
+  expect(inv!.colors.get('v1+')).toBe(schemeColor('vermillion', 7 / 9))
+  expect(lift.nodeIds).toEqual(new Set(['v1+', 'v2+', 'v3+', 'a1+']))
+})
+
+test('one colour for the walk paints it flat', () => {
+  const [alt] = walkLift(walks, [
+    { walk: 'alt#1#chr', color: { field: 'walk' } },
+  ])!.walks
   const blue = encodedColor({ field: 'walk', scheme: 'blue' })
   expect(new Set(alt!.colors.values())).toEqual(new Set([blue]))
-  expect(lift.nodeIds).toEqual(new Set(['v1+', 'v2+', 'v3+', 'a1+']))
 })
 
 test('progress runs pale to deep along the walk', () => {
@@ -106,7 +115,7 @@ test('a stranger lifts nothing, a repeat lifts once, and what this build lacks r
     { walk: 'alt#1#chr', color: { scheme: 'orange' } },
   ] as never)!
   expect(lift.walks.map(w => w.encoding)).toEqual([
-    { field: 'walk', scheme: 'blue' },
+    { field: 'progress', scheme: 'blue' },
   ])
   expect(walkLift(walks, [{ walk: 'nobody' }])).toBeUndefined()
 })
@@ -118,7 +127,7 @@ test('the rainbow is only for reference position', () => {
   expect(alt!.encoding).toEqual({ field: 'progress', scheme: 'blue' })
 })
 
-test('a walk crossing the reference backwards is marked where it does', () => {
+test('a walk crossing the reference backwards says where it does', () => {
   const lift = walkLift(walks, [
     { walk: 'ref#0#chr' },
     { walk: 'alt#1#chr' },
@@ -129,18 +138,18 @@ test('a walk crossing the reference backwards is marked where it does', () => {
   expect(alt!.reversed.size).toBe(0)
   expect(inv!.reversed).toEqual(new Set(['v3+', 'v2+', 'v1+']))
   expect(inv!.reversedBp).toBe(9)
-  const [unmarked] = walkLift(walks, [
-    { walk: 'inv#1#chr', reversedMark: false },
-  ])!.walks
-  expect(unmarked!.reversed.size).toBe(0)
 })
 
-test('reference position is charcoal off the reference', () => {
-  const [alt] = walkLift(
+test('reference position is charcoal off the reference, and may take the rainbow', () => {
+  const [alt, inv] = walkLift(
     walks,
-    [{ walk: 'alt#1#chr', color: { field: 'reference' } }],
+    [
+      { walk: 'alt#1#chr', color: { field: 'reference' } },
+      { walk: 'inv#1#chr', color: { field: 'reference', scheme: 'rainbow' } },
+    ],
     ramp,
   )!.walks
-  expect(alt!.encoding.scheme).toBe('rainbow')
+  expect(alt!.encoding.scheme).toBe('blue')
   expect(alt!.colors.get('a1+')).toBe(NO_VALUE_COLOR)
+  expect(inv!.colors.get('v1+')).toBe(schemeColor('rainbow', 2 / 9))
 })

@@ -26,8 +26,8 @@ export interface LiftedWalk extends WalkHighlight {
   encoding: WalkEncoding
   // the lane colour at each node the walk visits
   colors: Map<string, number>
-  // the nodes it crosses the other way from the reference walk, which its
-  // lane dashes, and their bp; empty for the reference and where unmarked
+  // the nodes it crosses the other way from the reference walk, and their
+  // bp; empty for the reference
   reversed: Set<string>
   reversedBp: number
 }
@@ -169,10 +169,7 @@ export function walkLift(
       walk.reference,
       walk.reference ? 0 : picked++,
     )
-    const { reversed, bp } =
-      layer.reversedMark === false
-        ? { reversed: new Set<string>(), bp: 0 }
-        : reversedNodes(graph, walk)
+    const { reversed, bp } = reversedNodes(graph, walk)
     return {
       ...walk,
       encoding,

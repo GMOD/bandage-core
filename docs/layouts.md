@@ -188,44 +188,42 @@ to a colour.
 
 | Field                   | What the colour says                                                           |
 | ----------------------- | ------------------------------------------------------------------------------ |
-| One colour for the walk | which walk the lane is, and nothing else                                       |
 | Progress along the walk | how far through its own length the walk is, pale at the start, deep at the end |
+| One colour for the walk | which walk the lane is, and nothing else                                       |
 | Reference position      | where the node sits on the reference, charcoal off it                          |
 
-The schemes are Okabe and Ito's blue, vermillion, bluish green, orange and
-reddish purple, which stay apart under the common colour vision deficiencies,
-and the rainbow, which is the reference-position ramp and goes with reference
-position only. The reference walk takes reference position in the rainbow by
-default, and each other walk one colour of its own, in that order. Progress
-shows which way a walk runs round a loop. The **Walk** menu sets each lifted
-walk's field and palette, and a session states them per walk, leaving out
-whatever takes the default:
+Every lane shades by progress by default, so a walk can be followed round a loop
+from pale to deep. The reference takes grey, so that no hue on a lane means
+anything but a haplotype, and each other walk takes one of Okabe and Ito's blue,
+vermillion, bluish green, reddish purple and orange, in that order, which stay
+apart under the common colour vision deficiencies. The rainbow is the
+reference-position ramp and goes with reference position only. The **Walk** menu
+sets each lifted walk's field and palette, and a session states them per walk,
+leaving out whatever takes the default:
 
 ```json
 "walkLayers": [
   { "walk": "GRCh38#0#chr6" },
-  { "walk": "HG00133#1#CM090050.1", "color": { "field": "progress" } }
+  { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } }
 ]
 ```
 
-Which way a walk runs is a mark rather than a colour, so a lane's hue keeps
-naming its walk. Where a lifted walk crosses the reference's nodes the other
-way, its lane is dashed, and the readout names each such walk with the bp it
-runs reversed. That is how a force drawing shows an inversion: both orientations
-of an inverted haplotype visit the same nodes, so without the dashes the drawing
-looks the same either way. HG002's first haplotype carries the H2 inversion at
-MAPT, and HG00097's does not:
+A walk that crosses the reference's nodes the other way shades the other way
+along them, pale where the reference's lane is deep, and the readout gives the
+bp it runs reversed. Both orientations of an inverted haplotype visit the same
+nodes, so this is the only way a force drawing shows an inversion. HG002's first
+haplotype carries the H2 inversion at MAPT, and HG00097's does not:
 
-![MAPT with GRCh38, HG00097 and HG002 lifted, HG002's lane dashed where it runs against the reference](../img/force_mapt_strand.png)
+![MAPT with GRCh38, HG00097 and HG002 lifted, HG002's lane shading against the reference's](../img/force_mapt_strand.png)
 
 At the 1q21.1 inversion GRCh38 reads the minority orientation: 333 of 455 HPRC
 haplotypes, CHM13 among them, run the other way. HG01123 carries one orientation
-on each haplotype, so its two lanes sit side by side, one dashed:
+on each haplotype, so its two lanes sit side by side, shading opposite ways:
 
-![1q21.1 with GRCh38, HG005, HG002 and both HG01123 haplotypes lifted, the reversed lanes dashed](../img/force_1q21_strand.png)
+![1q21.1 with GRCh38, HG005, HG002 and both HG01123 haplotypes lifted, the reversed lanes shading against the reference's](../img/force_1q21_strand.png)
 
-The Walk menu's **Dash where it runs against the reference** turns the mark off
-for one walk, and a session states it as `"reversedMark": false`.
+While walks are lifted, a gene's exons draw as a faint band across their lanes,
+and node lengths are not labelled, since both would sit on the lanes.
 
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
 the curated VNTR track, each bar runs between the KIV-2 array's flanking

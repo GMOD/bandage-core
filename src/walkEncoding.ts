@@ -10,24 +10,25 @@ import {
 // How a lifted walk colours its lane, stated the way a grammar of graphics
 // states an encoding: a field, the quantity the walk has at each node it
 // visits, mapped through a scheme, the scale from that quantity to a colour.
-// A haplotype's lane takes one colour of its own by default, so hue names the
-// walk; which way it runs is a mark rather than a colour, a dashed lane where
-// it crosses the reference's nodes the other way (`reversedMark`).
+// By default every lane shades pale to deep along its walk, the reference in
+// grey and each haplotype in a hue of its own, so hue names the walk and
+// lightness follows it round a loop. A walk crossing the reference's nodes the
+// other way shades against the reference's lane beside it.
 //
 // A session states it per walk, and leaves out whatever takes the default:
 //
 //   "walkLayers": [
 //     { "walk": "GRCh38#0#chr6" },
-//     { "walk": "HG00133#1#CM090050.1", "color": { "field": "progress" } }
+//     { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } }
 //   ]
 
 export const WALK_FIELDS = [
-  { value: 'walk', label: 'One colour for the walk', legend: '' },
   {
     value: 'progress',
     label: 'Progress along the walk',
     legend: 'pale where each walk starts, deep where it ends',
   },
+  { value: 'walk', label: 'One colour for the walk', legend: '' },
   {
     value: 'reference',
     label: 'Reference position',
@@ -37,15 +38,18 @@ export const WALK_FIELDS = [
 
 export type WalkField = (typeof WALK_FIELDS)[number]['value']
 
-// Okabe–Ito's first five, which stay apart under the common colour vision
-// deficiencies, each running pale to deep where a field has a range. The
-// rainbow is the reference-position ramp, so it goes with that field only.
+// Grey, which the reference takes so that no hue on a lane means anything but
+// a haplotype, then Okabe–Ito's first five, which stay apart under the common
+// colour vision deficiencies. Each runs pale to deep in lightness around its
+// own colour (hue, saturation, lightness at the family's middle). The rainbow
+// is the reference-position ramp, so it goes with that field only.
 export const WALK_SCHEMES = [
-  { value: 'blue', label: 'Blue', rgb: [0, 114, 178] },
-  { value: 'vermillion', label: 'Vermillion', rgb: [213, 94, 0] },
-  { value: 'green', label: 'Bluish green', rgb: [0, 158, 115] },
-  { value: 'orange', label: 'Orange', rgb: [230, 159, 0] },
-  { value: 'purple', label: 'Reddish purple', rgb: [204, 121, 167] },
+  { value: 'grey', label: 'Grey', hsl: [0, 0, 0.5] },
+  { value: 'blue', label: 'Blue', hsl: [202, 1, 0.4] },
+  { value: 'vermillion', label: 'Vermillion', hsl: [26, 1, 0.45] },
+  { value: 'green', label: 'Bluish green', hsl: [164, 1, 0.35] },
+  { value: 'orange', label: 'Orange', hsl: [41, 1, 0.45] },
+  { value: 'purple', label: 'Reddish purple', hsl: [327, 0.5, 0.55] },
   { value: 'rainbow', label: 'Rainbow' },
 ] as const
 
@@ -59,17 +63,16 @@ export interface WalkEncoding {
 export interface WalkLayer {
   walk: string
   color?: Partial<WalkEncoding>
-  // dash the lane where the walk runs against the reference; on unless false
-  reversedMark?: boolean
 }
 
-// the colours lifted haplotypes take by default, in the order they were picked
+// The colours lifted haplotypes take by default, in the order they were picked.
+// Orange comes last: shaded pale to deep it runs into vermillion.
 const FAMILIES: WalkScheme[] = [
   'blue',
   'vermillion',
   'green',
-  'orange',
   'purple',
+  'orange',
 ]
 
 const isField = (v: unknown): v is WalkField =>
@@ -84,41 +87,34 @@ export function resolveEncoding(
   picked: number,
 ): WalkEncoding {
   const { field: askedField, scheme: askedScheme } = layer.color ?? {}
-  const field = isField(askedField)
-    ? askedField
-    : reference
-      ? 'reference'
-      : 'walk'
-  const family = FAMILIES[picked % FAMILIES.length]!
+  const field = isField(askedField) ? askedField : 'progress'
+  const family = reference ? 'grey' : FAMILIES[picked % FAMILIES.length]!
   const scheme = isScheme(askedScheme)
     ? askedScheme === 'rainbow' && field !== 'reference'
       ? family
       : askedScheme
-    : field === 'reference'
-      ? 'rainbow'
-      : family
+    : family
   return { field, scheme }
 }
 
 // Where a flat lane sits on its family: the family's own colour
 const BASE_T = 0.5
+// how far a family's lightness runs either side of its middle
+const LIGHTNESS_SPAN = 0.22
 
-function mix(a: readonly number[], b: readonly number[], f: number) {
-  return a.map((x, i) => x + (b[i]! - x) * f)
-}
-
-// A scheme at t in [0, 1] as rgb 0-255: a family mixes from white to its
-// colour over the first half and on towards black over the second
+// A scheme at t in [0, 1] as rgb 0-255
 export function schemeRgb(scheme: WalkScheme, t: number) {
   const x = Math.max(0, Math.min(1, t))
   const family = WALK_SCHEMES.find(s => s.value === scheme)
-  if (!family || !('rgb' in family)) {
-    const [r, g, b] = hslToRgb(x * REFERENCE_RAMP_MAX_HUE, 0.7, 0.5)
-    return [r * 255, g * 255, b * 255]
-  }
-  return x < BASE_T
-    ? mix([255, 255, 255], family.rgb, 0.35 + (0.65 * x) / BASE_T)
-    : mix(family.rgb, [0, 0, 0], ((x - BASE_T) / (1 - BASE_T)) * 0.45)
+  const [h, s, l] =
+    family && 'hsl' in family
+      ? [
+          family.hsl[0],
+          family.hsl[1],
+          family.hsl[2] + LIGHTNESS_SPAN * (1 - 2 * x),
+        ]
+      : [x * REFERENCE_RAMP_MAX_HUE, 0.7, 0.5]
+  return hslToRgb(h, s, l).map(c => c * 255)
 }
 
 export function schemeCss(scheme: WalkScheme, t: number) {
@@ -155,10 +151,6 @@ export function encodingSwatchCss({ field, scheme }: WalkEncoding) {
   })
   return `linear-gradient(to right, ${stops.join(', ')})`
 }
-
-// The dashed lane of a walk running against the reference, for the legend
-export const REVERSED_SWATCH_CSS =
-  'repeating-linear-gradient(to right, #555 0 5px, transparent 5px 9px)'
 
 export function fieldLegend(field: WalkField) {
   return WALK_FIELDS.find(f => f.value === field)!.legend
