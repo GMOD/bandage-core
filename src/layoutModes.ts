@@ -1,5 +1,6 @@
 import { isBackbone, isOffReference } from './anchoredNodes'
 import { anchoredLayout } from './layout/anchoredLayout'
+import { haplotypeMatrixLayout } from './layout/haplotypeMatrixLayout'
 import { orderedLayout } from './layout/orderedLayout'
 import { sampleRowLayout } from './layout/sampleRowLayout'
 import {
@@ -94,6 +95,16 @@ export const LAYOUT_MODES = [
     description:
       "x is each walk's own bp: one bar per haplotype, sequence the reference also carries in blue and sequence it does not in purple, so a repeat expansion reads as bar length. Needs W or P lines.",
     run: walkRowLayout,
+    cutMargins: false,
+    available: hasWalks,
+    drawsLocally: hasWalks,
+  },
+  {
+    value: 'matrix',
+    label: 'Haplotype matrix',
+    description:
+      "A row per haplotype, a column per site where the walks differ, each cell coloured by the route that walk takes: grey for the reference's, colours for the rest. Needs W or P lines.",
+    run: haplotypeMatrixLayout,
     cutMargins: false,
     available: hasWalks,
     drawsLocally: hasWalks,

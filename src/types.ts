@@ -1,3 +1,4 @@
+import type { HaplotypeMatrix } from './bubbles/haplotypeMatrix'
 import type { GafRecord } from './gaf/parseGaf'
 import type { StableCoordinate } from './gfa-core/index'
 import type { TubeMapDrawing } from './layout/tubeMapLayout'
@@ -149,4 +150,7 @@ export interface LayoutResult {
   // The tube map's shapes, which TubeMapOverlay draws in place of the canvas's
   // nodes and edges.
   tubeMap?: TubeMapDrawing
+  // The haplotype matrix's cells, which HaplotypeMatrixOverlay draws; the
+  // canvas draws nothing under them
+  matrix?: HaplotypeMatrix
 }

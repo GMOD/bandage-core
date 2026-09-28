@@ -56,7 +56,7 @@ function sampleOf(path: GraphPath) {
   return path.sample ?? panSNSample(path.name)
 }
 
-function labelOf(path: GraphPath) {
+export function walkLabel(path: GraphPath) {
   return path.haplotype !== undefined && path.sample !== undefined
     ? `${path.sample}#${path.haplotype}`
     : sampleOf(path)
@@ -100,16 +100,22 @@ function sliceBetween(
   return { ids: i0 < i1 ? ids : ids.reverse(), complete: true }
 }
 
+// `referencePath` is the anchor name, which pathOrigin has already stripped of
+// the range suffix odgi leaves on a P record's name
+export function referenceWalk(graph: Graph) {
+  const paths = graph.paths ?? []
+  return (
+    paths.find(p => pathOrigin(p.name).name === graph.referencePath) ?? paths[0]
+  )
+}
+
 export function walkRows(
   graph: Graph,
   region?: { start: number; end: number },
   unit?: number,
 ): WalkRows | undefined {
   const paths = graph.paths ?? []
-  // `referencePath` is the anchor name, which pathOrigin has already stripped
-  // of the range suffix odgi leaves on a P record's name
-  const reference =
-    paths.find(p => pathOrigin(p.name).name === graph.referencePath) ?? paths[0]
+  const reference = referenceWalk(graph)
   if (!reference || paths.length < 2) {
     return undefined
   }
@@ -177,7 +183,7 @@ export function walkRows(
     }
     return {
       name: path.name,
-      label: labelOf(path),
+      label: walkLabel(path),
       sample: sampleOf(path),
       haplotype: path.haplotype,
       bp,
