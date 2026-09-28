@@ -48,6 +48,11 @@ export interface LayoutMode {
   // — force, ordered, and walk rows, whose bars are lengths through it — is
   // cut to the window alone.
   cutMargins: boolean
+  // whether this mode measures each haplotype's walk whole, so a GBZ cut
+  // follows every snarl that leaves the window rather than breaking a walk
+  // where it leaves the window's snarls: at a duplication array the lighter
+  // cut hands one walk back in pieces
+  wholeWalks: boolean
   // whether `run` draws this graph itself, as opposed to handing off to the
   // engine. Not the same question as `available` and not derivable from it:
   // 'force' is available for every graph and draws none of them itself. The two
@@ -75,6 +80,7 @@ export const LAYOUT_MODES = [
       'x is reference bp, one row per stable rank. Needs rGFA tags or a reference path.',
     run: anchoredLayout,
     cutMargins: true,
+    wholeWalks: false,
     available: hasBackbone,
     drawsLocally: hasBackbone,
   },
@@ -85,6 +91,7 @@ export const LAYOUT_MODES = [
       'x is reference bp, one row per contributing assembly. Needs rGFA tags or a reference path.',
     run: sampleRowLayout,
     cutMargins: true,
+    wholeWalks: false,
     available: hasAlleles,
     drawsLocally: hasAlleles,
   },
@@ -95,6 +102,7 @@ export const LAYOUT_MODES = [
       "x is each walk's own bp: one bar per haplotype, sequence the reference also carries in blue and sequence it does not in purple, so a repeat expansion reads as bar length. Needs W or P lines.",
     run: walkRowLayout,
     cutMargins: false,
+    wholeWalks: true,
     available: hasWalks,
     drawsLocally: hasWalks,
   },
@@ -105,6 +113,7 @@ export const LAYOUT_MODES = [
       'x is reference order, not bp: every node gets room, bubbles read as lenses. Needs rGFA tags or a reference path.',
     run: orderedLayout,
     cutMargins: false,
+    wholeWalks: false,
     available: hasBackbone,
     drawsLocally: hasBackbone,
   },
@@ -115,6 +124,7 @@ export const LAYOUT_MODES = [
       'sequenceTubeMap: every path a coloured tube through boxed nodes, columns in node order and node widths log-scaled. Needs P or W lines.',
     run: tubeMapLayout,
     cutMargins: false,
+    wholeWalks: false,
     available: hasTubeMapPaths,
     drawsLocally: hasTubeMapPaths,
   },
@@ -125,6 +135,7 @@ export const LAYOUT_MODES = [
       'The tube map with each column at the reference bp it covers, so the tubes line up with the tracks around them. Needs P or W lines and a reference path.',
     run: tubeMapReferenceLayout,
     cutMargins: true,
+    wholeWalks: false,
     available: hasTubeMapBackbone,
     drawsLocally: hasTubeMapBackbone,
   },
@@ -134,6 +145,7 @@ export const LAYOUT_MODES = [
     description: 'OGDF FMMM, via the external Bandage engine.',
     run: () => undefined,
     cutMargins: false,
+    wholeWalks: false,
     available: () => true,
     drawsLocally: () => false,
   },
