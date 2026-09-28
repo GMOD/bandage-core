@@ -184,9 +184,12 @@ fades to grey. A tube map has no picker, since its tubes already are the walks.
 A walk lifted alone shades light to dark along itself, so it can be followed
 round a loop; its key is a short bar of that gradient, with the stretch it runs
 over on the walk's own contig written under it as `contig:start-end (length)`.
-At GSTM1, HG00133 runs cyan to navy past the loop its 18 kb deletion skips:
+At GSTM1, HG00133 runs cyan to navy past the loop its 18 kb deletion skips. The
+synteny view under it reads the same track as HG00133 aligned to GRCh38, and the
+deletion is the wedge pinched to a point on HG00133's contig. HPRC's own wfmash
+alignment puts it in the same place, inside the repeat that flanks GSTM1:
 
-![HG00133's walk lifted at GSTM1, shading along itself past the loop it skips](../img/force_gstm1_walk.png)
+![HG00133's walk lifted at GSTM1, shading along itself past the loop it skips, over a synteny view of HG00133 against GRCh38 whose wedge is the deletion](../img/force_gstm1_walk.png)
 
 Walks lifted together each take one flat colour, like the lines of a metro map,
 and draw a lane each through the nodes they visit; a lane missing from a node is
