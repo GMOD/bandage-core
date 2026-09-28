@@ -28,6 +28,9 @@
       }
     }
   },
+  "bin": {
+    "bandage-figure": "dist/cli/figure.js"
+  },
   "files": [
     "dist"
   ],

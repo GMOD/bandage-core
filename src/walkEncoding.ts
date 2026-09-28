@@ -154,14 +154,20 @@ export function encodedColor({ field, scheme }: WalkEncoding, t?: number) {
 
 export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
 
+// A key's colours: the walk's one colour, or the scheme across the field
+export function encodingStops({ field, scheme }: WalkEncoding) {
+  return field === 'walk'
+    ? [{ offset: 0, color: schemeCss(scheme, BASE_T) }]
+    : Array.from({ length: 7 }, (_, i) => ({
+        offset: i / 6,
+        color: schemeCss(scheme, i / 6),
+      }))
+}
+
 // A swatch for the legend: the walk's colour, or the scheme across the field
-export function encodingSwatchCss({ field, scheme }: WalkEncoding) {
-  if (field === 'walk') {
-    return schemeCss(scheme, BASE_T)
-  }
-  const stops = Array.from({ length: 7 }, (_, i) => {
-    const t = i / 6
-    return `${schemeCss(scheme, t)} ${t * 100}%`
-  })
-  return `linear-gradient(to right, ${stops.join(', ')})`
+export function encodingSwatchCss(encoding: WalkEncoding) {
+  const stops = encodingStops(encoding)
+  return stops.length === 1
+    ? stops[0]!.color
+    : `linear-gradient(to right, ${stops.map(s => `${s.color} ${s.offset * 100}%`).join(', ')})`
 }

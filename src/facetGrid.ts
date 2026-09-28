@@ -72,3 +72,37 @@ export function facetGrid({
   }
   return best
 }
+
+export type FacetBy = 'walk' | 'sample'
+
+// Which grid cell each walk's panel takes, and how many go across when the
+// arrangement fixes it. By walk the panels wrap in reading order. By sample
+// each sample takes a row and each haplotype a column, as facet_grid(sample ~
+// haplotype) lays out a plot, so a sample's haplotypes read across its row and
+// a haploid reference sits in the first column. Names that are not
+// `sample#haplotype#contig`, or two walks landing in one cell, wrap instead.
+export function facetCells(names: string[], by: FacetBy) {
+  const wrap = {
+    columns: undefined,
+    count: names.length,
+    cells: names.map((_, i) => i),
+  }
+  if (by === 'walk') {
+    return wrap
+  }
+  const places = names.map(name => {
+    const [sample, haplotype, contig] = name.split('#')
+    const n = Number(haplotype)
+    return contig !== undefined && Number.isInteger(n) && n >= 0
+      ? { sample: sample!, column: Math.max(0, n - 1) }
+      : undefined
+  })
+  const rows = [...new Set(places.map(p => p?.sample))]
+  const columns = Math.max(1, ...places.map(p => (p ? p.column + 1 : 1)))
+  const cells = places.map(p =>
+    p ? rows.indexOf(p.sample) * columns + p.column : -1,
+  )
+  return cells.includes(-1) || new Set(cells).size < cells.length
+    ? wrap
+    : { columns, count: rows.length * columns, cells }
+}

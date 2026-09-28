@@ -14,15 +14,20 @@ import { build } from 'esbuild'
 rmSync('dist', { recursive: true, force: true })
 
 await build({
-  entryPoints: ['src/index.ts'],
+  entryPoints: ['src/index.ts', 'src/cli/figure.ts'],
   bundle: true,
   format: 'esm',
   splitting: true,
   outdir: 'dist',
+  outbase: 'src',
   chunkNames: 'chunks/[name]-[hash]',
   packages: 'external',
   logLevel: 'info',
 })
+writeFileSync(
+  'dist/cli/figure.js',
+  `#!/usr/bin/env node\n${readFileSync('dist/cli/figure.js', 'utf8')}`,
+)
 
 execFileSync('tsc', ['-p', 'tsconfig.build.json'], { stdio: 'inherit' })
 cpSync(

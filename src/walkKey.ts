@@ -2,7 +2,12 @@ import { formatBp } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
 
-function rangeText(contig: string | undefined, start: number, end: number) {
+// `contig:start-end (length)`
+export function rangeText(
+  contig: string | undefined,
+  start: number,
+  end: number,
+) {
   const s = Math.round(start)
   const e = Math.round(end)
   return `${contig ? `${contig}:` : ''}${s.toLocaleString()}-${e.toLocaleString()} (${formatBp(e - s)})`

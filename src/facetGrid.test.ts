@@ -1,4 +1,9 @@
-import { FACET_GAP_PX, FACET_TITLE_PX, facetGrid } from './facetGrid'
+import {
+  FACET_GAP_PX,
+  FACET_TITLE_PX,
+  facetCells,
+  facetGrid,
+} from './facetGrid'
 
 const square = { w: 100, h: 100 }
 
@@ -70,4 +75,20 @@ test('panels are as tall as their drawing, and the grid adds up', () => {
   expect(grid.width).toBe((1000 - FACET_GAP_PX) / 2)
   expect(grid.height).toBe(Math.floor(100 * grid.scale + 24))
   expect(grid.total).toBe(grid.height + FACET_TITLE_PX)
+})
+
+test('by sample, a sample takes a row and a haplotype a column', () => {
+  expect(
+    facetCells(
+      ['GRCh38#0#chr1', 'HG01123#2#CM1', 'HG002#1#chr1', 'HG01123#1#CM2'],
+      'sample',
+    ),
+  ).toEqual({ columns: 2, count: 6, cells: [0, 3, 4, 2] })
+})
+
+test('walks that do not say their haplotype, or share a cell, wrap', () => {
+  const wrapped = { columns: undefined, count: 2, cells: [0, 1] }
+  expect(facetCells(['ref', 'alt'], 'sample')).toEqual(wrapped)
+  expect(facetCells(['A#1#c1', 'A#1#c2'], 'sample')).toEqual(wrapped)
+  expect(facetCells(['A#1#c1', 'B#1#c1'], 'walk')).toEqual(wrapped)
 })
