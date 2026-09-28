@@ -2,7 +2,7 @@
 // the handful of Canvas2D calls Canvas2DRenderer makes, so the renderer that
 // paints the screen also writes a vector figure, in Node as in a browser.
 
-const n = (v: number) => +v.toFixed(2)
+const n = (v: number) => +v.toFixed(1)
 
 // `rgba(r, g, b, a)` as SVG 1.1 paint, which has no alpha channel of its own
 function paint(css: string) {

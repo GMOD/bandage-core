@@ -1,0 +1,16 @@
+{
+  "gbz": {
+    "db": "hprc",
+    "region": "chr17:45,960,000-45,962,000",
+    "haplotypes": ["HG00097#1", "HG002#1", "HG002#2"]
+  },
+  "layout": "force",
+  "walks": [
+    "GRCh38#0#chr17",
+    "HG00097#1#JBIRDD010000008.1",
+    "HG002#1#chr17",
+    "HG002#2#chr17"
+  ],
+  "facet": "sample",
+  "width": 1000
+}

@@ -20,6 +20,11 @@ npm install @jbrowse/bandage-core
   `assemblyWalk`), and the genes on it: `featuresOnBackbone` renames an
   assembly's genes onto the backbone's refNames, and `genePins` pins only those
 
+- Figures: `figureSvg` draws a graph and its lifted walks to a standalone SVG,
+  and the `bandage-figure` CLI makes one from a JSON spec with no browser:
+  `npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg`. See
+  [docs/figures.md](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer/blob/main/docs/figures.md)
+
 Nothing here imports React, MobX or a JBrowse host. BandageJS's
 [`src/main.ts`](https://github.com/cmdcolin/BandageJS/blob/main/src/main.ts) is
 the worked example.

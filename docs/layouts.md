@@ -179,20 +179,23 @@ and HG00133 116 kb more:
 
 ![GRCh38, HG00097 and HG00133 lifted out of the KIV-2 cut, a flat colour each](../img/force_kiv2_walk.png)
 
-The Walk menu's **Side by side** facets the pane by walk, the way a grammar of
-graphics facets a plot: the same layout drawn once per lifted walk, each panel
-with its walk alone on one shared scale, yellow where the walk starts and red
-where it ends. Walks then compare by where they go rather than by which lane is
-which colour. A panel's title is its key, and clicking it lifts that walk alone:
+The Walk menu's **Side by side** facets the pane, the way a grammar of graphics
+facets a plot. **A panel per walk** draws the same layout once per lifted walk,
+each panel with its walk alone on one shared scale, yellow where the walk starts
+and red where it ends. Walks then compare by where they go rather than by which
+lane is which colour. A panel's title is its key, and clicking it lifts that
+walk alone:
 
 ![The KIV-2 cut side by side, one panel per walk](../img/force_kiv2_facet.png)
 
 The panels share one view, so a pan, zoom, drag or hover in one moves or marks
 them all. As many go across as draws each panel largest, the way `facet_wrap`
 picks its grid: four square drawings go two by two in a tall pane and four
-across in a wide one. **Columns** in the Walk menu fixes the count. A track
-whose x the linear view places stacks its panels full width, so each keeps the
-ruler's bp.
+across in a wide one. **Columns** in the Walk menu fixes the count. **A row per
+sample, a column per haplotype** lays the same panels out as
+`facet_grid(sample ~ haplotype)` would, so a sample's two haplotypes read across
+one row. A track whose x the linear view places stacks its panels full width, so
+each keeps the ruler's bp.
 
 A session states the walks, the facet and any column count:
 
@@ -236,10 +239,14 @@ and runs red to yellow where GRCh38 and HG00097 run yellow to red:
 ![MAPT side by side: HG002's walk runs against GRCh38's and HG00097's](../img/force_mapt_strand.png)
 
 At the 1q21.1 inversion GRCh38 reads the minority orientation: 333 of 455 HPRC
-haplotypes, CHM13 among them, run the other way. HG01123 carries one orientation
-on each haplotype:
+haplotypes, CHM13 among them, run the other way. By sample, HG01123's row shows
+it carries one orientation on each haplotype:
 
-![1q21.1 side by side: HG002 and HG01123's first haplotype run against GRCh38, HG005 and HG01123's second](../img/force_1q21_strand.png)
+![1q21.1 by sample: HG002 and HG01123's first haplotype run against GRCh38, HG005 and HG01123's second](../img/force_1q21_strand.png)
+
+**Export SVG** in the view's menu saves the drawing, its walks' keys and panels
+as a vector figure. The same renderer makes figures from a JSON spec with no
+browser; see [figures.md](figures.md).
 
 While walks are lifted, node lengths are not labelled, since they would sit on
 the lanes.
