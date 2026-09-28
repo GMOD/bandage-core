@@ -34,6 +34,7 @@ the worked example.
 Lives in the plugin repo as a pnpm workspace package. The plugin imports its
 source directly, so a change here needs no publish to reach the plugin.
 
-The core releases with the plugin: `pnpm version patch` at the repo root bumps
-both, and `publish.yml` and `publish-core.yml` each publish one from the `v*`
-tag.
+The core releases with the plugin, at the plugin's version: `pnpm version patch`
+at the repo root sets both, and `publish.yml` and `publish-core.yml` each
+publish one from the `v*` tag. `publish-core.yml` also runs by hand to publish a
+version a failed run left behind.
