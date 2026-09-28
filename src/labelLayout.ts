@@ -155,6 +155,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
         x,
         y: y + m.contigThickness + GENE_PIN_DROP_PX,
         text: note ? `${pin.gene.name} · ${note}` : pin.gene.name,
+        fallback: note ? `${pin.gene.name} …` : undefined,
         stack: GENE_STACK,
       }
     }),

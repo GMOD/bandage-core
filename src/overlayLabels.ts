@@ -22,6 +22,9 @@ export interface LabelCandidate<T> {
   // how many rows down to try when the spot is taken, for a label that is
   // worth a column beside its neighbours rather than dropping
   stack?: number
+  // a shorter text to try where `text` does not fit, such as against the
+  // pane's edge
+  fallback?: string
 }
 
 export interface PlacedLabel<T> extends LabelCandidate<T> {
@@ -79,9 +82,9 @@ export function placeLabels<T>(
 ): PlacedLabel<T>[] {
   const out: PlacedLabel<T>[] = []
   const row = LABEL_PX + LABEL_PAD * 2
-  for (const c of candidates) {
-    const w = labelWidth(c.text)
-    // a stack grows away from the nearer edge of the pane
+  // a stack grows away from the nearer edge of the pane
+  const place = (c: LabelCandidate<T>, text: string) => {
+    const w = labelWidth(text)
     const direction = c.y > frame.height / 2 ? -1 : 1
     for (let tries = 0; tries <= (c.stack ?? 0); tries++) {
       const y = c.y + direction * tries * row
@@ -92,12 +95,20 @@ export function placeLabels<T>(
         y1: y + LABEL_PAD,
       }
       if (offFrame(box, frame)) {
-        break
+        return undefined
       }
       if (insideFrame(box, frame) && take(box)) {
-        out.push({ ...c, y, w })
-        break
+        return { ...c, text, y, w }
       }
+    }
+    return undefined
+  }
+  for (const c of candidates) {
+    const placed =
+      place(c, c.text) ??
+      (c.fallback === undefined ? undefined : place(c, c.fallback))
+    if (placed) {
+      out.push(placed)
     }
   }
   return out

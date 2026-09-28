@@ -17,6 +17,24 @@ test('a label that lands on a placed one, or off the pane, is dropped', () => {
   expect(placed[0]!.w).toBeGreaterThan(0)
 })
 
+test('a label too wide for its spot takes its shorter fallback', () => {
+  const placed = placeLabels(
+    [
+      {
+        item: 'a',
+        x: 30,
+        y: 50,
+        text: 'ycbF · 0.2 of 0.7 kb',
+        fallback: 'ycbF …',
+      },
+      { item: 'b', x: 30, y: 150, text: 'no room at all here' },
+    ],
+    frame,
+    occupancy(frame),
+  )
+  expect(placed.map(p => [p.item, p.text])).toEqual([['a', 'ycbF …']])
+})
+
 test('a reserved box keeps labels out of a corner', () => {
   const placed = placeLabels(
     [{ item: 'a', x: 380, y: 20, text: 'legend' }],
