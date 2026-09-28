@@ -88,7 +88,22 @@ export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export { deletionEdges } from './deletionEdges'
 export type { DeletionEdge } from './deletionEdges'
-export { walkHighlight } from './walkHighlight'
+export { walkHighlight, walkLift } from './walkHighlight'
+export type { LiftedWalk, WalkLift } from './walkHighlight'
+export {
+  WALK_FIELDS,
+  WALK_SCHEMES,
+  encodingSwatchCss,
+  fieldLegend,
+  resolveEncoding,
+  schemeCss,
+} from './walkEncoding'
+export type {
+  WalkEncoding,
+  WalkField,
+  WalkLayer,
+  WalkScheme,
+} from './walkEncoding'
 export { pathColorsLegible, pathLegend } from './pathColors'
 export { bubblesFromGraph } from './bubbles/bubblesFromGraph'
 export { bubbleHalos } from './bubbles/bubbleHalos'

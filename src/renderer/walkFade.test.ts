@@ -3,10 +3,10 @@ import { abgrAlpha } from '@jbrowse/core/util/colorBits'
 import { buildGeometry } from './GeometryBuilder'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
-import { walkHighlight } from '../walkHighlight'
+import { walkLift } from '../walkHighlight'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3. Lifting alt out fades v2 and the
-// links it alone uses, and draws alt's links heavier.
+// links it alone uses; lifting both gives each a lane of its own.
 const GFA = `S\tv1\tAAAA
 S\tv2\tCC
 S\tv3\tGGG
@@ -38,10 +38,13 @@ const positions = {
   ],
 }
 
-function build(
-  highlight?: ReturnType<typeof walkHighlight>,
-  drawPaths = false,
-) {
+const lift = (...walks: string[]) =>
+  walkLift(
+    graph,
+    walks.map(walk => ({ walk })),
+  )
+
+function build(highlight?: ReturnType<typeof walkLift>, drawPaths = false) {
   return buildGeometry({
     axis: { scaleX: 1, scaleY: 1 },
     nodePositions: positions,
@@ -57,7 +60,7 @@ function build(
 
 test('a lifted walk keeps its nodes and fades the rest', () => {
   const plain = build()
-  const lifted = build(walkHighlight(graph, 'alt#1#chr'))
+  const lifted = build(lift('alt#1#chr'))
   const alphaOf = (batch: typeof plain, id: string) =>
     abgrAlpha(batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!.color)
   expect(alphaOf(lifted, 'a1+')).toBe(alphaOf(plain, 'a1+'))
@@ -65,19 +68,37 @@ test('a lifted walk keeps its nodes and fades the rest', () => {
   expect(alphaOf(lifted, 'v2+')).toBeLessThan(alphaOf(plain, 'v2+') / 4)
 })
 
-test("a lifted walk's links draw heavier and dark, the others faint", () => {
+test("a lifted walk's links carry its lane colour, the others fade", () => {
   const plain = build()
-  const lifted = build(walkHighlight(graph, 'alt#1#chr'))
+  const one = lift('alt#1#chr')!
+  const lifted = build(one)
   const strokeOf = (batch: typeof plain, edge: number) =>
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
-  expect(strokeOf(lifted, 2).thickness).toBeGreaterThan(
-    strokeOf(plain, 2).thickness,
-  )
-  expect(abgrAlpha(strokeOf(lifted, 2).color)).toBeGreaterThan(200)
+  expect(strokeOf(lifted, 2).color).toBe(one.walks[0]!.colors.get('v1+'))
   expect(strokeOf(lifted, 0).thickness).toBe(strokeOf(plain, 0).thickness)
   expect(abgrAlpha(strokeOf(lifted, 0).color)).toBeLessThan(
     abgrAlpha(strokeOf(plain, 0).color) / 4,
   )
+})
+
+test('two lifted walks each keep a lane, missing where a walk does not go', () => {
+  const both = lift('ref#0#chr', 'alt#1#chr')!
+  const batch = build(both)
+  const lanesOf = (id: string) => {
+    const { start, count } = batch.nodeStrokeRuns.get(id)!
+    return batch.nodeStrokes.slice(start, start + count)
+  }
+  const [ref, alt] = both.walks
+  expect(lanesOf('v1+').map(s => s.color)).toEqual([
+    ref!.colors.get('v1+'),
+    alt!.colors.get('v1+'),
+  ])
+  expect(lanesOf('v2+').map(s => s.color)).toEqual([ref!.colors.get('v2+')])
+  expect(lanesOf('a1+').map(s => s.color)).toEqual([alt!.colors.get('a1+')])
+  // the lanes sit either side of the node's centreline
+  const [a, b] = lanesOf('v1+')
+  expect(a!.points[0]!.y).toBeLessThan(0)
+  expect(b!.points[0]!.y).toBeGreaterThan(0)
 })
 
 // Painted per path, a node is one stroke per walk through it rather than one
@@ -85,7 +106,7 @@ test("a lifted walk's links draw heavier and dark, the others faint", () => {
 // beside links that had faded.
 test('a node painted in path stripes fades off the lifted walk too', () => {
   const plain = build(undefined, true)
-  const lifted = build(walkHighlight(graph, 'alt#1#chr'), true)
+  const lifted = build(lift('alt#1#chr'), true)
   const alphasOf = (batch: typeof plain, id: string) => {
     const { start, count } = batch.nodeStrokeRuns.get(id)!
     return batch.nodeStrokes

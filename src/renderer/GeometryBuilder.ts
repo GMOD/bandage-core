@@ -20,7 +20,7 @@ import {
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphNode, NodeSegment } from '../types'
-import type { WalkHighlight } from '../walkHighlight'
+import type { WalkLift } from '../walkHighlight'
 import type {
   Arrowhead,
   EdgeCurveBatch,
@@ -51,11 +51,9 @@ const EDGE_PATH_FALLBACK_COLOR = packAbgr(136, 136, 136, 217) // ~0.533, alpha 0
 // position and only that.
 const EDGE_DELETION_COLOR = packAbgr(24, 24, 28, 240)
 const DELETION_THICKNESS_FACTOR = 2.2
-// A highlighted walk's links: darker than a plain link and heavier, so the
-// route reads as one stroke through the faded rest. The alpha the rest fades
-// to keeps every colour scheme's hues, only dimmer, on any background.
-const EDGE_WALK_COLOR = packAbgr(30, 30, 36, 245)
-const WALK_EDGE_THICKNESS_FACTOR = 1.8
+// A lifted walk's links keep their plain ink, since the walk's lanes in the
+// nodes carry it, and the rest fades. The alpha they fade to keeps every colour
+// scheme's hues, only dimmer, on any background.
 export const FADED_ALPHA = 0.18
 // Dash period in screen px, so a dashed arc looks the same at any zoom. Dashes
 // are geometry rather than a stroke style, because only one of the two backends
@@ -86,6 +84,9 @@ const DELETION_DASH_PX = 11
 // `contigThickness` is itself in screen px, so this bites on the path COUNT
 // rather than on the zoom.
 const MIN_PATH_STRIPE_PX = 1.2
+// A lifted walk's lane is never thinner than this, so a node carrying three
+// lifted walks widens rather than splitting into hairlines
+const MIN_WALK_LANE_PX = 3
 // Guards the screen-px-to-world division below against a degenerate transform.
 const MIN_SCALE_FOR_OFFSET = 1e-6
 
@@ -373,9 +374,10 @@ export interface BuildOptions {
   drawPaths: boolean
   // thicker by depth, or every node at `contigThickness`; see nodeWidths.ts
   nodeWidth?: NodeWidth
-  // one walk lifted out: its nodes keep their colour and its links draw dark
-  // and heavy, everything else fades to a fraction of its alpha
-  highlight?: WalkHighlight
+  // walks lifted out: each draws a lane of its own along the nodes it visits,
+  // their links draw dark and heavy, and everything else fades to a fraction
+  // of its alpha
+  highlight?: WalkLift
   // Both scales together, and required. Every screen-metric constant here (dash
   // period, stripe width, arrowhead angle) divides by scaleX, and everything
   // that mixes the axes needs their ratio; taking them as one value is what
@@ -504,7 +506,7 @@ const REFERENCE_RAMP_LIGHTNESS = 0.5
 // Distinct from the light grey a node with no reference coordinates at all gets:
 // this one is anchored and off-reference, that one is unplaceable.
 const REFERENCE_RAMP_ALT_RGB = [60, 65, 72] as const
-const REFERENCE_RAMP_ALT_COLOR = packAbgr(...REFERENCE_RAMP_ALT_RGB, 255)
+export const REFERENCE_RAMP_ALT_COLOR = packAbgr(...REFERENCE_RAMP_ALT_RGB, 255)
 export const REFERENCE_RAMP_ALT_CSS = `rgb(${REFERENCE_RAMP_ALT_RGB.join(', ')})`
 
 export interface ReferenceRamp {
@@ -892,9 +894,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const isDeletion = bypassed !== undefined
     const onWalk = highlight?.edgeIndexes.has(ei) ?? false
     const edgeThickness =
-      (connectorThickness / 2) *
-      (isDeletion ? DELETION_THICKNESS_FACTOR : 1) *
-      (onWalk ? WALK_EDGE_THICKNESS_FACTOR : 1)
+      (connectorThickness / 2) * (isDeletion ? DELETION_THICKNESS_FACTOR : 1)
     // One stroke per path crossing the edge, fanned off it: the shared curve
     // slid sideways, which is also what the hit index tests against. Rebuilding
     // the curve at each offset was 40% of a striped build and differed from a
@@ -914,10 +914,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // since choosing a ribbon's would privilege one haplotype for a fact that
     // belongs to none of them. `undefined` means this call draws no head.
     const plainEdgeColor = isDeletion ? EDGE_DELETION_COLOR : EDGE_DEFAULT_COLOR
-    const edgeColor = !highlight
-      ? plainEdgeColor
-      : onWalk
-        ? EDGE_WALK_COLOR
+    const edgeColor =
+      !highlight || onWalk
+        ? plainEdgeColor
         : fadeAbgr(plainEdgeColor, FADED_ALPHA)
     const toNode = nodeById.get(edge.to)
     const intoHalfWidth =
@@ -977,7 +976,49 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const edgeCurveStart = edgeCurves.length
     const arrowStart = arrows.length
 
-    if (!ribbons) {
+    // A lifted walk's link carries on its lane from the node it leaves, so a
+    // lane runs unbroken through the joints rather than beside a grey link
+    const laneWalks =
+      highlight && onWalk && !ribbons ? highlight.walks : undefined
+    if (laneWalks) {
+      const fromNode = nodeById.get(edge.from)
+      const width = fromNode
+        ? nodeWidthPx(fromNode, contigThickness, nodeWidth, depthNorm)
+        : contigThickness
+      const laneWidth = Math.max(width / laneWalks.length, MIN_WALK_LANE_PX)
+      // the lanes' sideways direction where the link leaves its node, which
+      // is the end a '-' link leaves from the start of
+      const normals = pointNormalsOf(fromSegments, yToX)
+      const { nx, ny } = (edge.fromStrand === '-'
+        ? normals[0]
+        : normals.at(-1)) ?? {
+        nx: 0,
+        ny: 0,
+      }
+      const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
+      laneWalks.forEach((walk, lane) => {
+        if (!walk.edgeIndexes.has(ei)) {
+          return
+        }
+        const offset =
+          (lane - (laneWalks.length - 1) / 2) * laneWidth * worldPerScreenPx
+        const curves =
+          offset === 0
+            ? baseCurves
+            : translateCurves(baseCurves, nx * offset, (ny * offset) / yToX)
+        if (viewportBounds && !isBezierInBounds(curves, viewportBounds)) {
+          return
+        }
+        edgeCurves.push({
+          curves,
+          thickness: laneWidth / 2,
+          color:
+            walk.colors.get(edge.from) ??
+            walk.colors.get(edge.to) ??
+            plainEdgeColor,
+        })
+      })
+    } else if (!ribbons) {
       buildSingleEdge(0, 0, edgeColor, edgeColor)
     } else {
       const offsets = pathRibbonOffsets(
@@ -997,7 +1038,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         buildSingleEdge(
           offset.x,
           offset.y,
-          highlight && edge.pathIds![pathIdx] !== highlight.name
+          highlight && !highlight.names.has(edge.pathIds![pathIdx]!)
             ? fadeAbgr(ribbonColor, FADED_ALPHA)
             : ribbonColor,
           pathIdx === arrowRibbon ? edgeColor : undefined,
@@ -1048,7 +1089,31 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const slots = nodePathSlots.get(nodeId)
     const slotWidth = width / pathCount
     const drawable = segments.length >= 2
-    if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
+    // Each lifted walk keeps one lane across the whole drawing, so a lane
+    // missing from a node is a walk that does not visit it
+    const lanes =
+      highlight && !faded && !slots?.length ? highlight.walks : undefined
+    if (drawable && lanes) {
+      const laneWidth = Math.max(width / lanes.length, MIN_WALK_LANE_PX)
+      const normals = pointNormalsOf(segments, yToX)
+      const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
+      lanes.forEach((walk, lane) => {
+        const laneColor = walk.colors.get(nodeId)
+        if (laneColor === undefined) {
+          return
+        }
+        const offset =
+          (lane - (lanes.length - 1) / 2) * laneWidth * worldPerScreenPx
+        nodeStrokes.push({
+          points:
+            lanes.length === 1
+              ? segments
+              : offsetPolyline(segments, normals, offset, yToX),
+          thickness: laneWidth / 2,
+          color: laneColor,
+        })
+      })
+    } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
       const normals = pointNormalsOf(segments, yToX)
       const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
       for (const slot of slots) {

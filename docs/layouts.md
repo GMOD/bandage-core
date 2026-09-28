@@ -32,10 +32,10 @@ its bp, in the colour its node has in the graph, so under the reference-position
 ramp a hue on the strip finds its node below. Hovering either one boxes the
 node's reference span on the strip and draws a leader to the node; an allele's
 span runs between its flanks. Hovering a bubble's name does the same for the
-bubble's span. While the Walk picker lifts a haplotype, the reference segments
-it skips fade on the strip as they do in the graph. A triangle at either end of
-the strip says the graph draws reference past that edge of the window. The track
-menu's **Reference strip at bp** turns the strip off.
+bubble's span. While the Walks picker lifts haplotypes, the reference segments
+none of them visits fade on the strip as they do in the graph. A triangle at
+either end of the strip says the graph draws reference past that edge of the
+window. The track menu's **Reference strip at bp** turns the strip off.
 
 ![KIV-2's 68 kb allele hovered: the strip boxes the span between its flanks, and the linear view bands it](../img/force_kiv2_hover.png)
 
@@ -162,18 +162,58 @@ per haplotype:
 
 ![KIV-2 over gbz-base, eight haplotypes, force-directed](../img/force_kiv2_gbz.png)
 
-The Walk picker lifts one haplotype out: its route keeps its ink, the rest
-fades, and a readout gives its length against the reference. HG00133 carries 116
-kb more than GRCh38 through the array:
+The Walks picker lifts any number of haplotypes out of the drawing. Each lifted
+walk draws a lane of its own through the nodes it visits, the rest of the graph
+fades, and a readout gives each walk's length against the reference. Where one
+lifted walk visits a node and another does not, the second walk's lane is
+missing there, which is where their routes part. Through the KIV-2 array GRCh38
+takes the rainbow, HG00097 blues and HG00133 reds; HG00097 carries 22 kb more
+than GRCh38, HG00133 116 kb more:
 
-![HG00133's walk lifted out of the KIV-2 cut](../img/force_kiv2_walk.png)
+![GRCh38, HG00097 and HG00133 lifted out of the KIV-2 cut, a lane each](../img/force_kiv2_walk.png)
 
-In a track, the reference strip shows what a lifted walk skips at its bp. GSTM1
-is deleted on six of the eight haplotypes; with HG00133 lifted, the 18 kb it
-lacks fades on the strip under the RefSeq gene, and its route takes the shortcut
-past the faded loop:
+In a track, the reference strip shows what the lifted walks skip at its bp.
+GSTM1 is deleted on six of the eight haplotypes; with HG00133 lifted, the 18 kb
+it lacks fades on the strip under the RefSeq gene, and its lane takes the
+shortcut past the faded loop:
 
 ![HG00133's walk lifted at GSTM1, its 18 kb deletion faded on the reference strip](../img/force_gstm1_walk.png)
+
+### Colouring lifted walks
+
+A lifted walk colours its lane by an encoding: a field, the quantity the walk
+has at each node it visits, drawn through a scheme, the scale from that quantity
+to a colour. Any field goes with any scheme.
+
+| Field                        | What the colour says                                                              |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| Progress along the walk      | how far through the walk a node is, pale at the start and deep at the end         |
+| Reference position           | where the node sits on the reference, charcoal off it                             |
+| Strand against the reference | pale where the walk crosses a node as the reference does, deep where it runs back |
+| Visits                       | how many times the walk passes through the node, pale once and deep four or more  |
+
+The schemes are Rainbow, the reference-position ramp's hues, and the
+pale-to-deep families Blues, Reds, Greens, Oranges, Purples and Greys. The
+reference walk takes reference position in the rainbow by default, and each
+other walk takes progress in the next family, blues first. Progress shows which
+way a walk runs round a loop. The **Walk** menu sets each lifted walk's field
+and palette, and a session states them per walk, leaving out whatever takes the
+default:
+
+```json
+"walkLayers": [
+  { "walk": "GRCh38#0#chr17" },
+  { "walk": "HG00097#1#JBIRDD010000008.1", "color": { "field": "strand" } },
+  { "walk": "HG002#1#chr17", "color": { "field": "strand" } }
+]
+```
+
+Strand is how a force drawing shows an inversion. Both orientations of an
+inverted haplotype visit the same nodes, so without it the drawing looks the
+same either way. HG002's first haplotype carries the H2 inversion at MAPT, and
+HG00097's does not:
+
+![MAPT with GRCh38, HG00097 and HG002 lifted, HG002's lane deep where it runs against the reference](../img/force_mapt_strand.png)
 
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
 the curated VNTR track, each bar runs between the KIV-2 array's flanking
