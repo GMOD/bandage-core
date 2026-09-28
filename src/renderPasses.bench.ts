@@ -105,7 +105,6 @@ for (const backbone of [1000, 5000]) {
       legendSize: { width: 170, height: 40 },
       drawnRowLabels: [],
       bubbleHalos: [],
-      bubbleGlyphs: [],
       genePins: [],
       nodePositions,
       labelsNodeSizes: true,

@@ -1,13 +1,11 @@
 # Layouts
 
-The plugin ships eight layouts:
+The plugin ships seven layouts:
 
 - **Force-directed**: the graph's shape, from the OGDF FMMM engine in
   [Bandage](https://github.com/rrwick/Bandage), seeded along the reference to
   read left to right. The engine lays out unbranching runs, so a base-level cut
   of 15,000 nodes draws in a few seconds.
-- **Variant map**: the reference as a line with one typed glyph per bubble.
-  Clicking a glyph opens that bubble's graph.
 - **Ordered**: x is reference order, so every node gets room and a bubble reads
   as a lens. It scrolls sideways.
 - **Anchored**: x is reference bp, one row per stable rank, aligned under a
@@ -26,8 +24,8 @@ The plugin ships eight layouts:
 - **Tube map on reference**: the same tubes with each column at the reference bp
   its node covers, so they line up with the tracks around them.
 
-Variant map, Ordered and Anchored need an rGFA or a reference path; Walk rows
-and Tube map need W or P lines, and Tube map on reference needs both.
+Ordered and Anchored need an rGFA or a reference path; Walk rows and Tube map
+need W or P lines, and Tube map on reference needs both.
 
 In a track of a linear view, a force-directed or ordered drawing has no bp axis
 of its own. A strip along the top of the track draws each reference segment at
@@ -143,10 +141,10 @@ what names the two that are not the reference:
 The plugin reads `gfatools bubble` output from `<prefix>.bubbles.bed.gz` beside
 the rGFA index, which HPRC's hosted graph has and `scripts/build_rgfa_tabix.sh`
 in jbrowse-components writes. For a GBZ cut, a pggb file or a popped bubble, the
-plugin derives bubbles from the ordered layout's layering. The variant map draws
-bubbles as glyphs. With **Mark bubbles** on, the node layouts draw each as a
-halo along its nodes, coloured by kind, which the legend names. It is off by
-default, since at base level every SNP's halo is a blob.
+plugin derives bubbles from the ordered layout's layering. With **Mark bubbles**
+on, the node layouts draw each as a halo along its nodes, coloured by kind,
+which the legend names. It is off by default, since at base level every SNP's
+halo is a blob.
 
 ![KIV-2, force-directed, with its bubbles marked](../img/force_kiv2_bubbles.png)
 
@@ -155,8 +153,6 @@ The popped graph derives its own bubbles, so a superbubble opens level by level.
 The KIV-2 array opens to 27 segments:
 
 ![The KIV-2 array popped open](../img/force_kiv2_popped.png)
-
-![Variant map of KIV-2](../img/variant_map_kiv2.png)
 
 ## Haplotype walks
 

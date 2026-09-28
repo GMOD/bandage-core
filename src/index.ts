@@ -107,7 +107,7 @@ export { walkRowsExtent } from './layout/walkRowLayout'
 export { ROW_HEIGHT_PX } from './layout/rowSpacing'
 
 export { HALO_FACTOR, LEGEND_INSET_PX, layoutLabels } from './labelLayout'
-export type { BubbleGlyph, LabelLayout, LabelLayoutSource } from './labelLayout'
+export type { LabelLayout, LabelLayoutSource } from './labelLayout'
 export { formatBp } from './graphLabels'
 export { genePins } from './genes/genePins'
 export type { GeneModel, GenePin } from './genes/genePins'

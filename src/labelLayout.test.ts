@@ -68,7 +68,6 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     legendSize: { width: 0, height: 0 },
     drawnRowLabels: [],
     bubbleHalos: [],
-    bubbleGlyphs: [],
     genePins: [],
     labelsNodeSizes: true,
     nodeLengths: new Map(),
@@ -211,28 +210,4 @@ test('the legend holds its own box, and no box when none is drawn', () => {
     layoutLabels(source({ ...corner, legendSize: { width: 170, height: 40 } }))
       .sizes,
   ).toEqual([])
-})
-
-test('the variant map stacks its names in rows clear of the legend', () => {
-  const glyph = (start: number, label: string) => ({
-    bubble: { ...bubble, start, end: start + 100 },
-    kind: 'substitution' as const,
-    label,
-  })
-  const layout = layoutLabels(
-    source({
-      translateY: 300,
-      legendSize: { width: 170, height: 40 },
-      bubbleGlyphs: [
-        glyph(300, 'first substitution'),
-        glyph(310, 'second substitution'),
-        glyph(700, 'under the legend'),
-      ],
-    }),
-  )
-  expect(layout.glyphs.map(l => [l.text, l.y])).toEqual([
-    ['first substitution', 15],
-    ['second substitution', 34],
-    ['under the legend', 72],
-  ])
 })

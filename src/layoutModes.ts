@@ -7,7 +7,6 @@ import {
   tubeMapLayout,
   tubeMapReferenceLayout,
 } from './layout/tubeMapLayout'
-import { variantMapLayout } from './layout/variantMapLayout'
 import { walkRowLayout } from './layout/walkRowLayout'
 
 import type { Graph, LayoutResult } from './types'
@@ -106,16 +105,6 @@ export const LAYOUT_MODES = [
       'x is reference order, not bp: every node gets room, bubbles read as lenses. Needs rGFA tags or a reference path.',
     run: orderedLayout,
     cutMargins: false,
-    available: hasBackbone,
-    drawsLocally: hasBackbone,
-  },
-  {
-    value: 'variants',
-    label: 'Variant map',
-    description:
-      'The reference as a line with one typed glyph per bubble, from the bubble index or from the graph itself: SNP, indel, deletion, inversion, repeat array. Click a glyph to open the graph inside it.',
-    run: variantMapLayout,
-    cutMargins: true,
     available: hasBackbone,
     drawsLocally: hasBackbone,
   },

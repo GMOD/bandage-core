@@ -8,14 +8,11 @@ import {
   LABEL_CHAR_PX,
   LABEL_PAD,
   LABEL_PX,
-  labelWidth,
   occupancy,
   placeLabels,
 } from './overlayLabels'
 
 import type { BubbleHalo, RouteLabel } from './bubbles/bubbleHalos'
-import type { MinigraphBubble } from './bubbles/bubbleLine'
-import type { BubbleKind } from './bubbles/classifyBubble'
 import type { DeletionEdge } from './deletionEdges'
 import type { GenePin } from './genes/genePins'
 import type { GraphLabel } from './graphLabels'
@@ -30,18 +27,8 @@ const ROUTE_STACK = 8
 const GENE_PIN_DROP_PX = 18
 // a gene's name drops a row or two rather than vanish under a bubble's
 const GENE_STACK = 2
-// the variant map's names stack in rows above its reference line, keeping
-// this much of the line's height for the glyphs
-const GLYPH_ROOM_PX = 60
-const MAX_GLYPH_LABEL_ROWS = 8
 // a chip's baseline this far down is the highest it sits whole in the pane
 const TOPMOST_BASELINE = LABEL_PX + LABEL_PAD
-
-export interface BubbleGlyph {
-  bubble: MinigraphBubble
-  kind: BubbleKind
-  label: string
-}
 
 export interface LabelLayoutSource {
   paneWidth: number
@@ -55,7 +42,6 @@ export interface LabelLayoutSource {
   referenceStripZonePx?: number
   drawnRowLabels: { label: string; y: number }[]
   bubbleHalos: BubbleHalo[]
-  bubbleGlyphs: BubbleGlyph[]
   genePins: GenePin[]
   poppedFrom?: { label: string }
   nodePositions?: Record<string, NodeSegment[]>
@@ -71,8 +57,6 @@ export interface LabelLayoutSource {
 
 export interface LabelLayout {
   bubbles: PlacedLabel<BubbleHalo>[]
-  // x of the glyph each name leads back to
-  glyphs: PlacedLabel<{ glyph: BubbleGlyph; glyphX: number }>[]
   genes: PlacedLabel<GenePin>[]
   routes: PlacedLabel<{ halo: BubbleHalo; route: RouteLabel }>[]
   sizes: GraphLabel[]
@@ -145,36 +129,6 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     take,
   )
 
-  const glyphRows = Math.max(
-    2,
-    Math.min(
-      MAX_GLYPH_LABEL_ROWS,
-      Math.floor((translateY - GLYPH_ROOM_PX) / (LABEL_PX + LABEL_PAD * 2)),
-    ),
-  )
-  const glyphs = placeLabels(
-    byExtent(m.bubbleGlyphs, g => g.bubble.end - g.bubble.start).flatMap(
-      glyph => {
-        const glyphX =
-          ((glyph.bubble.start + glyph.bubble.end) / 2) * scaleX + translateX
-        const half = labelWidth(glyph.label) / 2
-        return glyphX < 0 || glyphX > width
-          ? []
-          : [
-              {
-                item: { glyph, glyphX },
-                x: Math.min(Math.max(glyphX, half), width - half),
-                y: TOPMOST_BASELINE,
-                text: glyph.label,
-                stack: glyphRows - 1,
-              },
-            ]
-      },
-    ),
-    frame,
-    take,
-  )
-
   const genes = placeLabels(
     byExtent(m.genePins, pin => pin.gene.end - pin.gene.start).map(pin => {
       const { x, y } = screen(pin.at)
@@ -228,7 +182,6 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   )
   return {
     bubbles,
-    glyphs,
     genes,
     routes,
     sizes: [...deletionLabels, ...nodeLabels],
