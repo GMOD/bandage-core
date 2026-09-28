@@ -198,6 +198,17 @@ and draw a lane each through the nodes they visit; a lane missing from a node is
 a walk that does not go there. The reference is grey, so no hue means anything
 but a haplotype.
 
+At GSTM1, three haplotypes take three routes. HG01960 runs through GRCh38's
+GSTM1 and HG00133 skips it. HG03041 runs round a loop of its own, 46 bp longer
+than GRCh38's: a copy of GSTM1 that the graph never merged with GRCh38's. HPRC's
+own wfmash alignment runs HG03041 straight through GRCh38's GSTM1, so the loop
+is how the graph was built, not a deletion. 84 of HPRC's 463 haplotypes carry
+GSTM1 that way. Synteny read from the graph records such a copy as a deletion
+beside an insertion of the same length, and the synteny lanes draw it as a gap
+just like HG00133's. Only the graph view tells the two apart.
+
+![HG01960, HG00133 and HG03041 lifted at GSTM1: through GRCh38's GSTM1, past it, and round an unmerged copy of it](../img/force_gstm1_three_ways.png)
+
 The Walk menu's **Side by side** facets the pane, the way a grammar of graphics
 facets a plot. **A panel per walk** draws the same layout once per lifted walk,
 each panel with its walk alone on one shared scale, yellow where the walk starts
