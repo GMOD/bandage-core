@@ -94,6 +94,34 @@ test('a region measures between its flanking reference nodes', () => {
   expect(cut.reference.bp).toBeLessThan(whole.reference.bp)
 })
 
+test('a walk that stops inside a flanked region reads partial', () => {
+  const graph = pggbGraph()
+  const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const reference = graph.paths!.find(
+    p => pathOrigin(p.name).name === graph.referencePath,
+  )!
+  const start = graph.anchorPaths!.find(
+    p => p.name === graph.referencePath,
+  )!.start
+  const ends = [start]
+  for (const id of reference.nodeIds) {
+    ends.push(ends.at(-1)! + byId.get(id)!)
+  }
+  const n = reference.nodeIds.length
+  const region = { start: ends[2]!, end: ends[n - 2]! }
+  // an assembly whose contig ends halfway through the region
+  const truncated = {
+    ...reference,
+    name: 'truncated',
+    nodeIds: reference.nodeIds.slice(0, Math.floor(n / 2)),
+  }
+  const cut = walkRows(
+    { ...graph, paths: [...graph.paths!, truncated] },
+    region,
+  )!
+  expect(cut.rows.find(r => r.name === 'truncated')!.complete).toBe(false)
+})
+
 test('a walk that skips the flanking node is cut at the next one it visits', () => {
   const graph = pggbGraph()
   const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
