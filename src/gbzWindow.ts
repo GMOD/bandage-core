@@ -134,6 +134,17 @@ export interface GbzWindowOptions {
   signal?: AbortSignal
 }
 
+// A cut's context and snarls unless told otherwise, and the nodes past which a
+// window fails rather than read a whole chromosome: what a gbz-base track's
+// slots default to, so a page or a script cuts the window the viewer would.
+// gbz-base counts every node it walks, which runs well past the nodes a cut
+// keeps.
+export const GBZ_CUT_DEFAULTS = {
+  context: 1000,
+  snarls: 'contained',
+  limit: 100_000,
+} as const satisfies Pick<GbzWindowOptions, 'context' | 'snarls' | 'limit'>
+
 // The reference walk, the snarls in the window, and one W line per haplotype
 // walk (the reference walk first), PanSN-named when the database carries the
 // haplotype index. Empty when the query names no indexed path.

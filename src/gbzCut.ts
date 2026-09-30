@@ -1,6 +1,7 @@
 import { GBZBase } from '@gmod/gbz-base'
 
 import {
+  GBZ_CUT_DEFAULTS,
   cutWindowGFA,
   haplotypeWanted,
   referencePathQuery,
@@ -39,10 +40,6 @@ export function haplotypeIndexBeside(db: string) {
   const GBZ_DB = /\.gbz\.db$/i
   return GBZ_DB.test(db) ? db.replace(GBZ_DB, '.haplotype-index.db') : undefined
 }
-
-// gbz-base counts every node it walks, which runs well past the nodes a cut
-// keeps
-const WALK_LIMIT = 100_000
 
 export function parseRegion(text: string) {
   const m = /^\s*([^:\s]+):([\d,]+)-([\d,]+)\s*$/.exec(text)
@@ -92,9 +89,9 @@ export async function cutGbzRegion(
   signal?.throwIfAborted()
   const wanted = src.haplotypes?.length ? src.haplotypes : undefined
   const text = await cutWindowGFA(base, query, region.start, region.end, {
-    context: src.context ?? 1000,
-    snarls: src.snarls ?? 'contained',
-    limit: WALK_LIMIT,
+    context: src.context ?? GBZ_CUT_DEFAULTS.context,
+    snarls: src.snarls ?? GBZ_CUT_DEFAULTS.snarls,
+    limit: GBZ_CUT_DEFAULTS.limit,
     signal,
     ...(wanted ? { keep: name => haplotypeWanted(name, wanted) } : {}),
   })
