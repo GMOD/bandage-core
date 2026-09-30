@@ -36,11 +36,51 @@ test('a walk bridging two fragments is joined where its pieces overlap', () => {
   ])
 })
 
+// context shorter than the haplotype's sequence in the gap: its piece in each
+// cut ends where the other's starts, and neither cut holds both ends of the
+// link between them
+test('pieces that meet are joined, with the link neither cut wrote', () => {
+  const joined = joinCuts([
+    gfa(
+      ...segments(1, 2),
+      walk('GRCh38#0#chr6', 100, [1]),
+      walk('HG003#1#chr6', 500, [1, 2]),
+    ),
+    gfa(
+      ...segments(5, 6),
+      walk('GRCh38#0#chr6', 200, [6]),
+      walk('HG003#1#chr6', 520, [5, 6]),
+    ),
+  ])
+  expect(walks(joined).slice(2)).toEqual([
+    walk('HG003#1#chr6', 500, [1, 2, 5, 6]),
+  ])
+  expect(joined.split('\n').filter(line => line.startsWith('L\t'))).toEqual([
+    'L\t1\t+\t2\t+\t0M',
+    'L\t2\t+\t5\t+\t0M',
+    'L\t5\t+\t6\t+\t0M',
+  ])
+})
+
+test('a link a walk takes backwards is not written again', () => {
+  const backwards = gfa(
+    ...segments(3, 4),
+    'L\t3\t+\t4\t+\t0M',
+    walk('GRCh38#0#chr6', 300, [3, 4]),
+    'W\tHG005\t1\tchr6\t0\t20\t<4<3',
+  )
+  const links = joinCuts([backwards, backwards])
+    .split('\n')
+    .filter(line => line.startsWith('L\t'))
+  expect(links).toEqual(['L\t3\t+\t4\t+\t0M'])
+})
+
 test('segments, links and headers appear once', () => {
   const joined = joinCuts([first, second]).split('\n')
   expect(joined.filter(line => line.startsWith('S\t'))).toHaveLength(6)
-  expect(joined.filter(line => line.startsWith('L\t'))).toHaveLength(1)
   expect(joined.filter(line => line.startsWith('H\t'))).toHaveLength(1)
+  const links = joined.filter(line => line.startsWith('L\t'))
+  expect(new Set(links).size).toBe(links.length)
 })
 
 test('a piece inside another is dropped, and pieces apart stay apart', () => {

@@ -21,6 +21,8 @@ function parseWalk(line: string): Walk {
   }
 }
 
+const stepsOf = (walk: Walk) => walk.fields[6]!.match(/[<>][^<>]+/g) ?? []
+
 function segmentLengths(lines: string[]) {
   const lengths = new Map<string, number>()
   for (const line of lines) {
@@ -36,14 +38,14 @@ function segmentLengths(lines: string[]) {
   return lengths
 }
 
-// `a` carried on by the steps of `b` past `a.end`, where `b` starts inside
-// `a`; undefined when no step of `b` starts exactly at `a.end`, which two
-// pieces of one walk always share
+// `a` carried on by the steps of `b` past `a.end`, where `b` starts inside or
+// at the end of `a`; undefined when no step of `b` starts exactly at `a.end`,
+// which two pieces of one walk always share
 function extend(a: Walk, b: Walk, lengths: Map<string, number>) {
   if (b.end <= a.end) {
     return a
   }
-  const steps = b.fields[6]!.match(/[<>][^<>]+/g) ?? []
+  const steps = stepsOf(b)
   let pos = b.start
   for (const [i, step] of steps.entries()) {
     if (pos === a.end) {
@@ -61,13 +63,14 @@ function extend(a: Walk, b: Walk, lengths: Map<string, number>) {
   return undefined
 }
 
-// Pieces of one walk, by start, with each overlapping pair joined into one
+// Pieces of one walk, by start, with each pair that overlaps or meets joined
+// into one
 function joinPieces(pieces: Walk[], lengths: Map<string, number>) {
   const joined: Walk[] = []
   for (const piece of pieces.sort((a, b) => a.start - b.start)) {
     const last = joined.at(-1)
     const extended =
-      last && piece.start < last.end ? extend(last, piece, lengths) : undefined
+      last && piece.start <= last.end ? extend(last, piece, lengths) : undefined
     if (extended) {
       joined[joined.length - 1] = extended
     } else {
@@ -75,6 +78,26 @@ function joinPieces(pieces: Walk[], lengths: Map<string, number>) {
     }
   }
   return joined
+}
+
+const flip = (sign: string) => (sign === '+' ? '-' : '+')
+
+// The link each step of a walk takes, in both of the ways an L line can write
+// it. Where two pieces met in no cut's nodes, no cut wrote the link between
+// them.
+function* stepLinks(walk: Walk) {
+  const steps = stepsOf(walk).map(step => ({
+    id: step.slice(1),
+    sign: step.startsWith('>') ? '+' : '-',
+  }))
+  for (let i = 1; i < steps.length; i++) {
+    const a = steps[i - 1]!
+    const b = steps[i]!
+    yield {
+      forward: `L\t${a.id}\t${a.sign}\t${b.id}\t${b.sign}\t0M`,
+      reverse: `L\t${b.id}\t${flip(b.sign)}\t${a.id}\t${flip(a.sign)}\t0M`,
+    }
+  }
 }
 
 // Each segment and link once, every cut's reference walk (its first W line)
@@ -111,14 +134,23 @@ export function joinCuts(gfas: string[]) {
       byName.set(walk.name, [walk])
     }
   }
+  const walks = [
+    ...references,
+    ...[...byName.values()].flatMap(pieces => joinPieces(pieces, lengths)),
+  ]
+  const links = new Set(cuts.flatMap(cut => ofType(cut, 'L')))
+  for (const walk of walks) {
+    for (const link of stepLinks(walk)) {
+      if (!links.has(link.forward) && !links.has(link.reverse)) {
+        links.add(link.forward)
+      }
+    }
+  }
   const lines = new Set([
     ...ofType(cuts[0]!, 'H'),
     ...cuts.flatMap(cut => ofType(cut, 'S')),
-    ...cuts.flatMap(cut => ofType(cut, 'L')),
-    ...[
-      ...references,
-      ...[...byName.values()].flatMap(pieces => joinPieces(pieces, lengths)),
-    ].map(walk => walk.fields.join('\t')),
+    ...links,
+    ...walks.map(walk => walk.fields.join('\t')),
   ])
   return `${[...lines].join('\n')}\n`
 }
