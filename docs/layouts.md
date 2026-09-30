@@ -129,14 +129,18 @@ tabix -p gaf reads.gaf.gz
 
 Eight HPRC haplotypes over MICB's exons 2–4, one of the most polymorphic genes
 in the genome, as tracks under the RefSeq genes. On the reference axis each
-column sits at its bp, so the variant columns in an exon sit under that exon:
+column sits at its bp, so the variant columns in an exon sit under that exon.
+Between the two, HPRC's multiple alignment from the same Minigraph-Cactus build,
+cut to the same eight haplotypes and ordered as the key lists them, marks a
+mismatch in a row wherever its tube leaves GRCh38's route:
 
-![MICB's exons 2–4 as a tube map on the reference axis, each variant column under its bp in the gene track](../img/tube_map_micb_ref.png)
+![MICB's exons 2–4 as a tube map on the reference axis under the eight haplotypes' alignment rows, each variant column under its bp in the gene track](../img/tube_map_micb_ref.png)
 
 On the tube map's own axis the columns go in node order, and a band ties each
-reference node back to its bp on the view's ruler:
+reference node back to its bp on the view's ruler, under the alignment's
+mismatches at that bp:
 
-![MICB's exons 2–4 as a tube map track on its own axis, each reference node tied to its bp](../img/tube_map_micb_track.png)
+![MICB's exons 2–4 as a tube map track on its own axis, each reference node tied to its bp under the alignment rows](../img/tube_map_micb_track.png)
 
 Opened as a view under the linear view, the cut draws MICB's exons above the
 tubes, and hovering a box bands its bp in the linear view. Here it is GRCh38's
@@ -189,9 +193,11 @@ over on the walk's own contig written under it as `contig:start-end (length)`.
 At GSTM1, HG00133 runs cyan to navy past the loop its 18 kb deletion skips. The
 synteny view under it reads the same track as HG00133 aligned to GRCh38, and the
 deletion is the wedge pinched to a point on HG00133's contig. HPRC's own wfmash
-alignment puts it in the same place, inside the repeat that flanks GSTM1:
+alignment puts it in the same place, inside the repeat that flanks GSTM1. Above
+the graph, six of the cut's eight haplotypes break across GSTM1 in the multiple
+alignment, HG00133 among them:
 
-![HG00133's walk lifted at GSTM1, shading along itself past the loop it skips, over a synteny view of HG00133 against GRCh38 whose wedge is the deletion](../img/force_gstm1_walk.png)
+![HG00133's walk lifted at GSTM1 under the eight haplotypes' alignment rows, shading along itself past the loop it skips, over a synteny view of HG00133 against GRCh38 whose wedge is the deletion](../img/force_gstm1_walk.png)
 
 Walks lifted together each take one flat colour, like the lines of a metro map,
 and draw a lane each through the nodes they visit; a lane missing from a node is
@@ -205,9 +211,11 @@ own wfmash alignment runs HG03041 straight through GRCh38's GSTM1, so the loop
 is how the graph was built, not a deletion. 84 of HPRC's 463 haplotypes carry
 GSTM1 that way. Synteny read from the graph records such a copy as a deletion
 beside an insertion of the same length, and the synteny lanes draw it as a gap
-just like HG00133's. Only the graph view tells the two apart.
+just like HG00133's. The multiple alignment from the same build does too: in the
+lane above the graph, HG03041's row breaks across GSTM1 where HG00133's does.
+Only the graph view tells the two apart.
 
-![HG01960, HG00133 and HG03041 lifted at GSTM1: through GRCh38's GSTM1, past it, and round an unmerged copy of it](../img/force_gstm1_three_ways.png)
+![HG01960, HG00133 and HG03041 lifted at GSTM1 under their alignment rows, two of which break across GSTM1: through GRCh38's GSTM1, past it, and round an unmerged copy of it](../img/force_gstm1_three_ways.png)
 
 The Walk menu's **Side by side** facets the pane, the way a grammar of graphics
 facets a plot. **A panel per walk** draws the same layout once per lifted walk,
