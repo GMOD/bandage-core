@@ -107,26 +107,32 @@ export function walkRows(
 ): WalkRows | undefined {
   const paths = graph.paths ?? []
   // `referencePath` is the anchor name, which pathOrigin has already stripped
-  // of the range suffix odgi leaves on a P record's name
-  const reference =
-    paths.find(p => pathOrigin(p.name).name === graph.referencePath) ?? paths[0]
-  if (!reference || paths.length < 2) {
+  // of the range suffix odgi leaves on a P record's name. A cut over several
+  // fragments of the reference holds one record per fragment.
+  const isReference = (p: GraphPath) =>
+    pathOrigin(p.name).name === graph.referencePath
+  const referencePieces = paths.some(isReference)
+    ? paths.filter(isReference).sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
+    : paths.slice(0, 1)
+  const first = referencePieces[0]
+  const others = paths.filter(p => !referencePieces.includes(p))
+  if (!first || others.length === 0) {
     return undefined
   }
   const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
-  const referenceStart =
-    graph.anchorPaths?.find(p => p.name === pathOrigin(reference.name).name)
-      ?.start ?? 0
+  const referenceStart = first.start ?? 0
 
   const cut = region && region.end > region.start ? region : undefined
   const span = new Map<string, { start: number; end: number }>()
-  let pos = referenceStart
-  for (const id of reference.nodeIds) {
-    const len = lengthOf.get(id) ?? 0
-    if (!span.has(id)) {
-      span.set(id, { start: pos, end: pos + len })
+  for (const piece of referencePieces) {
+    let pos = piece.start ?? 0
+    for (const id of piece.nodeIds) {
+      const len = lengthOf.get(id) ?? 0
+      if (!span.has(id)) {
+        span.set(id, { start: pos, end: pos + len })
+      }
+      pos += len
     }
-    pos += len
   }
 
   // Whether the reference reaches past the region on both sides, i.e. whether
@@ -187,22 +193,15 @@ export function walkRows(
     }
   }
 
-  // A cut can hand one walk back in pieces, and a piece reached only through
-  // context meets no reference node, so nothing places it against the window.
-  // It is dropped when another piece of the same walk does meet the reference.
-  const meetsReference = (p: GraphPath) => p.nodeIds.some(id => span.has(id))
-  const placedWalks = new Set(
-    paths.filter(p => p !== reference && meetsReference(p)).map(p => p.name),
-  )
   const origin = cut ? cut.start : referenceStart
   return {
     origin,
     unit,
-    reference: rowOf(reference),
-    rows: paths
-      .filter(
-        p => p !== reference && (meetsReference(p) || !placedWalks.has(p.name)),
-      )
+    reference: rowOf({
+      ...first,
+      nodeIds: referencePieces.flatMap(piece => piece.nodeIds),
+    }),
+    rows: others
       .map(rowOf)
       .sort(
         (a, b) =>
