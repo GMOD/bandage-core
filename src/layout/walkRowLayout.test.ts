@@ -14,7 +14,8 @@ function pggbGraph() {
   return anchorGraph(convertGFAToGraph(parseGFA(gfa), 'pggb'), 'K12')
 }
 
-const ids = (positions: Record<string, unknown>) => Object.keys(positions).sort()
+const ids = (positions: Record<string, unknown>) =>
+  Object.keys(positions).sort()
 
 test('row 0 places every backbone node at its reference bp without a region', () => {
   const graph = pggbGraph()
@@ -44,8 +45,7 @@ test('with a region, row 0 keeps only the backbone nodes overlapping it', () => 
   const expected = backbone
     .filter(
       n =>
-        n.stable.start < region.end &&
-        n.stable.start + n.length > region.start,
+        n.stable.start < region.end && n.stable.start + n.length > region.start,
     )
     .map(n => n.id)
   expect(expected).toContain(second.id)
