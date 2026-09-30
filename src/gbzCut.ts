@@ -27,8 +27,8 @@ export interface GbzSource {
   snarls?: RangeOptions['snarls']
 }
 
-// the HPRC release 2 Minigraph-Cactus graph, with a haplotype index whose
-// anchor rows let a cut walk only the haplotypes it keeps
+// the HPRC release 2 Minigraph-Cactus graph, with the haplotype index that
+// names its walks
 export const HPRC_GBZ = {
   db: 'https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/release2/minigraph-cactus/v2.1/hprc-v2.1-mc-grch38/hprc-v2.1-mc-grch38.gbz.db',
   index:
