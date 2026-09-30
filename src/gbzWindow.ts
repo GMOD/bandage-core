@@ -81,7 +81,6 @@ export function resolveReferenceSample({
 
 // The indexed reference path a window on `refName` resolves against, or
 // undefined when the reference sample has no indexed path by that contig.
-// gbz-base spans the path's fragments itself from here.
 export async function referencePathQuery(
   db: GBZBase,
   referenceSample: string,
@@ -145,6 +144,49 @@ export const GBZ_CUT_DEFAULTS = {
   limit: 100_000,
 } as const satisfies Pick<GbzWindowOptions, 'context' | 'snarls' | 'limit'>
 
+// The window split wherever the reference path starts another fragment, so
+// each piece lies inside one: getSubgraphForRange cuts the fragment its window
+// starts in alone, where getAlignmentsForRange walks them all
+export async function referencePieces(
+  db: GBZBase,
+  query: PathQuery,
+  start: number,
+  end: number,
+) {
+  const inside = (await db.paths())
+    .filter(
+      ({ isIndexed, name }) =>
+        isIndexed &&
+        name.sample === query.sample &&
+        name.haplotype === query.haplotype &&
+        name.contig === query.contig &&
+        name.fragment > start &&
+        name.fragment < end,
+    )
+    .map(path => path.name.fragment)
+  const bounds = [start, ...[...new Set(inside)].sort((a, b) => a - b), end]
+  return bounds.slice(1).map((pieceEnd, i) => ({
+    start: bounds[i]!,
+    end: pieceEnd,
+  }))
+}
+
+// One GFA from a cut per fragment: each segment and link once, and every
+// cut's reference walk ahead of the haplotype walks
+function joinCuts(gfas: string[]) {
+  const cuts = gfas.map(gfa => gfa.split('\n').filter(line => line !== ''))
+  const ofType = (cut: string[], type: string) =>
+    cut.filter(line => line.startsWith(type))
+  const lines = new Set([
+    ...ofType(cuts[0] ?? [], 'H'),
+    ...cuts.flatMap(cut => ofType(cut, 'S')),
+    ...cuts.flatMap(cut => ofType(cut, 'L')),
+    ...cuts.flatMap(cut => ofType(cut, 'W').slice(0, 1)),
+    ...cuts.flatMap(cut => ofType(cut, 'W').slice(1)),
+  ])
+  return lines.size === 0 ? '' : `${[...lines].join('\n')}\n`
+}
+
 // The reference walk, the snarls in the window, and one W line per haplotype
 // walk (the reference walk first), PanSN-named when the database carries the
 // haplotype index. Empty when the query names no indexed path.
@@ -155,16 +197,28 @@ export async function cutWindowGFA(
   end: number,
   { keep, ...opts }: GbzWindowOptions,
 ) {
-  const subgraph = query
-    ? await db
-        .getSubgraphForRange(query, start, end, {
+  if (!query) {
+    return ''
+  }
+  const pieces = await referencePieces(db, query, start, end)
+  const subgraphs = await Promise.all(
+    pieces.map(piece =>
+      db
+        .getSubgraphForRange(query, piece.start, piece.end, {
           ...opts,
           haplotypes: 'all',
           ...(keep === undefined ? {} : { keep }),
         })
         .catch((error: unknown) => {
           throw nodeLimitError(error, opts.limit, end - start) ?? error
-        })
-    : undefined
-  return subgraph ? subgraph.toGFA({ names: 'resolved' }) : ''
+        }),
+    ),
+  )
+  return joinCuts(
+    await Promise.all(
+      subgraphs.flatMap(subgraph =>
+        subgraph ? [subgraph.toGFA({ names: 'resolved' })] : [],
+      ),
+    ),
+  )
 }
