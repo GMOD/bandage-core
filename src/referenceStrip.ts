@@ -2,12 +2,10 @@ import { abgrToCssRgba } from '@jbrowse/core/util/colorBits'
 
 import { isBackbone } from './anchoredNodes'
 import {
-  FADED_ALPHA,
-  LIFT_BACKDROP_COLOR,
+  LIFT_BACKDROP_CSS,
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
-import { fadeAbgr } from './renderer/colorBits'
 
 import type { ResolvedColorScheme } from './colorSchemes'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
@@ -46,8 +44,6 @@ export interface StripBlock {
   faded: boolean
 }
 
-const PALE = abgrToCssRgba(fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA))
-
 export function referenceStripBlocks(
   graph: Graph,
   {
@@ -68,7 +64,7 @@ export function referenceStripBlocks(
       const colors = walks
         ? walks.map(w => {
             const lane = w.colors.get(node.id)
-            return lane === undefined ? PALE : abgrToCssRgba(lane)
+            return lane === undefined ? LIFT_BACKDROP_CSS : abgrToCssRgba(lane)
           })
         : [abgrToCssRgba(getNodeColor(node, index, colorScheme, range))]
       out.push({
@@ -76,7 +72,7 @@ export function referenceStripBlocks(
         bp0: node.stable.start,
         bp1: node.stable.start + node.length,
         colors,
-        faded: colors.includes(PALE),
+        faded: colors.includes(LIFT_BACKDROP_CSS),
       })
     }
   })

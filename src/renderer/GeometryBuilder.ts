@@ -1,4 +1,4 @@
-import { packAbgr } from '@jbrowse/core/util/colorBits'
+import { abgrToCssRgba, packAbgr } from '@jbrowse/core/util/colorBits'
 
 import { fadeAbgr } from './colorBits'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
@@ -56,6 +56,11 @@ const DELETION_THICKNESS_FACTOR = 2.2
 // scheme's hues, only dimmer, on any background.
 export const LIFT_BACKDROP_COLOR = packAbgr(160, 160, 160, 255)
 export const FADED_ALPHA = 0.18
+// The same fade as css, for what paints outside the batch: the strip, the
+// keys, a tube map's tubes
+export const LIFT_BACKDROP_CSS = abgrToCssRgba(
+  fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA),
+)
 // Dash period in screen px, so a dashed arc looks the same at any zoom. Dashes
 // are geometry rather than a stroke style, because only one of the two backends
 // has one; see dashCurves.
