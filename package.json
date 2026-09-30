@@ -1,6 +1,6 @@
 {
   "name": "@jbrowse/bandage-core",
-  "version": "4.0.27",
+  "version": "4.0.28",
   "description": "Pangenome graph layout and drawing with no host: GFA in, the Bandage force-directed engine and reference-anchored layouts, a Canvas2D renderer, hit testing and labels out",
   "license": "GPL-3.0-or-later",
   "repository": {
