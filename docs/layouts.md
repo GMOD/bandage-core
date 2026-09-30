@@ -253,7 +253,7 @@ across in a wide one. **Columns** in the Walk menu fixes the count. **A row per
 sample, a column per haplotype** lays the same panels out as
 `facet_grid(sample ~ haplotype)` would, so a sample's two haplotypes read across
 one row. A track whose x the linear view places stacks its panels full width, so
-each keeps the ruler's bp.
+each keeps the ruler's bp. A track too short for its panels grows to fit them.
 
 A session states the walks, the facet and any column count:
 
