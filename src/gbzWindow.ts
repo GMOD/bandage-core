@@ -1,5 +1,3 @@
-import { nodes } from '@gmod/gbz-base'
-
 import { joinCuts } from './gbzJoin.ts'
 import { panSNMatchesPrefix, panSNSample } from './pansn.ts'
 import { wellKnownSample } from './reference.ts'
@@ -176,10 +174,6 @@ export async function referencePieces(
   }))
 }
 
-// `>5` or `<5` as gbz-base's node handle
-const stepHandle = (step: string) =>
-  nodes.encodeNode(+step.slice(1), step.startsWith('<') ? 'reverse' : 'forward')
-
 // The reference walk, the snarls in the window, and one W line per haplotype
 // walk (the reference walk first), PanSN-named when the database carries the
 // haplotype index. Empty when the query names no indexed path.
@@ -214,15 +208,20 @@ export async function cutWindowGFA(
         }),
     ),
   )
+  const paths = await db.paths()
   return joinCuts(
     await Promise.all(
       subgraphs.flatMap(subgraph =>
         subgraph ? [subgraph.toGFA({ names: 'resolved' })] : [],
       ),
     ),
-    async (from, to) =>
-      (await db.getRecord(stepHandle(from)))
-        ?.successors()
-        .includes(stepHandle(to)) ?? false,
+    (sample, haplotype, contig, at) =>
+      paths.some(
+        ({ name }) =>
+          name.sample === sample &&
+          name.haplotype === haplotype &&
+          name.contig === contig &&
+          name.fragment === at,
+      ),
   )
 }

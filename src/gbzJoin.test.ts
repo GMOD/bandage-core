@@ -9,11 +9,11 @@ const walks = (text: string) =>
   text.split('\n').filter(line => line.startsWith('W\t'))
 const links = (text: string) =>
   text.split('\n').filter(line => line.startsWith('L\t'))
-const unlinked = async () => false
-const linked =
-  (...edges: string[]) =>
-  async (from: string, to: string) =>
-    edges.includes(`${from}${to}`)
+const noPathStarts = () => false
+const pathStartsAt =
+  (name: string, at: number) =>
+  (sample: string, haplotype: number, contig: string, where: number) =>
+    `${sample}#${haplotype}#${contig}` === name && where === at
 
 // Two fragments of GRCh38 chr6, and HG002#1 bridging the gap between them
 const first = gfa(
@@ -31,12 +31,12 @@ const second = gfa(
   walk('HG002#1#chr6', 520, [3, 4, 5, 6]),
 )
 
-test('one cut passes through unchanged', async () => {
-  expect(await joinCuts([first], unlinked)).toBe(first)
+test('one cut passes through unchanged', () => {
+  expect(joinCuts([first], noPathStarts)).toBe(first)
 })
 
-test('a walk bridging two fragments is joined where its pieces overlap', async () => {
-  expect(walks(await joinCuts([first, second], unlinked))).toEqual([
+test('a walk bridging two fragments is joined where its pieces overlap', () => {
+  expect(walks(joinCuts([first, second], noPathStarts))).toEqual([
     walk('GRCh38#0#chr6', 100, [1, 2]),
     walk('GRCh38#0#chr6', 200, [5, 6]),
     walk('HG002#1#chr6', 500, [1, 2, 3, 4, 5, 6]),
@@ -59,8 +59,8 @@ const meeting = [
   ),
 ]
 
-test('pieces that meet where the graph links them are joined, with the link neither cut wrote', async () => {
-  const joined = await joinCuts(meeting, linked('>2>5'))
+test('pieces that meet are joined, with the link neither cut wrote', () => {
+  const joined = joinCuts(meeting, noPathStarts)
   expect(walks(joined).slice(2)).toEqual([
     walk('HG003#1#chr6', 500, [1, 2, 5, 6]),
   ])
@@ -71,9 +71,9 @@ test('pieces that meet where the graph links them are joined, with the link neit
   ])
 })
 
-// a haplotype split into two paths at one coordinate, with no edge between
-test('pieces that meet where the graph does not link them stay apart', async () => {
-  const joined = await joinCuts(meeting, unlinked)
+// two paths of one haplotype, whether or not the graph links them
+test("pieces that meet where one of the haplotype's paths starts stay apart", () => {
+  const joined = joinCuts(meeting, pathStartsAt('HG003#1#chr6', 520))
   expect(walks(joined).slice(2)).toEqual([
     walk('HG003#1#chr6', 500, [1, 2]),
     walk('HG003#1#chr6', 520, [5, 6]),
@@ -82,8 +82,8 @@ test('pieces that meet where the graph does not link them stay apart', async () 
 })
 
 // a cut's context reaches the other fragment, which it writes as a walk
-test("the reference's pieces in another cut fold into its own walks", async () => {
-  const joined = await joinCuts(
+test("the reference's pieces in another cut fold into its own walks", () => {
+  const joined = joinCuts(
     [
       gfa(
         ...segments(1, 2, 5),
@@ -96,7 +96,7 @@ test("the reference's pieces in another cut fold into its own walks", async () =
         walk('GRCh38#0#chr6', 110, [2]),
       ),
     ],
-    unlinked,
+    noPathStarts,
   )
   expect(walks(joined)).toEqual([
     walk('GRCh38#0#chr6', 100, [1, 2]),
@@ -104,27 +104,27 @@ test("the reference's pieces in another cut fold into its own walks", async () =
   ])
 })
 
-test('a link a walk takes backwards is not written again', async () => {
+test('a link a walk takes backwards is not written again', () => {
   const backwards = gfa(
     ...segments(3, 4),
     'L\t3\t+\t4\t+\t0M',
     walk('GRCh38#0#chr6', 300, [3, 4]),
     'W\tHG005\t1\tchr6\t0\t20\t<4<3',
   )
-  expect(links(await joinCuts([backwards, backwards], unlinked))).toEqual([
+  expect(links(joinCuts([backwards, backwards], noPathStarts))).toEqual([
     'L\t3\t+\t4\t+\t0M',
   ])
 })
 
-test('segments, links and headers appear once', async () => {
-  const joined = (await joinCuts([first, second], unlinked)).split('\n')
+test('segments, links and headers appear once', () => {
+  const joined = joinCuts([first, second], noPathStarts).split('\n')
   expect(joined.filter(line => line.startsWith('S\t'))).toHaveLength(6)
   expect(joined.filter(line => line.startsWith('H\t'))).toHaveLength(1)
   const written = joined.filter(line => line.startsWith('L\t'))
   expect(new Set(written).size).toBe(written.length)
 })
 
-test('a piece inside another is dropped, and pieces apart stay apart', async () => {
+test('a piece inside another is dropped, and pieces apart stay apart', () => {
   const inside = gfa(
     ...segments(5, 6),
     walk('GRCh38#0#chr6', 200, [5, 6]),
@@ -137,14 +137,14 @@ test('a piece inside another is dropped, and pieces apart stay apart', async () 
     walk('HG002#1#chr6', 500, [1, 2, 3, 4]),
     walk('HG002#2#chr6', 700, [1, 2]),
   )
-  expect(walks(await joinCuts([apart, inside], unlinked)).slice(2)).toEqual([
+  expect(walks(joinCuts([apart, inside], noPathStarts)).slice(2)).toEqual([
     walk('HG002#1#chr6', 500, [1, 2, 3, 4]),
     walk('HG002#2#chr6', 700, [1, 2]),
     walk('HG002#2#chr6', 900, [5, 6]),
   ])
 })
 
-test("each cut's unnamed walks are numbered on from the cut before's", async () => {
+test("each cut's unnamed walks are numbered on from the cut before's", () => {
   const unnamed = (ref: number, ids: number[]) =>
     gfa(
       ...segments(...ids),
@@ -153,7 +153,7 @@ test("each cut's unnamed walks are numbered on from the cut before's", async () 
       walk('unknown#2#chr6', 0, ids),
     )
   expect(
-    walks(await joinCuts([unnamed(100, [1]), unnamed(200, [2])], unlinked))
+    walks(joinCuts([unnamed(100, [1]), unnamed(200, [2])], noPathStarts))
       .slice(2)
       .map(line => line.split('\t').slice(1, 3).join('#')),
   ).toEqual(['unknown#1', 'unknown#2', 'unknown#3', 'unknown#4'])
