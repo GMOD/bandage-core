@@ -2,8 +2,8 @@
 //
 // Refuses a release unless the Push workflow passed on the commit being
 // released. preversion runs neither the browser suites nor BandageJS on the
-// packed core, and a publish reaches every tutorial through unpkg: 4.0.25 to
-// 4.0.27 went out with both red. Push the commit, let CI finish, then version.
+// packed core: 4.0.25 to 4.0.27 went out with both red. Push the commit, let
+// CI finish, then version.
 import { execFileSync } from 'node:child_process'
 
 function run(cmd, args) {
