@@ -63,14 +63,26 @@ function extend(a: Walk, b: Walk, lengths: Map<string, number>) {
   return undefined
 }
 
-// Pieces of one walk, by start, with each pair that overlaps or meets joined
-// into one
-function joinPieces(pieces: Walk[], lengths: Map<string, number>) {
+// Whether the graph has an edge from one walk step (`>5`) to the next (`<8`)
+export type HasEdge = (from: string, to: string) => Promise<boolean>
+
+// Pieces of one walk, by start, with each pair that overlaps joined into one,
+// and each pair that meets where the graph links them: a haplotype split into
+// two paths at one coordinate meets there with no edge between them
+async function joinPieces(
+  pieces: Walk[],
+  lengths: Map<string, number>,
+  hasEdge: HasEdge,
+) {
   const joined: Walk[] = []
   for (const piece of pieces.sort((a, b) => a.start - b.start)) {
     const last = joined.at(-1)
-    const extended =
-      last && piece.start <= last.end ? extend(last, piece, lengths) : undefined
+    const joins =
+      last !== undefined &&
+      (piece.start < last.end ||
+        (piece.start === last.end &&
+          (await hasEdge(stepsOf(last).at(-1)!, stepsOf(piece)[0]!))))
+    const extended = joins ? extend(last, piece, lengths) : undefined
     if (extended) {
       joined[joined.length - 1] = extended
     } else {
@@ -101,10 +113,12 @@ function* stepLinks(walk: Walk) {
 }
 
 // Each segment and link once, every cut's reference walk (its first W line)
-// ahead of the haplotype walks, overlapping pieces of one walk joined, and
-// each cut's `unknown#N` walks numbered on from the cut before's, since gbz-base
-// numbers them per cut
-export function joinCuts(gfas: string[]) {
+// ahead of the haplotype walks, the pieces of each walk joined, the
+// reference's among them since a cut's context can reach the other fragment,
+// and each cut's `unknown#N` walks numbered on from the cut before's, since
+// gbz-base numbers them per cut. Unnamed walks start every cut at 0, so their
+// pieces cannot be joined.
+export async function joinCuts(gfas: string[], hasEdge: HasEdge) {
   if (gfas.length <= 1) {
     return gfas[0] ?? ''
   }
@@ -124,9 +138,11 @@ export function joinCuts(gfas: string[]) {
     }
     return walks
   })
-  const references = walksByCut.flatMap(walks => walks.slice(0, 1))
   const byName = new Map<string, Walk[]>()
-  for (const walk of walksByCut.flatMap(walks => walks.slice(1))) {
+  for (const walk of [
+    ...walksByCut.flatMap(walks => walks.slice(0, 1)),
+    ...walksByCut.flatMap(walks => walks.slice(1)),
+  ]) {
     const pieces = byName.get(walk.name)
     if (pieces) {
       pieces.push(walk)
@@ -134,10 +150,11 @@ export function joinCuts(gfas: string[]) {
       byName.set(walk.name, [walk])
     }
   }
-  const walks = [
-    ...references,
-    ...[...byName.values()].flatMap(pieces => joinPieces(pieces, lengths)),
-  ]
+  const walks = (
+    await Promise.all(
+      [...byName.values()].map(pieces => joinPieces(pieces, lengths, hasEdge)),
+    )
+  ).flat()
   const links = new Set(cuts.flatMap(cut => ofType(cut, 'L')))
   for (const walk of walks) {
     for (const link of stepLinks(walk)) {
