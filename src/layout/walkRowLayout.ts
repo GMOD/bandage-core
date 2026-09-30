@@ -1,6 +1,10 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { walkRows } from './walkRows'
-import { backboneNodes, backbonePositions } from '../anchoredNodes'
+import {
+  backboneNodes,
+  backbonePositions,
+  overlapsWindow,
+} from '../anchoredNodes'
 
 import type { WalkRows } from './walkRows'
 import type { Graph, LayoutResult, RowLabel } from '../types'
@@ -36,7 +40,14 @@ export function walkRowLayout(
   if (backbone.length === 0 || !walks) {
     return undefined
   }
-  const nodePositions = backbonePositions(backbone)
+  // The bars start at the window, so row 0 draws only the backbone over it;
+  // the cut's context nodes would run left of the bars, under the labels.
+  const overWindow = region
+    ? backbone.filter(n => overlapsWindow(n, region))
+    : backbone
+  const nodePositions = backbonePositions(
+    overWindow.length > 0 ? overWindow : backbone,
+  )
   const rowLabels: RowLabel[] = [
     { label: walks.reference.label, y: 0 },
     ...walks.rows.map((row, i) => ({

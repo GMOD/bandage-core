@@ -1,4 +1,4 @@
-import { isBackbone } from '../anchoredNodes'
+import { isBackbone, overlapsWindow } from '../anchoredNodes'
 import { pathOrigin, trimOrigins } from '../pathAnchoring'
 
 import type { Graph, GraphPath, PathVisit } from '../types'
@@ -16,12 +16,7 @@ export function trimToWindow(
 ): Graph {
   const inWindow = new Set(
     graph.nodes
-      .filter(
-        n =>
-          isBackbone(n) &&
-          n.stable.start < window.end &&
-          n.stable.start + n.length > window.start,
-      )
+      .filter(n => isBackbone(n) && overlapsWindow(n, window))
       .map(n => n.id),
   )
   const paths = graph.paths ?? []

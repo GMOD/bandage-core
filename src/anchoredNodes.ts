@@ -35,6 +35,16 @@ export function backboneNodes(graph: Graph) {
   return graph.nodes.filter(isBackbone)
 }
 
+export function overlapsWindow(
+  node: AnchoredNode,
+  window: { start: number; end: number },
+) {
+  return (
+    node.stable.start < window.end &&
+    node.stable.start + node.length > window.start
+  )
+}
+
 // The backbone on row 0 at its declared offsets: the x axis of every layout
 // whose x is reference bp.
 export function backbonePositions(backbone: AnchoredNode[]) {
