@@ -1,7 +1,7 @@
 import { isBackbone } from '../anchoredNodes'
-import { pathOrigin } from '../pathAnchoring'
+import { pathOrigin, trimOrigins } from '../pathAnchoring'
 
-import type { Graph, GraphPath, PathOrigin, PathVisit } from '../types'
+import type { Graph, GraphPath, PathVisit } from '../types'
 
 // A cut reaches past its window by the track's context, which is what lets
 // walk rows see where a walk ends. A tube map is a picture of the window, so
@@ -56,7 +56,9 @@ export function trimToWindow(
 
   const kept = new Set<string>()
   const trimmed: GraphPath[] = []
-  const droppedBp = new Map<string, number>()
+  const stretches = new Map<string, { dropped: number; bp: number }>()
+  const bpOf = (ids: string[]) =>
+    ids.reduce((sum, id) => sum + (lengthOf.get(id) ?? 0), 0)
   paths.forEach((path, i) => {
     const span = spans[i]
     if (span) {
@@ -65,12 +67,10 @@ export function trimToWindow(
         kept.add(id)
       }
       trimmed.push({ ...path, nodeIds })
-      droppedBp.set(
-        path.name,
-        path.nodeIds
-          .slice(0, span.first)
-          .reduce((sum, id) => sum + (lengthOf.get(id) ?? 0), 0),
-      )
+      stretches.set(path.name, {
+        dropped: bpOf(path.nodeIds.slice(0, span.first)),
+        bp: bpOf(nodeIds),
+      })
     }
   })
 
@@ -88,7 +88,7 @@ export function trimToWindow(
         new Map(graph.nodes.map(n => [n.id, n.name])),
       ),
     anchorPaths:
-      graph.anchorPaths && shiftOrigins(graph.anchorPaths, paths, droppedBp),
+      graph.anchorPaths && trimOrigins(graph.anchorPaths, paths, stretches),
   }
 }
 
@@ -131,24 +131,4 @@ function trimVisits(
     })
   })
   return out
-}
-
-// A walk whose front was trimmed starts that much further along its sequence
-function shiftOrigins(
-  origins: PathOrigin[],
-  paths: GraphPath[],
-  droppedBp: Map<string, number>,
-) {
-  const pieces = new Map<string, number>()
-  for (const path of paths) {
-    const origin = pathOrigin(path.name).name
-    pieces.set(origin, (pieces.get(origin) ?? 0) + 1)
-  }
-  return origins.map(o => {
-    const path = paths.find(p => pathOrigin(p.name).name === o.name)
-    const dropped = path ? droppedBp.get(path.name) : undefined
-    return dropped && pieces.get(o.name) === 1
-      ? { ...o, start: o.start + dropped }
-      : o
-  })
 }

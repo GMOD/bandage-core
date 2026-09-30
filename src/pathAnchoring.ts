@@ -1,7 +1,13 @@
 import { REFERENCE_RANK } from './anchoredNodes'
 import { panSNSample } from './pansn'
 
-import type { Graph, GraphNode, PathOrigin, PathVisit } from './types'
+import type {
+  Graph,
+  GraphNode,
+  GraphPath,
+  PathOrigin,
+  PathVisit,
+} from './types'
 
 // Reference coordinates for a GFA that tags none of its segments with one.
 //
@@ -161,4 +167,26 @@ export function anchorFromPaths(graph: Graph, preferred: string | undefined) {
 // and falls through to the force layout, which is the honest answer for it.
 export function anchorGraph(graph: Graph, preferred: string | undefined) {
   return graph.anchoredBy === 'tags' ? graph : anchorFromPaths(graph, preferred)
+}
+
+// A walk cut down to a stretch of itself starts `dropped` bp further along its
+// sequence and covers `bp` of it, keyed by path name. A walk in several pieces
+// cannot say which piece an origin belongs to, so its origin stands.
+export function trimOrigins(
+  origins: PathOrigin[],
+  paths: GraphPath[],
+  stretches: Map<string, { dropped: number; bp: number }>,
+) {
+  const pieces = new Map<string, number>()
+  for (const path of paths) {
+    const origin = pathOrigin(path.name).name
+    pieces.set(origin, (pieces.get(origin) ?? 0) + 1)
+  }
+  return origins.map(o => {
+    const path = paths.find(p => pathOrigin(p.name).name === o.name)
+    const stretch = path ? stretches.get(path.name) : undefined
+    return stretch && pieces.get(o.name) === 1
+      ? { ...o, start: o.start + stretch.dropped, length: stretch.bp }
+      : o
+  })
 }

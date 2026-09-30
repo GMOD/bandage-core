@@ -67,7 +67,24 @@ describe('bubbleSubgraph', () => {
       's2',
       's3',
     ])
-    expect(sub.anchorPaths).toBe(anchorPaths)
+    expect(sub.anchorPaths).toEqual(anchorPaths)
     expect(sub.pathVisits).toBe(pathVisits)
+  })
+
+  // Positions on a walk are read as its origin plus the bp before a step, so
+  // an origin left at the walk's own start put every step inside the bubble
+  // the dropped front's length too early
+  it("moves a kept walk's origin to where its first kept step starts", () => {
+    const sub = bubbleSubgraph(
+      {
+        ...graph,
+        paths: [{ name: 'ref', nodeIds: ['s1+', 's2+', 's3+', 's4+'] }],
+        anchorPaths: [{ name: 'ref', sample: 'ref', start: 1000, length: 40 }],
+      },
+      ['s2', 's3'],
+    )
+    expect(sub.anchorPaths).toEqual([
+      { name: 'ref', sample: 'ref', start: 1010, length: 20 },
+    ])
   })
 })
