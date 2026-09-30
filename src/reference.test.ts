@@ -6,8 +6,10 @@ import { anchorFromPaths, anchorGraph } from './pathAnchoring'
 import {
   assemblyWalk,
   backboneAssembly,
+  contigNames,
   featuresOnBackbone,
   graphBackbone,
+  refNameBinding,
   wellKnownSample,
 } from './reference'
 
@@ -94,6 +96,32 @@ const DIPLOID = [
   'W\tHG002\t1\tchr6\t1000\t1030\t>1>2>4',
   'W\tHG002\t2\tchr6\t1000\t1030\t>1>3>4',
 ]
+
+// Ensembl writes `6` where UCSC writes `chr6`, and RefSeq an accession the
+// names alone cannot reach, which a caller states
+describe('refNameBinding', () => {
+  test('a contig answers to its name with or without chr', () => {
+    expect(contigNames('chr6')).toEqual(['chr6', '6'])
+    expect(contigNames('6')).toEqual(['6', 'chr6'])
+    expect(contigNames('chrM')).toEqual(['chrM', 'M', 'MT', 'chrMT'])
+    expect(contigNames('chr')).toEqual(['chr'])
+  })
+
+  test('binds a feature by any of its contig’s names, or one stated for it', () => {
+    const bind = refNameBinding(['GRCh38#0#chr6'], { chr6: 'NC_000006.12' })
+    expect(bind('GRCh38#0#chr6')).toBe('GRCh38#0#chr6')
+    expect(bind('chr6')).toBe('GRCh38#0#chr6')
+    expect(bind('6')).toBe('GRCh38#0#chr6')
+    expect(bind('NC_000006.12')).toBe('GRCh38#0#chr6')
+    expect(bind('7')).toBeUndefined()
+  })
+
+  test('a name two refNames share binds neither', () => {
+    const bind = refNameBinding(['A#1#chr6', 'B#1#chr6'])
+    expect(bind('6')).toBeUndefined()
+    expect(bind('A#1#chr6')).toBe('A#1#chr6')
+  })
+})
 
 describe('graphBackbone', () => {
   test('spans each rank-0 refName, with the prefixes they share', () => {

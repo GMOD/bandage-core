@@ -183,16 +183,35 @@ export function assemblyWalk(
   )
 }
 
+// The names a file from outside the graph may give a contig: its own, and the
+// same with or without UCSC's `chr`, the mitochondrion as M or MT either way
+export function contigNames(contig: string) {
+  const bare = contig.replace(/^chr/i, '')
+  const forms = !bare ? [] : /^(M|MT)$/i.test(bare) ? ['M', 'MT'] : [bare]
+  return [...new Set([contig, ...forms.flatMap(f => [f, `chr${f}`])])]
+}
+
 // Which of `refNames` a feature's refName names: the one it equals, else the
-// only one whose contig it is. A contig two refNames share names neither.
-export function refNameBinding(refNames: Iterable<string>) {
+// only one whose contig it names, by any of contigNames or the name `aliases`
+// gives that contig (`{ chr6: 'NC_000006.12' }`). A name two refNames share
+// names neither.
+export function refNameBinding(
+  refNames: Iterable<string>,
+  aliases: Record<string, string> = {},
+) {
   const exact = new Set(refNames)
-  const byContig = new Map<string, string | undefined>()
+  const byName = new Map<string, string | undefined>()
   for (const refName of exact) {
     const contig = panSNContig(refName)
-    byContig.set(contig, byContig.has(contig) ? undefined : refName)
+    const alias = aliases[contig]
+    for (const name of new Set([
+      ...contigNames(contig),
+      ...(alias ? [alias] : []),
+    ])) {
+      byName.set(name, byName.has(name) ? undefined : refName)
+    }
   }
-  return (name: string) => (exact.has(name) ? name : byContig.get(name))
+  return (name: string) => (exact.has(name) ? name : byName.get(name))
 }
 
 // An assembly's features on a backbone that binds to it, each renamed to the
@@ -201,8 +220,12 @@ export function refNameBinding(refNames: Iterable<string>) {
 export function featuresOnBackbone<T extends { refName: string }>(
   features: readonly T[],
   backbone: Backbone,
+  aliases?: Record<string, string>,
 ): T[] {
-  const bind = refNameBinding(backbone.contigs.map(c => c.refName))
+  const bind = refNameBinding(
+    backbone.contigs.map(c => c.refName),
+    aliases,
+  )
   return features.flatMap(f => {
     const refName = bind(f.refName)
     return refName === undefined

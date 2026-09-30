@@ -17,7 +17,7 @@ import {
 import { LAYOUT_MODE_VALUES, layoutModeByValue } from '../layoutModes'
 import loadBandage from '../loadBandage'
 import { forceLayout, loadGraph } from '../pipeline'
-import { featuresOnBackbone, graphBackbone } from '../reference'
+import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
 
 import type { BubbleSpread } from '../bubbleSpreads'
 import type { FigureOptions } from '../figure'
@@ -25,6 +25,7 @@ import type { GbzSource } from '../gbzCut'
 import type { GeneModel } from '../genes/genePins'
 import type { LayoutModeValue } from '../layoutModes'
 import type { LayoutEngine } from '../pipeline'
+import type { BackboneContig } from '../reference'
 import type { Graph } from '../types'
 import type { WalkLayer } from '../walkEncoding'
 import type { ByteSource } from '@gmod/gbz-base'
@@ -52,8 +53,15 @@ export interface FigureSpec extends Omit<
   bubbleSpread?: BubbleSpread
   walks?: (string | WalkLayer)[]
   // a GFF3 or BED file or url, read by range through `index` (.tbi or .csi)
-  // where there is one, for the genes on the backbone's contigs
-  genes?: { file: string; index?: string; format?: 'gff3' | 'bed' }
+  // where there is one, for the genes on the backbone's contigs. A file that
+  // names a contig other than as the graph does, with or without `chr`, says
+  // how under `refNames`: `{ "chr6": "NC_000006.12" }`
+  genes?: {
+    file: string
+    index?: string
+    format?: 'gff3' | 'bed'
+    refNames?: Record<string, string>
+  }
 }
 
 const isUrl = (s: string) => /^https?:\/\//.test(s)
@@ -117,35 +125,65 @@ async function readGenes(
   if (!backbone) {
     return []
   }
-  const file = resolve(genes.file)
-  const format =
-    genes.format ?? (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3')
-  if (!genes.index) {
-    return featuresOnBackbone(genesFromText(await text(file)), backbone)
+  const bind = refNameBinding(
+    backbone.contigs.map(c => c.refName),
+    genes.refNames,
+  )
+  const { names, features } = genes.index
+    ? await indexedGenes(genes, resolve, backbone.contigs, bind)
+    : wholeFileGenes(await text(resolve(genes.file)))
+  if (!names.some(name => bind(name) !== undefined)) {
+    const shown = names.slice(0, 4).join(', ')
+    console.warn(
+      `bandage-figure: no sequence in ${genes.file} names ${backbone.contigs.map(c => c.contig).join(', ')}` +
+        (names.length
+          ? `; it has ${shown}${names.length > 4 ? ', …' : ''}`
+          : '') +
+        `. Give the file's name under genes.refNames, as { "chr6": "NC_000006.12" }`,
+    )
   }
-  const index = resolve(genes.index)
+  return featuresOnBackbone(features, backbone, genes.refNames)
+}
+
+function wholeFileGenes(contents: string) {
+  const features = genesFromText(contents)
+  return { names: [...new Set(features.map(f => f.refName))], features }
+}
+
+// Each backbone contig read under the name the index binds to it
+async function indexedGenes(
+  genes: NonNullable<FigureSpec['genes']>,
+  resolve: (location: string) => string,
+  contigs: BackboneContig[],
+  bind: (name: string) => string | undefined,
+) {
+  const file = resolve(genes.file)
+  const index = resolve(genes.index!)
   const csi = index.endsWith('.csi')
   const tabix = new TabixIndexedFile(
     isUrl(file)
       ? { url: file, ...(csi ? { csiUrl: index } : { tbiUrl: index }) }
       : { path: file, ...(csi ? { csiPath: index } : { tbiPath: index }) },
   )
-  const indexed = new Set(await tabix.getReferenceSequenceNames())
+  const names = await tabix.getReferenceSequenceNames()
   const lines: string[] = []
-  for (const contig of backbone.contigs) {
-    const refName = [contig.contig, contig.refName].find(n => indexed.has(n))
-    if (refName !== undefined) {
-      await tabix.getLines(refName, contig.start, contig.end, {
+  for (const contig of contigs) {
+    const name = names.find(n => bind(n) === contig.refName)
+    if (name !== undefined) {
+      await tabix.getLines(name, contig.start, contig.end, {
         lineCallback: line => lines.push(line),
       })
     }
   }
-  return featuresOnBackbone(
-    format === 'gff3'
-      ? genesFromGff3Lines(lines)
-      : genesFromBed(lines.join('\n')),
-    backbone,
-  )
+  const format =
+    genes.format ?? (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3')
+  return {
+    names,
+    features:
+      format === 'gff3'
+        ? genesFromGff3Lines(lines)
+        : genesFromBed(lines.join('\n')),
+  }
 }
 
 const engine: LayoutEngine = async request => {

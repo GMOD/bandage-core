@@ -49,6 +49,7 @@ one (+49.9 kb); HG00133 takes both (+116.4 kb).
 | `gfa`                      | a GFA file (plain or gzipped) or url; a relative path is read from beside the spec                                                                            |
 | `gbz`                      | a window cut from a gbz-base database: `db` (a file, url or `hprc`), `index`, `region`, `haplotypes`, `referenceSample`, and a track's `context` and `snarls` |
 | `genes`                    | a GFF3 or BED `file` or url, read by range through its `index` (`.tbi` or `.csi`) where there is one: the genes on the backbone, outlined and named           |
+| `genes.refNames`           | the file's name for a contig it names other than as the graph does, `{ "chr6": "NC_000006.12" }`; `6` for `chr6` needs none                                   |
 | `region`                   | the reference window a `gfa` was cut for, which the anchored layouts span                                                                                     |
 | `referencePath`            | the path a walk graph is drawn along                                                                                                                          |
 | `layout`                   | a layout mode: `force` (the default), `auto`, `ordered` or `samplerows`                                                                                       |
