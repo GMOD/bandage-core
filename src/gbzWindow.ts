@@ -1,3 +1,4 @@
+import { joinCuts } from './gbzJoin.ts'
 import { panSNMatchesPrefix, panSNSample } from './pansn.ts'
 import { wellKnownSample } from './reference.ts'
 
@@ -169,22 +170,6 @@ export async function referencePieces(
     start: bounds[i]!,
     end: pieceEnd,
   }))
-}
-
-// One GFA from a cut per fragment: each segment and link once, and every
-// cut's reference walk ahead of the haplotype walks
-function joinCuts(gfas: string[]) {
-  const cuts = gfas.map(gfa => gfa.split('\n').filter(line => line !== ''))
-  const ofType = (cut: string[], type: string) =>
-    cut.filter(line => line.startsWith(type))
-  const lines = new Set([
-    ...ofType(cuts[0] ?? [], 'H'),
-    ...cuts.flatMap(cut => ofType(cut, 'S')),
-    ...cuts.flatMap(cut => ofType(cut, 'L')),
-    ...cuts.flatMap(cut => ofType(cut, 'W').slice(0, 1)),
-    ...cuts.flatMap(cut => ofType(cut, 'W').slice(1)),
-  ])
-  return lines.size === 0 ? '' : `${[...lines].join('\n')}\n`
 }
 
 // The reference walk, the snarls in the window, and one W line per haplotype
