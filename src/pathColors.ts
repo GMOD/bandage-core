@@ -66,9 +66,9 @@ export function pathCssColor(index: number, count: number) {
   }%)`
 }
 
-// Beside reads, which take the blues and the reds, a tube map's paths step
-// from dark grey to light, as sequenceTubeMap draws them under reads, so no
-// tube shares a read's colour
+// Beside reads, which take the blues and the reds, or boxes a node scheme
+// tints, a tube map's paths step from dark grey to light, as sequenceTubeMap
+// draws them under reads, so no tube shares a hue that means something else
 export function pathGreyCssColor(index: number, count: number) {
   const lightness = count > 1 ? 25 + (45 * index) / (count - 1) : 45
   return `hsl(0, 0%, ${lightness}%)`

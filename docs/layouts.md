@@ -26,6 +26,12 @@ The plugin ships seven layouts:
 Ordered and Anchored need an rGFA or a reference path; Walk rows and Tube map
 need W or P lines, and Tube map on reference needs both.
 
+A tube map's boxes are clear under Auto, since its tubes' hues are what tell the
+paths apart. Pick a scheme under **Color** and each box takes the colour the
+other layouts give its node: under **Reference position**, the hue of its bp on
+the ramp the linear view's segments share, charcoal off the reference. The tubes
+then step through greys, so no tube shares a box's hue.
+
 In a track of a linear view, a force-directed or ordered drawing has no bp axis
 of its own. A strip along the top of the track draws each reference segment at
 its bp, in the colour its node has in the graph, so under the reference-position
@@ -122,7 +128,8 @@ tabix -p gaf reads.gaf.gz
   **Add → Graph genome view**, has no reads input
 - Up to 5000 reads a cut, sampled evenly past that; blues forward, reds reverse.
   Beside reads the haplotype tubes turn grey, as sequenceTubeMap draws them, so
-  no tube shares a read's colour
+  no tube shares a read's colour, and the boxes stay clear whatever **Color**
+  says
 - The cs tag's edits are drawn on the reads: substituted bases, `*` for an
   insertion, grey for a deletion, hidden when zoomed out. The legend names the
   strands and each kind of edit in view
