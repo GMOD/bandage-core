@@ -75,17 +75,62 @@ export function facetGrid({
 
 export type FacetBy = 'walk' | 'sample'
 
+/**
+ * The facet as a session or a figure spec writes it, in the shape every
+ * JBrowse display's `facet` takes: the field the panels split on, `walk` for
+ * a panel per lifted walk or `sample` for a row per sample and a column per
+ * haplotype, the order the panels take, and how many go across under `walk`.
+ */
+export interface FacetSetting {
+  field: '' | FacetBy
+  /** The walks, or under `sample` the samples, whose panels come first, in order. */
+  domain: string[]
+  /** How many panels go across; unset takes whichever count draws each largest. */
+  columns?: number
+}
+
+/** What a session or a spec may write for the facet: the field bare, or the setting's members. */
+export type FacetInput =
+  string | { field?: string; domain?: readonly string[]; columns?: number }
+
+/** A facet written bare is its field, and a field the pane cannot split on is none. */
+export function facetSettingOf(facet: FacetInput | undefined): FacetSetting {
+  const raw = typeof facet === 'string' ? { field: facet } : (facet ?? {})
+  const field = raw.field === 'walk' || raw.field === 'sample' ? raw.field : ''
+  return {
+    field,
+    domain: [...(raw.domain ?? [])],
+    ...(raw.columns === undefined ? {} : { columns: raw.columns }),
+  }
+}
+
+// The listed names first, in the domain's order, then the rest as they came
+function domainFirst(names: readonly string[], domain: readonly string[]) {
+  const rank = new Map(domain.map((name, i) => [name, i]))
+  const listed = (name: string) => rank.get(name) ?? domain.length
+  return names
+    .map((name, i) => ({ name, i }))
+    .sort((a, b) => listed(a.name) - listed(b.name) || a.i - b.i)
+    .map(({ name }) => name)
+}
+
 // Which grid cell each walk's panel takes, and how many go across when the
 // arrangement fixes it. By walk the panels wrap in reading order. By sample
 // each sample takes a row and each haplotype a column, as facet_grid(sample ~
 // haplotype) lays out a plot, so a sample's haplotypes read across its row and
 // a haploid reference sits in the first column. Names that are not
 // `sample#haplotype#contig`, or two walks landing in one cell, wrap instead.
-export function facetCells(names: string[], by: FacetBy) {
+// A `domain` puts the walks, or the samples, it lists first.
+export function facetCells(
+  names: string[],
+  by: FacetBy,
+  domain: readonly string[] = [],
+) {
+  const wrapOrder = domainFirst(names, domain)
   const wrap = {
     columns: undefined,
     count: names.length,
-    cells: names.map((_, i) => i),
+    cells: names.map(name => wrapOrder.indexOf(name)),
   }
   if (by === 'walk') {
     return wrap
@@ -97,7 +142,10 @@ export function facetCells(names: string[], by: FacetBy) {
       ? { sample: sample!, column: Math.max(0, n - 1) }
       : undefined
   })
-  const rows = [...new Set(places.map(p => p?.sample))]
+  const rows = domainFirst(
+    [...new Set(places.flatMap(p => (p ? [p.sample] : [])))],
+    domain,
+  )
   const columns = Math.max(1, ...places.map(p => (p ? p.column + 1 : 1)))
   const cells = places.map(p =>
     p ? rows.indexOf(p.sample) * columns + p.column : -1,

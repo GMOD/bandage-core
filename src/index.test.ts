@@ -60,6 +60,7 @@ const PUBLISHED = [
   'facetCells',
   'facetGrid',
   'facetLifts',
+  'facetSettingOf',
   'featuresOnBackbone',
   'figureSvg',
   'findHoveredEdge',

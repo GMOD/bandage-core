@@ -108,8 +108,9 @@ export {
   FACET_TITLE_PX,
   facetCells,
   facetGrid,
+  facetSettingOf,
 } from './facetGrid'
-export type { FacetBy, FacetGrid } from './facetGrid'
+export type { FacetBy, FacetGrid, FacetInput, FacetSetting } from './facetGrid'
 export type { LiftedWalk, WalkLift } from './walkHighlight'
 export {
   WALK_FIELDS,

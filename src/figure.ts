@@ -6,6 +6,7 @@ import {
   FACET_TITLE_PX,
   facetCells,
   facetGrid,
+  facetSettingOf,
 } from './facetGrid'
 import { genePins } from './genes/genePins'
 import { geneLabelCandidates } from './labelLayout'
@@ -29,7 +30,7 @@ import { facetLifts, walkLift } from './walkHighlight'
 import { rangeText, walkKey } from './walkKey'
 
 import type { ColorScheme } from './colorSchemes'
-import type { FacetBy } from './facetGrid'
+import type { FacetInput } from './facetGrid'
 import type { GeneModel, GenePin } from './genes/genePins'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
@@ -47,8 +48,9 @@ export interface FigureOptions {
   // the most the figure may take; it takes less where the drawing needs less
   height?: number
   walks?: WalkLayer[]
-  facet?: 'none' | FacetBy
-  columns?: number
+  // the field the panels split on, bare, or the whole setting with an order
+  // and a column count
+  facet?: FacetInput
   colorScheme?: ColorScheme
   nodeWidth?: NodeWidth
   showDeletionEdges?: boolean
@@ -190,9 +192,9 @@ export function figureSvg(
     layers.length > 0 && !layout.tubeMap
       ? walkLift(graph, layers, walkRamp)
       : undefined
-  const by = o.facet ?? 'none'
+  const facet = facetSettingOf(o.facet)
   const panels =
-    by !== 'none' && lift && lift.walks.length > 1
+    facet.field && lift && lift.walks.length > 1
       ? facetLifts(graph, lift, layers, walkRamp)
       : undefined
   const labels = new Map(
@@ -338,7 +340,8 @@ export function figureSvg(
   if (panels) {
     const place = facetCells(
       panels.map(p => p.walks[0]!.name),
-      by as FacetBy,
+      facet.field || 'walk',
+      facet.domain,
     )
     const grid = facetGrid({
       count: place.count,
@@ -346,7 +349,7 @@ export function figureSvg(
       pixelRows,
       width,
       room,
-      columns: place.columns ?? o.columns,
+      columns: place.columns ?? facet.columns,
     })
     panels.forEach((panel, i) => {
       const cell = place.cells[i]!

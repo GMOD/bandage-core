@@ -29,9 +29,8 @@ each:
     "HG01960#1#JBHIHM010000036.1",
     "HG00133#1#CM090050.1"
   ],
-  "facet": "walk",
-  "width": 1000,
-  "columns": 2
+  "facet": { "field": "walk", "columns": 2 },
+  "width": 1000
 }
 ```
 
@@ -44,22 +43,21 @@ one (+49.9 kb); HG00133 takes both (+116.4 kb).
 
 ## The spec
 
-| Field                      | What it sets                                                                                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gfa`                      | a GFA file (plain or gzipped) or url; a relative path is read from beside the spec                                                                            |
-| `gbz`                      | a window cut from a gbz-base database: `db` (a file, url or `hprc`), `index`, `region`, `haplotypes`, `referenceSample`, and a track's `context` and `snarls` |
-| `genes`                    | a GFF3 or BED `file` or url, read by range through its `index` (`.tbi` or `.csi`) where there is one: the genes on the backbone, outlined and named           |
-| `genes.refNames`           | the file's name for a contig it names other than as the graph does, `{ "chr6": "NC_000006.12" }`; `6` for `chr6` needs none                                   |
-| `region`                   | the reference window a `gfa` was cut for, which the anchored layouts span                                                                                     |
-| `referencePath`            | the path a walk graph is drawn along                                                                                                                          |
-| `layout`                   | a layout mode: `force` (the default), `auto`, `ordered` or `samplerows`                                                                                       |
-| `quality`, `bubbleSpread`  | the force-directed engine's settings                                                                                                                          |
-| `walks`                    | the walks to lift: names, or `{ "walk", "color": { "field", "scheme" } }` layers                                                                              |
-| `facet`                    | `none`, `walk` (a panel per walk) or `sample` (a row per sample, a column per haplotype)                                                                      |
-| `columns`                  | how many panels go across by walk; unset takes whichever count draws each largest                                                                             |
-| `width`, `height`          | the figure's width, and the most height it may take                                                                                                           |
-| `colorScheme`, `nodeWidth` | as the view's Color menu and node width setting                                                                                                               |
-| `showDeletionEdges`        | draw the edges that skip reference sequence                                                                                                                   |
+| Field                      | What it sets                                                                                                                                                                                                |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gfa`                      | a GFA file (plain or gzipped) or url; a relative path is read from beside the spec                                                                                                                          |
+| `gbz`                      | a window cut from a gbz-base database: `db` (a file, url or `hprc`), `index`, `region`, `haplotypes`, `referenceSample`, and a track's `context` and `snarls`                                               |
+| `genes`                    | a GFF3 or BED `file` or url, read by range through its `index` (`.tbi` or `.csi`) where there is one: the genes on the backbone, outlined and named                                                         |
+| `genes.refNames`           | the file's name for a contig it names other than as the graph does, `{ "chr6": "NC_000006.12" }`; `6` for `chr6` needs none                                                                                 |
+| `region`                   | the reference window a `gfa` was cut for, which the anchored layouts span                                                                                                                                   |
+| `referencePath`            | the path a walk graph is drawn along                                                                                                                                                                        |
+| `layout`                   | a layout mode: `force` (the default), `auto`, `ordered` or `samplerows`                                                                                                                                     |
+| `quality`, `bubbleSpread`  | the force-directed engine's settings                                                                                                                                                                        |
+| `walks`                    | the walks to lift: names, or `{ "walk", "color": { "field", "scheme" } }` layers                                                                                                                            |
+| `facet`                    | `walk` (a panel per walk) or `sample` (a row per sample, a column per haplotype), bare, or `{ "field", "domain", "columns" }`: the walks or samples whose panels come first, and how many go across by walk |
+| `width`, `height`          | the figure's width, and the most height it may take                                                                                                                                                         |
+| `colorScheme`, `nodeWidth` | as the view's Color menu and node width setting                                                                                                                                                             |
+| `showDeletionEdges`        | draw the edges that skip reference sequence                                                                                                                                                                 |
 
 Every SVG keeps its spec in its `<metadata>` beside the version that drew it,
 such as `@jbrowse/bandage-core@4.0.25`, so a figure found later says how it was

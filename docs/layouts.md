@@ -255,15 +255,16 @@ sample, a column per haplotype** lays the same panels out as
 one row. A track whose x the linear view places stacks its panels full width, so
 each keeps the ruler's bp. A track too short for its panels grows to fit them.
 
-A session states the walks, the facet and any column count:
+A session states the walks and the facet, in the shape every JBrowse display's
+`facet` takes: the field bare, or with `domain`, the walks or samples whose
+panels come first, and `columns`, how many go across by walk:
 
 ```json
 "walkLayers": [
   { "walk": "GRCh38#0#chr6" },
   { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } }
 ],
-"facet": "walk",
-"facetColumns": 2
+"facet": { "field": "walk", "domain": ["HG00133#1#CM090050.1"], "columns": 2 }
 ```
 
 ### Colouring lifted walks

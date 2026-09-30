@@ -3,6 +3,7 @@ import {
   FACET_TITLE_PX,
   facetCells,
   facetGrid,
+  facetSettingOf,
 } from './facetGrid'
 
 const square = { w: 100, h: 100 }
@@ -91,4 +92,22 @@ test('walks that do not say their haplotype, or share a cell, wrap', () => {
   expect(facetCells(['ref', 'alt'], 'sample')).toEqual(wrapped)
   expect(facetCells(['A#1#c1', 'A#1#c2'], 'sample')).toEqual(wrapped)
   expect(facetCells(['A#1#c1', 'B#1#c1'], 'walk')).toEqual(wrapped)
+})
+
+test('a domain puts the walks, or the samples, it lists first', () => {
+  expect(facetCells(['a', 'b', 'c'], 'walk', ['c', 'a']).cells).toEqual([
+    1, 2, 0,
+  ])
+  expect(
+    facetCells(['GRCh38#0#chr1', 'A#1#ctg', 'B#1#ctg'], 'sample', ['B']).cells,
+  ).toEqual([1, 2, 0])
+})
+
+test('a facet setting reads a bare field, drops one the pane cannot split on, and keeps its members', () => {
+  expect(facetSettingOf('walk')).toEqual({ field: 'walk', domain: [] })
+  expect(facetSettingOf('none')).toEqual({ field: '', domain: [] })
+  expect(facetSettingOf(undefined)).toEqual({ field: '', domain: [] })
+  expect(
+    facetSettingOf({ field: 'sample', domain: ['B'], columns: 2 }),
+  ).toEqual({ field: 'sample', domain: ['B'], columns: 2 })
 })
