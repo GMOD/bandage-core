@@ -151,10 +151,10 @@ mismatches at that bp:
 
 Hovering a genotype cell of a callset lane in the same view lifts that
 haplotype's walk: a tube map keeps its tube in colour and greys the rest, and
-the other layouts lift it as the Walks picker does. The row's name picks the
-walk, a phased callset's `HG00133 HP0` or a MAF's `HG00133.1` naming the graph's
-`HG00133#1`; a MAF row does it on JBrowse releases after 5.0.0-beta.10, whose
-MAF display publishes the row it is hovered on:
+the layouts that draw nodes lift it as the Walks picker does. The row's name
+picks the walk, a phased callset's `HG00133 HP0` or a MAF's `HG00133.1` naming
+the graph's `HG00133#1`; a MAF row does it on JBrowse releases after
+5.0.0-beta.10, whose MAF display publishes the row it is hovered on:
 
 ![HG00133's genotype cell hovered in the callset lane over MICB's exons: its tube keeps its colour and the other walks go grey](../img/tube_map_micb_row_hover.png)
 
