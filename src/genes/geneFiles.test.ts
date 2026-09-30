@@ -98,6 +98,17 @@ test("genesFromGff3Lines skips the rest of NCBI's top level", () => {
   expect(genes.map(g => g.name)).toEqual(['P1', 'N1', 'C1', 'trnA'])
 })
 
+// bedtools writes `.` in an empty name column
+test('genesFromBed keeps rows named `.` apart', () => {
+  const genes = genesFromBed(
+    [row('chr6', 100, 200, '.'), row('chr6', 5000, 5100, '.')].join('\n'),
+  )
+  expect(genes.map(g => [g.name, g.start, g.end])).toEqual([
+    ['chr6:101-200', 100, 200],
+    ['chr6:5001-5100', 5000, 5100],
+  ])
+})
+
 test('genesFromBed reads blocks and merges rows that share a name', () => {
   const genes = genesFromBed(
     [

@@ -1,6 +1,6 @@
 /// <reference types="node" />
 
-import { open, readFile, writeFile } from 'node:fs/promises'
+import { access, open, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { gunzipSync } from 'node:zlib'
@@ -14,7 +14,7 @@ import {
   genesFromGff3Lines,
   genesFromText,
 } from '../genes/geneFiles'
-import { layoutModeByValue } from '../layoutModes'
+import { LAYOUT_MODE_VALUES, layoutModeByValue } from '../layoutModes'
 import loadBandage from '../loadBandage'
 import { forceLayout, loadGraph } from '../pipeline'
 import { featuresOnBackbone, graphBackbone } from '../reference'
@@ -72,7 +72,7 @@ function byteSource(location: string): ByteSource {
         return new Uint8Array(await res.arrayBuffer())
       },
       async stat() {
-        const res = await fetch(location, { method: 'HEAD' })
+        const res = await fetchOk(location, { method: 'HEAD' })
         return { size: Number(res.headers.get('content-length')) }
       },
     }
@@ -92,9 +92,17 @@ function byteSource(location: string): ByteSource {
   }
 }
 
+async function fetchOk(location: string, init?: RequestInit) {
+  const res = await fetch(location, init)
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} reading ${location}`)
+  }
+  return res
+}
+
 async function text(location: string) {
   const bytes = isUrl(location)
-    ? new Uint8Array(await (await fetch(location)).arrayBuffer())
+    ? new Uint8Array(await (await fetchOk(location)).arrayBuffer())
     : await readFile(location)
   const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b
   return new TextDecoder().decode(gzipped ? gunzipSync(bytes) : bytes)
@@ -147,7 +155,43 @@ const engine: LayoutEngine = async request => {
   return { result, duration: performance.now() - start }
 }
 
+async function exists(location: string) {
+  try {
+    await (isUrl(location)
+      ? fetchOk(location, { method: 'HEAD' })
+      : access(location))
+    return true
+  } catch {
+    return false
+  }
+}
+
+// As the plugin's adapter does, a database with no index named takes the
+// haplotype index beside it, which is what names its walks by sample
+async function siblingIndex(db: string) {
+  const sibling = db.replace(/\.gbz\.db$/i, '.haplotype-index.db')
+  return sibling !== db && (await exists(sibling)) ? sibling : undefined
+}
+
+// figureSvg draws the canvas's nodes, and these layouts draw theirs over it
+const UNDRAWABLE = new Set(['walkrows', 'tubemap', 'tubemapref'])
+
+function checkLayout(layout: string | undefined) {
+  if (layout === undefined) {
+    return
+  }
+  if (!(LAYOUT_MODE_VALUES as string[]).includes(layout)) {
+    throw new Error(
+      `unknown layout "${layout}": one of ${LAYOUT_MODE_VALUES.filter(v => !UNDRAWABLE.has(v)).join(', ')}`,
+    )
+  }
+  if (UNDRAWABLE.has(layout)) {
+    throw new Error(`a figure cannot draw the "${layout}" layout yet`)
+  }
+}
+
 async function renderSpec(spec: FigureSpec, base: string) {
+  checkLayout(spec.layout)
   const resolve = (location: string) =>
     isUrl(location) ? location : path.resolve(base, location)
   let source: {
@@ -157,10 +201,13 @@ async function renderSpec(spec: FigureSpec, base: string) {
   }
   if (spec.gbz) {
     const { db, index } = spec.gbz.db === 'hprc' ? HPRC_GBZ : spec.gbz
+    const indexLocation = index
+      ? resolve(index)
+      : await siblingIndex(resolve(db))
     const cut = await cutGbzRegion(
       await openGbz(
         byteSource(resolve(db)),
-        index ? byteSource(resolve(index)) : undefined,
+        indexLocation ? byteSource(indexLocation) : undefined,
       ),
       spec.gbz,
     )
@@ -199,14 +246,32 @@ async function renderSpec(spec: FigureSpec, base: string) {
   })
 }
 
+const USAGE = 'usage: bandage-figure <spec.json> [-o figure.svg]'
+
+function args() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: {
+        out: { type: 'string', short: 'o' },
+        help: { type: 'boolean', short: 'h' },
+      },
+    })
+  } catch (e) {
+    console.error(`${e instanceof Error ? e.message : String(e)}\n${USAGE}`)
+    process.exit(2)
+  }
+}
+
 async function main() {
-  const { positionals, values } = parseArgs({
-    allowPositionals: true,
-    options: { out: { type: 'string', short: 'o' } },
-  })
+  const { positionals, values } = args()
+  if (values.help) {
+    process.stdout.write(`${USAGE}\n`)
+    return
+  }
   const file = positionals[0]
   if (!file) {
-    console.error('usage: bandage-figure <spec.json> [-o figure.svg]')
+    console.error(USAGE)
     process.exit(2)
   }
   const spec = JSON.parse(await readFile(file, 'utf8')) as FigureSpec
@@ -218,4 +283,9 @@ async function main() {
   }
 }
 
-await main()
+try {
+  await main()
+} catch (e) {
+  console.error(`bandage-figure: ${e instanceof Error ? e.message : String(e)}`)
+  process.exit(1)
+}

@@ -163,7 +163,9 @@ export function genesFromBed(text: string): GeneModel[] {
       continue
     }
     const refName = cols[0]!
-    const name = cols[3] || `${refName}:${start + 1}-${end}`
+    // `.` is BED's empty field, and as a name it merged every unnamed row
+    const name =
+      cols[3] && cols[3] !== '.' ? cols[3] : `${refName}:${start + 1}-${end}`
     const sizes = cols[10]
       ?.split(',')
       .filter(s => s !== '')
