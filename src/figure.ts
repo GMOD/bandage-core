@@ -57,6 +57,11 @@ export interface FigureOptions {
   // the window the graph was cut for, which the anchored layouts and the
   // reference-position ramp span
   region?: { refName: string; start: number; end: number }
+  // the interval the ramp spans where it is not `region`, as a view's
+  // `colorDomain` states it
+  colorDomain?: { start: number; end: number }
+  // fit what was drawn rather than the window, as a popped bubble does
+  fitToDrawing?: boolean
   // genes on the backbone's refNames (featuresOnBackbone), outlined on the
   // nodes that carry their exons and named under them
   genes?: GeneModel[]
@@ -165,18 +170,21 @@ export function figureSvg(
   const width = o.width ?? 1200
   const room = o.height ?? 800
   const region = o.region
-  const bounds = drawingBounds(layout, { region })
+  const rampDomain = o.colorDomain ?? region
+  const bounds = drawingBounds(layout, {
+    region: o.fitToDrawing ? undefined : region,
+  })
   const pixelRows = layout.pixelRows ?? false
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
   const colorScheme = resolveColorScheme(o.colorScheme ?? 'auto', graph)
   const referenceRamp =
     colorScheme === 'reference-position' && !layout.tubeMap
-      ? computeReferenceRamp(graph, region)
+      ? computeReferenceRamp(graph, rampDomain)
       : undefined
   const deletions = layout.tubeMap ? [] : deletionEdges(graph)
   const layers = o.walks ?? []
   const walkRamp = layers.some(l => l.color?.field === 'reference')
-    ? (referenceRamp ?? computeReferenceRamp(graph, region))
+    ? (referenceRamp ?? computeReferenceRamp(graph, rampDomain))
     : undefined
   const lift =
     layers.length > 0 && !layout.tubeMap

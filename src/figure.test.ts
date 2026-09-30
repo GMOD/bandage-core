@@ -76,6 +76,43 @@ const genes = [
   },
 ]
 
+// the screen x of every point the drawing's paths visit
+function inkSpan(svg: string) {
+  const xs = [...svg.matchAll(/<path d="([^"]+)"/g)].flatMap(m =>
+    [...m[1]!.matchAll(/[ML](-?[\d.]+) /g)].map(p => Number(p[1])),
+  )
+  return Math.max(...xs) - Math.min(...xs)
+}
+
+// A popped bubble is a sliver of the window it was cut from, and only a
+// layout whose x is reference bp fits to the window at all
+test('fitted to the drawing, a figure ignores how wide the window was', () => {
+  const region = { refName: 'chr', start: 0, end: 900 }
+  const anchored = layoutModeByValue('auto').run(graph, region)!
+  expect(anchored.referenceAxis).toBe(true)
+  const windowed = figureSvg(graph, anchored, { width: 600, region })
+  const fitted = figureSvg(graph, anchored, {
+    width: 600,
+    region,
+    fitToDrawing: true,
+  })
+  expect(inkSpan(fitted)).toBeGreaterThan(3 * inkSpan(windowed))
+})
+
+test("the ramp spans a view's colour domain where it states one", () => {
+  const options = {
+    width: 600,
+    colorScheme: 'reference-position' as const,
+    region: { refName: 'chr', start: 0, end: 9 },
+  }
+  expect(
+    figureSvg(graph, layout, {
+      ...options,
+      colorDomain: { start: 0, end: 900 },
+    }),
+  ).not.toBe(figureSvg(graph, layout, options))
+})
+
 test('genes outline their exons and are named under their pins', () => {
   const svg = figureSvg(graph, layout, { width: 600, genes })
   expect(svg).toContain('mask="url(#exons0)"')
