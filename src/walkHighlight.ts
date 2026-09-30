@@ -3,7 +3,7 @@ import { pathOrigin } from './pathAnchoring'
 import { encodedColor, resolveEncoding } from './walkEncoding'
 
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
-import type { Graph } from './types'
+import type { Graph, GraphPath } from './types'
 import type { WalkEncoding, WalkLayer } from './walkEncoding'
 
 // One walk lifted out of the drawing: the nodes it visits and the links it
@@ -48,20 +48,24 @@ export interface WalkLift {
   names: Set<string>
 }
 
-function referenceOf(graph: Graph) {
-  // `referencePath` is the anchor name, which pathOrigin has stripped of the
-  // range suffix odgi leaves on a P record's name
-  return graph.referencePath
-    ? graph.paths?.find(p => pathOrigin(p.name).name === graph.referencePath)
-    : undefined
+const isReference = (graph: Graph, name: string) =>
+  !!graph.referencePath && pathOrigin(name).name === graph.referencePath
+
+// The records of one walk in the order they lie on its contig: a cut hands a
+// haplotype back as one W line per piece of its walk inside the cut's nodes
+function piecesOf(graph: Graph, name: string) {
+  return (graph.paths ?? [])
+    .filter(p => p.name === name)
+    .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
 }
 
 export function walkHighlight(
   graph: Graph,
   name: string,
 ): WalkHighlight | undefined {
-  const path = graph.paths?.find(p => p.name === name)
-  if (!path) {
+  const pieces = piecesOf(graph, name)
+  const first = pieces[0]
+  if (!first) {
     return undefined
   }
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
@@ -69,49 +73,61 @@ export function walkHighlight(
   graph.edges.forEach((e, i) => {
     edgeAt.set(`${e.from}>${e.to}`, i)
   })
-  const edgeIndexes = new Set<number>()
-  for (let i = 1; i < path.nodeIds.length; i++) {
-    const a = path.nodeIds[i - 1]!
-    const b = path.nodeIds[i]!
-    const index = edgeAt.get(`${a}>${b}`) ?? edgeAt.get(`${b}>${a}`)
-    if (index !== undefined) {
-      edgeIndexes.add(index)
-    }
-  }
   const lengthOf = (id: string) => byId.get(id)?.length ?? 0
-  const bp = path.nodeIds.reduce((sum, id) => sum + lengthOf(id), 0)
+  const bpOf = (path: GraphPath) =>
+    path.nodeIds.reduce((sum, id) => sum + lengthOf(id), 0)
+  const bp = pieces.reduce((sum, piece) => sum + bpOf(piece), 0)
+  const range =
+    first.start === undefined
+      ? undefined
+      : {
+          contig: first.contig ?? panSNContig(pathOrigin(name).name),
+          start: first.start,
+          end: Math.max(...pieces.map(p => (p.start ?? 0) + bpOf(p))),
+        }
+  // progress runs over the contig where the records place the pieces, so the
+  // stretch between two pieces counts though no node draws it
+  const span = range ? range.end - range.start : bp
+  const nodeIds = new Set<string>()
+  const edgeIndexes = new Set<number>()
   const progress = new Map<string, number>()
   let before = 0
-  for (const id of path.nodeIds) {
-    const length = lengthOf(id)
-    if (!progress.has(id)) {
-      progress.set(id, bp > 0 ? (before + length / 2) / bp : 0)
+  for (const piece of pieces) {
+    if (range) {
+      before = Math.max(before, (piece.start ?? 0) - range.start)
     }
-    before += length
+    piece.nodeIds.forEach((id, i) => {
+      nodeIds.add(id)
+      if (i > 0) {
+        const a = piece.nodeIds[i - 1]!
+        const index = edgeAt.get(`${a}>${id}`) ?? edgeAt.get(`${id}>${a}`)
+        if (index !== undefined) {
+          edgeIndexes.add(index)
+        }
+      }
+      const length = lengthOf(id)
+      if (!progress.has(id)) {
+        progress.set(id, span > 0 ? (before + length / 2) / span : 0)
+      }
+      before += length
+    })
   }
-  const reference = referenceOf(graph)
-  const originName = pathOrigin(name).name
-  const origin =
-    graph.anchorPaths?.find(a => a.name === originName && a.length === bp) ??
-    graph.anchorPaths?.find(a => a.name === originName)
+  const reference = isReference(graph, name)
+  const referencePieces = reference
+    ? []
+    : (graph.paths ?? []).filter(p => isReference(graph, p.name))
   return {
     name,
-    reference: reference === path,
-    range: origin
-      ? {
-          contig: path.contig ?? panSNContig(origin.name),
-          start: origin.start,
-          end: origin.start + origin.length,
-        }
-      : undefined,
-    nodeIds: new Set(path.nodeIds),
+    reference,
+    range,
+    nodeIds,
     edgeIndexes,
     progress,
-    steps: path.nodeIds.length,
+    steps: pieces.reduce((sum, piece) => sum + piece.nodeIds.length, 0),
     bp,
     referenceBp:
-      reference && reference !== path
-        ? reference.nodeIds.reduce((sum, id) => sum + lengthOf(id), 0)
+      referencePieces.length > 0
+        ? referencePieces.reduce((sum, piece) => sum + bpOf(piece), 0)
         : undefined,
   }
 }
@@ -141,14 +157,13 @@ function laneColors(
 
 // The nodes a walk reads on the other strand from the reference walk
 function reversedNodes(graph: Graph, walk: WalkHighlight) {
-  const reference = referenceOf(graph)
   const reversed = new Set<string>()
   let bp = 0
-  if (!reference || walk.reference) {
+  const referencePath = graph.referencePath
+  if (!referencePath || walk.reference) {
     return { reversed, bp }
   }
   const walkPath = pathOrigin(walk.name).name
-  const referencePath = pathOrigin(reference.name).name
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   for (const id of walk.progress.keys()) {
     const node = byId.get(id)

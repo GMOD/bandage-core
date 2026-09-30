@@ -14,6 +14,7 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
   const keep = new Set(segmentIds)
   const nodes = graph.nodes.filter(n => keep.has(n.name))
   const ids = new Set(nodes.map(n => n.id))
+  const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
   const kept = new Map<string, { first: number; nodeIds: string[] }>()
   const paths = graph.paths?.flatMap(p => {
     const first = p.nodeIds.findIndex(id => ids.has(id))
@@ -22,7 +23,16 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
     }
     const nodeIds = p.nodeIds.filter(id => ids.has(id))
     kept.set(p.name, { first, nodeIds })
-    return [{ ...p, nodeIds }]
+    const before = p.nodeIds
+      .slice(0, first)
+      .reduce((sum, id) => sum + (lengthOf.get(id) ?? 0), 0)
+    return [
+      {
+        ...p,
+        nodeIds,
+        ...(p.start === undefined ? {} : { start: p.start + before }),
+      },
+    ]
   })
   return {
     name: graph.name,

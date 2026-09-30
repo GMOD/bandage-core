@@ -32,6 +32,9 @@ export interface GraphEdge {
 export interface GraphPath {
   name: string
   nodeIds: string[]
+  // where this record starts on its contig: a W record's start, or the range
+  // suffix on a P record's name
+  start?: number
   // set for W records, which state the assembly they walk; P records do not
   sample?: string
   haplotype?: number

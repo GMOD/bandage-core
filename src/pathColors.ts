@@ -111,28 +111,36 @@ export interface PathLegendEntry {
 }
 
 // `colors` is what each path was actually drawn in, where that is not
-// pathCssColor's hue
+// pathCssColor's hue. One entry per name: the records of a walk cut in pieces
+// are one walk, drawn in the first record's colour.
 export function pathLegend(
   paths: GraphPath[],
   colors?: readonly string[],
 ): PathLegendEntry[] {
-  const named = paths.map(p => labelTiers(p.name))
+  const firstOf = new Map<string, number>()
+  paths.forEach((path, i) => {
+    if (!firstOf.has(path.name)) {
+      firstOf.set(path.name, i)
+    }
+  })
+  const entries = [...firstOf].map(([name, i]) => ({ name, i }))
+  const named = entries.map(e => labelTiers(e.name))
   // narrowest first, and the offset is tried before the next name tier: two
   // copies of one operon are told apart by where they are, not by widening a
   // name that is genuinely identical
   const candidates = [0, 1, 2].flatMap(t => [
-    paths.map((_, i) => named[i]![t]!),
-    paths.map((p, i) => offsetTiers(p.name, named[i]!)[t]!),
+    entries.map((_, k) => named[k]![t]!),
+    entries.map((e, k) => offsetTiers(e.name, named[k]!)[t]!),
   ])
   const distinct = candidates.find(
-    labels => new Set(labels).size === paths.length,
+    labels => new Set(labels).size === entries.length,
   )
   // Nothing separates two paths with the same name and the same offset, so the
   // widest labelling is as close as any can get.
   const labels = distinct ?? candidates.at(-1)!
-  return paths.map((path, i) => ({
-    name: path.name,
-    label: labels[i]!,
+  return entries.map(({ name, i }, k) => ({
+    name,
+    label: labels[k]!,
     color: colors?.[i] ?? pathCssColor(i, paths.length),
   }))
 }

@@ -1,7 +1,7 @@
 import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
 
-import type { GFAGraph, GFANode } from '../gfa-core/index'
+import type { GFAGraph, GFANode, GFAWalk } from '../gfa-core/index'
 import type { PathSteps } from '../pathAnchoring'
 import type { Graph, GraphEdge, GraphNode, GraphPath } from '../types'
 
@@ -49,6 +49,11 @@ function surveySegments(gfaGraph: GFAGraph) {
   return { canonical, traversals }
 }
 
+// `*` parses to -1, meaning the record declines to say; 0 is then the only
+// offset that can be assumed, and it makes the walk self-relative rather than
+// wrong
+const walkStart = (w: GFAWalk) => (w.start === -1 ? 0 : w.start)
+
 // P and W state the same thing in different shapes: a P body is a comma-joined
 // `<id><strand>` list whose start offset lives in the record's *name*, a W
 // record arrives already split into steps and states its start as a field.
@@ -64,10 +69,7 @@ function anchorablePaths(gfaGraph: GFAGraph): PathSteps[] {
     })),
     ...gfaGraph.walks.map(w => ({
       name: `${w.sample}#${w.haplotype}#${w.contig}`,
-      // `*` parses to -1, meaning the record declines to say; 0 is then the
-      // only offset that can be assumed, and it makes the walk self-relative
-      // rather than wrong
-      start: w.start === -1 ? 0 : w.start,
+      start: walkStart(w),
       steps: w.segments.map(s => ({
         id: s.id,
         strand: s.strand === '-' ? ('-' as const) : ('+' as const),
@@ -177,7 +179,11 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     const nodeIds = gfaPath.path
       .split(',')
       .map(segment => nodeId(segment.slice(0, -1)))
-    paths.push({ name: gfaPath.name, nodeIds } satisfies GraphPath)
+    paths.push({
+      name: gfaPath.name,
+      nodeIds,
+      start: pathOrigin(gfaPath.name).start,
+    } satisfies GraphPath)
     recordPathEdges(nodeIds, gfaPath.name)
   }
 
@@ -198,6 +204,7 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     paths.push({
       name,
       nodeIds,
+      start: walkStart(walk),
       sample: walk.sample,
       haplotype: walk.haplotype,
       contig: walk.contig,

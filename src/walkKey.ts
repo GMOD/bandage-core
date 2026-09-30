@@ -45,13 +45,15 @@ export function walkKey(
 }
 
 // Where a node sits on a walk's own contig, from how far along the walk it
-// is: the stretch the walk's record gives it at its first visit
+// is: the stretch the walk's records give it at its first visit
 export function walkPosition(walk: LiftedWalk, nodeId: string, length: number) {
   const progress = walk.progress.get(nodeId)
   const range = walk.range
   if (progress === undefined || !range) {
     return undefined
   }
-  const start = Math.round(range.start + progress * walk.bp - length / 2)
+  const start = Math.round(
+    range.start + progress * (range.end - range.start) - length / 2,
+  )
   return `${range.contig}:${groupDigits(start)}-${groupDigits(start + length)}`
 }
