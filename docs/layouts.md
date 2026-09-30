@@ -149,6 +149,15 @@ mismatches at that bp:
 
 ![MICB's exons 2–4 as a tube map track on its own axis, each reference node tied to its bp under the alignment rows](../img/tube_map_micb_track.png)
 
+Hovering a genotype cell of a callset lane in the same view lifts that
+haplotype's walk: a tube map keeps its tube in colour and greys the rest, and
+the other layouts lift it as the Walks picker does. The row's name picks the
+walk, a phased callset's `HG00133 HP0` or a MAF's `HG00133.1` naming the graph's
+`HG00133#1`; a MAF row does it on JBrowse releases after 5.0.0-beta.10, whose
+MAF display publishes the row it is hovered on:
+
+![HG00133's genotype cell hovered in the callset lane over MICB's exons: its tube keeps its colour and the other walks go grey](../img/tube_map_micb_row_hover.png)
+
 Opened as a view under the linear view, the cut draws MICB's exons above the
 tubes, and hovering a box bands its bp in the linear view. Here it is GRCh38's
 base at 31,505,769 in exon 2, which three of the nine walks carry:
