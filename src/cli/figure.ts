@@ -8,13 +8,19 @@ import { gunzipSync } from 'node:zlib'
 import { TabixIndexedFile } from '@gmod/tabix'
 
 import { figureSvg } from '../figure'
-import { HPRC_GBZ, cutGbzRegion, openGbz, parseRegion } from '../gbzCut'
+import {
+  HPRC_GBZ,
+  cutGbzRegion,
+  haplotypeIndexBeside,
+  openGbz,
+  parseRegion,
+} from '../gbzCut'
 import {
   genesFromBed,
   genesFromGff3Lines,
   genesFromText,
 } from '../genes/geneFiles'
-import { LAYOUT_MODE_VALUES, layoutModeByValue } from '../layoutModes'
+import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
 import loadBandage from '../loadBandage'
 import { forceLayout, loadGraph } from '../pipeline'
 import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
@@ -71,12 +77,9 @@ function byteSource(location: string): ByteSource {
   if (isUrl(location)) {
     return {
       async read(length, position) {
-        const res = await fetch(location, {
+        const res = await fetchOk(location, {
           headers: { range: `bytes=${position}-${position + length - 1}` },
         })
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status} reading ${location}`)
-        }
         return new Uint8Array(await res.arrayBuffer())
       },
       async stat() {
@@ -129,9 +132,17 @@ async function readGenes(
     backbone.contigs.map(c => c.refName),
     genes.refNames,
   )
+  const format =
+    genes.format ?? (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3')
   const { names, features } = genes.index
-    ? await indexedGenes(genes, resolve, backbone.contigs, bind)
-    : wholeFileGenes(await text(resolve(genes.file)))
+    ? await indexedGenes(
+        resolve(genes.file),
+        resolve(genes.index),
+        format,
+        backbone.contigs,
+        bind,
+      )
+    : namedBy(genesFromText(await text(resolve(genes.file))))
   if (!names.some(name => bind(name) !== undefined)) {
     const shown = names.slice(0, 4).join(', ')
     console.warn(
@@ -145,20 +156,18 @@ async function readGenes(
   return featuresOnBackbone(features, backbone, genes.refNames)
 }
 
-function wholeFileGenes(contents: string) {
-  const features = genesFromText(contents)
+function namedBy(features: GeneModel[]) {
   return { names: [...new Set(features.map(f => f.refName))], features }
 }
 
 // Each backbone contig read under the name the index binds to it
 async function indexedGenes(
-  genes: NonNullable<FigureSpec['genes']>,
-  resolve: (location: string) => string,
+  file: string,
+  index: string,
+  format: 'gff3' | 'bed',
   contigs: BackboneContig[],
   bind: (name: string) => string | undefined,
 ) {
-  const file = resolve(genes.file)
-  const index = resolve(genes.index!)
   const csi = index.endsWith('.csi')
   const tabix = new TabixIndexedFile(
     isUrl(file)
@@ -175,8 +184,6 @@ async function indexedGenes(
       })
     }
   }
-  const format =
-    genes.format ?? (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3')
   return {
     names,
     features:
@@ -205,26 +212,21 @@ async function exists(location: string) {
 }
 
 // As the plugin's adapter does, a database with no index named takes the
-// haplotype index beside it, which is what names its walks by sample
+// haplotype index beside it
 async function siblingIndex(db: string) {
-  const sibling = db.replace(/\.gbz\.db$/i, '.haplotype-index.db')
-  return sibling !== db && (await exists(sibling)) ? sibling : undefined
+  const sibling = haplotypeIndexBeside(db)
+  return sibling && (await exists(sibling)) ? sibling : undefined
 }
 
-// figureSvg draws the canvas's nodes, and these layouts draw theirs over it
-const UNDRAWABLE = new Set(['walkrows', 'tubemap', 'tubemapref'])
+const DRAWABLE: string[] = LAYOUT_MODES.filter(m => m.drawsNodes).map(
+  m => m.value,
+)
 
 function checkLayout(layout: string | undefined) {
-  if (layout === undefined) {
-    return
-  }
-  if (!(LAYOUT_MODE_VALUES as string[]).includes(layout)) {
+  if (layout !== undefined && !DRAWABLE.includes(layout)) {
     throw new Error(
-      `unknown layout "${layout}": one of ${LAYOUT_MODE_VALUES.filter(v => !UNDRAWABLE.has(v)).join(', ')}`,
+      `a figure draws no "${layout}" layout: one of ${DRAWABLE.join(', ')}`,
     )
-  }
-  if (UNDRAWABLE.has(layout)) {
-    throw new Error(`a figure cannot draw the "${layout}" layout yet`)
   }
 }
 

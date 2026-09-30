@@ -67,6 +67,8 @@ export function parsePath(d: string): Command[] {
 
 interface Filled {
   color: string
+  // a haplotype tube's track id, which is its path's index in the graph
+  track?: number
   alpha: number
   // tube x extent, for culling
   x0: number
@@ -90,21 +92,8 @@ interface Layer {
 export interface TubeMapPicture {
   bounds: TubeMapLayout['bounds']
   layers: Layer[]
-  nodes: {
-    name: string
-    commands: Command[]
-    x0: number
-    x1: number
-    color?: string
-  }[]
+  nodes: { name: string; commands: Command[]; x0: number; x1: number }[]
   mismatches: TubeMapMismatch[]
-}
-
-export interface TubeMapColors {
-  // by track id, which is the path's index in the graph
-  tubes?: readonly string[]
-  // by node name; a box with none is clear
-  nodes?: ReadonlyMap<string, string>
 }
 
 function extentOf(commands: Command[]) {
@@ -123,22 +112,25 @@ function extentOf(commands: Command[]) {
   return { x0, x1 }
 }
 
-function shapeOf(d: string, color: string, alpha: number): Shape {
+function shapeOf(
+  d: string,
+  color: string,
+  alpha: number,
+  track: number | undefined,
+): Shape {
   const commands = parsePath(d)
-  return { commands, color, alpha, ...extentOf(commands) }
+  return { commands, color, track, alpha, ...extentOf(commands) }
 }
 
-function layerOf(
-  layout: TubeMapLayout,
-  type: TrackType,
-  tubes?: readonly string[],
-): Layer {
+function layerOf(layout: TubeMapLayout, type: TrackType): Layer {
   const { shapes } = layout
-  const colorOf = (s: { id: number; color: string }) => tubes?.[s.id] ?? s.color
+  const trackOf = (s: { id: number }) =>
+    type === 'haplotype' ? s.id : undefined
   const rects = [...shapes.rectangles, ...shapes.verticalRectangles]
     .filter(r => r.type === type)
     .map(r => ({
-      color: colorOf(r),
+      color: r.color,
+      track: trackOf(r),
       alpha: r.alpha ?? 1,
       x0: r.xStart,
       x1: r.xEnd + 1,
@@ -146,38 +138,26 @@ function layerOf(
       y1: r.yEnd + 1,
     }))
   const curves = curvePaths(shapes.curves, type).map(c =>
-    shapeOf(c.path!, colorOf(c), c.alpha ?? 1),
+    shapeOf(c.path!, c.color, c.alpha ?? 1, trackOf(c)),
   )
   const corners = shapes.corners
     .filter(c => c.type === type)
-    .map(c => shapeOf(c.path, colorOf(c), 1))
+    .map(c => shapeOf(c.path, c.color, 1, trackOf(c)))
   return { rects, shapes: [...curves, ...corners] }
 }
 
-// Everything a frame needs that does not depend on the transform. `colors`
-// repaints the haplotype tubes the layout coloured and tints the boxes.
-export function tubeMapPicture(
-  layout: TubeMapLayout,
-  colors: TubeMapColors = {},
-): TubeMapPicture {
+// Everything a frame needs that does not depend on the transform
+export function tubeMapPicture(layout: TubeMapLayout): TubeMapPicture {
   const nodes: TubeMapPicture['nodes'] = []
   layout.nodes.forEach(node => {
     if (node.order >= 0) {
       const commands = parsePath(nodeOutlinePath(node))
-      nodes.push({
-        name: node.name,
-        commands,
-        ...extentOf(commands),
-        color: colors.nodes?.get(node.name),
-      })
+      nodes.push({ name: node.name, commands, ...extentOf(commands) })
     }
   })
   return {
     bounds: layout.bounds,
-    layers: [
-      layerOf(layout, 'haplotype', colors.tubes),
-      layerOf(layout, 'read'),
-    ],
+    layers: [layerOf(layout, 'haplotype'), layerOf(layout, 'read')],
     nodes,
     mismatches: tubeMapMismatches(layout).filter(
       m => m.kind !== 'insertion' || !m.softClip,
@@ -234,6 +214,10 @@ export interface TubeMapFrame extends TubeMapTransform {
   width: number
   highlightNode?: string | null
   darkMode?: boolean
+  // a haplotype tube's colour by track id, where it is not the layout's
+  tubeColors?: readonly string[]
+  // a box's tint by node name; a box with none is clear
+  nodeColors?: ReadonlyMap<string, string>
 }
 
 // One fill per colour per layer: a layer's shapes do not overlap in a way the
@@ -242,12 +226,13 @@ function fillByColor<T extends Filled>(
   ctx: CanvasRenderingContext2D,
   items: T[],
   visible: (item: T) => boolean,
+  colorOf: (item: T) => string,
   addTo: (item: T) => void,
 ) {
   const byColor = new Map<string, T[]>()
   for (const item of items) {
     if (visible(item)) {
-      const key = `${item.color}|${item.alpha}`
+      const key = `${colorOf(item)}|${item.alpha}`
       const list = byColor.get(key)
       if (list) {
         list.push(item)
@@ -257,7 +242,7 @@ function fillByColor<T extends Filled>(
     }
   }
   for (const list of byColor.values()) {
-    ctx.fillStyle = list[0]!.color
+    ctx.fillStyle = colorOf(list[0]!)
     ctx.globalAlpha = list[0]!.alpha
     ctx.beginPath()
     for (const item of list) {
@@ -288,13 +273,15 @@ export function drawTubeMap(
   const { x, y, width } = frame
   const visible = (item: { x0: number; x1: number }) =>
     x(item.x1) >= 0 && x(item.x0) <= width
+  const colorOf = (item: Filled) =>
+    (item.track !== undefined && frame.tubeColors?.[item.track]) || item.color
   for (const layer of picture.layers) {
-    fillByColor(ctx, layer.rects, visible, r => {
+    fillByColor(ctx, layer.rects, visible, colorOf, r => {
       const left = x(r.x0)
       const top = y(r.y0)
       ctx.rect(left, top, x(r.x1) - left, y(r.y1) - top)
     })
-    fillByColor(ctx, layer.shapes, visible, s => {
+    fillByColor(ctx, layer.shapes, visible, colorOf, s => {
       trace(ctx, s.commands, x, y)
     })
   }
@@ -306,7 +293,7 @@ export function drawTubeMap(
       const lit = node.name === frame.highlightNode
       ctx.beginPath()
       trace(ctx, node.commands, x, y)
-      const tint = lit ? undefined : node.color
+      const tint = lit ? undefined : frame.nodeColors?.get(node.name)
       ctx.fillStyle = lit ? 'rgba(255,192,203,0.5)' : (tint ?? fill)
       ctx.strokeStyle = lit ? '#ff0000' : stroke
       ctx.globalAlpha = tint ? NODE_TINT_ALPHA : 1

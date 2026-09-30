@@ -14,20 +14,14 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
   const keep = new Set(segmentIds)
   const nodes = graph.nodes.filter(n => keep.has(n.name))
   const ids = new Set(nodes.map(n => n.id))
-  const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
-  const bpOf = (steps: string[]) =>
-    steps.reduce((sum, id) => sum + (lengthOf.get(id) ?? 0), 0)
-  const stretches = new Map<string, { dropped: number; bp: number }>()
+  const kept = new Map<string, { first: number; nodeIds: string[] }>()
   const paths = graph.paths?.flatMap(p => {
     const first = p.nodeIds.findIndex(id => ids.has(id))
     if (first < 0) {
       return []
     }
     const nodeIds = p.nodeIds.filter(id => ids.has(id))
-    stretches.set(p.name, {
-      dropped: bpOf(p.nodeIds.slice(0, first)),
-      bp: bpOf(nodeIds),
-    })
+    kept.set(p.name, { first, nodeIds })
     return [{ ...p, nodeIds }]
   })
   return {
@@ -35,9 +29,7 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
     nodes,
     edges: graph.edges.filter(e => ids.has(e.from) && ids.has(e.to)),
     ...(paths?.length ? { paths } : {}),
-    anchorPaths:
-      graph.anchorPaths &&
-      trimOrigins(graph.anchorPaths, graph.paths ?? [], stretches),
+    anchorPaths: trimOrigins(graph, kept),
     pathVisits: graph.pathVisits,
     anchoredBy: graph.anchoredBy,
     referencePath: graph.referencePath,

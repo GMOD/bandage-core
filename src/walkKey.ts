@@ -1,9 +1,8 @@
-import { formatBp } from './graphLabels'
+import { formatBp, groupDigits } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
 
-// `contig:start-end (length)`, grouped alike on every machine so a figure
-// made again from its spec writes the same text
+// `contig:start-end (length)`
 export function rangeText(
   contig: string | undefined,
   start: number,
@@ -11,7 +10,7 @@ export function rangeText(
 ) {
   const s = Math.round(start)
   const e = Math.round(end)
-  return `${contig ? `${contig}:` : ''}${s.toLocaleString('en-US')}-${e.toLocaleString('en-US')} (${formatBp(e - s)})`
+  return `${contig ? `${contig}:` : ''}${groupDigits(s)}-${groupDigits(e)} (${formatBp(e - s)})`
 }
 
 // A lifted walk's key in words, for a legend row or a facet panel's title: its
@@ -54,5 +53,5 @@ export function walkPosition(walk: LiftedWalk, nodeId: string, length: number) {
     return undefined
   }
   const start = Math.round(range.start + progress * walk.bp - length / 2)
-  return `${range.contig}:${start.toLocaleString('en-US')}-${(start + length).toLocaleString('en-US')}`
+  return `${range.contig}:${groupDigits(start)}-${groupDigits(start + length)}`
 }

@@ -178,6 +178,12 @@ export interface GraphLabel {
   leader?: Leader
 }
 
+// Locale-independent, unlike toLocaleString: a figure regenerated on a machine
+// with a different locale would otherwise differ from the committed one.
+export function groupDigits(n: number) {
+  return String(n).replace(/\B(?=(\d{3})+$)/g, ',')
+}
+
 // bp in the unit that reads. Deliberately coarse: a label is a glance, and
 // "12,345 bp" costs twice the width of "12 kb" to say the same thing at the
 // scale a pangenome allele lives at.

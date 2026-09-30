@@ -39,7 +39,8 @@ export const COLOR_SCHEME_VALUES = COLOR_SCHEMES.map(s => s.value)
 
 // 'auto' asks the GRAPH, not the layout: a hue along the reference means
 // something whenever the segments have reference coordinates, force-directed
-// drawings included.
+// drawings included. A tube map, whose tubes carry the colour, is the one
+// drawing the view keeps clear under it.
 export function resolveColorScheme(
   scheme: ColorScheme,
   graph: Graph | undefined,

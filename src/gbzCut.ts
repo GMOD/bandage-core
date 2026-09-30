@@ -34,6 +34,12 @@ export const HPRC_GBZ = {
     'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38.haplotype-index.anchored.db',
 }
 
+// The haplotype index beside a `.gbz.db`, which names its walks by sample
+export function haplotypeIndexBeside(db: string) {
+  const GBZ_DB = /\.gbz\.db$/i
+  return GBZ_DB.test(db) ? db.replace(GBZ_DB, '.haplotype-index.db') : undefined
+}
+
 // gbz-base counts every node it walks, which runs well past the nodes a cut
 // keeps
 const WALK_LIMIT = 100_000

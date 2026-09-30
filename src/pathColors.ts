@@ -1,3 +1,4 @@
+import { groupDigits } from './graphLabels'
 import { isGenericSample } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 
@@ -91,12 +92,6 @@ function labelTiers(name: string) {
     return [contig, contig, full]
   }
   return [parts[0]!, parts.slice(0, 2).join('#'), full]
-}
-
-// Locale-independent, unlike toLocaleString: a figure regenerated on a machine
-// with a different locale would otherwise differ from the committed one.
-function groupDigits(n: number) {
-  return String(n).replace(/\B(?=(\d{3})+$)/g, ',')
 }
 
 // A collapsed repeat puts one sequence through the same segments more than

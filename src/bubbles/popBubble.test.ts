@@ -71,9 +71,6 @@ describe('bubbleSubgraph', () => {
     expect(sub.pathVisits).toBe(pathVisits)
   })
 
-  // Positions on a walk are read as its origin plus the bp before a step, so
-  // an origin left at the walk's own start put every step inside the bubble
-  // the dropped front's length too early
   it("moves a kept walk's origin to where its first kept step starts", () => {
     const sub = bubbleSubgraph(
       {

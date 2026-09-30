@@ -64,11 +64,7 @@ export {
 } from './referenceStrip'
 export type { StripBlock } from './referenceStrip'
 export { drawTubeMap, tubeMapPicture } from './tubeMap/draw'
-export type {
-  TubeMapColors,
-  TubeMapFrame,
-  TubeMapPicture,
-} from './tubeMap/draw'
+export type { TubeMapFrame, TubeMapPicture } from './tubeMap/draw'
 export { tubeMapNodeColors } from './tubeMap/nodeColors'
 export { referenceKnots, warpX } from './tubeMap/warp'
 export { tubeMapFrame, tubeMapNodeAt } from './tubeMap/frame'

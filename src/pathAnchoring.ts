@@ -169,24 +169,41 @@ export function anchorGraph(graph: Graph, preferred: string | undefined) {
   return graph.anchoredBy === 'tags' ? graph : anchorFromPaths(graph, preferred)
 }
 
-// A walk cut down to a stretch of itself starts `dropped` bp further along its
-// sequence and covers `bp` of it, keyed by path name. A walk in several pieces
-// cannot say which piece an origin belongs to, so its origin stands.
+// `graph`'s origins once each walk is cut down to the steps `kept` gives it,
+// by path name, the first of them at index `first` of the whole walk: it
+// starts that much further along its sequence and covers only those steps. A
+// walk in several pieces cannot say which piece an origin belongs to, so its
+// origin stands.
 export function trimOrigins(
-  origins: PathOrigin[],
-  paths: GraphPath[],
-  stretches: Map<string, { dropped: number; bp: number }>,
+  graph: Graph,
+  kept: Map<string, { first: number; nodeIds: string[] }>,
 ) {
-  const pieces = new Map<string, number>()
-  for (const path of paths) {
-    const origin = pathOrigin(path.name).name
-    pieces.set(origin, (pieces.get(origin) ?? 0) + 1)
+  if (!graph.anchorPaths) {
+    return undefined
   }
-  return origins.map(o => {
-    const path = paths.find(p => pathOrigin(p.name).name === o.name)
-    const stretch = path ? stretches.get(path.name) : undefined
-    return stretch && pieces.get(o.name) === 1
-      ? { ...o, start: o.start + stretch.dropped, length: stretch.bp }
+  const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const bp = (ids: string[], end = ids.length) => {
+    let sum = 0
+    for (let i = 0; i < end; i++) {
+      sum += lengthOf.get(ids[i]!) ?? 0
+    }
+    return sum
+  }
+  const byOrigin = new Map<string, GraphPath[]>()
+  for (const path of graph.paths ?? []) {
+    const origin = pathOrigin(path.name).name
+    byOrigin.set(origin, [...(byOrigin.get(origin) ?? []), path])
+  }
+  return graph.anchorPaths.map(o => {
+    const pieces = byOrigin.get(o.name)
+    const path = pieces?.length === 1 ? pieces[0]! : undefined
+    const stretch = path && kept.get(path.name)
+    return path && stretch
+      ? {
+          ...o,
+          start: o.start + bp(path.nodeIds, stretch.first),
+          length: bp(stretch.nodeIds),
+        }
       : o
   })
 }

@@ -59,6 +59,10 @@ export interface LayoutMode {
   // coincide for the anchored modes, which is stated by sharing the predicate
   // rather than by restating it.
   drawsLocally: (graph: Graph) => boolean
+  // whether the canvas draws this mode's nodes, which genes, bubble halos,
+  // deletion arcs, the reference strip, facet panels and an SVG figure sit
+  // on. A tube map and walk rows draw a picture of their own over it.
+  drawsNodes: boolean
 }
 
 const hasBackbone = (graph: Graph) => graph.nodes.some(isBackbone)
@@ -83,6 +87,7 @@ export const LAYOUT_MODES = [
     wholeWalks: false,
     available: hasBackbone,
     drawsLocally: hasBackbone,
+    drawsNodes: true,
   },
   {
     value: 'samplerows',
@@ -94,6 +99,7 @@ export const LAYOUT_MODES = [
     wholeWalks: false,
     available: hasAlleles,
     drawsLocally: hasAlleles,
+    drawsNodes: true,
   },
   {
     value: 'walkrows',
@@ -105,6 +111,7 @@ export const LAYOUT_MODES = [
     wholeWalks: true,
     available: hasWalks,
     drawsLocally: hasWalks,
+    drawsNodes: false,
   },
   {
     value: 'ordered',
@@ -116,6 +123,7 @@ export const LAYOUT_MODES = [
     wholeWalks: false,
     available: hasBackbone,
     drawsLocally: hasBackbone,
+    drawsNodes: true,
   },
   {
     value: 'tubemap',
@@ -127,6 +135,7 @@ export const LAYOUT_MODES = [
     wholeWalks: false,
     available: hasTubeMapPaths,
     drawsLocally: hasTubeMapPaths,
+    drawsNodes: false,
   },
   {
     value: 'tubemapref',
@@ -138,6 +147,7 @@ export const LAYOUT_MODES = [
     wholeWalks: false,
     available: hasTubeMapBackbone,
     drawsLocally: hasTubeMapBackbone,
+    drawsNodes: false,
   },
   {
     value: 'force',
@@ -148,6 +158,7 @@ export const LAYOUT_MODES = [
     wholeWalks: false,
     available: () => true,
     drawsLocally: () => false,
+    drawsNodes: true,
   },
 ] as const satisfies readonly LayoutMode[]
 
