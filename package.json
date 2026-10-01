@@ -39,7 +39,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@gmod/gbz-base": "^4.1.0",
+    "@gmod/gbz-base": "^5.0.0",
     "@gmod/tabix": "^3.9.0",
     "@gmod/tubemap-core": "^0.1.0",
     "@jbrowse/core": "5.0.0-beta.9",
