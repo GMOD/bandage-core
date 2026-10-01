@@ -169,7 +169,7 @@ test.skipIf(!existsSync(KIV2))(
   },
 )
 
-test('every piece of a walk draws a row, whatever it meets', () => {
+test('every piece of a walk draws, joined into its row, whatever it meets', () => {
   const graph = pggbGraph()
   const reference = graph.paths!.find(
     p => pathOrigin(p.name).name === graph.referencePath,
@@ -187,7 +187,7 @@ test('every piece of a walk draws a row, whatever it meets', () => {
     ...graph,
     paths: [...graph.paths!, stray, lone],
   })!
-  expect(rows.rows.filter(r => r.name === walk.name)).toHaveLength(2)
+  expect(rows.rows.filter(r => r.name === walk.name)).toHaveLength(1)
   expect(rows.rows.filter(r => r.name === 'lone')).toHaveLength(1)
 })
 

@@ -189,6 +189,7 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
   const [inv] = walkLift(walks, [{ walk: 'inv#1#chr' }], ramp)!.walks
   expect(walkKey(inv!)).toEqual({
     delta: '',
+    outside: '',
     reversed: ', 9 bp reversed',
     shades: true,
     scale: 'chr:0-9 (9 bp)',

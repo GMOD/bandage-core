@@ -143,7 +143,7 @@ function walkKeySvg(
     y,
     encodingStops(walk.encoding),
     label,
-    key.delta + key.reversed,
+    key.delta + key.outside + key.reversed,
     key.scale,
   )
 }

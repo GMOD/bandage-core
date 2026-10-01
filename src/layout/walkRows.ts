@@ -27,6 +27,9 @@ export interface WalkRun {
   referenceStart?: number
   // the walk crosses that reference from its end back to its start
   reversed?: true
+  // bases of the walk's contig between two pieces the cut returned: the walk
+  // left the window's nodes and came back, and the cut holds nothing of them
+  gap?: true
 }
 
 export interface WalkRow {
@@ -36,6 +39,8 @@ export interface WalkRow {
   haplotype?: number
   bp: number
   offReferenceBp: number
+  // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
+  gapBp: number
   // false when the walk does not reach both flanking reference nodes, in which
   // case the whole walk is measured and the bar says so
   complete: boolean
@@ -62,11 +67,34 @@ function labelOf(path: GraphPath) {
     : sampleOf(path)
 }
 
+// A walk's steps through the cut: its node ids, and between two pieces of it
+// the bp of contig the cut does not hold
+type Step = string | number
+
+// The pieces of one walk in contig order, with the bp between them as gaps.
+// A piece with no start, or one that overlaps the last, follows it directly.
+function stepsOf(pieces: GraphPath[], lengthOf: Map<string, number>): Step[] {
+  const steps: Step[] = []
+  let end: number | undefined
+  for (const piece of pieces) {
+    if (end !== undefined && piece.start !== undefined && piece.start > end) {
+      steps.push(piece.start - end)
+    }
+    steps.push(...piece.nodeIds)
+    const bp = piece.nodeIds.reduce(
+      (sum, id) => sum + (lengthOf.get(id) ?? 0),
+      0,
+    )
+    end = piece.start === undefined ? undefined : piece.start + bp
+  }
+  return steps
+}
+
 // Each walk is cut at the nearest reference nodes IT visits on either side of
 // the region, so a walk that skips one flanking node at a SNP is still measured
 // between flanks rather than whole.
 function sliceBetween(
-  nodeIds: string[],
+  steps: Step[],
   span: Map<string, { start: number; end: number }>,
   region: { start: number; end: number } | undefined,
   flanked = true,
@@ -74,14 +102,14 @@ function sliceBetween(
   // A cut that stops at the window carries no flanking reference for anyone,
   // so every walk is whole and the slice is the walk.
   if (!region || !flanked) {
-    return { ids: nodeIds, complete: true }
+    return { ids: steps, complete: true }
   }
   let i0 = -1
   let i1 = -1
   let bestEnd = -Infinity
   let bestStart = Infinity
-  nodeIds.forEach((id, i) => {
-    const s = span.get(id)
+  steps.forEach((id, i) => {
+    const s = typeof id === 'string' ? span.get(id) : undefined
     if (s) {
       if (s.end <= region.start && s.end > bestEnd) {
         bestEnd = s.end
@@ -94,9 +122,9 @@ function sliceBetween(
     }
   })
   if (i0 < 0 || i1 < 0) {
-    return { ids: nodeIds, complete: false }
+    return { ids: steps, complete: false }
   }
-  const ids = nodeIds.slice(Math.min(i0, i1) + 1, Math.max(i0, i1))
+  const ids = steps.slice(Math.min(i0, i1) + 1, Math.max(i0, i1))
   return { ids: i0 < i1 ? ids : ids.reverse(), complete: true }
 }
 
@@ -118,6 +146,11 @@ export function walkRows(
   const others = paths.filter(p => !referencePieces.includes(p))
   if (!first || others.length === 0) {
     return undefined
+  }
+  // a cut hands a walk back as one record per piece inside its nodes
+  const walks = new Map<string, GraphPath[]>()
+  for (const path of others) {
+    walks.set(path.name, [...(walks.get(path.name) ?? []), path])
   }
   const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
   const referenceStart = first.start ?? 0
@@ -142,15 +175,30 @@ export function walkRows(
     ([...span.values()].some(s => s.end <= cut.start) &&
       [...span.values()].some(s => s.start >= cut.end))
 
-  const rowOf = (path: GraphPath): WalkRow => {
-    const { ids, complete } = sliceBetween(path.nodeIds, span, cut, flanked)
+  const rowOf = (pieces: GraphPath[]): WalkRow => {
+    const path = pieces[0]!
+    const ordered = [...pieces].sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
+    const { ids, complete } = sliceBetween(
+      stepsOf(ordered, lengthOf),
+      span,
+      cut,
+      flanked,
+    )
     const runs: WalkRun[] = []
     let bp = 0
     let offReferenceBp = 0
+    let gapBp = 0
     // which way the last run steps through the reference, 0 while it holds
     // one node
     let step = 0
     for (const id of ids) {
+      if (typeof id === 'number') {
+        runs.push({ start: bp, bp: id, onReference: false, gap: true })
+        bp += id
+        gapBp += id
+        step = 0
+        continue
+      }
       const len = lengthOf.get(id) ?? 0
       const s = span.get(id)
       const last = runs.at(-1)
@@ -158,7 +206,7 @@ export function walkRows(
       const forward =
         s && at !== undefined && step >= 0 && at + last!.bp === s.start
       const backward = s && at !== undefined && step <= 0 && s.end === at
-      if (!s && last && !last.onReference) {
+      if (!s && last && !last.onReference && !last.gap) {
         last.bp += len
       } else if (forward || backward) {
         last!.bp += len
@@ -188,6 +236,7 @@ export function walkRows(
       haplotype: path.haplotype,
       bp,
       offReferenceBp,
+      gapBp,
       complete,
       runs,
     }
@@ -197,11 +246,8 @@ export function walkRows(
   return {
     origin,
     unit,
-    reference: rowOf({
-      ...first,
-      nodeIds: referencePieces.flatMap(piece => piece.nodeIds),
-    }),
-    rows: others
+    reference: rowOf(referencePieces),
+    rows: [...walks.values()]
       .map(rowOf)
       .sort(
         (a, b) =>

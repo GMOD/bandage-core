@@ -31,11 +31,15 @@ export function walkKey(
       : field === 'reference' && reference
         ? rangeText(reference.name, reference.start, reference.end)
         : undefined
+  // what the walk spans on its contig, which its pieces may not all show
+  const spanned = walk.range ? walk.range.end - walk.range.start : walk.bp
+  const outside = spanned - walk.bp
   return {
     delta:
-      walk.referenceBp === undefined || walk.bp === walk.referenceBp
+      walk.referenceBp === undefined || spanned === walk.referenceBp
         ? ''
-        : ` ${walk.bp > walk.referenceBp ? '+' : '−'}${formatBp(Math.abs(walk.bp - walk.referenceBp))}`,
+        : ` ${spanned > walk.referenceBp ? '+' : '−'}${formatBp(Math.abs(spanned - walk.referenceBp))}`,
+    outside: outside > 0 ? `, ${formatBp(outside)} outside the cut` : '',
     reversed:
       walk.reversedBp > 0 ? `, ${formatBp(walk.reversedBp)} reversed` : '',
     shades: field !== 'walk',

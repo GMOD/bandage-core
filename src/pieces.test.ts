@@ -51,8 +51,10 @@ test("a lifted walk's key states what all its pieces carry", () => {
   })
   const lift = walkLift(graph, [{ walk: 'HG002#1#chr1' }])
   const key = walkKey(lift.walks[0]!)
-  // 4 kb of a 5 kb reference: a 1 kb deletion, not 3 kb
-  expect(key.delta).toBe(' −1 kb')
+  // the walk spans the reference's 5 kb; the kilobase between its pieces is
+  // walked outside the cut, not deleted
+  expect(key.delta).toBe('')
+  expect(key.outside).toBe(', 1 kb outside the cut')
 })
 
 // GRCh38 chr1 in two fragments joined from two cuts, as gbzJoin writes them:
@@ -74,20 +76,31 @@ test('walk rows over two reference fragments measure against both', () => {
     referencePath: 'GRCh38#0#chr1',
   })
   const rows = walkRows(graph, { start: 0, end: 5000 })!
-  expect(rows.reference.bp).toBe(4000)
+  // the two fragments and the kilobase between them
+  expect(rows.reference.bp).toBe(5000)
+  expect(rows.reference.gapBp).toBe(1000)
   // the second reference fragment is the reference, not a haplotype row
   expect(rows.rows.map(r => r.label)).not.toContain('GRCh38#0')
   // only node 3 is off the reference
   expect(rows.rows.find(r => r.label === 'HG003#1')!.offReferenceBp).toBe(1000)
 })
 
-test('walk rows keep both paths of a haplotype that meet at the gap', () => {
+test('walk rows draw a haplotype returned in two pieces as one row with the gap', () => {
   const graph = loadGraph(twoFragments, 'cut', {
     referencePath: 'GRCh38#0#chr1',
   })
   const rows = walkRows(graph, { start: 0, end: 5000 })!
   const hg004 = rows.rows.filter(r => r.label === 'HG004#1')
-  expect(hg004.reduce((sum, r) => sum + r.bp, 0)).toBe(4000)
+  expect(hg004).toHaveLength(1)
+  const row = hg004[0]!
+  expect(row.bp).toBe(5000)
+  expect(row.gapBp).toBe(1000)
+  expect(row.offReferenceBp).toBe(0)
+  expect(row.runs.map(r => [r.start, r.bp, r.gap ?? false])).toEqual([
+    [0, 2000, false],
+    [2000, 1000, true],
+    [3000, 2000, false],
+  ])
 })
 
 test('the reference lifted over two fragments holds both', () => {
