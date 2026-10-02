@@ -3,6 +3,7 @@ import { walkRows } from './walkRows'
 import {
   LABELLED_ROW_PX,
   segmentAt,
+  stripGeneGaps,
   stripMarks,
   stripRowAt,
   walkMarksTree,
@@ -122,4 +123,23 @@ test('a point on the strip finds its row and bar offset, and ticks draw there', 
     ),
   )
   expect(svg.match(/<rect /g)).toHaveLength(2 * 4)
+})
+
+test('a crowded strip says its genes are left out, even with no rows untracked', () => {
+  const { bars } = setup()
+  const roomy = walkStripFrame(bars, { width: 800, maxHeight: 400 })
+  const tight = walkStripFrame(bars, { width: 800, maxHeight: 40 })
+  const genes = new Map([
+    [bars.reference.name, [{ name: 'G', start: 0, end: 5, exons: [] }]],
+  ])
+  const gaps = { untracked: 2, unread: 0 }
+  expect(roomy.boxesGenes).toBe(true)
+  expect(tight.boxesGenes).toBe(false)
+  expect(stripGeneGaps(roomy, genes, gaps)).toBe(gaps)
+  expect(stripGeneGaps(roomy, new Map(), gaps)).toBeUndefined()
+  expect(stripGeneGaps(tight, genes, undefined)).toEqual({
+    untracked: 0,
+    unread: 0,
+    crowded: true,
+  })
 })

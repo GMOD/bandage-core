@@ -4,7 +4,7 @@ import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 
-import type { GeneGaps, WalkRowsFrame } from './walkRowDraw'
+import type { GeneGaps, RowGene, WalkRowsFrame } from './walkRowDraw'
 import type { WalkRow, WalkRows } from './walkRows'
 import type { Graph, GraphNode } from '../types'
 
@@ -262,8 +262,17 @@ export function walkStripLabelsTree(
   )
 }
 
-// What the key says of the strip's genes: rows too close to box them leave
-// them out
-export function stripGeneGaps(frame: StripFrame, gaps: GeneGaps | undefined) {
-  return gaps && !frame.boxesGenes ? { ...gaps, crowded: true } : gaps
+// What the key says of the strip's genes, where it has any: rows too close to
+// box them leave them out
+export function stripGeneGaps(
+  frame: StripFrame,
+  rowGenes: Map<string, RowGene[]> | undefined,
+  gaps: GeneGaps | undefined,
+): GeneGaps | undefined {
+  if (!rowGenes?.size) {
+    return undefined
+  }
+  return frame.boxesGenes
+    ? gaps
+    : { untracked: 0, unread: 0, ...gaps, crowded: true }
 }

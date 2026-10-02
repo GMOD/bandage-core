@@ -214,6 +214,10 @@ export function figureSvg(
     colorScheme === 'reference-position' && !layout.tubeMap
       ? computeReferenceRamp(graph, rampDomain)
       : undefined
+  const rampInterval = referenceRamp && {
+    start: referenceRamp.start,
+    end: referenceRamp.start + referenceRamp.span,
+  }
   const deletions = layout.tubeMap ? [] : deletionEdges(graph)
   const layers = o.walks ?? []
   const walkRamp = layers.some(l => l.color?.field === 'reference')
@@ -311,10 +315,7 @@ export function figureSvg(
             rows,
             { ...t, width: w, height: h },
             {
-              ramp: referenceRamp && {
-                start: referenceRamp.start,
-                end: referenceRamp.start + referenceRamp.span,
-              },
+              ramp: rampInterval,
               rowGenes: o.rowGenes,
             },
           ),
@@ -446,10 +447,7 @@ export function figureSvg(
     if (rows) {
       const key = walkRowsKeyTree(
         walkRowsKey(rows, {
-          ramp: referenceRamp && {
-            start: referenceRamp.start,
-            end: referenceRamp.start + referenceRamp.span,
-          },
+          ramp: rampInterval,
           genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
         }),
         x,
@@ -491,13 +489,8 @@ export function figureSvg(
     const frame = walkStripFrame(strip.rows, { width })
     const key = walkRowsKeyTree(
       walkRowsKey(strip.rows, {
-        ramp: referenceRamp && {
-          start: referenceRamp.start,
-          end: referenceRamp.start + referenceRamp.span,
-        },
-        genes: strip.rowGenes?.size
-          ? stripGeneGaps(frame, strip.rowGeneGaps)
-          : undefined,
+        ramp: rampInterval,
+        genes: stripGeneGaps(frame, strip.rowGenes, strip.rowGeneGaps),
       }),
       6,
       height + frame.height,
@@ -506,10 +499,7 @@ export function figureSvg(
       `<line x1="0" x2="${width}" y1="${height + 0.5}" y2="${height + 0.5}" stroke="#ddd"/>`,
       `<svg y="${height}" width="${width}" height="${frame.height}">${serializeEl(
         walkRowsTree(strip.rows, frame, {
-          ramp: referenceRamp && {
-            start: referenceRamp.start,
-            end: referenceRamp.start + referenceRamp.span,
-          },
+          ramp: rampInterval,
           rowGenes: strip.rowGenes,
           idPrefix: 'strip',
         }),

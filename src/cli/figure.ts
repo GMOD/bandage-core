@@ -235,8 +235,6 @@ async function renderSpec(spec: FigureSpec, base: string) {
     name: string
     region?: ReturnType<typeof parseRegion>
   }
-  const mode = layoutModeByValue(spec.layout ?? 'force')
-  const strip = !!spec.walkStrip && mode.drawsNodes
   if (spec.gbz) {
     const { db, index } = spec.gbz.db === 'hprc' ? HPRC_GBZ : spec.gbz
     const indexLocation = index
@@ -247,10 +245,8 @@ async function renderSpec(spec: FigureSpec, base: string) {
         byteSource(resolve(db)),
         indexLocation ? byteSource(indexLocation) : undefined,
       ),
-      // walk rows measure whole walks, which a cut only follows when asked
-      mode.wholeWalks || strip
-        ? { snarls: 'overlapping', ...spec.gbz }
-        : spec.gbz,
+      // the strip measures whole walks, which a cut only follows when asked
+      spec.walkStrip ? { snarls: 'overlapping', ...spec.gbz } : spec.gbz,
     )
     source = { ...cut, name: `${cut.sample} ${spec.gbz.region}` }
   } else if (spec.gfa) {
@@ -266,7 +262,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
     referencePath: spec.referencePath,
   })
   const layout =
-    mode.run(graph, source.region) ??
+    layoutModeByValue(spec.layout ?? 'force').run(graph, source.region) ??
     (
       await forceLayout(
         graph,
@@ -278,7 +274,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
         engine,
       )
     ).result
-  const stripRows = strip ? walkRows(graph, source.region) : undefined
+  const stripRows = spec.walkStrip ? walkRows(graph, source.region) : undefined
   return figureSvg(graph, layout, {
     ...spec,
     walkStrip: stripRows && { rows: stripRows },
