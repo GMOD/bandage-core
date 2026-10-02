@@ -135,9 +135,10 @@ test('a crowded strip says its genes are left out, even with no rows untracked',
   const gaps = { untracked: 2, unread: 0 }
   expect(roomy.boxesGenes).toBe(true)
   expect(tight.boxesGenes).toBe(false)
-  expect(stripGeneGaps(roomy, genes, gaps)).toBe(gaps)
-  expect(stripGeneGaps(roomy, new Map(), gaps)).toBeUndefined()
-  expect(stripGeneGaps(tight, genes, undefined)).toEqual({
+  expect(stripGeneGaps(roomy, gaps, genes)).toBe(gaps)
+  expect(stripGeneGaps(roomy, gaps, new Map())).toBeUndefined()
+  expect(stripGeneGaps(tight, undefined)).toBeUndefined()
+  expect(stripGeneGaps(tight, undefined, genes)).toEqual({
     untracked: 0,
     unread: 0,
     crowded: true,
