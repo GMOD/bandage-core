@@ -152,4 +152,6 @@ export interface LayoutResult {
   // The tube map's shapes, which TubeMapOverlay draws in place of the canvas's
   // nodes and edges.
   tubeMap?: TubeMapDrawing
+  // Where a force layout ran each deletion edge, by edge index
+  deletionRoutes?: Record<number, NodeSegment[]>
 }

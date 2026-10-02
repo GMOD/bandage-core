@@ -4,6 +4,7 @@ import {
   curvePointAt,
   dashCurves,
   projectLine,
+  routedEdgeCurves,
   selfLinkOf,
   translateCurves,
 } from './geometry'
@@ -55,6 +56,62 @@ describe('dashCurves', () => {
     expect(dashCurves([ARC], 6).length).toBeGreaterThan(
       dashCurves([ARC], 30).length,
     )
+  })
+  test('the pattern runs across a line of short curves', () => {
+    // twenty 5-unit pieces dashed at a 20-unit period: dashing each piece on
+    // its own would put three spans in every 5 units and read as solid
+    const pieces = Array.from({ length: 20 }, (_, i) => ({
+      x0: i * 5,
+      y0: 0,
+      cx0: i * 5 + 1,
+      cy0: 0,
+      cx1: i * 5 + 4,
+      cy1: 0,
+      x1: i * 5 + 5,
+      y1: 0,
+    }))
+    const dashes = dashCurves(pieces, 20)
+    expect(dashes).toHaveLength(3)
+    expect(dashes[0]![0]!.x0).toBeCloseTo(0)
+    expect(dashes.at(-1)!.at(-1)!.x1).toBeCloseTo(100)
+  })
+})
+
+describe('routedEdgeCurves', () => {
+  const from = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+  ]
+  const to = [
+    { x: 30, y: 0 },
+    { x: 40, y: 0 },
+  ]
+  const route = [
+    { x: 12, y: 10 },
+    { x: 28, y: 10 },
+  ]
+
+  test('runs from the nearer end of each node through every route point', () => {
+    const curves = routedEdgeCurves(from, to, route)
+    expect(curves).toHaveLength(3)
+    expect([curves[0]!.x0, curves[0]!.y0]).toEqual([10, 0])
+    expect([curves[1]!.x0, curves[1]!.y0]).toEqual([12, 10])
+    expect([curves[2]!.x0, curves[2]!.y0]).toEqual([28, 10])
+    expect([curves[2]!.x1, curves[2]!.y1]).toEqual([30, 0])
+  })
+
+  test('leaves and enters along each node', () => {
+    const curves = routedEdgeCurves(from, to, route)
+    expect(curves[0]!.cy0).toBeCloseTo(0)
+    expect(curves[0]!.cx0).toBeGreaterThan(10)
+    expect(curves[2]!.cy1).toBeCloseTo(0)
+    expect(curves[2]!.cx1).toBeLessThan(30)
+  })
+
+  test('attaches at whichever end faces the route', () => {
+    const reversed = [...from].reverse()
+    const curves = routedEdgeCurves(reversed, to, route)
+    expect([curves[0]!.x0, curves[0]!.y0]).toEqual([10, 0])
   })
 })
 

@@ -1,6 +1,7 @@
 import { bypassedPoints } from '../deletionEdges'
-import { computeEdgeCurves, selfLinkOf } from './geometry'
+import { computeEdgeCurves, routedEdgeCurves, selfLinkOf } from './geometry'
 
+import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
@@ -34,6 +35,7 @@ const cache = new WeakMap<
     scaleX: number
     scaleY: number
     deletions: Map<number, string[]> | undefined
+    routes: DeletionRoutes | undefined
     version: number
     curves: EdgeCurves
   }
@@ -47,6 +49,8 @@ export function baseEdgeCurves(
   // edge index. An edge named here bows around the run it skips.
   deletions: Map<number, string[]> | undefined,
   version: number,
+  // where a force layout ran each deletion; such an edge follows its route
+  routes?: DeletionRoutes,
 ): EdgeCurves {
   const { scaleX, scaleY } = axis
   const cached = cache.get(nodePositions)
@@ -55,6 +59,7 @@ export function baseEdgeCurves(
     cached.scaleX === scaleX &&
     cached.scaleY === scaleY &&
     cached.deletions === deletions &&
+    cached.routes === routes &&
     cached.version === version
   ) {
     return cached.curves
@@ -68,17 +73,20 @@ export function baseEdgeCurves(
     // absence here is the same "skip it" every consumer already applies.
     if (from?.length && to?.length) {
       const bypassed = deletions?.get(ei)
+      const route = bypassed && routes?.[ei]
       curves.set(
         ei,
-        computeEdgeCurves(
-          from,
-          to,
-          selfLinkOf(edge),
-          0,
-          0,
-          axis,
-          bypassed ? bypassedPoints(nodePositions, bypassed) : [],
-        ),
+        route
+          ? routedEdgeCurves(from, to, route)
+          : computeEdgeCurves(
+              from,
+              to,
+              selfLinkOf(edge),
+              0,
+              0,
+              axis,
+              bypassed ? bypassedPoints(nodePositions, bypassed) : [],
+            ),
       )
     }
   }
@@ -87,6 +95,7 @@ export function baseEdgeCurves(
     scaleX,
     scaleY,
     deletions,
+    routes,
     version,
     curves,
   })

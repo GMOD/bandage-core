@@ -16,6 +16,7 @@ import type { BubbleHalo, RouteLabel } from './bubbles/bubbleHalos'
 import type { DeletionEdge } from './deletionEdges'
 import type { GenePin } from './genes/genePins'
 import type { GraphLabel } from './graphLabels'
+import type { DeletionRoutes } from './layout/deletionRoutes'
 import type { Box, PlacedLabel } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
@@ -51,6 +52,7 @@ export interface LabelLayoutSource {
   nodeLengths: Map<string, number>
   showDeletionEdges: boolean
   deletions: DeletionEdge[]
+  deletionRoutes?: DeletionRoutes
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
 }
@@ -178,6 +180,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
           nodePositions: m.nodePositions,
           nodeLengths: m.nodeLengths,
           deletions: m.showDeletionEdges ? m.deletions : [],
+          deletionRoutes: m.deletionRoutes,
           alleleDeletions: m.alleleDeletions,
           axis: m.axisScale,
           translateX,

@@ -360,6 +360,7 @@ export function figureSvg(
         axis,
         referenceRamp,
         deletions: new Map(deletions.map(d => [d.edgeIndex, d.bypassed])),
+        deletionRoutes: layout.deletionRoutes,
         hiddenEdges: new Set(
           o.showDeletionEdges ? [] : deletions.map(d => d.edgeIndex),
         ),

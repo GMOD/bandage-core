@@ -18,6 +18,7 @@ import {
 } from '../util/geometry'
 
 import type { ResolvedColorScheme } from '../colorSchemes'
+import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphNode, NodeSegment } from '../types'
 import type { WalkLift } from '../walkHighlight'
@@ -404,6 +405,8 @@ export interface BuildOptions {
   // rather than derived here because the model can hold it against the graph,
   // and because the same set names the hover text.
   deletions?: Map<number, string[]>
+  // LayoutResult.deletionRoutes
+  deletionRoutes?: DeletionRoutes
   hiddenEdges?: ReadonlySet<number>
   // Bumped when a drag moves the positions in place, which their identity
   // cannot report. Only the shared curve cache reads it; see baseEdgeCurves.
@@ -836,6 +839,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     viewportBounds,
     referenceRamp,
     deletions,
+    deletionRoutes,
     hiddenEdges,
     version = 0,
   } = options
@@ -850,6 +854,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     axis,
     deletions,
     version,
+    deletionRoutes,
   )
 
   const nodeStrokes: NodeStroke[] = []

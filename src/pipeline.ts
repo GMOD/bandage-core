@@ -1,8 +1,18 @@
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
+import { deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
-import { drawnNodeLength, layoutScaling } from './layout/drawnScale'
+import {
+  routeNodes,
+  takeRoutes,
+  withDeletionRoutes,
+} from './layout/deletionRoutes'
+import {
+  drawnLengthOf,
+  drawnNodeLength,
+  layoutScaling,
+} from './layout/drawnScale'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
 import { seededNodes } from './layout/referenceSeeds'
@@ -109,9 +119,32 @@ export async function forceLayout(
   engine: LayoutEngine,
 ) {
   const spread = spreadFor(settings.bubbleSpread)
-  const merged = mergeRuns(graph)
+  const deletions = deletionEdges(graph)
+  const routed = withDeletionRoutes(graph, deletions)
+  const merged = mergeRuns(routed.graph, routed.ids)
+  const runs = {
+    ...merged.graph,
+    nodes: merged.graph.nodes.filter(n => !routed.ids.has(n.id)),
+  }
+  const engineScaling = layoutScaling(runs, spread)
   const { result, duration } = await engine(
-    engineRequest(merged.graph, layoutScaling(merged.graph, spread), settings),
+    engineRequest(
+      merged.graph,
+      {
+        ...engineScaling,
+        nodes: [
+          ...engineScaling.nodes,
+          ...routeNodes(
+            graph,
+            deletions,
+            routed.routes,
+            drawnLengthOf(runs, spread),
+            engineScaling.opts,
+          ),
+        ],
+      },
+      settings,
+    ),
   )
   const scaling = layoutScaling(graph, spread)
   const drawn = new Map(
@@ -122,19 +155,26 @@ export async function forceLayout(
     merged.runs,
     id => drawn.get(id) ?? 0,
   )
+  const { nodePositions, deletionRoutes } = takeRoutes(
+    graph.nodes.some(isBackbone)
+      ? orientToReference(graph, positions)
+      : positions,
+    routed.routes,
+  )
   return {
     result: {
       ...result,
-      nodePositions: graph.nodes.some(isBackbone)
-        ? orientToReference(graph, positions)
-        : positions,
+      nodePositions,
+      ...(deletions.length
+        ? { deletionRoutes, extent: layoutExtent(deletionRoutes) }
+        : {}),
     },
     duration,
   }
 }
 
 export function layoutExtent(
-  nodePositions: Record<string, NodeSegment[]>,
+  nodePositions: Record<string | number, NodeSegment[]>,
 ): Bounds {
   let minX = Infinity
   let minY = Infinity

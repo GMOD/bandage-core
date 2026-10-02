@@ -1,6 +1,7 @@
 import { EdgeSpatialIndex, SpatialIndex } from './SpatialIndex'
 import { pathRibbonOffsets, translateCurves, yToXOf } from './geometry'
 
+import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
@@ -146,6 +147,7 @@ const edgeCache = new WeakMap<
     version: number
     index: EdgeSpatialIndex
     deletions?: Map<number, string[]>
+    routes?: DeletionRoutes
   }
 >()
 
@@ -156,6 +158,7 @@ function getEdgeSpatialIndex(
   axis: AxisScale,
   version: number,
   deletions?: Map<number, string[]>,
+  routes?: DeletionRoutes,
 ) {
   const cached = edgeCache.get(nodePositions)
   if (
@@ -164,7 +167,8 @@ function getEdgeSpatialIndex(
     cached.scaleX === axis.scaleX &&
     cached.scaleY === axis.scaleY &&
     cached.version === version &&
-    cached.deletions === deletions
+    cached.deletions === deletions &&
+    cached.routes === routes
   ) {
     return cached.index
   }
@@ -176,6 +180,7 @@ function getEdgeSpatialIndex(
     undefined,
     deletions,
     version,
+    routes,
   )
   edgeCache.set(nodePositions, {
     graph,
@@ -185,6 +190,7 @@ function getEdgeSpatialIndex(
     version,
     index,
     deletions,
+    routes,
   })
   return index
 }
@@ -257,6 +263,7 @@ export function findHoveredEdge(
   version = 0,
   deletions?: Map<number, string[]>,
   hiddenEdges?: ReadonlySet<number>,
+  deletionRoutes?: DeletionRoutes,
 ) {
   const yToX = yToXOf(axis)
   const edgeThreshold = 10 / axis.scaleX
@@ -267,6 +274,7 @@ export function findHoveredEdge(
     axis,
     version,
     deletions,
+    deletionRoutes,
   )
   const candidates = edgeIndex.query(
     graphX,

@@ -119,24 +119,47 @@ function curveTangentAt(c: BezierCurve, t: number) {
 // of them is a figure that changes with the renderer.
 //
 // `dashWorld` is the period in layout units, so a caller passing screen px over
-// the current scale gets dashes of a constant on-screen size.
+// the current scale gets dashes of a constant on-screen size. The pattern runs
+// over the curves as one line, so an edge drawn as many short pieces still
+// reads as dashed.
 export function dashCurves(
   curves: BezierCurve[],
   dashWorld: number,
 ): BezierCurve[][] {
-  const out: BezierCurve[][] = []
-  for (const c of curves) {
-    // Control-polygon length overestimates the arc, which errs toward more
-    // dashes rather than toward a curve that reads as solid.
-    const polyLen =
+  // Control-polygon length overestimates the arc, which errs toward more
+  // dashes rather than toward a curve that reads as solid.
+  const lengths = curves.map(
+    c =>
       Math.hypot(c.cx0 - c.x0, c.cy0 - c.y0) +
       Math.hypot(c.cx1 - c.cx0, c.cy1 - c.cy0) +
-      Math.hypot(c.x1 - c.cx1, c.y1 - c.cy1)
-    // Odd, so a dash sits at each end of the curve and the arc reads as
-    // attached to both nodes rather than floating between them.
-    const spans = Math.max(3, Math.round(polyLen / dashWorld) | 1)
-    for (let i = 0; i < spans; i += 2) {
-      out.push([subCurve(c, i / spans, (i + 1) / spans)])
+      Math.hypot(c.x1 - c.cx1, c.y1 - c.cy1),
+  )
+  const total = lengths.reduce((a, b) => a + b, 0)
+  // Odd, so a dash sits at each end and the line reads as attached to both
+  // nodes rather than floating between them.
+  const spans = Math.max(3, Math.round(total / dashWorld) | 1)
+  const out: BezierCurve[][] = []
+  for (let i = 0; i < spans; i += 2) {
+    const from = (i / spans) * total
+    const to = ((i + 1) / spans) * total
+    const dash: BezierCurve[] = []
+    let start = 0
+    curves.forEach((c, k) => {
+      const length = lengths[k]!
+      const end = start + length
+      if (length > 0 && end > from && start < to) {
+        dash.push(
+          subCurve(
+            c,
+            Math.max(0, (from - start) / length),
+            Math.min(1, (to - start) / length),
+          ),
+        )
+      }
+      start = end
+    })
+    if (dash.length) {
+      out.push(dash)
     }
   }
   return out
@@ -753,4 +776,72 @@ export function computeEdgeCurves(
       },
     ]
   }
+}
+
+function nearerEnd(segments: NodeSegment[], to: NodeSegment): Side {
+  const start = segments[0]!
+  const end = segments.at(-1)!
+  return Math.hypot(start.x - to.x, start.y - to.y) <
+    Math.hypot(end.x - to.x, end.y - to.y)
+    ? 'start'
+    : 'end'
+}
+
+// An edge drawn along the route a layout gave it: a Catmull-Rom spline from the
+// end of `from` nearer the route, through the route, into the end of `to`
+// nearer it, leaving and entering along each node's own direction.
+export function routedEdgeCurves(
+  fromSegments: NodeSegment[],
+  toSegments: NodeSegment[],
+  route: NodeSegment[],
+): BezierCurve[] {
+  const fromAttach = attachment(
+    fromSegments,
+    nearerEnd(fromSegments, route[0]!),
+  )
+  const toAttach = attachment(toSegments, nearerEnd(toSegments, route.at(-1)!))
+  const points = [fromAttach.at, ...route, toAttach.at]
+  const tangent = (i: number) => {
+    const p = points[i]!
+    const span = (q: NodeSegment) => Math.hypot(q.x - p.x, q.y - p.y)
+    const along = (inward: NodeSegment | undefined, next: NodeSegment) => {
+      const len = inward ? span(inward) : 0
+      const reach = span(next)
+      return len === 0
+        ? { x: next.x - p.x, y: next.y - p.y }
+        : {
+            x: ((p.x - inward!.x) / len) * reach,
+            y: ((p.y - inward!.y) / len) * reach,
+          }
+    }
+    if (i === 0) {
+      return along(fromAttach.inward, points[1]!)
+    }
+    if (i === points.length - 1) {
+      const out = along(toAttach.inward, points[i - 1]!)
+      return { x: -out.x, y: -out.y }
+    }
+    return {
+      x: (points[i + 1]!.x - points[i - 1]!.x) / 2,
+      y: (points[i + 1]!.y - points[i - 1]!.y) / 2,
+    }
+  }
+  const curves: BezierCurve[] = []
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i]!
+    const b = points[i + 1]!
+    const ta = tangent(i)
+    const tb = tangent(i + 1)
+    curves.push({
+      x0: a.x,
+      y0: a.y,
+      cx0: a.x + ta.x / 3,
+      cy0: a.y + ta.y / 3,
+      cx1: b.x - tb.x / 3,
+      cy1: b.y - tb.y / 3,
+      x1: b.x,
+      y1: b.y,
+    })
+  }
+  return curves
 }

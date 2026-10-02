@@ -2,6 +2,7 @@ import { baseEdgeCurves } from './edgeCurves'
 import { curveBounds, pathRibbonOffsets } from './geometry'
 
 import type { EdgeCurves } from './edgeCurves'
+import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale } from './geometry'
 
@@ -238,6 +239,7 @@ export class EdgeSpatialIndex {
     deletions?: Map<number, string[]>,
     // Bumped when a drag moves the positions in place; see baseEdgeCurves.
     version = 0,
+    routes?: DeletionRoutes,
   ) {
     this.edgeCurves = baseEdgeCurves(
       nodePositions,
@@ -245,6 +247,7 @@ export class EdgeSpatialIndex {
       axis,
       deletions,
       version,
+      routes,
     )
     const boxes: {
       ei: number

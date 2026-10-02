@@ -1,8 +1,8 @@
 import { firstNodeAtOrAfter, isBackbone } from './anchoredNodes'
-import { computeEdgeCurves } from './util/geometry'
+import { computeEdgeCurves, routedEdgeCurves } from './util/geometry'
 
 import type { AnchoredNode } from './anchoredNodes'
-import type { Graph, GraphEdge } from './types'
+import type { Graph, GraphEdge, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
 // A deletion is the one kind of variation this view could not draw, and the
@@ -48,10 +48,9 @@ export interface DeletionEdge {
   end: number
   bp: number
   // Backbone node ids whose reference interval lies inside the skipped span:
-  // the route a haplotype taking this edge does NOT take. A drawing sizes the
-  // deletion's arc off their drawn length so the two arms of the bubble are
-  // comparable; nothing else can supply that, because in a force layout the
-  // edge's own endpoints are wherever the simulation put them.
+  // the route a haplotype taking this edge does NOT take. An anchored layout
+  // bows the deletion's arc around them; a force layout sizes its route off
+  // them (deletionRoutes.ts).
   bypassed: string[]
 }
 
@@ -81,11 +80,16 @@ export function deletionArcCurves(
   nodePositions: Record<string, { x: number; y: number }[]>,
   deletion: DeletionEdge,
   axis: AxisScale,
+  route?: NodeSegment[],
 ) {
   const from = nodePositions[deletion.from]
   const to = nodePositions[deletion.to]
-  return from?.length && to?.length
-    ? computeEdgeCurves(
+  if (!from?.length || !to?.length) {
+    return undefined
+  }
+  return route
+    ? routedEdgeCurves(from, to, route)
+    : computeEdgeCurves(
         from,
         to,
         deletion.from === deletion.to,
@@ -94,7 +98,6 @@ export function deletionArcCurves(
         axis,
         bypassedPoints(nodePositions, deletion.bypassed),
       )
-    : undefined
 }
 
 // The backbone by stable sequence, each sorted by start, so the run a deletion

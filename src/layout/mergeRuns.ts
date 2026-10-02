@@ -43,7 +43,10 @@ function sidesOf(edge: GraphEdge) {
   return { from, to }
 }
 
-export function mergeRuns(graph: Graph): MergedRuns {
+export function mergeRuns(
+  graph: Graph,
+  alone: ReadonlySet<string> = new Set(),
+): MergedRuns {
   const sides = graph.edges.map(sidesOf)
   // node side -> indexes of the edges attached there
   const at = new Map<string, number[]>()
@@ -70,6 +73,8 @@ export function mergeRuns(graph: Graph): MergedRuns {
     const edge = graph.edges[ei]!
     return edge.from === a &&
       edge.to !== a &&
+      !alone.has(a) &&
+      !alone.has(edge.to) &&
       sides[ei]!.from === 'end' &&
       sides[ei]!.to === 'start' &&
       at.get(`${edge.to}|start`)?.length === 1

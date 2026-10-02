@@ -4,6 +4,7 @@ import { occupancy } from './overlayLabels'
 import { curveBounds, curveMidpoint } from './util/geometry'
 
 import type { DeletionEdge } from './deletionEdges'
+import type { DeletionRoutes } from './layout/deletionRoutes'
 import type { Box, TakeBox } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale, BezierCurve } from './util/geometry'
@@ -342,6 +343,7 @@ const arcCache = new WeakMap<
   Record<string, NodeSegment[]>,
   {
     deletions: DeletionEdge[]
+    routes: DeletionRoutes | undefined
     scaleX: number
     scaleY: number
     version: number
@@ -356,11 +358,13 @@ function arcPlacements(
   deletions: DeletionEdge[],
   axis: AxisScale,
   version: number,
+  routes: DeletionRoutes | undefined,
 ) {
   const { scaleX, scaleY } = axis
   const cached = arcCache.get(nodePositions)
   if (
     cached?.deletions === deletions &&
+    cached.routes === routes &&
     cached.scaleX === scaleX &&
     cached.scaleY === scaleY &&
     cached.version === version
@@ -369,7 +373,12 @@ function arcPlacements(
   }
   const arcs: ArcPlacement[] = []
   for (const deletion of [...deletions].sort((a, b) => b.bp - a.bp)) {
-    const curves = deletionArcCurves(nodePositions, deletion, axis)
+    const curves = deletionArcCurves(
+      nodePositions,
+      deletion,
+      axis,
+      routes?.[deletion.edgeIndex],
+    )
     const apex = curves ? curveMidpoint(curves) : undefined
     if (curves && apex) {
       const { minX, minY, maxX, maxY } = curveBounds(curves)
@@ -382,7 +391,14 @@ function arcPlacements(
       })
     }
   }
-  arcCache.set(nodePositions, { deletions, scaleX, scaleY, version, arcs })
+  arcCache.set(nodePositions, {
+    deletions,
+    routes,
+    scaleX,
+    scaleY,
+    version,
+    arcs,
+  })
   return arcs
 }
 
@@ -391,6 +407,7 @@ interface SizeLabelArgs {
   // bp per node id, so this module never has to know what a GraphNode is
   nodeLengths: Map<string, number>
   deletions: DeletionEdge[]
+  deletionRoutes?: DeletionRoutes
   // Deletions the layout found that carry a segment, so `deletions` above
   // cannot: empty under a layout drawn at sequence scale, where a node's own
   // length IS what its drawn extent means. See AlleleDeletion.
@@ -421,6 +438,7 @@ export function sizeLabelCandidates({
   nodePositions,
   nodeLengths,
   deletions,
+  deletionRoutes,
   alleleDeletions,
   axis,
   translateX,
@@ -437,6 +455,7 @@ export function sizeLabelCandidates({
     deletions,
     axis,
     version,
+    deletionRoutes,
   )) {
     if (extent >= MIN_DELETION_LABEL_PX) {
       const text = deletionText(deletion.bp)
