@@ -166,3 +166,31 @@ test('the SVG draws every row with its genes', () => {
   expect(svg).toContain('>C1</text>')
   expect(svg.match(/<text /g)).toHaveLength(1 + 1 + bars.rows.length)
 })
+
+test('gene boxes fit the rows’ pitch, and crowded rows draw none', () => {
+  const genes = [
+    { name: 'AMY1A', start: 0, end: 50, exons: [{ start: 10, end: 20 }] },
+  ]
+  const [roomy] = rowGeneBoxes(genes, bp => bp * 2, 50)
+  expect(roomy).toMatchObject({ y: 42, h: 16 })
+  expect(roomy!.label).toBeDefined()
+  const [unlettered] = rowGeneBoxes(genes, bp => bp * 2, 50, {
+    rowPx: 10,
+    barPx: 6,
+  })
+  expect(unlettered).toMatchObject({ y: 46, h: 8 })
+  expect(unlettered!.label).toBeUndefined()
+  expect(rowGeneBoxes(genes, bp => bp * 2, 50, { rowPx: 4, barPx: 2 })).toEqual(
+    [],
+  )
+})
+
+test('crowded rows say their genes are left out, and nothing else of them', () => {
+  const key = walkRowsKey(rows(), {
+    genes: { crowded: true, untracked: 2, unread: 0 },
+  })
+  expect(key.map(e => e.label).slice(-1)).toEqual([
+    'genes left out: too many rows to box them in',
+  ])
+  expect(key.some(e => e.label.startsWith('no gene track'))).toBe(false)
+})

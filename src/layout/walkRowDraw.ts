@@ -163,6 +163,16 @@ export function placeRowGenes(
 
 const GENE_FONT_PX = 9
 const GENE_CHAR_PX = 5.2
+const MIN_LETTERED_BAR_PX = 8
+
+const genePad = (rowPx: number, barPx: number) =>
+  Math.min(2, (rowPx - barPx) / 2 - 1)
+
+// Whether rows at this pitch leave room to box a gene round its bar. Closer
+// rows draw none, since a gene's shade on a bar that thin reads as its colour.
+export function boxesGenes(rowPx: number, barPx: number) {
+  return genePad(rowPx, barPx) >= 1
+}
 
 export interface GeneBox {
   name: string
@@ -176,12 +186,19 @@ export interface GeneBox {
   label?: { x: number; y: number; size: number }
 }
 
-// A row's genes as boxes in screen px around its bar at `y`
+// A row's genes as boxes in screen px around its bar at `y`, at the rows'
+// pitch, named where the bar is tall enough to letter; none where the rows
+// leave no room to box them
 export function rowGeneBoxes(
   genes: RowGene[],
   X: (offset: number) => number,
   y: number,
+  { rowPx = ROW_HEIGHT_PX, barPx = BAR_PX } = {},
 ): GeneBox[] {
+  if (!boxesGenes(rowPx, barPx)) {
+    return []
+  }
+  const pad = genePad(rowPx, barPx)
   const boxes = genes.map(g => {
     const x = X(g.start)
     return {
@@ -192,7 +209,7 @@ export function rowGeneBoxes(
   })
   const taken: [number, number][] = []
   const named = new Set(
-    [...boxes]
+    (barPx >= MIN_LETTERED_BAR_PX ? [...boxes] : [])
       .sort((a, b) => a.w - b.w)
       .filter(({ g, x, w }) => {
         const half = (g.name.length * GENE_CHAR_PX) / 2
@@ -210,9 +227,9 @@ export function rowGeneBoxes(
   return boxes.map(box => ({
     name: box.g.name,
     x: box.x,
-    y: y - BAR_PX / 2 - 2,
+    y: y - barPx / 2 - pad,
     w: box.w,
-    h: BAR_PX + 4,
+    h: barPx + 2 * pad,
     exons: box.g.exons.map(e => ({
       x: X(e.start),
       w: Math.max(1, X(e.end) - X(e.start)),
@@ -237,6 +254,8 @@ export interface KeyEntry {
 
 // The rows a host could read no genes for
 export interface GeneGaps {
+  // rows too close to box genes in, which leaves the rest moot
+  crowded?: boolean
   untracked: number
   // rows whose walk states no contig coordinates to read genes over
   unplaced?: number
@@ -279,7 +298,13 @@ export function walkRowsKey(
       label: 'walked outside the cut',
     })
   }
-  if (o.genes) {
+  if (o.genes?.crowded) {
+    entries.push({
+      swatch: { kind: 'gene' },
+      label: 'genes left out: too many rows to box them in',
+      note: true,
+    })
+  } else if (o.genes) {
     entries.push({
       swatch: { kind: 'gene' },
       label: "genes, each row's own annotation",
@@ -440,7 +465,7 @@ export function coalesceRuns(runs: WalkRun[], pxPerBp: number) {
   return out
 }
 
-function geneTree(box: GeneBox, y: number) {
+function geneTree(box: GeneBox, y: number, barPx: number) {
   return el(
     'g',
     { class: 'row-gene', 'data-testid': 'graph-walk-gene' },
@@ -448,9 +473,9 @@ function geneTree(box: GeneBox, y: number) {
     ...box.exons.map(e =>
       el('rect', {
         x: e.x,
-        y: y - BAR_PX / 2,
+        y: y - barPx / 2,
         width: e.w,
-        height: BAR_PX,
+        height: barPx,
         fill: GENE_INK,
         opacity: 0.35,
       }),
@@ -566,9 +591,10 @@ export function walkRowsTree(
       },
       ...runs,
       ...ticks,
-      ...rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y).map(box =>
-        geneTree(box, y),
-      ),
+      ...rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y, {
+        rowPx,
+        barPx,
+      }).map(box => geneTree(box, y, barPx)),
       call &&
         el('rect', {
           'data-testid': 'graph-walk-call',

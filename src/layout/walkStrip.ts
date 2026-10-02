@@ -1,5 +1,5 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
-import { alongRow } from './walkRowDraw'
+import { alongRow, boxesGenes } from './walkRowDraw'
 import { el } from '../el'
 import { pathOrigin } from '../pathAnchoring'
 
@@ -140,8 +140,9 @@ export interface StripFrame extends WalkRowsFrame {
   rowPx: number
   barPx: number
   readouts: boolean
-  // whether rows are tall enough to carry their labels
+  // whether rows are tall enough to carry their labels, and to box genes
   labelled: boolean
+  boxesGenes: boolean
 }
 
 // The strip's frame: every row, the reference's first, at the pitch that fits
@@ -174,6 +175,7 @@ export function walkStripFrame(
     barPx,
     readouts,
     labelled,
+    boxesGenes: boxesGenes(rowPx, barPx),
   }
 }
 
