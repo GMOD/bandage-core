@@ -12,10 +12,10 @@ import type { Graph, GraphPath } from '../types'
 // A base-level graph does not revisit reference nodes through a repeat array,
 // so a copy count is not a visit count; it is the sequence a walk spends
 // between the reference nodes flanking the window, divided by the unit. Runs
-// tell nodes the reference walk also visits from nodes it does not. That is
-// how the graph aligned the walk, not what sequence the reference lacks: at a
-// tandem array the graph may thread a copy the reference carries through nodes
-// of its own, so an off-reference run is no copy count.
+// tell nodes on the reference walk's path from nodes off it. Off the path is
+// an alternative route through the graph, not sequence the reference lacks: at
+// a duplication the graph may route a copy the reference carries through nodes
+// of its own, so an off-path run is no copy count.
 
 export interface WalkRun {
   // bp offset from the start of this walk's slice

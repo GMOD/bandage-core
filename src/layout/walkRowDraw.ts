@@ -245,9 +245,10 @@ export interface GeneGaps {
 
 const rowsText = (n: number) => `${n} row${n === 1 ? '' : 's'}`
 
-// What the bar colours mean. A run's colour says how the graph aligned the
-// walk: at a tandem array it may thread a copy the reference carries through
-// nodes of its own, so off-reference is no statement about the sequence.
+// What the bar colours mean: whether a run is on the reference walk's path.
+// Off the path is an alternative route, no statement about the sequence: at a
+// duplication the graph may route a copy the reference carries through nodes
+// of its own.
 export function walkRowsKey(
   bars: WalkRows,
   o: {
@@ -262,14 +263,14 @@ export function walkRowsKey(
         kind: 'bar',
         fill: o.ramp ? (o.rampCss ?? ON_REFERENCE) : ON_REFERENCE,
       },
-      label: `aligned to ${bars.reference.label} in the graph`,
+      label: `on ${bars.reference.label}'s path`,
     },
     {
       swatch: {
         kind: 'bar',
         fill: o.ramp ? REFERENCE_RAMP_ALT_CSS : OFF_REFERENCE,
       },
-      label: 'not aligned to it in the graph',
+      label: `off ${bars.reference.label}'s path`,
     },
   ]
   if ([bars.reference, ...bars.rows].some(row => row.gapBp > 0)) {

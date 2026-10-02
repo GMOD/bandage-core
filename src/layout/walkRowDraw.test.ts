@@ -133,8 +133,8 @@ test('the readout states length, change and what the cut left out', () => {
 test('the key says the colours are the graph’s alignment', () => {
   const key = walkRowsKey(rows(), { genes: { untracked: 2, unread: 0 } })
   expect(key.map(e => e.label)).toEqual([
-    'aligned to GRCh38#0 in the graph',
-    'not aligned to it in the graph',
+    "on GRCh38#0's path",
+    "off GRCh38#0's path",
     'walked outside the cut',
     "genes, each row's own annotation",
     'no gene track for 2 rows',

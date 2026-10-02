@@ -12,15 +12,15 @@ The plugin ships seven layouts:
   linear view.
 - **Sample rows**: x is reference bp, one row per contributing assembly.
 - **Walk rows**: x is each walk's own bp, one bar per haplotype, so a repeat
-  expansion reads as bar length. Sequence the graph aligns to the reference
-  takes the reference-position hue of the stretch it is threaded through, and
-  sequence it does not align is charcoal; under other colour schemes they are
-  blue and purple. The colours say how the graph aligned each walk, not what the
-  reference lacks: at a repeat the graph may run a copy the reference carries
-  through nodes of its own. Each bar boxes its haplotype's own genes, read from
-  the gene track of the session assembly its PanSN name (`HG00097#1`) names. The
-  Repeat picker tiles the bars by a repeat annotation's unit and marks the
-  allele a genotyper called.
+  expansion reads as bar length. A stretch on the reference's path takes the
+  reference-position hue of the reference it runs through, and a stretch off it
+  is charcoal; under other colour schemes they are blue and purple. Off the path
+  is an alternative route through the graph, not sequence the reference lacks:
+  at a duplication the graph may route a copy the reference carries through
+  nodes of its own. Each bar boxes its haplotype's own genes, read from the gene
+  track of the session assembly its PanSN name (`HG00097#1`) names. The Repeat
+  picker tiles the bars by a repeat annotation's unit and marks the allele a
+  genotyper called.
 - **Tube map**: [sequenceTubeMap](https://github.com/vgteam/sequenceTubeMap)'s
   drawing, every path a coloured tube through boxed nodes, with columns in node
   order and node widths log-scaled.
@@ -309,10 +309,10 @@ the lanes.
 Walk rows draw the same cut as one bar per haplotype. With the Repeat picker on
 the curated VNTR track, each bar runs between the KIV-2 array's flanking
 reference nodes and is tiled by its 5,548 bp kringle unit, so the copy number
-reads off the bar: about 6 in GRCh38, 27 in HG00133. Purple is copies the graph
-does not align to GRCh38's, which at KIV-2 is most of a haplotype's extra
-copies. GRCh38's six units are the six LPA exon pairs the gene track draws over
-the curated array, one pair per kringle:
+reads off the bar: about 6 in GRCh38, 27 in HG00133. Purple is copies off
+GRCh38's path, which at KIV-2 is most of a haplotype's extra copies. GRCh38's
+six units are the six LPA exon pairs the gene track draws over the curated
+array, one pair per kringle:
 
 ![KIV-2 walk rows under LPA and the curated KIV-2 annotation, each bar tiled by the kringle unit](../img/walk_rows_kiv2.png)
 
@@ -327,11 +327,11 @@ and right-click a VCF 4.5 `<CNV:TR>` record stating each allele's copies.
 Purple can mislead at a duplication. In the HPRC amylase cut, HG00133#1 has
 GRCh38's structure, three AMY1 copies in the same order, and aligns to it
 colinearly at 99.9% identity, yet 75 kb of its bar is purple, because the graph
-threads its middle copies through nodes GRCh38's walk does not visit. Count
-copies from the genes on each bar: in the HPRC config every release 2 haplotype
-is an assembly with its CAT annotation, so each bar boxes its own AMY1 copies
-under CAT's names. A gene track on the linear view above stays in reference
-coordinates, which line up with the reference row only.
+routes its middle copies through nodes off GRCh38's path. Count copies from the
+genes on each bar: in the HPRC config every release 2 haplotype is an assembly
+with its CAT annotation, so each bar boxes its own AMY1 copies under CAT's
+names. A gene track on the linear view above stays in reference coordinates,
+which line up with the reference row only.
 
 Right-click a bar to open that haplotype's span in a linear view, on its own
 assembly with its gene track.
