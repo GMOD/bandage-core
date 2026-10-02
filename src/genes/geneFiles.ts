@@ -145,11 +145,32 @@ export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
   return genes
 }
 
-// BED3 to BED12 as genes, one per name and contig: rows sharing a name, the
-// transcripts of one gene, have their blocks merged. A row with no blocks is
-// one exon, its whole span.
+// One gene per run of a name's overlapping records on a contig: a gene's
+// transcripts merge, and its copies down the contig stay apart, so an amylase
+// haplotype's two AMY1C copies 58 kb apart are two genes
+export function mergeOverlappingByName(genes: GeneModel[]) {
+  const out: GeneModel[] = []
+  const open = new Map<string, GeneModel>()
+  for (const g of [...genes].sort((a, b) => a.start - b.start)) {
+    const key = `${g.refName}\t${g.name}`
+    const last = open.get(key)
+    if (last && g.start < last.end) {
+      last.end = Math.max(last.end, g.end)
+      last.exons = mergedIntervals([...last.exons, ...g.exons])
+    } else {
+      const gene = { ...g, exons: mergedIntervals(g.exons) }
+      out.push(gene)
+      open.set(key, gene)
+    }
+  }
+  return out
+}
+
+// BED3 to BED12 as genes: rows sharing a name and overlapping, the transcripts
+// of one gene, have their blocks merged. A row with no blocks is one exon, its
+// whole span.
 export function genesFromBed(text: string): GeneModel[] {
-  const genes = new Map<string, GeneModel>()
+  const rows: GeneModel[] = []
   for (const line of text.split('\n')) {
     const cols = line.replace(/\r$/, '').split('\t')
     const start = Number(cols[1])
@@ -181,24 +202,16 @@ export function genesFromBed(text: string): GeneModel[] {
             end: start + starts[i]! + size,
           }))
         : [{ start, end }]
-    const key = `${refName}\t${name}`
-    const gene = genes.get(key)
-    if (gene) {
-      gene.start = Math.min(gene.start, start)
-      gene.end = Math.max(gene.end, end)
-      gene.exons = mergedIntervals([...gene.exons, ...blocks])
-    } else {
-      genes.set(key, {
-        name,
-        refName,
-        start,
-        end,
-        strand: strandOf(cols[5]),
-        exons: mergedIntervals(blocks),
-      })
-    }
+    rows.push({
+      name,
+      refName,
+      start,
+      end,
+      strand: strandOf(cols[5]),
+      exons: blocks,
+    })
   }
-  return [...genes.values()]
+  return mergeOverlappingByName(rows)
 }
 
 // A BED file's second and third columns are numbers; a GFF3 file's second is

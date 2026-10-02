@@ -109,6 +109,21 @@ test('genesFromBed keeps rows named `.` apart', () => {
   ])
 })
 
+// CAT annotates each copy of a gene in a haplotype under the gene's name
+test('genesFromBed keeps copies of a name apart down the contig', () => {
+  const genes = genesFromBed(
+    [
+      row('ctg', 226_565, 236_000, 'AMY1C'),
+      row('ctg', 284_484, 294_000, 'AMY1C'),
+      row('ctg', 230_000, 238_000, 'AMY1C'),
+    ].join('\n'),
+  )
+  expect(genes.map(g => [g.name, g.start, g.end])).toEqual([
+    ['AMY1C', 226_565, 238_000],
+    ['AMY1C', 284_484, 294_000],
+  ])
+})
+
 test('genesFromBed reads blocks and merges rows that share a name', () => {
   const genes = genesFromBed(
     [

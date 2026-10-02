@@ -96,6 +96,7 @@ export {
   genesFromBed,
   genesFromGff3Lines,
   genesFromText,
+  mergeOverlappingByName,
 } from './genes/geneFiles'
 export { HPRC_GBZ, cutGbzRegion, openGbz, parseRegion } from './gbzCut'
 export type { GbzSource } from './gbzCut'
@@ -139,7 +140,40 @@ export {
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
 export { walkRows } from './layout/walkRows'
-export type { WalkRows } from './layout/walkRows'
+export type { WalkAxis, WalkRow, WalkRows, WalkRun } from './layout/walkRows'
+export {
+  BAR_PX as WALK_BAR_PX,
+  GAP_PX as WALK_GAP_PX,
+  GENE_INK as WALK_GENE_INK,
+  OFF_REFERENCE as WALK_OFF_REFERENCE,
+  ON_REFERENCE as WALK_ON_REFERENCE,
+  OUTSIDE_CUT as WALK_OUTSIDE_CUT,
+  alongRow,
+  placeRowGenes,
+  readoutPlacement,
+  rowGeneBoxes,
+  rowSpan,
+  runPaint,
+  unitTicks,
+  walkRowReadout,
+  walkRowsKey,
+  walkRowsSvg,
+} from './layout/walkRowDraw'
+export type {
+  GeneBox,
+  GeneGaps,
+  KeyEntry,
+  KeySwatch,
+  ReadoutCall,
+  RowGene,
+  WalkRowsFrame,
+} from './layout/walkRowDraw'
+export {
+  RAMP_GRADIENT_CSS,
+  rampHue,
+  rampHueCss,
+  rampStops,
+} from './referenceRampCss'
 export { walkRowsExtent } from './layout/walkRowLayout'
 export { ROW_HEIGHT_PX } from './layout/rowSpacing'
 

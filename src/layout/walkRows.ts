@@ -1,4 +1,4 @@
-import { panSNSample } from '../pansn'
+import { panSNContig, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 
 import type { Graph, GraphPath } from '../types'
@@ -12,8 +12,10 @@ import type { Graph, GraphPath } from '../types'
 // A base-level graph does not revisit reference nodes through a repeat array,
 // so a copy count is not a visit count; it is the sequence a walk spends
 // between the reference nodes flanking the window, divided by the unit. Runs
-// distinguish sequence the reference walk also carries from sequence it does
-// not, so an expansion is the off-reference stretch of a row.
+// tell nodes the reference walk also visits from nodes it does not. That is
+// how the graph aligned the walk, not what sequence the reference lacks: at a
+// tandem array the graph may thread a copy the reference carries through nodes
+// of its own, so an off-reference run is no copy count.
 
 export interface WalkRun {
   // bp offset from the start of this walk's slice
@@ -32,6 +34,14 @@ export interface WalkRun {
   gap?: true
 }
 
+// Where a row's bar lies on the walk's own contig: the contig position at the
+// bar's left end, and whether positions fall rightward along it
+export interface WalkAxis {
+  contig: string
+  start: number
+  reversed: boolean
+}
+
 export interface WalkRow {
   name: string
   label: string
@@ -45,6 +55,9 @@ export interface WalkRow {
   // case the whole walk is measured and the bar says so
   complete: boolean
   runs: WalkRun[]
+  // undefined where a piece states no start or overlaps the one before, so
+  // bar offsets don't map linearly onto the contig
+  axis?: WalkAxis
 }
 
 export interface WalkRows {
@@ -90,6 +103,29 @@ function stepsOf(pieces: GraphPath[], lengthOf: Map<string, number>): Step[] {
   return steps
 }
 
+// Where each step lies on the walk's contig, steps and gaps alike; undefined
+// where a piece states no start or overlaps the one before
+function stepSpans(pieces: GraphPath[], lengthOf: Map<string, number>) {
+  const spans: { start: number; end: number }[] = []
+  let end: number | undefined
+  for (const piece of pieces) {
+    if (piece.start === undefined || (end !== undefined && piece.start < end)) {
+      return undefined
+    }
+    if (end !== undefined && piece.start > end) {
+      spans.push({ start: end, end: piece.start })
+    }
+    let pos = piece.start
+    for (const id of piece.nodeIds) {
+      const len = lengthOf.get(id) ?? 0
+      spans.push({ start: pos, end: pos + len })
+      pos += len
+    }
+    end = pos
+  }
+  return spans
+}
+
 // Each walk is cut at the nearest reference nodes IT visits on either side of
 // the region, so a walk that skips one flanking node at a SNP is still measured
 // between flanks rather than whole.
@@ -102,7 +138,7 @@ function sliceBetween(
   // A cut that stops at the window carries no flanking reference for anyone,
   // so every walk is whole and the slice is the walk.
   if (!region || !flanked) {
-    return { ids: steps, complete: true }
+    return { ids: steps, complete: true, from: -1, to: -1 }
   }
   let i0 = -1
   let i1 = -1
@@ -122,10 +158,15 @@ function sliceBetween(
     }
   })
   if (i0 < 0 || i1 < 0) {
-    return { ids: steps, complete: false }
+    return { ids: steps, complete: false, from: -1, to: -1 }
   }
   const ids = steps.slice(Math.min(i0, i1) + 1, Math.max(i0, i1))
-  return { ids: i0 < i1 ? ids : ids.reverse(), complete: true }
+  return {
+    ids: i0 < i1 ? ids : ids.reverse(),
+    complete: true,
+    from: i0,
+    to: i1,
+  }
 }
 
 export function walkRows(
@@ -178,12 +219,21 @@ export function walkRows(
   const rowOf = (pieces: GraphPath[]): WalkRow => {
     const path = pieces[0]!
     const ordered = [...pieces].sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
-    const { ids, complete } = sliceBetween(
+    const { ids, complete, from, to } = sliceBetween(
       stepsOf(ordered, lengthOf),
       span,
       cut,
       flanked,
     )
+    const spans = stepSpans(ordered, lengthOf)
+    const contig = path.contig ?? panSNContig(pathOrigin(path.name).name)
+    const axis: WalkAxis | undefined = !spans?.length
+      ? undefined
+      : from < 0
+        ? { contig, start: spans[0]!.start, reversed: false }
+        : from < to
+          ? { contig, start: spans[from]!.end, reversed: false }
+          : { contig, start: spans[from]!.start, reversed: true }
     const runs: WalkRun[] = []
     let bp = 0
     let offReferenceBp = 0
@@ -239,6 +289,7 @@ export function walkRows(
       gapBp,
       complete,
       runs,
+      axis,
     }
   }
 
