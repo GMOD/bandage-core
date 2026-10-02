@@ -145,14 +145,15 @@ export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
   return genes
 }
 
-// One gene per run of a name's overlapping records on a contig: a gene's
+// One gene per run of a name's overlapping records on a contig and strand: a
+// gene's
 // transcripts merge, and its copies down the contig stay apart, so an amylase
 // haplotype's two AMY1C copies 58 kb apart are two genes
 export function mergeOverlappingByName(genes: GeneModel[]) {
   const out: GeneModel[] = []
   const open = new Map<string, GeneModel>()
   for (const g of [...genes].sort((a, b) => a.start - b.start)) {
-    const key = `${g.refName}\t${g.name}`
+    const key = `${g.refName}\t${g.strand}\t${g.name}`
     const last = open.get(key)
     if (last && g.start < last.end) {
       last.end = Math.max(last.end, g.end)

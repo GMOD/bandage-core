@@ -157,6 +157,7 @@ export {
   unitTicks,
   walkRowReadout,
   walkRowsKey,
+  walkRowsKeySvg,
   walkRowsSvg,
 } from './layout/walkRowDraw'
 export type {
@@ -167,6 +168,7 @@ export type {
   ReadoutCall,
   RowGene,
   WalkRowsFrame,
+  WalkRowsWithCalls,
 } from './layout/walkRowDraw'
 export {
   RAMP_GRADIENT_CSS,

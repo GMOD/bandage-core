@@ -124,6 +124,18 @@ test('genesFromBed keeps copies of a name apart down the contig', () => {
   ])
 })
 
+test('genesFromBed keeps a name apart on opposite strands', () => {
+  const genes = genesFromBed(
+    [row('ctg', 100, 200, 'G', 0, '+'), row('ctg', 150, 250, 'G', 0, '-')].join(
+      '\n',
+    ),
+  )
+  expect(genes.map(g => [g.start, g.strand])).toEqual([
+    [100, 1],
+    [150, -1],
+  ])
+})
+
 test('genesFromBed reads blocks and merges rows that share a name', () => {
   const genes = genesFromBed(
     [

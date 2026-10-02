@@ -10,6 +10,9 @@ import {
 } from './facetGrid'
 import { genePins } from './genes/genePins'
 import { geneLabelCandidates } from './labelLayout'
+import { ROW_HEIGHT_PX } from './layout/rowSpacing'
+import { walkRowsKey, walkRowsKeySvg, walkRowsSvg } from './layout/walkRowDraw'
+import { walkRowsExtent } from './layout/walkRowLayout'
 import { nodeInk } from './nodeWidths'
 import {
   LABEL_CHAR_PX,
@@ -32,6 +35,7 @@ import { rangeText, walkKey } from './walkKey'
 import type { ColorScheme } from './colorSchemes'
 import type { FacetInput } from './facetGrid'
 import type { GeneModel, GenePin } from './genes/genePins'
+import type { GeneGaps, RowGene, WalkRowsWithCalls } from './layout/walkRowDraw'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
@@ -69,6 +73,13 @@ export interface FigureOptions {
   genes?: GeneModel[]
   // how the figure was made, kept in the SVG beside the version that drew it
   spec?: unknown
+  // the walk rows a host draws, after its repeat pick and sample filter, for a
+  // walk-rows layout; the figure draws their bars, readouts and key in place
+  // of nodes
+  walkRows?: WalkRowsWithCalls
+  // each row's genes as offsets along its bar, and the rows read none
+  rowGenes?: Map<string, RowGene[]>
+  rowGeneGaps?: GeneGaps
 }
 
 const FONT = 'font-family="Helvetica, Arial, sans-serif" font-size="11"'
@@ -173,8 +184,10 @@ export function figureSvg(
   const room = o.height ?? 800
   const region = o.region
   const rampDomain = o.colorDomain ?? region
+  const rows = o.walkRows
   const bounds = drawingBounds(layout, {
     region: o.fitToDrawing ? undefined : region,
+    extent: rows && layout.extent ? walkRowsExtent(rows) : undefined,
   })
   const pixelRows = layout.pixelRows ?? false
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
@@ -211,7 +224,7 @@ export function figureSvg(
   const contigThickness = o.contigThickness ?? 6
   const nodeWidth = o.nodeWidth ?? 'depth'
   const pins: GenePin[] =
-    o.genes?.length && !layout.tubeMap
+    o.genes?.length && !layout.tubeMap && !rows
       ? genePins(graph, o.genes, layout.nodePositions)
       : []
   const ink = nodeInk(graph, nodeById, contigThickness, nodeWidth)
@@ -273,7 +286,28 @@ export function figureSvg(
         chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
       )
     }
-    for (const { label, y } of layout.rowLabels ?? []) {
+    if (rows) {
+      out.push(
+        walkRowsSvg(
+          rows,
+          { ...t, width: w, height: h },
+          {
+            ramp: referenceRamp && {
+              start: referenceRamp.start,
+              end: referenceRamp.start + referenceRamp.span,
+            },
+            rowGenes: o.rowGenes,
+          },
+        ),
+      )
+    }
+    const rowLabels = rows
+      ? [rows.reference, ...rows.rows].map((r, i) => ({
+          label: r.label,
+          y: i * ROW_HEIGHT_PX,
+        }))
+      : (layout.rowLabels ?? [])
+    for (const { label, y } of rowLabels) {
       const sy = y * t.scaleY + t.translateY
       if (sy >= 0 && sy <= h) {
         out.push(
@@ -307,7 +341,7 @@ export function figureSvg(
     const renderer = new Canvas2DRenderer(canvas)
     renderer.uploadGeometry(
       buildGeometry({
-        nodePositions: layout.nodePositions,
+        nodePositions: rows ? {} : layout.nodePositions,
         graph,
         nodeById,
         colorScheme,
@@ -387,7 +421,22 @@ export function figureSvg(
           0.3,
         ),
       )
-    } else if (referenceRamp) {
+    }
+    if (rows) {
+      push(
+        walkRowsKeySvg(
+          walkRowsKey(rows, {
+            ramp: referenceRamp && {
+              start: referenceRamp.start,
+              end: referenceRamp.start + referenceRamp.span,
+            },
+            genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
+          }),
+          x,
+          2,
+        ),
+      )
+    } else if (!lift && referenceRamp) {
       push(
         keySvg(
           'ramp',

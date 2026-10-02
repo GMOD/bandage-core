@@ -88,6 +88,17 @@ test('genes land at their contig offsets, those off the bar dropped', () => {
   ])
 })
 
+test('a gene longer than its bar is cut to it', () => {
+  const bars = rows()
+  const placed = placeRowGenes(
+    bars.rows,
+    new Map([['HG1#1#ctg1', [gene('LONG', 400, 900)]]]),
+  )
+  expect(placed.get('HG1#1#ctg1')).toEqual([
+    { name: 'LONG', start: 0, end: 25, exons: [{ start: 0, end: 25 }] },
+  ])
+})
+
 test('shorter genes take their name room first', () => {
   const boxes = rowGeneBoxes(
     [

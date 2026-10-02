@@ -122,7 +122,7 @@ export interface RowGene {
 }
 
 // Each row's genes as offsets along its bar, from genes the host read for that
-// row's own contig, those overlapping the bar
+// row's own contig, cut to the bar
 export function placeRowGenes(
   rows: WalkRow[],
   byRow: Map<string, GeneModel[]>,
@@ -134,15 +134,21 @@ export function placeRowGenes(
       continue
     }
     const axis = row.axis
+    const clip = ({ start, end }: { start: number; end: number }) => ({
+      start: Math.max(0, start),
+      end: Math.min(row.bp, end),
+    })
     placed.set(
       row.name,
       genes
         .map(g => ({
           name: g.name,
-          ...alongRow(axis, g.start, g.end),
-          exons: g.exons.map(e => alongRow(axis, e.start, e.end)),
+          ...clip(alongRow(axis, g.start, g.end)),
+          exons: g.exons
+            .map(e => clip(alongRow(axis, e.start, e.end)))
+            .filter(e => e.end > e.start),
         }))
-        .filter(g => g.end > 0 && g.start < row.bp)
+        .filter(g => g.end > g.start)
         .sort((a, b) => a.start - b.start),
     )
   }
@@ -226,6 +232,8 @@ export interface KeyEntry {
 // The rows a host could read no genes for
 export interface GeneGaps {
   untracked: number
+  // rows whose walk states no contig coordinates to read genes over
+  unplaced?: number
   unread: number
 }
 
@@ -276,6 +284,13 @@ export function walkRowsKey(
         note: true,
       })
     }
+    if (o.genes.unplaced) {
+      entries.push({
+        swatch: { kind: 'gene' },
+        label: `no contig coordinates for ${rowsText(o.genes.unplaced)}`,
+        note: true,
+      })
+    }
     if (o.genes.unread) {
       entries.push({
         swatch: { kind: 'gene' },
@@ -295,6 +310,31 @@ function esc(s: string) {
     .replaceAll('"', '&quot;')
 }
 
+// walk rows whose rows may carry the allele a repeat genotype called
+export type WalkRowsWithCalls = Omit<WalkRows, 'reference' | 'rows'> & {
+  reference: WalkRow & { call?: ReadoutCall }
+  rows: (WalkRow & { call?: ReadoutCall })[]
+}
+
+// The key as SVG at (x, y), one entry after another along a line, and about
+// how wide it is
+export function walkRowsKeySvg(entries: KeyEntry[], x: number, y: number) {
+  let at = 0
+  const parts = entries.map(e => {
+    const swatch =
+      e.swatch.kind === 'gene'
+        ? `<rect x="${at}" y="5" width="18" height="8" fill="none" stroke="${GENE_INK}" stroke-width="1.5"/>`
+        : `<rect x="${at}" y="${e.swatch.kind === 'gap' ? 7 : 5}" width="18" height="${e.swatch.kind === 'gap' ? GAP_PX : 8}" rx="2" fill="${e.swatch.fill}"/>`
+    const markup = `${e.note ? '' : swatch}<text x="${e.note ? at : at + 23}" y="13"${e.note ? ' font-style="italic" fill="#666"' : ''}>${esc(e.label)}</text>`
+    at += (e.note ? 0 : 23) + e.label.length * LABEL_CHAR_PX + 16
+    return markup
+  })
+  return {
+    width: at,
+    markup: `<g transform="translate(${x} ${y})" font-family="Helvetica, Arial, sans-serif" font-size="11">${parts.join('')}</g>`,
+  }
+}
+
 export interface WalkRowsFrame {
   scaleX: number
   scaleY: number
@@ -308,12 +348,11 @@ export interface WalkRowsFrame {
 // readout and genes. `idPrefix` keeps gradient ids apart where several panes
 // share a document.
 export function walkRowsSvg(
-  bars: WalkRows,
+  bars: WalkRowsWithCalls,
   frame: WalkRowsFrame,
   o: {
     ramp?: { start: number; end: number }
     rowGenes?: Map<string, RowGene[]>
-    calls?: Map<string, ReadoutCall>
     idPrefix?: string
   } = {},
 ) {
@@ -378,7 +417,7 @@ export function walkRowsSvg(
       row,
       i === 0 ? undefined : reference,
       unit,
-      o.calls?.get(row.name),
+      row.call,
     )
     const at = readoutPlacement(text, along(row.bp), frame.width)
     out.push(
