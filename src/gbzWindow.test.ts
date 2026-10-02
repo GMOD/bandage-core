@@ -6,12 +6,12 @@ const tripped = (walkedBp: number) =>
     walkedBp,
   })
 
-test('a limit tripped in a later piece names a zoom from the window start', () => {
+test('a tripped limit names a zoom from how far the walk got', () => {
   expect(nodeLimitError(tripped(1000), 3, 10_000)?.message).toMatch(
     /zoom in to about 800 bp/,
   )
-  expect(nodeLimitError(tripped(1000), 3, 10_000, 6000)?.message).toMatch(
-    /zoom in to about 5,600 bp/,
+  expect(nodeLimitError(tripped(0), 3, 10_000)?.message).toMatch(
+    /zoom in to about 5,000 bp/,
   )
 })
 

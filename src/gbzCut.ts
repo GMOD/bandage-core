@@ -9,7 +9,7 @@ import {
   resolveReferenceSample,
 } from './gbzWindow'
 
-import type { ByteSource, RangeOptions } from '@gmod/gbz-base'
+import type { ByteSource, SnarlOutput } from '@gmod/gbz-base'
 
 // A window of a gbz-base database cut to GFA from a standalone page or a
 // script, which open the database by range requests their own way: BandageJS
@@ -24,7 +24,7 @@ export interface GbzSource {
   // bp of graph past the window's ends, and which snarls the cut keeps whole:
   // a gbz-base track's `context` and `subgraphSnarls`
   context?: number
-  snarls?: RangeOptions['snarls']
+  snarls?: SnarlOutput
 }
 
 // the HPRC release 2 Minigraph-Cactus graph, with the haplotype index that
@@ -53,7 +53,7 @@ export function parseRegion(text: string) {
 }
 
 export async function openGbz(db: ByteSource, index?: ByteSource) {
-  const base = await GBZBase.open(db, index ? { haplotypeIndex: index } : {})
+  const base = await GBZBase.open({ source: db, haplotypeIndex: index })
   return { base, referenceSamples: await referenceSamplesOf(base) }
 }
 
@@ -93,7 +93,7 @@ export async function cutGbzRegion(
     snarls: src.snarls ?? GBZ_CUT_DEFAULTS.snarls,
     limit: GBZ_CUT_DEFAULTS.limit,
     signal,
-    ...(wanted ? { keep: name => haplotypeWanted(name, wanted) } : {}),
+    keep: wanted ? name => haplotypeWanted(name, wanted) : undefined,
   })
   return { text, region, sample }
 }

@@ -2,7 +2,7 @@ import { joinCuts } from './gbzJoin.ts'
 import { panSNMatchesPrefix, panSNSample } from './pansn.ts'
 import { wellKnownSample } from './reference.ts'
 
-import type { GBZBase, PathName, PathQuery, RangeOptions } from '@gmod/gbz-base'
+import type { GBZBase, PathName, PathQuery, SnarlOutput } from '@gmod/gbz-base'
 
 // A window of a gbz-base graph cut to GFA, with no host in it: the adapter
 // and a standalone page open the database their own way and share this.
@@ -103,14 +103,13 @@ export async function referencePathQuery(
 }
 
 // gbz-base reports the node limit with how far along the reference the walk
-// had got when it tripped, counted from the cut's own start, which is
-// `walkedFrom` bp into the window; a window that fits is that far, with a
-// margin, or half the window when the limit tripped past the reference.
+// had got when it tripped, counted from the window's start; a window that fits
+// is that far, with a margin, or half the window when the limit tripped past
+// the reference.
 export function nodeLimitError(
   error: unknown,
   limit: number,
   windowBp: number,
-  walkedFrom = 0,
 ) {
   const isLimit =
     error instanceof Error &&
@@ -122,7 +121,7 @@ export function nodeLimitError(
     const walked = (error as { walkedBp?: unknown }).walkedBp
     const fits =
       typeof walked === 'number' && walked > 0
-        ? Math.floor((walkedFrom + walked) * 0.8)
+        ? Math.floor(walked * 0.8)
         : Math.floor(windowBp / 2)
     return new NodeLimitError(limit, windowBp, Math.max(fits, 1))
   }
@@ -130,10 +129,10 @@ export function nodeLimitError(
 
 export interface GbzWindowOptions {
   context: number
-  snarls: RangeOptions['snarls']
+  snarls: SnarlOutput
   limit: number
-  keep?: (name: PathName) => boolean
-  signal?: AbortSignal
+  keep?: ((name: PathName) => boolean) | undefined
+  signal?: AbortSignal | undefined
 }
 
 // A cut's context and snarls unless told otherwise, and the nodes past which a
@@ -147,33 +146,6 @@ export const GBZ_CUT_DEFAULTS = {
   limit: 100_000,
 } as const satisfies Pick<GbzWindowOptions, 'context' | 'snarls' | 'limit'>
 
-// The window split wherever the reference path starts another fragment, so
-// each piece lies inside one: getSubgraphForRange cuts the fragment its window
-// starts in alone, where getAlignmentsForRange walks them all
-export async function referencePieces(
-  db: GBZBase,
-  query: PathQuery,
-  start: number,
-  end: number,
-) {
-  const inside = (await db.paths())
-    .filter(
-      ({ isIndexed, name }) =>
-        isIndexed &&
-        name.sample === query.sample &&
-        name.haplotype === query.haplotype &&
-        name.contig === query.contig &&
-        name.fragment > start &&
-        name.fragment < end,
-    )
-    .map(path => path.name.fragment)
-  const bounds = [start, ...[...new Set(inside)].sort((a, b) => a - b), end]
-  return bounds.slice(1).map((pieceEnd, i) => ({
-    start: bounds[i]!,
-    end: pieceEnd,
-  }))
-}
-
 // The reference walk, the snarls in the window, and one W line per haplotype
 // walk (the reference walk first), PanSN-named when the database carries the
 // haplotype index. Empty when the query names no indexed path.
@@ -182,39 +154,19 @@ export async function cutWindowGFA(
   query: PathQuery | undefined,
   start: number,
   end: number,
-  { keep, ...opts }: GbzWindowOptions,
+  opts: GbzWindowOptions,
 ) {
   if (!query) {
     return ''
   }
-  const pieces = await referencePieces(db, query, start, end)
-  const subgraphs = await Promise.all(
-    pieces.map(piece =>
-      db
-        .getSubgraphForRange(query, piece.start, piece.end, {
-          ...opts,
-          haplotypes: 'all',
-          ...(keep === undefined ? {} : { keep }),
-        })
-        .catch((error: unknown) => {
-          throw (
-            nodeLimitError(
-              error,
-              opts.limit,
-              end - start,
-              piece.start - start,
-            ) ?? error
-          )
-        }),
-    ),
-  )
+  const subgraphs = await db
+    .getSubgraphs({ ...opts, path: query, start, end, haplotypes: 'all' })
+    .catch((error: unknown) => {
+      throw nodeLimitError(error, opts.limit, end - start) ?? error
+    })
   const paths = await db.paths()
   return joinCuts(
-    await Promise.all(
-      subgraphs.flatMap(subgraph =>
-        subgraph ? [subgraph.toGFA({ names: 'resolved' })] : [],
-      ),
-    ),
+    await Promise.all(subgraphs.map(subgraph => subgraph.toGFA())),
     (sample, haplotype, contig, at) =>
       paths.some(
         ({ name }) =>

@@ -82,10 +82,6 @@ function byteSource(location: string): ByteSource {
         })
         return new Uint8Array(await res.arrayBuffer())
       },
-      async stat() {
-        const res = await fetchOk(location, { method: 'HEAD' })
-        return { size: Number(res.headers.get('content-length')) }
-      },
     }
   }
   const handle = open(location)
@@ -96,9 +92,6 @@ function byteSource(location: string): ByteSource {
         await handle
       ).read(buffer, 0, length, position)
       return buffer.subarray(0, bytesRead)
-    },
-    async stat() {
-      return { size: (await (await handle).stat()).size }
     },
   }
 }
