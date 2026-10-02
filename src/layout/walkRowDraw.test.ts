@@ -4,9 +4,10 @@ import {
   rowSpan,
   walkRowReadout,
   walkRowsKey,
-  walkRowsSvg,
+  walkRowsTree,
 } from './walkRowDraw'
 import { walkRows } from './walkRows'
+import { serializeEl } from '../el'
 import { loadGraph } from '../pipeline'
 
 // Five 10 bp reference nodes on chr1 from 1000, and a 5 bp node no reference
@@ -142,24 +143,26 @@ test('the key says the colours are the graph’s alignment', () => {
 
 test('the SVG draws every row with its genes', () => {
   const bars = rows()
-  const svg = walkRowsSvg(
-    bars,
-    {
-      scaleX: 10,
-      scaleY: 1,
-      translateX: -10_000,
-      translateY: 20,
-      width: 800,
-      height: 400,
-    },
-    {
-      rowGenes: placeRowGenes(
-        bars.rows,
-        new Map([['HG1#1#ctg1', [gene('C1', 515, 525)]]]),
-      ),
-    },
+  const svg = serializeEl(
+    walkRowsTree(
+      bars,
+      {
+        scaleX: 10,
+        scaleY: 1,
+        translateX: -10_000,
+        translateY: 20,
+        width: 800,
+        height: 400,
+      },
+      {
+        rowGenes: placeRowGenes(
+          bars.rows,
+          new Map([['HG1#1#ctg1', [gene('C1', 515, 525)]]]),
+        ),
+      },
+    ),
   )
-  expect(svg.match(/<g class="row-gene">/g)).toHaveLength(1)
+  expect(svg.match(/<g class="row-gene"/g)).toHaveLength(1)
   expect(svg).toContain('>C1</text>')
   expect(svg.match(/<text /g)).toHaveLength(1 + 1 + bars.rows.length)
 })

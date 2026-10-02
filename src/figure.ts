@@ -1,5 +1,6 @@
 import { resolveColorScheme } from './colorSchemes'
 import { deletionEdges } from './deletionEdges'
+import { serializeEl } from './el'
 import {
   FACET_GAP_PX,
   FACET_PAD_PX,
@@ -11,7 +12,11 @@ import {
 import { genePins } from './genes/genePins'
 import { geneLabelCandidates } from './labelLayout'
 import { ROW_HEIGHT_PX } from './layout/rowSpacing'
-import { walkRowsKey, walkRowsKeySvg, walkRowsSvg } from './layout/walkRowDraw'
+import {
+  walkRowsKey,
+  walkRowsKeyTree,
+  walkRowsTree,
+} from './layout/walkRowDraw'
 import { walkRowsExtent } from './layout/walkRowLayout'
 import { nodeInk } from './nodeWidths'
 import {
@@ -288,16 +293,18 @@ export function figureSvg(
     }
     if (rows) {
       out.push(
-        walkRowsSvg(
-          rows,
-          { ...t, width: w, height: h },
-          {
-            ramp: referenceRamp && {
-              start: referenceRamp.start,
-              end: referenceRamp.start + referenceRamp.span,
+        serializeEl(
+          walkRowsTree(
+            rows,
+            { ...t, width: w, height: h },
+            {
+              ramp: referenceRamp && {
+                start: referenceRamp.start,
+                end: referenceRamp.start + referenceRamp.span,
+              },
+              rowGenes: o.rowGenes,
             },
-            rowGenes: o.rowGenes,
-          },
+          ),
         ),
       )
     }
@@ -423,19 +430,18 @@ export function figureSvg(
       )
     }
     if (rows) {
-      push(
-        walkRowsKeySvg(
-          walkRowsKey(rows, {
-            ramp: referenceRamp && {
-              start: referenceRamp.start,
-              end: referenceRamp.start + referenceRamp.span,
-            },
-            genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
-          }),
-          x,
-          2,
-        ),
+      const key = walkRowsKeyTree(
+        walkRowsKey(rows, {
+          ramp: referenceRamp && {
+            start: referenceRamp.start,
+            end: referenceRamp.start + referenceRamp.span,
+          },
+          genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
+        }),
+        x,
+        2,
       )
+      push({ width: key.width, markup: serializeEl(key.tree) })
     } else if (!lift && referenceRamp) {
       push(
         keySvg(

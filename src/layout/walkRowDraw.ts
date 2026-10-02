@@ -1,14 +1,17 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
+import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { rampHueCss, rampStops } from '../referenceRampCss'
 import { REFERENCE_RAMP_ALT_CSS } from '../renderer/GeometryBuilder'
 
 import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
+import type { El } from '../el'
 import type { GeneModel } from '../genes/genePins'
 
-// What walk rows draw, shared by the hosts: the plugin's React overlay, the
-// BandageJS page and the figure export each render these numbers and words
-// their own way, so the bars, readouts, genes and key agree everywhere.
+// What walk rows draw, shared by the hosts: walkRowsTree is the drawing as an
+// element tree, which the plugin renders as React elements, BandageJS as DOM
+// nodes and the figure export as markup, so the bars, readouts, genes and key
+// agree everywhere.
 
 export const ON_REFERENCE = '#2f8fd6'
 export const OFF_REFERENCE = '#8e3fbf'
@@ -32,6 +35,9 @@ function units(bp: number, unit: number | undefined) {
 export interface ReadoutCall {
   bp: number
   spanningReads?: number
+  // whether the walk's length and the called allele agree, where both are
+  // measurements
+  agrees?: boolean
 }
 
 // The text at the end of a bar: its length, what it carries against the
@@ -302,36 +308,65 @@ export function walkRowsKey(
   return entries
 }
 
-function esc(s: string) {
-  return s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
-
 // walk rows whose rows may carry the allele a repeat genotype called
 export type WalkRowsWithCalls = Omit<WalkRows, 'reference' | 'rows'> & {
   reference: WalkRow & { call?: ReadoutCall }
   rows: (WalkRow & { call?: ReadoutCall })[]
 }
 
-// The key as SVG at (x, y), one entry after another along a line, and about
-// how wide it is
-export function walkRowsKeySvg(entries: KeyEntry[], x: number, y: number) {
+const CALL_TICK = '#111'
+const UNBACKED_TICK = '#9e9e9e'
+export const DISAGREES = '#c62828'
+
+// The key at (x, y), one entry after another along a line, and about how
+// wide it is
+export function walkRowsKeyTree(entries: KeyEntry[], x: number, y: number) {
   let at = 0
-  const parts = entries.map(e => {
-    const swatch =
-      e.swatch.kind === 'gene'
-        ? `<rect x="${at}" y="5" width="18" height="8" fill="none" stroke="${GENE_INK}" stroke-width="1.5"/>`
-        : `<rect x="${at}" y="${e.swatch.kind === 'gap' ? 7 : 5}" width="18" height="${e.swatch.kind === 'gap' ? GAP_PX : 8}" rx="2" fill="${e.swatch.fill}"/>`
-    const markup = `${e.note ? '' : swatch}<text x="${e.note ? at : at + 23}" y="13"${e.note ? ' font-style="italic" fill="#666"' : ''}>${esc(e.label)}</text>`
+  const parts = entries.flatMap(e => {
+    const swatch = e.note
+      ? undefined
+      : e.swatch.kind === 'gene'
+        ? el('rect', {
+            x: at,
+            y: 5,
+            width: 18,
+            height: 8,
+            fill: 'none',
+            stroke: GENE_INK,
+            'stroke-width': 1.5,
+          })
+        : el('rect', {
+            x: at,
+            y: e.swatch.kind === 'gap' ? 7 : 5,
+            width: 18,
+            height: e.swatch.kind === 'gap' ? GAP_PX : 8,
+            rx: 2,
+            fill: e.swatch.fill,
+          })
+    const text = el(
+      'text',
+      {
+        x: e.note ? at : at + 23,
+        y: 13,
+        'font-style': e.note ? 'italic' : undefined,
+        fill: e.note ? '#666' : undefined,
+      },
+      e.label,
+    )
     at += (e.note ? 0 : 23) + e.label.length * LABEL_CHAR_PX + 16
-    return markup
+    return swatch ? [swatch, text] : [text]
   })
   return {
     width: at,
-    markup: `<g transform="translate(${x} ${y})" font-family="Helvetica, Arial, sans-serif" font-size="11">${parts.join('')}</g>`,
+    tree: el(
+      'g',
+      {
+        transform: `translate(${x} ${y})`,
+        'font-family': 'Helvetica, Arial, sans-serif',
+        'font-size': 11,
+      },
+      ...parts,
+    ),
   }
 }
 
@@ -344,10 +379,54 @@ export interface WalkRowsFrame {
   height: number
 }
 
-// Walk rows as SVG markup over a pane: each row's runs, unit separators,
-// readout and genes. `idPrefix` keeps gradient ids apart where several panes
-// share a document.
-export function walkRowsSvg(
+function geneTree(box: GeneBox, y: number) {
+  return el(
+    'g',
+    { class: 'row-gene', 'data-testid': 'graph-walk-gene' },
+    el('title', {}, box.name),
+    ...box.exons.map(e =>
+      el('rect', {
+        x: e.x,
+        y: y - BAR_PX / 2,
+        width: e.w,
+        height: BAR_PX,
+        fill: GENE_INK,
+        opacity: 0.35,
+      }),
+    ),
+    el('rect', {
+      x: box.x,
+      y: box.y,
+      width: box.w,
+      height: box.h,
+      fill: 'none',
+      stroke: GENE_INK,
+      'stroke-width': 1.5,
+    }),
+    box.label &&
+      el(
+        'text',
+        {
+          x: box.label.x,
+          y: box.label.y,
+          'font-family': 'sans-serif',
+          'font-size': box.label.size,
+          'font-weight': 600,
+          'text-anchor': 'middle',
+          fill: GENE_INK,
+          stroke: 'white',
+          'stroke-width': 2.5,
+          'paint-order': 'stroke',
+        },
+        box.name,
+      ),
+  )
+}
+
+// Walk rows over a pane: each row's runs, unit separators, its genes, the
+// allele a repeat genotype called and its readout. `idPrefix` keeps gradient
+// ids apart where several panes share a document.
+export function walkRowsTree(
   bars: WalkRowsWithCalls,
   frame: WalkRowsFrame,
   o: {
@@ -362,69 +441,96 @@ export function walkRowsSvg(
   const { origin, unit, reference, rows } = bars
   const along = (offset: number) => X(origin + offset)
   const prefix = o.idPrefix ?? 'walkrow'
-  const out: string[] = []
-  ;[reference, ...rows].forEach((row, i) => {
+  const rowTree = (
+    row: WalkRow & { call?: ReadoutCall },
+    i: number,
+  ): El | undefined => {
     const y = Y(i)
     if (y < -BAR_PX || y > frame.height + BAR_PX) {
-      return
+      return undefined
     }
-    for (const run of row.runs) {
+    const runs = row.runs.flatMap(run => {
       const paint = runPaint(run, o.ramp)
       const h = run.gap ? GAP_PX : BAR_PX
-      let fill: string
-      if ('stops' in paint) {
-        const id = `${prefix}-${i}-${run.start}`
-        out.push(
-          `<linearGradient id="${id}">${paint.stops
-            .map(
-              (c, k) =>
-                `<stop offset="${k / (paint.stops.length - 1)}" stop-color="${c}"/>`,
-            )
-            .join('')}</linearGradient>`,
+      const id = `${prefix}-${i}-${run.start}`
+      const rect = el('rect', {
+        x: along(run.start),
+        y: y - h / 2,
+        width: Math.max(1, run.bp * frame.scaleX),
+        height: h,
+        fill: 'stops' in paint ? `url(#${id})` : paint.fill,
+      })
+      return 'stops' in paint
+        ? [
+            el(
+              'linearGradient',
+              { id },
+              ...paint.stops.map((color, k) =>
+                el('stop', {
+                  offset: k / (paint.stops.length - 1),
+                  'stop-color': color,
+                }),
+              ),
+            ),
+            rect,
+          ]
+        : [rect]
+    })
+    const ticks = unit
+      ? unitTicks(row.bp, unit, frame.scaleX).map(k =>
+          el('line', {
+            x1: along(k),
+            x2: along(k),
+            y1: y - BAR_PX / 2,
+            y2: y + BAR_PX / 2,
+            stroke: 'white',
+            'stroke-width': 1,
+          }),
         )
-        fill = `url(#${id})`
-      } else {
-        fill = paint.fill
-      }
-      out.push(
-        `<rect x="${along(run.start)}" y="${y - h / 2}" width="${Math.max(1, run.bp * frame.scaleX)}" height="${h}" fill="${fill}"/>`,
-      )
-    }
-    if (unit) {
-      for (const k of unitTicks(row.bp, unit, frame.scaleX)) {
-        out.push(
-          `<line x1="${along(k)}" x2="${along(k)}" y1="${y - BAR_PX / 2}" y2="${y + BAR_PX / 2}" stroke="white" stroke-width="1"/>`,
-        )
-      }
-    }
-    for (const box of rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y)) {
-      out.push(
-        `<g class="row-gene"><title>${esc(box.name)}</title>${box.exons
-          .map(
-            e =>
-              `<rect x="${e.x}" y="${y - BAR_PX / 2}" width="${e.w}" height="${BAR_PX}" fill="${GENE_INK}" opacity="0.35"/>`,
-          )
-          .join(
-            '',
-          )}<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="none" stroke="${GENE_INK}" stroke-width="1.5"/>${
-          box.label
-            ? `<text x="${box.label.x}" y="${box.label.y}" font-family="sans-serif" font-size="${box.label.size}" font-weight="600" text-anchor="middle" fill="${GENE_INK}" stroke="white" stroke-width="2.5" paint-order="stroke">${esc(box.name)}</text>`
-            : ''
-        }</g>`,
-      )
-    }
+      : []
+    const { call } = row
     const text = walkRowReadout(
       row,
       i === 0 ? undefined : reference,
       unit,
-      row.call,
+      call,
     )
     const at = readoutPlacement(text, along(row.bp), frame.width)
-    out.push(
-      `<text x="${at.x}" y="${y + 4}" font-family="sans-serif" font-size="11" fill="#333"${
-        at.halo ? ' stroke="white" stroke-width="3" paint-order="stroke"' : ''
-      } text-anchor="${at.anchor}">${esc(text)}</text>`,
+    return el(
+      'g',
+      {
+        'data-testid': i === 0 ? 'graph-walk-reference' : 'graph-walk-row',
+      },
+      ...runs,
+      ...ticks,
+      ...rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y).map(box =>
+        geneTree(box, y),
+      ),
+      call &&
+        el('rect', {
+          'data-testid': 'graph-walk-call',
+          x: along(call.bp) - 1,
+          y: y - BAR_PX / 2 - 3,
+          width: 2,
+          height: BAR_PX + 6,
+          fill: call.spanningReads === 0 ? UNBACKED_TICK : CALL_TICK,
+        }),
+      el(
+        'text',
+        {
+          x: at.x,
+          y: y + 4,
+          'font-family': 'sans-serif',
+          'font-size': 11,
+          fill: call?.agrees === false ? DISAGREES : '#333',
+          stroke: at.halo ? 'white' : undefined,
+          'stroke-width': at.halo ? 3 : undefined,
+          'paint-order': 'stroke',
+          'text-anchor': at.anchor,
+        },
+        text,
+      ),
     )
-  })
-  return out.join('')
+  }
+  return el('g', {}, ...[reference, ...rows].map(rowTree))
 }

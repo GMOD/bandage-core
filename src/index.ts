@@ -143,6 +143,7 @@ export { walkRows } from './layout/walkRows'
 export type { WalkAxis, WalkRow, WalkRows, WalkRun } from './layout/walkRows'
 export {
   BAR_PX as WALK_BAR_PX,
+  DISAGREES as WALK_DISAGREES,
   GAP_PX as WALK_GAP_PX,
   GENE_INK as WALK_GENE_INK,
   OFF_REFERENCE as WALK_OFF_REFERENCE,
@@ -157,8 +158,8 @@ export {
   unitTicks,
   walkRowReadout,
   walkRowsKey,
-  walkRowsKeySvg,
-  walkRowsSvg,
+  walkRowsKeyTree,
+  walkRowsTree,
 } from './layout/walkRowDraw'
 export type {
   GeneBox,
@@ -170,6 +171,8 @@ export type {
   WalkRowsFrame,
   WalkRowsWithCalls,
 } from './layout/walkRowDraw'
+export { el, serializeEl } from './el'
+export type { El, ElAttrs } from './el'
 export {
   RAMP_GRADIENT_CSS,
   rampHue,
