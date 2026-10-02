@@ -1,6 +1,7 @@
 import { figureSvg } from './figure'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
+import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'
 import { graphBackbone } from './reference'
@@ -119,6 +120,31 @@ test('genes outline their exons and are named under their pins', () => {
   expect(svg).toContain(
     '<tspan font-style="italic" font-weight="600">GENE1</tspan>',
   )
+})
+
+test('walk rows in a strip sit under the drawing, labelled and keyed', () => {
+  const plain = figureSvg(graph, layout, { width: 600 })
+  const rows = walkRows(graph, undefined)!
+  const svg = figureSvg(graph, layout, {
+    width: 600,
+    walks: [{ walk: 'alt#1#chr' }],
+    walkStrip: {
+      rows,
+      rowGenes: new Map([
+        [
+          rows.rows[0]!.name,
+          [{ name: 'ALTGENE', start: 0, end: 6, exons: [] }],
+        ],
+      ]),
+      rowGeneGaps: { untracked: 1, unread: 0 },
+    },
+  })
+  const height = (s: string) => Number(/height="(\d+)"/.exec(s)![1])
+  expect(height(svg)).toBeGreaterThan(height(plain))
+  expect(svg.match(/data-testid="graph-walk-row"/g)).toHaveLength(2)
+  expect(svg).toContain('<title>ALTGENE</title>')
+  expect(svg).toMatch(/font-weight="600">alt#1<\/text>/)
+  expect(svg).toContain("genes, each row's own annotation")
 })
 
 test('the SVG names the version that drew it and the spec it drew', () => {

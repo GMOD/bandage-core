@@ -58,6 +58,7 @@ one (+49.9 kb); HG00133 takes both (+116.4 kb).
 | `width`, `height`          | the figure's width, and the most height it may take                                                                                                                                                         |
 | `colorScheme`, `nodeWidth` | as the view's Color menu and node width setting                                                                                                                                                             |
 | `showDeletionEdges`        | draw the edges that skip reference sequence                                                                                                                                                                 |
+| `walkStrip`                | walk rows in a strip under a layout that draws nodes, each haplotype's walk on its own bp; a `gbz` cut then follows whole walks unless `snarls` says otherwise                                              |
 
 Every SVG keeps its spec in its `<metadata>` beside the version that drew it,
 such as `@jbrowse/bandage-core@4.0.25`, so a figure found later says how it was

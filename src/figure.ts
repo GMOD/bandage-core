@@ -18,6 +18,11 @@ import {
   walkRowsTree,
 } from './layout/walkRowDraw'
 import { walkRowsExtent } from './layout/walkRowLayout'
+import {
+  stripGeneGaps,
+  walkStripFrame,
+  walkStripLabelsTree,
+} from './layout/walkStrip'
 import { nodeInk } from './nodeWidths'
 import {
   LABEL_CHAR_PX,
@@ -41,6 +46,7 @@ import type { ColorScheme } from './colorSchemes'
 import type { FacetInput } from './facetGrid'
 import type { GeneModel, GenePin } from './genes/genePins'
 import type { GeneGaps, RowGene, WalkRowsWithCalls } from './layout/walkRowDraw'
+import type { WalkRows } from './layout/walkRows'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
@@ -85,12 +91,19 @@ export interface FigureOptions {
   // each row's genes as offsets along its bar, and the rows read none
   rowGenes?: Map<string, RowGene[]>
   rowGeneGaps?: GeneGaps
+  // walk rows in a strip under a layout that draws nodes, with their genes
+  walkStrip?: {
+    rows: WalkRows
+    rowGenes?: Map<string, RowGene[]>
+    rowGeneGaps?: GeneGaps
+  }
 }
 
 const FONT = 'font-family="Helvetica, Arial, sans-serif" font-size="11"'
 const BAR_PX = 48
 const SWATCH_PX = 18
 const KEY_GAP_PX = 16
+const STRIP_KEY_PX = 22
 const FADED = 'rgb(160,160,160)'
 // the gene track's CDS colour, round each exon, as the viewer draws it
 const EXON_COLOR = '#daa520'
@@ -472,6 +485,44 @@ export function figureSvg(
       `<svg y="${header}" width="${width}" height="${h}">${drawing(lift, width, h)}</svg>`,
     )
     height = header + h
+  }
+  const strip = o.walkStrip
+  if (strip && !rows && !layout.tubeMap) {
+    const frame = walkStripFrame(strip.rows, { width })
+    const key = walkRowsKeyTree(
+      walkRowsKey(strip.rows, {
+        ramp: referenceRamp && {
+          start: referenceRamp.start,
+          end: referenceRamp.start + referenceRamp.span,
+        },
+        genes: strip.rowGenes?.size
+          ? stripGeneGaps(frame, strip.rowGeneGaps)
+          : undefined,
+      }),
+      6,
+      height + frame.height,
+    )
+    parts.push(
+      `<line x1="0" x2="${width}" y1="${height + 0.5}" y2="${height + 0.5}" stroke="#ddd"/>`,
+      `<svg y="${height}" width="${width}" height="${frame.height}">${serializeEl(
+        walkRowsTree(strip.rows, frame, {
+          ramp: referenceRamp && {
+            start: referenceRamp.start,
+            end: referenceRamp.start + referenceRamp.span,
+          },
+          rowGenes: strip.rowGenes,
+          idPrefix: 'strip',
+        }),
+      )}${serializeEl(
+        walkStripLabelsTree(
+          strip.rows,
+          frame,
+          new Set(layers.map(l => l.walk)),
+        ),
+      )}</svg>`,
+      serializeEl(key.tree),
+    )
+    height += frame.height + STRIP_KEY_PX
   }
   const metadata = JSON.stringify({
     generator: `@jbrowse/bandage-core@${version}`,

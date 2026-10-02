@@ -174,11 +174,14 @@ export type {
 } from './layout/walkRowDraw'
 export {
   LABELLED_ROW_PX,
+  WALK_STRIP_CEILING_PX,
   segmentAt,
+  stripGeneGaps,
   stripMarks,
   stripRowAt,
   walkMarksTree,
   walkStripFrame,
+  walkStripLabelsTree,
 } from './layout/walkStrip'
 export type { StripFrame, StripMark } from './layout/walkStrip'
 export { el, serializeEl } from './el'

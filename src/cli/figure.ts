@@ -20,6 +20,7 @@ import {
   genesFromGff3Lines,
   genesFromText,
 } from '../genes/geneFiles'
+import { walkRows } from '../layout/walkRows'
 import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
 import loadBandage from '../loadBandage'
 import { forceLayout, loadGraph } from '../pipeline'
@@ -46,7 +47,7 @@ import type { ByteSource } from '@gmod/gbz-base'
 
 export interface FigureSpec extends Omit<
   FigureOptions,
-  'walks' | 'region' | 'genes' | 'spec'
+  'walks' | 'region' | 'genes' | 'spec' | 'walkStrip'
 > {
   gfa?: string
   // `db` is a gbz-base database, or `hprc` for the HPRC release 2 graph
@@ -58,6 +59,8 @@ export interface FigureSpec extends Omit<
   quality?: number
   bubbleSpread?: BubbleSpread
   walks?: (string | WalkLayer)[]
+  // walk rows in a strip under a layout that draws nodes
+  walkStrip?: boolean
   // a GFF3 or BED file or url, read by range through `index` (.tbi or .csi)
   // where there is one, for the genes on the backbone's contigs. A file that
   // names a contig other than as the graph does, with or without `chr`, says
@@ -232,6 +235,8 @@ async function renderSpec(spec: FigureSpec, base: string) {
     name: string
     region?: ReturnType<typeof parseRegion>
   }
+  const mode = layoutModeByValue(spec.layout ?? 'force')
+  const strip = !!spec.walkStrip && mode.drawsNodes
   if (spec.gbz) {
     const { db, index } = spec.gbz.db === 'hprc' ? HPRC_GBZ : spec.gbz
     const indexLocation = index
@@ -242,7 +247,10 @@ async function renderSpec(spec: FigureSpec, base: string) {
         byteSource(resolve(db)),
         indexLocation ? byteSource(indexLocation) : undefined,
       ),
-      spec.gbz,
+      // walk rows measure whole walks, which a cut only follows when asked
+      mode.wholeWalks || strip
+        ? { snarls: 'overlapping', ...spec.gbz }
+        : spec.gbz,
     )
     source = { ...cut, name: `${cut.sample} ${spec.gbz.region}` }
   } else if (spec.gfa) {
@@ -258,7 +266,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
     referencePath: spec.referencePath,
   })
   const layout =
-    layoutModeByValue(spec.layout ?? 'force').run(graph, source.region) ??
+    mode.run(graph, source.region) ??
     (
       await forceLayout(
         graph,
@@ -270,8 +278,10 @@ async function renderSpec(spec: FigureSpec, base: string) {
         engine,
       )
     ).result
+  const stripRows = strip ? walkRows(graph, source.region) : undefined
   return figureSvg(graph, layout, {
     ...spec,
+    walkStrip: stripRows && { rows: stripRows },
     walks: spec.walks?.map(w => (typeof w === 'string' ? { walk: w } : w)),
     region: source.region,
     genes: spec.genes ? await readGenes(spec.genes, graph, resolve) : undefined,

@@ -1,9 +1,10 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { alongRow, boxesGenes } from './walkRowDraw'
 import { el } from '../el'
+import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 
-import type { WalkRowsFrame } from './walkRowDraw'
+import type { GeneGaps, WalkRowsFrame } from './walkRowDraw'
 import type { WalkRow, WalkRows } from './walkRows'
 import type { Graph, GraphNode } from '../types'
 
@@ -14,6 +15,9 @@ import type { Graph, GraphNode } from '../types'
 // down to a dense overview, rather than asking which to show.
 
 const PAD_PX = 6
+// the most height the strip takes, its rows shrinking to fit
+export const WALK_STRIP_CEILING_PX = 260
+const LABEL_FONT_PX = 11
 const MIN_ROW_PX = 3
 // rows thinner than this go unlabelled, their names and readouts on hover
 export const LABELLED_ROW_PX = 12
@@ -147,21 +151,28 @@ export interface StripFrame extends WalkRowsFrame {
 
 // The strip's frame: every row, the reference's first, at the pitch that fits
 // `maxHeight`, from the walk-rows layout's own down to MIN_ROW_PX, and x fitted
-// so the longest bar and its readout fill the width past the label column
+// so the longest bar and its readout fill the width past the label column,
+// which by default fits the longest label
 export function walkStripFrame(
   bars: WalkRows,
-  o: { width: number; maxHeight: number; labelPx: number },
+  o: { width: number; maxHeight?: number; labelPx?: number },
 ): StripFrame {
+  const maxHeight = o.maxHeight ?? WALK_STRIP_CEILING_PX
+  const labelPx =
+    o.labelPx ??
+    Math.max(...[bars.reference, ...bars.rows].map(r => r.label.length)) *
+      LABEL_CHAR_PX +
+      16
   const count = bars.rows.length + 1
   const rowPx = Math.max(
     MIN_ROW_PX,
-    Math.min(ROW_HEIGHT_PX, Math.floor((o.maxHeight - 2 * PAD_PX) / count)),
+    Math.min(ROW_HEIGHT_PX, Math.floor((maxHeight - 2 * PAD_PX) / count)),
   )
   const labelled = rowPx >= LABELLED_ROW_PX
   const readouts = rowPx >= 14
   const barPx = Math.max(2, Math.round(rowPx * 0.6))
   const longest = Math.max(bars.reference.bp, ...bars.rows.map(r => r.bp), 1)
-  const left = labelled ? o.labelPx : PAD_PX
+  const left = labelled ? labelPx : PAD_PX
   const usable = Math.max(1, o.width - left - PAD_PX)
   const scaleX = usable / (longest * (readouts ? READOUT_ROOM : 1))
   return {
@@ -225,4 +236,34 @@ export function walkMarksTree(
       ]
     }),
   )
+}
+
+// Each row's name in the label column, where rows are tall enough to carry
+// one; `bold` names the walks lifted into the drawing
+export function walkStripLabelsTree(
+  bars: WalkRows,
+  frame: StripFrame,
+  bold: ReadonlySet<string> = new Set(),
+) {
+  return el(
+    'g',
+    { 'font-family': 'sans-serif', 'font-size': LABEL_FONT_PX, fill: '#333' },
+    ...(frame.labelled ? [bars.reference, ...bars.rows] : []).map((row, i) =>
+      el(
+        'text',
+        {
+          x: 6,
+          y: i * frame.rowPx + frame.translateY + 4,
+          'font-weight': bold.has(row.name) ? 600 : undefined,
+        },
+        row.label,
+      ),
+    ),
+  )
+}
+
+// What the key says of the strip's genes: rows too close to box them leave
+// them out
+export function stripGeneGaps(frame: StripFrame, gaps: GeneGaps | undefined) {
+  return gaps && !frame.boxesGenes ? { ...gaps, crowded: true } : gaps
 }
