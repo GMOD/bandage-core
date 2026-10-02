@@ -16,11 +16,11 @@ The plugin ships seven layouts:
   reference-position hue of the reference it runs through, and a stretch off it
   is charcoal; under other colour schemes they are blue and purple. Off the path
   is an alternative route through the graph, not sequence the reference lacks:
-  at a duplication the graph may route a copy the reference carries through
-  nodes of its own. Each bar boxes its haplotype's own genes, read from the gene
-  track of the session assembly its PanSN name (`HG00097#1`) names. The Repeat
-  picker tiles the bars by a repeat annotation's unit and marks the allele a
-  genotyper called.
+  at a duplication the graph may route a copy the reference has through nodes of
+  its own. Each bar boxes its haplotype's own genes, read from the gene track of
+  the session assembly its PanSN name (`HG00097#1`) names. The Repeat picker
+  tiles the bars by a repeat annotation's unit and marks the allele a genotyper
+  called.
 - **Tube map**: [sequenceTubeMap](https://github.com/vgteam/sequenceTubeMap)'s
   drawing, every path a coloured tube through boxed nodes, with columns in node
   order and node widths log-scaled.
@@ -69,9 +69,9 @@ same bp across the curated KIV-2 array:
   taller for wider tubes
 - In a view of its own, the session's genes draw in rows above the tubes, mapped
   through the reference's boxes, so on the own axis an exon is as wide as the
-  boxes that carry it. The fit leaves as many rows as genes overlap at one
-  point, up to four. A linear view has them in their own track, at their bp, and
-  draws none over the tubes
+  boxes that hold it. The fit leaves as many rows as genes overlap at one point,
+  up to four. A linear view has them in their own track, at their bp, and draws
+  none over the tubes
 - On the own axis in a linear view, a band runs from each reference node's bp on
   the ruler down to its box, as the LD display ties its matrix columns to their
   variants. The wedges between bands are the curves and inserted sequence, which
@@ -90,13 +90,13 @@ same bp across the curated KIV-2 array:
 - **Fold variants** folds every variant under a size into the reference, after
   svSTM
   ([van den Brandt et al., EuroVis 2025](https://doi.org/10.2312/evs.20251091)):
-  the reference between two larger ones is one box, and each walk marks what it
-  carries there as a tick on its tube at the variant's bp, which the legend
-  names with the fold's size. A human window is mostly SNPs, so MICB's 22 kb cut
-  goes from 475 columns to 34 under 3 bp and to one box under 50, where it reads
-  as a SNP strip per haplotype. A repeat array keeps one box per distinct copy
-  route. Off by default, and off while reads are shown, since they are placed by
-  the segments a fold merges
+  the reference between two larger ones is one box, and each walk marks its own
+  allele there as a tick on its tube at the variant's bp, which the legend names
+  with the fold's size. A human window is mostly SNPs, so MICB's 22 kb cut goes
+  from 475 columns to 34 under 3 bp and to one box under 50, where it reads as a
+  SNP strip per haplotype. A repeat array keeps one box per distinct copy route.
+  Off by default, and off while reads are shown, since they are placed by the
+  segments a fold merges
 
 ### Reads
 
@@ -164,7 +164,7 @@ the graph's `HG00133#1`; a MAF row does it on JBrowse releases after
 
 Opened as a view under the linear view, the cut draws MICB's exons above the
 tubes, and hovering a box bands its bp in the linear view. Here it is GRCh38's
-base at 31,505,769 in exon 2, which three of the nine walks carry:
+base at 31,505,769 in exon 2, which three of the nine walks take:
 
 ![The MICB cut as a view under its linear view, a variant's box hovered and its bp banded in exon 2](../img/tube_map_micb.png)
 
@@ -201,9 +201,9 @@ sit at their bp under the curated KIV-2 annotation:
 
 ## Haplotype walks
 
-A gbz-base cut carries the haplotypes' walks. A node draws thicker the more
-walks carry it, as Bandage draws depth. Each route through a bubble carries a
-label with its haplotypes and length.
+A gbz-base cut includes the haplotypes' walks. A node draws thicker the more
+walks visit it, as Bandage draws depth. Each route through a bubble has a label
+with its haplotypes and length.
 
 The Walks picker lifts haplotypes out of the drawing, and the rest of the graph
 fades to grey. A tube map has no picker, since its tubes already are the walks.
@@ -228,7 +228,7 @@ At GSTM1, three haplotypes take three routes. HG01960 runs through GRCh38's
 GSTM1 and HG00133 skips it. HG03041 runs round a loop of its own, 46 bp longer
 than GRCh38's: a copy of GSTM1 that the graph never merged with GRCh38's. HPRC's
 own wfmash alignment runs HG03041 straight through GRCh38's GSTM1, so the loop
-is how the graph was built, not a deletion. 84 of HPRC's 463 haplotypes carry
+is how the graph was built, not a deletion. 84 of HPRC's 463 haplotypes have
 GSTM1 that way. Synteny read from the graph records such a copy as a deletion
 beside an insertion of the same length, and the synteny lanes draw it as a gap
 just like HG00133's. The multiple alignment from the same build does too: in the
@@ -296,8 +296,8 @@ walks' lane colours, a row each.
 A walk that crosses the reference's nodes the other way runs the other way along
 them, and its key gives the bp it runs reversed. Both orientations of an
 inverted haplotype visit the same nodes, so side by side is how a force drawing
-shows an inversion: at MAPT, HG002's first haplotype carries the H2 inversion
-and runs red to yellow where GRCh38 runs yellow to red.
+shows an inversion: at MAPT, HG002's first haplotype has the H2 inversion and
+runs red to yellow where GRCh38 runs yellow to red.
 
 **Export SVG** in the view's menu saves the drawing, its walks' keys and panels
 as a vector figure. The same renderer makes figures from a JSON spec with no
@@ -339,16 +339,16 @@ assembly with its gene track.
 ## Genes on the graph
 
 The session's gene track draws each exon as a goldenrod outline, the gene
-track's CDS colour, around the backbone stretch that carries it, and pins each
-gene's name under its midpoint. The outline clears the node, and any lifted
-lanes on it, so the colour inside stays the node's own. A gene the cut carries
-only part of says how much: `LPA · 35 of 132.8 kb`. A tube map in a view of its
-own draws genes in rows above the tubes instead, and one in a linear view leaves
-them to the gene track (see Tube maps).
+track's CDS colour, around its backbone stretch, and pins each gene's name under
+its midpoint. The outline clears the node, and any lifted lanes on it, so the
+colour inside stays the node's own. A gene only partly inside the cut says how
+much: `LPA · 35 of 132.8 kb`. A tube map in a view of its own draws genes in
+rows above the tubes instead, and one in a linear view leaves them to the gene
+track (see Tube maps).
 
 In MHC class II the gene track's HLA-DRB5, HLA-DRB6 and HLA-DRB1 sit over their
 exons on the graph's backbone. HLA-DR haplotypes differ in which DRB genes they
-carry, and the longest allele off the reference is HG01071's own 46.9 kb.
+have, and the longest allele off the reference is HG01071's own 46.9 kb.
 Hovering it shows where it goes: in place of 173 bp of GRCh38, between HLA-DRB5
 and HLA-DRB6:
 
