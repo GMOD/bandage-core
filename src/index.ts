@@ -150,6 +150,7 @@ export {
   ON_REFERENCE as WALK_ON_REFERENCE,
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,
   alongRow,
+  coalesceRuns,
   placeRowGenes,
   readoutPlacement,
   rowGeneBoxes,
@@ -171,6 +172,15 @@ export type {
   WalkRowsFrame,
   WalkRowsWithCalls,
 } from './layout/walkRowDraw'
+export {
+  LABELLED_ROW_PX,
+  segmentAt,
+  stripMarks,
+  stripRowAt,
+  walkMarksTree,
+  walkStripFrame,
+} from './layout/walkStrip'
+export type { StripFrame, StripMark } from './layout/walkStrip'
 export { el, serializeEl } from './el'
 export type { El, ElAttrs } from './el'
 export {

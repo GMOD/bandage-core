@@ -378,6 +378,66 @@ export interface WalkRowsFrame {
   translateY: number
   width: number
   height: number
+  // the rows' pitch and bar height in px, ROW_HEIGHT_PX and BAR_PX unless a
+  // dense strip shrinks them
+  rowPx?: number
+  barPx?: number
+  // false where rows are too thin to letter, which leaves readouts to hover
+  readouts?: boolean
+}
+
+// Runs under a pixel wide merged into one, painted as the bp most of them
+// carry: a base-level cut splits a bar at every SNP, which draws as noise and
+// costs an element per run. Gaps stay apart.
+export function coalesceRuns(runs: WalkRun[], pxPerBp: number) {
+  const minBp = 1 / pxPerBp
+  const out: WalkRun[] = []
+  let bucket: WalkRun[] = []
+  const flush = () => {
+    if (bucket.length === 0) {
+      return
+    }
+    if (bucket.length === 1) {
+      out.push(bucket[0]!)
+    } else {
+      let on = 0
+      let off = 0
+      for (const r of bucket) {
+        if (r.onReference) {
+          on += r.bp
+        } else {
+          off += r.bp
+        }
+      }
+      const onReference = on >= off
+      const lead = bucket.find(r => r.onReference === onReference)!
+      out.push({
+        start: bucket[0]!.start,
+        bp: on + off,
+        onReference,
+        referenceStart: onReference ? lead.referenceStart : undefined,
+        ...(lead.reversed ? { reversed: true as const } : {}),
+      })
+    }
+    bucket = []
+  }
+  let held = 0
+  for (const run of runs) {
+    if (run.gap || run.bp >= minBp) {
+      flush()
+      held = 0
+      out.push(run)
+      continue
+    }
+    bucket.push(run)
+    held += run.bp
+    if (held >= minBp) {
+      flush()
+      held = 0
+    }
+  }
+  flush()
+  return out
 }
 
 function geneTree(box: GeneBox, y: number) {
@@ -437,8 +497,9 @@ export function walkRowsTree(
   } = {},
 ) {
   const X = (bp: number) => bp * frame.scaleX + frame.translateX
-  const Y = (row: number) =>
-    row * ROW_HEIGHT_PX * frame.scaleY + frame.translateY
+  const rowPx = frame.rowPx ?? ROW_HEIGHT_PX
+  const barPx = frame.barPx ?? BAR_PX
+  const Y = (row: number) => row * rowPx * frame.scaleY + frame.translateY
   const { origin, unit, reference, rows } = bars
   const along = (offset: number) => X(origin + offset)
   const prefix = o.idPrefix ?? 'walkrow'
@@ -447,12 +508,12 @@ export function walkRowsTree(
     i: number,
   ): El | undefined => {
     const y = Y(i)
-    if (y < -BAR_PX || y > frame.height + BAR_PX) {
+    if (y < -barPx || y > frame.height + barPx) {
       return undefined
     }
-    const runs = row.runs.flatMap(run => {
+    const runs = coalesceRuns(row.runs, frame.scaleX).flatMap(run => {
       const paint = runPaint(run, o.ramp)
-      const h = run.gap ? GAP_PX : BAR_PX
+      const h = run.gap ? Math.min(GAP_PX, barPx) : barPx
       const id = `${prefix}-${i}-${run.start}`
       const rect = el('rect', {
         x: along(run.start),
@@ -482,8 +543,8 @@ export function walkRowsTree(
           el('line', {
             x1: along(k),
             x2: along(k),
-            y1: y - BAR_PX / 2,
-            y2: y + BAR_PX / 2,
+            y1: y - barPx / 2,
+            y2: y + barPx / 2,
             stroke: 'white',
             'stroke-width': 1,
           }),
@@ -497,6 +558,7 @@ export function walkRowsTree(
       call,
     )
     const at = readoutPlacement(text, along(row.bp), frame.width)
+    const readouts = frame.readouts ?? true
     return el(
       'g',
       {
@@ -511,26 +573,27 @@ export function walkRowsTree(
         el('rect', {
           'data-testid': 'graph-walk-call',
           x: along(call.bp) - 1,
-          y: y - BAR_PX / 2 - 3,
+          y: y - barPx / 2 - 3,
           width: 2,
-          height: BAR_PX + 6,
+          height: barPx + 6,
           fill: call.spanningReads === 0 ? UNBACKED_TICK : CALL_TICK,
         }),
-      el(
-        'text',
-        {
-          x: at.x,
-          y: y + 4,
-          'font-family': 'sans-serif',
-          'font-size': 11,
-          fill: call?.agrees === false ? DISAGREES : '#333',
-          stroke: at.halo ? 'white' : undefined,
-          'stroke-width': at.halo ? 3 : undefined,
-          'paint-order': 'stroke',
-          'text-anchor': at.anchor,
-        },
-        text,
-      ),
+      readouts &&
+        el(
+          'text',
+          {
+            x: at.x,
+            y: y + 4,
+            'font-family': 'sans-serif',
+            'font-size': 11,
+            fill: call?.agrees === false ? DISAGREES : '#333',
+            stroke: at.halo ? 'white' : undefined,
+            'stroke-width': at.halo ? 3 : undefined,
+            'paint-order': 'stroke',
+            'text-anchor': at.anchor,
+          },
+          text,
+        ),
     )
   }
   return el('g', {}, ...[reference, ...rows].map(rowTree))
