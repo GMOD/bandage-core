@@ -82,5 +82,6 @@ export interface Renderer {
   setEdgeHighlight(edgeIndex: number | null, factor: number): void
   updateTransform(transform: TransformUniform): void
   render(clearColor: [number, number, number, number]): void
+  releaseOffscreenTargets(): void
   dispose(): void
 }

@@ -490,7 +490,7 @@ export function figureSvg(
     const key = walkRowsKeyTree(
       walkRowsKey(strip.rows, {
         ramp: rampInterval,
-        genes: stripGeneGaps(frame, strip.rowGeneGaps, strip.rowGenes),
+        genes: stripGeneGaps(frame, strip.rowGenes, strip.rowGeneGaps),
       }),
       6,
       height + frame.height,

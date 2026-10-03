@@ -262,14 +262,14 @@ export function walkStripLabelsTree(
   )
 }
 
-// What the key says of the strip's genes, given the genes it has where the
-// host passes them: rows too close to box them leave them out
+// What the key says of the strip's genes, where it has any: rows too close to
+// box them leave them out
 export function stripGeneGaps(
   frame: StripFrame,
+  rowGenes: Map<string, RowGene[]> | undefined,
   gaps: GeneGaps | undefined,
-  rowGenes?: Map<string, RowGene[]>,
 ): GeneGaps | undefined {
-  if (rowGenes ? !rowGenes.size : !gaps) {
+  if (!rowGenes?.size) {
     return undefined
   }
   return frame.boxesGenes
