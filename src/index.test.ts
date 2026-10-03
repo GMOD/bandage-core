@@ -13,7 +13,7 @@ const ALLOWED = [
   /^@jbrowse\/render-core\/esm\/(canvas2dUtils|canvasContext|renderingBackendBase)\.js$/,
   /^@jbrowse\/render-core\/esm\/marks\/colorFill\.js$/,
   /^@gmod\/tubemap-core\/dist\//,
-  /^@gmod\/gbz-base\/dist\//,
+  /^@gmod\/gbz-base\/(dist|esm)\//,
 ]
 
 // What BandageJS imports. Dropping one breaks that page at its next upgrade,
