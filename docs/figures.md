@@ -59,6 +59,11 @@ one (+49.9 kb); HG00133 takes both (+116.4 kb).
 | `colorScheme`, `nodeWidth` | as the view's Color menu and node width setting                                                                                                                                                             |
 | `showDeletionEdges`        | draw the edges that skip reference sequence                                                                                                                                                                 |
 | `walkStrip`                | walk rows in a strip under a layout that draws nodes, each haplotype's walk on its own bp; a `gbz` cut then follows whole walks unless `snarls` says otherwise                                              |
+| `walkRowSamples`           | the samples the strip keeps, in the order it draws them                                                                                                                                                     |
+
+A spec's `genes` are the backbone's, so in a walk strip `bandage-figure` boxes
+them on the reference row only, and the key says "no gene track" for the other
+rows.
 
 Every SVG keeps its spec in its `<metadata>` beside the version that drew it,
 such as `@jbrowse/bandage-core@4.0.25`, so a figure found later says how it was
@@ -69,6 +74,9 @@ In the plugin and BandageJS, **Export SVG** saves the drawing through the same
 renderer, and **Copy figure spec** gives the spec for what is on screen, to make
 the figure again from a script. The plugin writes one for a graph cut from a
 gbz-base track or read from a GFA url, with the genes of a GFF3 tabix track.
+`bandage-figure` refuses a layout that draws no nodes, such as walk rows or a
+tube map (`checkLayout`), so under those the plugin disables **Copy figure
+spec** and says why.
 
 `node scripts/render-figures.mjs` renders every spec in [figures/](../figures)
 to `img/figure_<name>.svg`.
