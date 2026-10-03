@@ -1,4 +1,5 @@
 import {
+  genesOnRow,
   placeRowGenes,
   rowGeneBoxes,
   rowSpan,
@@ -205,4 +206,16 @@ test('under the reference ramp the SVG key paints its on-path swatch as the ramp
   const svg = serializeEl(tree)
   expect(svg.match(/<linearGradient /g)).toHaveLength(1)
   expect(svg).toContain('fill="url(#walk-key-ramp-0)"')
+})
+
+test("a row takes the backbone's genes on its own contig, bare or PanSN", () => {
+  const row = rows().reference
+  const contig = row.axis!.contig
+  const on = { ...gene('ON', 0, 10), refName: contig }
+  const panSN = { ...gene('PANSN', 0, 10), refName: `GRCh38#0#${contig}` }
+  const off = { ...gene('OFF', 0, 10), refName: `${contig}_alt` }
+  expect(genesOnRow(row, [on, panSN, off]).map(g => g.name)).toEqual([
+    'ON',
+    'PANSN',
+  ])
 })

@@ -132,6 +132,15 @@ export interface RowGene {
   exons: { start: number; end: number }[]
 }
 
+// The backbone's genes on a row's own contig, which a multi-contig backbone
+// holds others beside
+export function genesOnRow(row: WalkRow, genes: GeneModel[]) {
+  const contig = row.axis?.contig
+  return genes.filter(
+    g => g.refName === contig || g.refName.endsWith(`#${contig}`),
+  )
+}
+
 // Each row's genes as offsets along its bar, from genes the host read for that
 // row's own contig, cut to the bar
 export function placeRowGenes(

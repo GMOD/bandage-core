@@ -151,6 +151,7 @@ export {
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,
   alongRow,
   coalesceRuns,
+  genesOnRow,
   placeRowGenes,
   readoutPlacement,
   rowGeneBoxes,

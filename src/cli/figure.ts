@@ -20,6 +20,7 @@ import {
   genesFromGff3Lines,
   genesFromText,
 } from '../genes/geneFiles'
+import { genesOnRow, placeRowGenes } from '../layout/walkRowDraw'
 import { filterSamples, walkRows } from '../layout/walkRows'
 import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
 import loadBandage from '../loadBandage'
@@ -281,12 +282,31 @@ async function renderSpec(spec: FigureSpec, base: string) {
     ...bars,
     rows: filterSamples(bars.rows, spec.walkRowSamples),
   }
+  const genes = spec.genes
+    ? await readGenes(spec.genes, graph, resolve)
+    : undefined
+  // a spec names only the backbone's genes, which box the reference row alone
+  const reference = stripRows?.reference
+  const rowGenes =
+    reference && genes?.length
+      ? placeRowGenes(
+          [reference],
+          new Map([[reference.name, genesOnRow(reference, genes)]]),
+        )
+      : undefined
   return figureSvg(graph, layout, {
     ...spec,
-    walkStrip: stripRows && { rows: stripRows },
+    walkStrip: stripRows && {
+      rows: stripRows,
+      rowGenes,
+      rowGeneGaps: rowGenes && {
+        untracked: stripRows.rows.length,
+        unread: 0,
+      },
+    },
     walks: spec.walks?.map(w => (typeof w === 'string' ? { walk: w } : w)),
     region: source.region,
-    genes: spec.genes ? await readGenes(spec.genes, graph, resolve) : undefined,
+    genes,
     spec,
   })
 }
