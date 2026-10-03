@@ -33,7 +33,11 @@ export function rampStops(
   )
 }
 
-export const RAMP_GRADIENT_CSS = `linear-gradient(to right, ${Array.from(
-  { length: 7 },
-  (_, i) => `${rampHueCss((i / 6) * REFERENCE_RAMP_MAX_HUE)} ${(i / 6) * 100}%`,
+export const RAMP_GRADIENT_STOPS = Array.from({ length: 7 }, (_, i) => ({
+  offset: i / 6,
+  color: rampHueCss((i / 6) * REFERENCE_RAMP_MAX_HUE),
+}))
+
+export const RAMP_GRADIENT_CSS = `linear-gradient(to right, ${RAMP_GRADIENT_STOPS.map(
+  s => `${s.color} ${s.offset * 100}%`,
 ).join(', ')})`

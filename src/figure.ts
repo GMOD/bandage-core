@@ -452,6 +452,7 @@ export function figureSvg(
         }),
         x,
         2,
+        'rows-key',
       )
       push({ width: key.width, markup: serializeEl(key.tree) })
     } else if (!lift && referenceRamp) {
@@ -494,6 +495,7 @@ export function figureSvg(
       }),
       6,
       height + frame.height,
+      'strip-key',
     )
     parts.push(
       `<line x1="0" x2="${width}" y1="${height + 0.5}" y2="${height + 0.5}" stroke="#ddd"/>`,

@@ -1,7 +1,12 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
-import { rampHueCss, rampStops } from '../referenceRampCss'
+import {
+  RAMP_GRADIENT_CSS,
+  RAMP_GRADIENT_STOPS,
+  rampHueCss,
+  rampStops,
+} from '../referenceRampCss'
 import { REFERENCE_RAMP_ALT_CSS } from '../renderer/GeometryBuilder'
 
 import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
@@ -241,7 +246,8 @@ export function rowGeneBoxes(
 }
 
 export type KeySwatch =
-  | { kind: 'bar'; fill: string }
+  // `ramp` bars paint the reference-position ramp, which `fill` holds as CSS
+  | { kind: 'bar'; fill: string; ramp?: true }
   | { kind: 'gap'; fill: string }
   | { kind: 'gene' }
 
@@ -278,10 +284,9 @@ export function walkRowsKey(
 ): KeyEntry[] {
   const entries: KeyEntry[] = [
     {
-      swatch: {
-        kind: 'bar',
-        fill: o.ramp ? (o.rampCss ?? ON_REFERENCE) : ON_REFERENCE,
-      },
+      swatch: o.ramp
+        ? { kind: 'bar', fill: o.rampCss ?? RAMP_GRADIENT_CSS, ramp: true }
+        : { kind: 'bar', fill: ON_REFERENCE },
       label: `on ${bars.reference.label}'s path`,
     },
     {
@@ -346,9 +351,25 @@ export const DISAGREES = '#c62828'
 
 // The key at (x, y), one entry after another along a line, and about how
 // wide it is
-export function walkRowsKeyTree(entries: KeyEntry[], x: number, y: number) {
+export function walkRowsKeyTree(
+  entries: KeyEntry[],
+  x: number,
+  y: number,
+  idPrefix = 'walk-key',
+) {
   let at = 0
-  const parts = entries.flatMap(e => {
+  const parts = entries.flatMap((e, i) => {
+    const rampId = `${idPrefix}-ramp-${i}`
+    const ramp =
+      !e.note && e.swatch.kind === 'bar' && e.swatch.ramp
+        ? el(
+            'linearGradient',
+            { id: rampId },
+            ...RAMP_GRADIENT_STOPS.map(s =>
+              el('stop', { offset: s.offset, 'stop-color': s.color }),
+            ),
+          )
+        : undefined
     const swatch = e.note
       ? undefined
       : e.swatch.kind === 'gene'
@@ -367,7 +388,7 @@ export function walkRowsKeyTree(entries: KeyEntry[], x: number, y: number) {
             width: 18,
             height: e.swatch.kind === 'gap' ? GAP_PX : 8,
             rx: 2,
-            fill: e.swatch.fill,
+            fill: ramp ? `url(#${rampId})` : e.swatch.fill,
           })
     const text = el(
       'text',
@@ -380,7 +401,7 @@ export function walkRowsKeyTree(entries: KeyEntry[], x: number, y: number) {
       e.label,
     )
     at += (e.note ? 0 : 23) + e.label.length * LABEL_CHAR_PX + 16
-    return swatch ? [swatch, text] : [text]
+    return [ramp, swatch, text].filter(p => p !== undefined)
   })
   return {
     width: at,

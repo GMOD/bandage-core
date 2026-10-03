@@ -4,6 +4,7 @@ import {
   rowSpan,
   walkRowReadout,
   walkRowsKey,
+  walkRowsKeyTree,
   walkRowsTree,
 } from './walkRowDraw'
 import { walkRows } from './walkRows'
@@ -193,4 +194,15 @@ test('crowded rows say their genes are left out, and nothing else of them', () =
     'genes left out: too many rows to box them in',
   ])
   expect(key.some(e => e.label.startsWith('no gene track'))).toBe(false)
+})
+
+test('under the reference ramp the SVG key paints its on-path swatch as the ramp', () => {
+  const { tree } = walkRowsKeyTree(
+    walkRowsKey(rows(), { ramp: { start: 0, end: 100 } }),
+    0,
+    0,
+  )
+  const svg = serializeEl(tree)
+  expect(svg.match(/<linearGradient /g)).toHaveLength(1)
+  expect(svg).toContain('fill="url(#walk-key-ramp-0)"')
 })
