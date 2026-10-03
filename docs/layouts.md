@@ -324,6 +324,19 @@ actually is, load
 [jbrowse-plugin-tandem-repeat](https://github.com/GMOD/jbrowse-plugin-tandem-repeat)
 and right-click a VCF 4.5 `<CNV:TR>` record stating each allele's copies.
 
+Under the ramp, walk rows draw a stretch off the reference's path charcoal, as
+the node layouts draw a node of rank > 0, while a node with no reference
+position at all draws grey. Matching the two either way fails: grey bars would
+sit too near `OUTSIDE_CUT`, the light grey of a stretch outside the cut, and
+charcoal unplaced nodes would merge with rank > 0 ones. Either change would also
+recolour published figures.
+
+KIV-2's charcoal is mostly shared sequence: in a cut of GRCh38 and eight HPRC
+haplotypes, five carry one 68.7 kb block, and no row carries more than 5.7 kb
+alone. Measurements ruled out two ways to colour it: 92–99% of its 31-mers hit
+several GRCh38 copies, so k-mers can't place it on the reference, and grey by
+how many walks carry a node stripes at every SNP.
+
 Purple can mislead at a duplication. In the HPRC amylase cut, HG00133#1 has
 GRCh38's structure, three AMY1 copies in the same order, and aligns to it
 colinearly at 99.9% identity, yet 75 kb of its bar is purple, because the graph
