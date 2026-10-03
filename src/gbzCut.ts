@@ -32,7 +32,7 @@ export interface GbzSource {
 export const HPRC_GBZ = {
   db: 'https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/release2/minigraph-cactus/v2.1/hprc-v2.1-mc-grch38/hprc-v2.1-mc-grch38.gbz.db',
   index:
-    'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38.haplotype-index.anchored.db',
+    'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38.haplotype-index.f3.db',
 }
 
 // The haplotype index beside a `.gbz.db`, which names its walks by sample
