@@ -169,6 +169,22 @@ function sliceBetween(
   }
 }
 
+// The rows a sample filter keeps, in the order it names them
+export function filterSamples<R extends { sample: string; label: string }>(
+  rows: R[],
+  samples: string[] | undefined,
+) {
+  return samples
+    ? rows
+        .filter(r => samples.includes(r.sample))
+        .sort(
+          (a, b) =>
+            samples.indexOf(a.sample) - samples.indexOf(b.sample) ||
+            a.label.localeCompare(b.label),
+        )
+    : rows
+}
+
 export function walkRows(
   graph: Graph,
   region?: { start: number; end: number },

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs'
 
-import { walkRows } from './walkRows'
+import { filterSamples, walkRows } from './walkRows'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { anchorGraph, pathOrigin } from '../pathAnchoring'
@@ -278,4 +278,19 @@ test('a node the reference revisits keeps the coordinate of its first visit', ()
   })!
   expect(row.runs).toHaveLength(2)
   expect(row.runs[1]!.referenceStart).toBe(origin)
+})
+
+test('a sample filter keeps the samples it names, in its order', () => {
+  const rows = [
+    { sample: 'A', label: 'A#2' },
+    { sample: 'C', label: 'C#1' },
+    { sample: 'B', label: 'B#1' },
+    { sample: 'A', label: 'A#1' },
+  ]
+  expect(filterSamples(rows, ['B', 'A']).map(r => r.label)).toEqual([
+    'B#1',
+    'A#1',
+    'A#2',
+  ])
+  expect(filterSamples(rows, undefined)).toBe(rows)
 })

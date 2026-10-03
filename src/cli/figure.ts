@@ -20,7 +20,7 @@ import {
   genesFromGff3Lines,
   genesFromText,
 } from '../genes/geneFiles'
-import { walkRows } from '../layout/walkRows'
+import { filterSamples, walkRows } from '../layout/walkRows'
 import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
 import loadBandage from '../loadBandage'
 import { forceLayout, loadGraph } from '../pipeline'
@@ -61,6 +61,8 @@ export interface FigureSpec extends Omit<
   walks?: (string | WalkLayer)[]
   // walk rows in a strip under a layout that draws nodes
   walkStrip?: boolean
+  // the samples the strip keeps, in the order it draws them
+  walkRowSamples?: string[]
   // a GFF3 or BED file or url, read by range through `index` (.tbi or .csi)
   // where there is one, for the genes on the backbone's contigs. A file that
   // names a contig other than as the graph does, with or without `chr`, says
@@ -274,7 +276,11 @@ async function renderSpec(spec: FigureSpec, base: string) {
         engine,
       )
     ).result
-  const stripRows = spec.walkStrip ? walkRows(graph, source.region) : undefined
+  const bars = spec.walkStrip ? walkRows(graph, source.region) : undefined
+  const stripRows = bars && {
+    ...bars,
+    rows: filterSamples(bars.rows, spec.walkRowSamples),
+  }
   return figureSvg(graph, layout, {
     ...spec,
     walkStrip: stripRows && { rows: stripRows },

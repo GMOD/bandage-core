@@ -139,7 +139,7 @@ export {
 } from './bubbles/classifyBubble'
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
-export { walkRows } from './layout/walkRows'
+export { filterSamples, walkRows } from './layout/walkRows'
 export type { WalkAxis, WalkRow, WalkRows, WalkRun } from './layout/walkRows'
 export {
   BAR_PX as WALK_BAR_PX,
