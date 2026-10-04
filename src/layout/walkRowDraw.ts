@@ -26,7 +26,6 @@ export const BAR_PX = 12
 export const GAP_PX = 4
 // rows thinner than this go unlabelled, their names and readouts on hover
 export const LABELLED_ROW_PX = 12
-const READOUT_ROW_PX = 14
 // a unit separator over a thinner bar would cut it into dashes
 const MIN_TILED_BAR_PX = 6
 // a unit separator is dropped when a unit is under this many px
@@ -461,7 +460,7 @@ export function rowPitch(count: number, room: number, minRowPx = 0): RowPitch {
     rowPx,
     barPx: rowPx <= 3 ? rowPx : Math.max(3, Math.round(rowPx * 0.6)),
     labelled: rowPx >= LABELLED_ROW_PX,
-    readouts: rowPx >= READOUT_ROW_PX,
+    readouts: rowPx >= LABELLED_ROW_PX,
   }
 }
 

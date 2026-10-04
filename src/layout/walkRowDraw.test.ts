@@ -188,6 +188,11 @@ test('rows fill their room down past a pixel, losing labels, readouts and gaps a
     readouts: true,
   })
   expect(rowPitch(40, 400)).toMatchObject({ rowPx: 10, labelled: false })
+  expect(rowPitch(40, 520)).toMatchObject({
+    rowPx: 13,
+    labelled: true,
+    readouts: true,
+  })
   const dense = rowPitch(465, 560)
   expect(dense.rowPx * 465).toBeLessThanOrEqual(560)
   expect(dense.barPx).toBe(dense.rowPx)
