@@ -48,7 +48,12 @@ import { rangeText, walkKey } from './walkKey'
 import type { ColorScheme } from './colorSchemes'
 import type { FacetInput } from './facetGrid'
 import type { GeneModel, GenePin } from './genes/genePins'
-import type { GeneGaps, RowGene, WalkRowsWithCalls } from './layout/walkRowDraw'
+import type {
+  GeneGaps,
+  RowGene,
+  RowPitch,
+  WalkRowsWithCalls,
+} from './layout/walkRowDraw'
 import type { WalkRows } from './layout/walkRows'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
@@ -95,6 +100,9 @@ export interface FigureOptions {
   // walk-rows layout; the figure draws their bars, readouts and key in place
   // of nodes
   walkRows?: WalkRowsWithCalls
+  // the pitch the walk rows draw at, the layout's own unless a view packed
+  // them denser to fit
+  walkRowPitch?: RowPitch
   // each row's genes as offsets along its bar, and the rows read none
   rowGenes?: Map<string, RowGene[]>
   rowGeneGaps?: GeneGaps
@@ -214,7 +222,8 @@ export function figureSvg(
   const rows = o.walkRows
   const bounds = drawingBounds(layout, {
     region: o.fitToDrawing ? undefined : region,
-    extent: rows && layout.extent ? walkRowsExtent(rows) : undefined,
+    extent:
+      rows && layout.extent ? walkRowsExtent(rows, o.walkRowPitch) : undefined,
   })
   const pixelRows = layout.pixelRows ?? false
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
@@ -313,7 +322,7 @@ export function figureSvg(
         serializeEl(
           walkRowsTree(
             rows,
-            { ...t, width: w, height: h },
+            { ...t, width: w, height: h, ...o.walkRowPitch },
             {
               ramp: rampInterval,
               rowGenes: o.rowGenes,
@@ -322,11 +331,14 @@ export function figureSvg(
         ),
       )
     }
+    const pitch = o.walkRowPitch
     const rowLabels = rows
-      ? [rows.reference, ...rows.rows].map((r, i) => ({
-          label: r.label,
-          y: i * ROW_HEIGHT_PX,
-        }))
+      ? pitch && !pitch.labelled
+        ? []
+        : [rows.reference, ...rows.rows].map((r, i) => ({
+            label: r.label,
+            y: i * (pitch?.rowPx ?? ROW_HEIGHT_PX),
+          }))
       : (layout.rowLabels ?? [])
     for (const { label, y } of rowLabels) {
       const sy = y * t.scaleY + t.translateY

@@ -1,5 +1,4 @@
-import { ROW_HEIGHT_PX } from './rowSpacing'
-import { alongRow, boxesGenes } from './walkRowDraw'
+import { alongRow, boxesGenes, rowPitch } from './walkRowDraw'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
@@ -7,6 +6,8 @@ import { pathOrigin } from '../pathAnchoring'
 import type { GeneGaps, RowGene, WalkRowsFrame } from './walkRowDraw'
 import type { WalkRow, WalkRows } from './walkRows'
 import type { Graph, GraphNode } from '../types'
+
+export { LABELLED_ROW_PX } from './walkRowDraw'
 
 // Walk rows as a strip under a node layout, linked to it: a node's visits as
 // ticks on each bar, and the node under a point on a bar. Rows are small
@@ -19,8 +20,6 @@ const PAD_PX = 6
 export const WALK_STRIP_CEILING_PX = 260
 const LABEL_FONT_PX = 11
 const MIN_ROW_PX = 3
-// rows thinner than this go unlabelled, their names and readouts on hover
-export const LABELLED_ROW_PX = 12
 const READOUT_ROOM = 1.3
 const MARK_INK = '#111'
 const TICK_PX = 3
@@ -164,13 +163,11 @@ export function walkStripFrame(
       LABEL_CHAR_PX +
       16
   const count = bars.rows.length + 1
-  const rowPx = Math.max(
+  const { rowPx, barPx, labelled, readouts } = rowPitch(
+    count,
+    maxHeight - 2 * PAD_PX,
     MIN_ROW_PX,
-    Math.min(ROW_HEIGHT_PX, Math.floor((maxHeight - 2 * PAD_PX) / count)),
   )
-  const labelled = rowPx >= LABELLED_ROW_PX
-  const readouts = rowPx >= 14
-  const barPx = Math.max(2, Math.round(rowPx * 0.6))
   const longest = Math.max(bars.reference.bp, ...bars.rows.map(r => r.bp), 1)
   const left = labelled ? labelPx : PAD_PX
   const usable = Math.max(1, o.width - left - PAD_PX)

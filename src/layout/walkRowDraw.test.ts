@@ -2,6 +2,7 @@ import {
   genesOnRow,
   placeRowGenes,
   rowGeneBoxes,
+  rowPitch,
   rowSpan,
   walkRowReadout,
   walkRowsKey,
@@ -177,6 +178,51 @@ test('the SVG draws every row with its genes', () => {
   expect(svg.match(/<g class="row-gene"/g)).toHaveLength(1)
   expect(svg).toContain('>C1</text>')
   expect(svg.match(/<text /g)).toHaveLength(1 + 1 + bars.rows.length)
+})
+
+test('rows fill their room down past a pixel, losing labels, readouts and gaps as they crowd', () => {
+  expect(rowPitch(10, 400)).toEqual({
+    rowPx: 20,
+    barPx: 12,
+    labelled: true,
+    readouts: true,
+  })
+  expect(rowPitch(40, 400)).toMatchObject({ rowPx: 10, labelled: false })
+  const dense = rowPitch(465, 560)
+  expect(dense.rowPx * 465).toBeLessThanOrEqual(560)
+  expect(dense.barPx).toBe(dense.rowPx)
+  expect(rowPitch(1000, 400).rowPx).toBeCloseTo(0.4)
+  expect(rowPitch(1000, 400, 3).rowPx).toBe(3)
+})
+
+test('a dense row keeps its call inside the row, and marks a disagreeing call red', () => {
+  const bars = rows()
+  const [first, ...rest] = bars.rows
+  const svg = serializeEl(
+    walkRowsTree(
+      {
+        ...bars,
+        unit: 5,
+        rows: [{ ...first!, call: { bp: 40, agrees: false } }, ...rest],
+      },
+      {
+        scaleX: 10,
+        scaleY: 1,
+        translateX: -10_000,
+        translateY: 20,
+        width: 800,
+        height: 400,
+        rowPx: 2,
+        barPx: 2,
+        readouts: false,
+      },
+    ),
+  )
+  expect(svg).toMatch(
+    /data-testid="graph-walk-call"[^>]*height="2"[^>]*fill="#c62828"/,
+  )
+  expect(svg).not.toContain('<text ')
+  expect(svg).not.toContain('<line ')
 })
 
 test('gene boxes fit the rows’ pitch, and crowded rows draw none', () => {

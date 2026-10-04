@@ -6,6 +6,7 @@ import {
   overlapsWindow,
 } from '../anchoredNodes'
 
+import type { RowPitch } from './walkRowDraw'
 import type { WalkRows } from './walkRows'
 import type { Graph, LayoutResult, RowLabel } from '../types'
 
@@ -19,15 +20,21 @@ const READOUT_ROOM = 1.3
 
 // How far the bars reach, so the fit and the pane height include them. The
 // model reads it again for the bars it actually draws, which a repeat pick or
-// a sample filter can narrow after this layout ran.
-export function walkRowsExtent(walks: WalkRows) {
+// a sample filter can narrow after this layout ran, at the pitch they draw at.
+export function walkRowsExtent(
+  walks: WalkRows,
+  pitch: Pick<RowPitch, 'rowPx' | 'readouts'> = {
+    rowPx: ROW_HEIGHT_PX,
+    readouts: true,
+  },
+) {
   let longest = walks.reference.bp
   for (const row of walks.rows) {
     longest = Math.max(longest, row.bp)
   }
   return {
-    maxX: walks.origin + longest * READOUT_ROOM,
-    maxY: walks.rows.length * ROW_HEIGHT_PX,
+    maxX: walks.origin + longest * (pitch.readouts ? READOUT_ROOM : 1),
+    maxY: walks.rows.length * pitch.rowPx,
   }
 }
 

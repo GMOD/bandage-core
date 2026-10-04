@@ -24,6 +24,11 @@ export const OUTSIDE_CUT = '#bdbdbd'
 export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
+// rows thinner than this go unlabelled, their names and readouts on hover
+export const LABELLED_ROW_PX = 12
+const READOUT_ROW_PX = 14
+// a unit separator over a thinner bar would cut it into dashes
+const MIN_TILED_BAR_PX = 6
 // a unit separator is dropped when a unit is under this many px
 const MIN_TILE_PX = 3
 
@@ -354,9 +359,19 @@ export type WalkRowsWithCalls = Omit<WalkRows, 'reference' | 'rows'> & {
   rows: (WalkRow & { call?: ReadoutCall })[]
 }
 
-const CALL_TICK = '#111'
-const UNBACKED_TICK = '#9e9e9e'
+export const CALL_TICK = '#111'
+export const UNBACKED_TICK = '#9e9e9e'
 export const DISAGREES = '#c62828'
+
+// A call's tick: red where it and its walk disagree, which a row too thin for
+// its readout still shows, and grey where no read spanned the allele
+export function callTickInk(call: ReadoutCall) {
+  return call.agrees === false
+    ? DISAGREES
+    : call.spanningReads === 0
+      ? UNBACKED_TICK
+      : CALL_TICK
+}
 
 // The key at (x, y), one entry after another along a line, and about how
 // wide it is
@@ -423,6 +438,30 @@ export function walkRowsKeyTree(
       },
       ...parts,
     ),
+  }
+}
+
+export interface RowPitch {
+  rowPx: number
+  barPx: number
+  labelled: boolean
+  readouts: boolean
+}
+
+// The pitch at which `count` rows fill `room` px, from the walk-rows layout's
+// own down to `minRowPx`. Under a pixel every row still draws, the bars
+// touching, as a dense overview of the cohort.
+export function rowPitch(count: number, room: number, minRowPx = 0): RowPitch {
+  const fit = room / Math.max(1, count)
+  const rowPx = Math.max(
+    minRowPx,
+    Math.min(ROW_HEIGHT_PX, fit >= 1 ? Math.floor(fit) : fit),
+  )
+  return {
+    rowPx,
+    barPx: rowPx <= 3 ? rowPx : Math.max(3, Math.round(rowPx * 0.6)),
+    labelled: rowPx >= LABELLED_ROW_PX,
+    readouts: rowPx >= READOUT_ROW_PX,
   }
 }
 
@@ -554,6 +593,7 @@ export function walkRowsTree(
   const X = (bp: number) => bp * frame.scaleX + frame.translateX
   const rowPx = frame.rowPx ?? ROW_HEIGHT_PX
   const barPx = frame.barPx ?? BAR_PX
+  const overhang = Math.min(3, Math.max(0, (rowPx - barPx) / 2))
   const Y = (row: number) => row * rowPx * frame.scaleY + frame.translateY
   const { origin, unit, reference, rows } = bars
   const along = (offset: number) => X(origin + offset)
@@ -593,18 +633,19 @@ export function walkRowsTree(
           ]
         : [rect]
     })
-    const ticks = unit
-      ? unitTicks(row.bp, unit, frame.scaleX).map(k =>
-          el('line', {
-            x1: along(k),
-            x2: along(k),
-            y1: y - barPx / 2,
-            y2: y + barPx / 2,
-            stroke: 'white',
-            'stroke-width': 1,
-          }),
-        )
-      : []
+    const ticks =
+      unit && barPx >= MIN_TILED_BAR_PX
+        ? unitTicks(row.bp, unit, frame.scaleX).map(k =>
+            el('line', {
+              x1: along(k),
+              x2: along(k),
+              y1: y - barPx / 2,
+              y2: y + barPx / 2,
+              stroke: 'white',
+              'stroke-width': 1,
+            }),
+          )
+        : []
     const { call } = row
     const text = walkRowReadout(
       row,
@@ -629,10 +670,10 @@ export function walkRowsTree(
         el('rect', {
           'data-testid': 'graph-walk-call',
           x: along(call.bp) - 1,
-          y: y - barPx / 2 - 3,
+          y: y - barPx / 2 - overhang,
           width: 2,
-          height: barPx + 6,
-          fill: call.spanningReads === 0 ? UNBACKED_TICK : CALL_TICK,
+          height: barPx + 2 * overhang,
+          fill: callTickInk(call),
         }),
       readouts &&
         el(
