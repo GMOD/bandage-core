@@ -1,5 +1,10 @@
 import { firstNodeAtOrAfter, isBackbone } from './anchoredNodes'
-import { computeEdgeCurves, routedEdgeCurves } from './util/geometry'
+import {
+  computeEdgeCurves,
+  edgeJoinOf,
+  routedEdgeCurves,
+  strandSides,
+} from './util/geometry'
 
 import type { AnchoredNode } from './anchoredNodes'
 import type { Graph, GraphEdge, NodeSegment } from './types'
@@ -43,6 +48,8 @@ export interface DeletionEdge {
   // rebuild it (deletionArcCurves) instead of approximating it from `bypassed`
   from: string
   to: string
+  fromStrand?: '+' | '-'
+  toStrand?: '+' | '-'
   refName: string
   start: number
   end: number
@@ -81,6 +88,7 @@ export function deletionArcCurves(
   deletion: DeletionEdge,
   axis: AxisScale,
   route?: NodeSegment[],
+  stranded = false,
 ) {
   const from = nodePositions[deletion.from]
   const to = nodePositions[deletion.to]
@@ -88,11 +96,16 @@ export function deletionArcCurves(
     return undefined
   }
   return route
-    ? routedEdgeCurves(from, to, route)
+    ? routedEdgeCurves(
+        from,
+        to,
+        route,
+        stranded ? strandSides(deletion) : undefined,
+      )
     : computeEdgeCurves(
         from,
         to,
-        deletion.from === deletion.to,
+        edgeJoinOf(deletion, stranded),
         0,
         0,
         axis,
@@ -207,6 +220,8 @@ export function deletionEdges(graph: Graph): DeletionEdge[] {
           edgeIndex,
           from: edge.from,
           to: edge.to,
+          ...(edge.fromStrand ? { fromStrand: edge.fromStrand } : {}),
+          ...(edge.toStrand ? { toStrand: edge.toStrand } : {}),
           refName,
           start,
           end,

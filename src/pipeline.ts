@@ -72,7 +72,14 @@ export interface EngineSettings {
   quality: number
   linearLayout: boolean
   bubbleSpread: BubbleSpread
+  // multipliers on the engine's link length and on the gap it leaves between
+  // the graph's components; 1 when absent
+  spacing?: number
+  componentSeparation?: number
 }
+
+// the engine's own gap between components, which `componentSeparation` scales
+const COMPONENT_SEPARATION = 15
 
 // `scaling.nodes` rather than the graph's own: under a compressing drawn-length
 // law a node's `length` crosses this boundary as a drawn length, which is all
@@ -86,15 +93,25 @@ export function engineRequest(
   settings: EngineSettings,
 ): EngineRequest {
   const anchored = graph.nodes.some(isBackbone)
+  // the seeds lay the backbone out at the spaced link length too
+  const spaced = {
+    ...scaling,
+    opts: {
+      ...scaling.opts,
+      edgeLength: scaling.opts.edgeLength * (settings.spacing ?? 1),
+    },
+  }
   return {
     graph: {
-      nodes: anchored ? seededNodes(graph, scaling) : scaling.nodes,
+      nodes: anchored ? seededNodes(graph, spaced) : spaced.nodes,
       edges: graph.edges,
     },
     options: {
       quality: settings.quality,
       linearLayout: settings.linearLayout,
-      ...scaling.opts,
+      ...spaced.opts,
+      componentSeparation:
+        COMPONENT_SEPARATION * (settings.componentSeparation ?? 1),
       ...(anchored ? { rotateComponents: false } : {}),
     },
   }
@@ -105,7 +122,7 @@ export function engineRequest(
 // seeds follow.
 export function engineKey(graph: Graph, settings: EngineSettings) {
   const anchored = graph.nodes.some(isBackbone)
-  return `${settings.quality}|${settings.linearLayout}|${settings.bubbleSpread}|${anchored}|${graph.referencePath ?? ''}`
+  return `${settings.quality}|${settings.linearLayout}|${settings.bubbleSpread}|${settings.spacing ?? 1}|${settings.componentSeparation ?? 1}|${anchored}|${graph.referencePath ?? ''}`
 }
 
 // The engine lays out the runs, not the nodes: a base-level cut is thousands
@@ -165,6 +182,7 @@ export async function forceLayout(
     result: {
       ...result,
       nodePositions,
+      stranded: true,
       ...(deletions.length
         ? { deletionRoutes, extent: layoutExtent(deletionRoutes) }
         : {}),

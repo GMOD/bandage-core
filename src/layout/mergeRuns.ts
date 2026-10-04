@@ -1,4 +1,5 @@
 import { isBackbone } from '../anchoredNodes'
+import { ownStrand, strandSides } from '../util/geometry'
 
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 
@@ -22,32 +23,15 @@ export interface MergedRuns {
 
 type Side = 'start' | 'end'
 
-// The strand a node's id carries, which is the one its drawn chain reads.
-function ownStrand(id: string) {
-  return id.endsWith('-') ? '-' : '+'
-}
-
 function flip(strand: '+' | '-') {
   return strand === '+' ? '-' : '+'
-}
-
-function sidesOf(edge: GraphEdge) {
-  const from: Side =
-    (edge.fromStrand ?? ownStrand(edge.from)) === ownStrand(edge.from)
-      ? 'end'
-      : 'start'
-  const to: Side =
-    (edge.toStrand ?? ownStrand(edge.to)) === ownStrand(edge.to)
-      ? 'start'
-      : 'end'
-  return { from, to }
 }
 
 export function mergeRuns(
   graph: Graph,
   alone: ReadonlySet<string> = new Set(),
 ): MergedRuns {
-  const sides = graph.edges.map(sidesOf)
+  const sides = graph.edges.map(strandSides)
   // node side -> indexes of the edges attached there
   const at = new Map<string, number[]>()
   const attach = (id: string, side: Side, ei: number) => {

@@ -91,3 +91,70 @@ test('an edge with an unplaced endpoint has no curve', () => {
   delete positions['b+']
   expect(baseEdgeCurves(positions, graph, iso, undefined, 0).has(0)).toBe(false)
 })
+
+// A force layout folds a long node into a V whose tips sit side by side, with
+// both its neighbours off one tip: the KIV-2 cut's 241 bp insertion
+describe('a folded node', () => {
+  const folded: Record<string, NodeSegment[]> = {
+    'a+': [
+      { x: 300, y: 10 },
+      { x: 108, y: 10 },
+    ],
+    'v+': [
+      { x: 100, y: 0 },
+      { x: 105, y: -20 },
+      { x: 110, y: 0 },
+    ],
+    'b+': [
+      { x: 120, y: 10 },
+      { x: 300, y: 10 },
+    ],
+  }
+  const foldedGraph = (edges: Graph['edges']): Graph => ({
+    name: 'folded',
+    nodes: ['a+', 'v+', 'b+'].map(id => ({
+      id,
+      name: id,
+      length: 1,
+      depth: 1,
+    })),
+    edges,
+  })
+  const ends = (g: Graph, stranded: boolean) =>
+    [...baseEdgeCurves(folded, g, iso, undefined, 0, undefined, stranded)]
+      .sort(([a], [b]) => a - b)
+      .map(([, curves]) => [curves[0]!.x0, curves.at(-1)!.x1])
+
+  test('joins the ends its links name when the layout is stranded', () => {
+    const forward = foldedGraph([
+      { from: 'a+', to: 'v+', fromStrand: '+', toStrand: '+' },
+      { from: 'v+', to: 'b+', fromStrand: '+', toStrand: '+' },
+    ])
+    expect(ends(forward, true)).toEqual([
+      [108, 100],
+      [110, 120],
+    ])
+  })
+
+  test('a link reading the node backwards joins its other ends', () => {
+    const backwards = foldedGraph([
+      { from: 'a+', to: 'v+', fromStrand: '+', toStrand: '-' },
+      { from: 'v+', to: 'b+', fromStrand: '-', toStrand: '+' },
+    ])
+    expect(ends(backwards, true)).toEqual([
+      [108, 110],
+      [100, 120],
+    ])
+  })
+
+  test('unstranded, both links hang off the tip nearer the neighbours', () => {
+    const forward = foldedGraph([
+      { from: 'a+', to: 'v+' },
+      { from: 'v+', to: 'b+' },
+    ])
+    expect(ends(forward, false)).toEqual([
+      [108, 110],
+      [110, 120],
+    ])
+  })
+})

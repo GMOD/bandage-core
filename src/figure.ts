@@ -375,6 +375,7 @@ export function figureSvg(
         referenceRamp,
         deletions: new Map(deletions.map(d => [d.edgeIndex, d.bypassed])),
         deletionRoutes: layout.deletionRoutes,
+        stranded: layout.stranded,
         hiddenEdges: new Set(
           o.showDeletionEdges ? [] : deletions.map(d => d.edgeIndex),
         ),

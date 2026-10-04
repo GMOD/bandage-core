@@ -240,6 +240,7 @@ export class EdgeSpatialIndex {
     // Bumped when a drag moves the positions in place; see baseEdgeCurves.
     version = 0,
     routes?: DeletionRoutes,
+    stranded = false,
   ) {
     this.edgeCurves = baseEdgeCurves(
       nodePositions,
@@ -248,6 +249,7 @@ export class EdgeSpatialIndex {
       deletions,
       version,
       routes,
+      stranded,
     )
     const boxes: {
       ei: number

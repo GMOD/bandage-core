@@ -206,27 +206,42 @@ function attachment(segments: NodeSegment[], side: Side) {
 const TANGENT_SPAN_FACTOR = 0.5
 const MAX_TANGENT = 80
 
-// Which drawn end of each node the edge joins.
+// The ends of its two nodes a link joins
+export interface EdgeSides {
+  from: Side
+  to: Side
+}
+
+// The strand a node's id carries, which is the one its drawn chain reads
+export function ownStrand(id: string) {
+  return id.endsWith('-') ? '-' : '+'
+}
+
+// The ends a link joins, read off its strands: it leaves the from-node's end
+// and enters the to-node's start where it reads each on the strand its id
+// carries, and the other end where it reads it flipped. An absent strand reads
+// as the id's own. These are the drawn ends wherever a layout draws each node
+// start to end, as the force layout does (LayoutResult.stranded).
+export function strandSides(edge: GraphEdge): EdgeSides {
+  const own = (id: string, strand: string | undefined) =>
+    (strand ?? ownStrand(id)) === ownStrand(id)
+  return {
+    from: own(edge.from, edge.fromStrand) ? 'end' : 'start',
+    to: own(edge.to, edge.toStrand) ? 'start' : 'end',
+  }
+}
+
+// Where nothing records which way a layout drew a node (the anchored rows draw
+// it reference-forward, run sweeps in sweep order), each node attaches at
+// whichever end is nearer the OTHER node's drawn span, the forward reading
+// winning a tie.
 //
-// A link states the orientation it reads each segment in, but a node is drawn
-// in whatever direction its layout placed it — reference-forward on the
-// anchored rows, run-sweep order off them, arbitrary under FMMM — and nothing
-// records that direction, so the strands cannot be turned into drawn ends. What
-// the drawing itself says is which ends face each other, so that is what is
-// read: each node attaches at whichever of its two ends is nearer the OTHER
-// node's drawn span, with the forward reading (leave the from-node's end, enter
-// the to-node's start) winning a tie.
-//
-// Nearer to the span, not to the other attachment point. A bubble's two nodes
-// usually overlap in x, and there the distances to a point differ by a hair
-// that says nothing — enough to hang a node's entry and exit edges off the same
-// end, which draws them crossed. Overlapping spans give both ends distance 0,
-// i.e. a tie, and the tie is what keeps such a bubble forward. What survives is
-// the case the rule is for: `L s381 - s2087 +` then `L s2087 + s378 -` is
-// NCTC86 crossing its locus right to left, and joining last-point to
-// first-point regardless drew the second link 7 kb backwards across the segment
-// it rejoins — the long X in pangenome/rgfa_subgraph_launch. There the spans do
-// not overlap and the far end loses by 7 kb. Pinned by bubbleCrossing.test.ts.
+// Nearer to the span, not to the other attachment point: a bubble's two nodes
+// usually overlap in x, which ties and keeps the bubble forward, where
+// distances to a point differ by a hair and can hang a node's entry and exit
+// off one end. `L s381 - s2087 +` then `L s2087 + s378 -` (NCTC86 crossing its
+// locus right to left) is the case the rule is for. Pinned by
+// bubbleCrossing.test.ts.
 function spanOf(segments: NodeSegment[]) {
   let min = Infinity
   let max = -Infinity
@@ -513,6 +528,14 @@ export function selfLinkOf(edge: GraphEdge): SelfLink {
     : true
 }
 
+// How an edge's curve joins its nodes: as a self link, or at the ends given
+export type EdgeJoin = SelfLink | EdgeSides
+
+export function edgeJoinOf(edge: GraphEdge, stranded = false): EdgeJoin {
+  const self = selfLinkOf(edge)
+  return self === false && stranded ? strandSides(edge) : self
+}
+
 // A teardrop off one end, after Bandage's: it leaves along the node, turns at
 // the apex and comes back in on itself.
 function hairpinCurves(
@@ -562,7 +585,7 @@ function hairpinCurves(
 export function computeEdgeCurves(
   fromSegments: NodeSegment[],
   toSegments: NodeSegment[],
-  selfLink: SelfLink,
+  join: EdgeJoin,
   offsetX: number,
   offsetY: number,
   axis: AxisScale,
@@ -606,7 +629,7 @@ export function computeEdgeCurves(
       computeEdgeCurves(
         scaleYOf(fromSegments, yToX),
         scaleYOf(toSegments, yToX),
-        selfLink,
+        join,
         offsetX,
         offsetY * yToX,
         { scaleX: scale, scaleY: scale },
@@ -618,17 +641,18 @@ export function computeEdgeCurves(
       yToX,
     )
   }
-  if (typeof selfLink === 'string') {
+  if (typeof join === 'string') {
     return hairpinCurves(
-      attachment(fromSegments, selfLink),
+      attachment(fromSegments, join),
       selfLoopReach(fromSegments, scale),
       offsetX,
       offsetY,
     )
   }
-  const sides = selfLink
+  const loop = join === true
+  const sides = loop
     ? { from: 'end' as Side, to: 'start' as Side }
-    : facingSides(fromSegments, toSegments)
+    : join || facingSides(fromSegments, toSegments)
   const fromAttach = attachment(fromSegments, sides.from)
   const toAttach = attachment(toSegments, sides.to)
   const fromEnd = fromAttach.at
@@ -639,7 +663,7 @@ export function computeEdgeCurves(
   const p2x = toStart.x + offsetX
   const p2y = toStart.y + offsetY
 
-  if (selfLink) {
+  if (loop) {
     let segDirX = 1
     let segDirY = 0
     if (fromAttach.inward) {
@@ -787,19 +811,23 @@ function nearerEnd(segments: NodeSegment[], to: NodeSegment): Side {
     : 'end'
 }
 
-// An edge drawn along the route a layout gave it: a Catmull-Rom spline from the
-// end of `from` nearer the route, through the route, into the end of `to`
-// nearer it, leaving and entering along each node's own direction.
+// An edge drawn along the route a layout gave it: a Catmull-Rom spline from
+// `from` through the route into `to`, leaving and entering along each node's
+// own direction, at the ends given or else the ends nearer the route.
 export function routedEdgeCurves(
   fromSegments: NodeSegment[],
   toSegments: NodeSegment[],
   route: NodeSegment[],
+  sides?: EdgeSides,
 ): BezierCurve[] {
   const fromAttach = attachment(
     fromSegments,
-    nearerEnd(fromSegments, route[0]!),
+    sides?.from ?? nearerEnd(fromSegments, route[0]!),
   )
-  const toAttach = attachment(toSegments, nearerEnd(toSegments, route.at(-1)!))
+  const toAttach = attachment(
+    toSegments,
+    sides?.to ?? nearerEnd(toSegments, route.at(-1)!),
+  )
   const points = [fromAttach.at, ...route, toAttach.at]
   const tangent = (i: number) => {
     const p = points[i]!

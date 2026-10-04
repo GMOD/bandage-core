@@ -154,4 +154,7 @@ export interface LayoutResult {
   tubeMap?: TubeMapDrawing
   // Where a force layout ran each deletion edge, by edge index
   deletionRoutes?: Record<number, NodeSegment[]>
+  // Set by the layouts that draw every node from its start to its end (the
+  // force layout), so a link joins the ends its strands name
+  stranded?: boolean
 }

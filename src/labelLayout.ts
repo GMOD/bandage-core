@@ -53,6 +53,7 @@ export interface LabelLayoutSource {
   showDeletionEdges: boolean
   deletions: DeletionEdge[]
   deletionRoutes?: DeletionRoutes
+  stranded?: boolean
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
 }
@@ -181,6 +182,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
           nodeLengths: m.nodeLengths,
           deletions: m.showDeletionEdges ? m.deletions : [],
           deletionRoutes: m.deletionRoutes,
+          stranded: m.stranded,
           alleleDeletions: m.alleleDeletions,
           axis: m.axisScale,
           translateX,

@@ -148,6 +148,7 @@ const edgeCache = new WeakMap<
     index: EdgeSpatialIndex
     deletions?: Map<number, string[]>
     routes?: DeletionRoutes
+    stranded: boolean
   }
 >()
 
@@ -159,6 +160,7 @@ function getEdgeSpatialIndex(
   version: number,
   deletions?: Map<number, string[]>,
   routes?: DeletionRoutes,
+  stranded = false,
 ) {
   const cached = edgeCache.get(nodePositions)
   if (
@@ -168,7 +170,8 @@ function getEdgeSpatialIndex(
     cached.scaleY === axis.scaleY &&
     cached.version === version &&
     cached.deletions === deletions &&
-    cached.routes === routes
+    cached.routes === routes &&
+    cached.stranded === stranded
   ) {
     return cached.index
   }
@@ -181,6 +184,7 @@ function getEdgeSpatialIndex(
     deletions,
     version,
     routes,
+    stranded,
   )
   edgeCache.set(nodePositions, {
     graph,
@@ -191,6 +195,7 @@ function getEdgeSpatialIndex(
     index,
     deletions,
     routes,
+    stranded,
   })
   return index
 }
@@ -264,6 +269,7 @@ export function findHoveredEdge(
   deletions?: Map<number, string[]>,
   hiddenEdges?: ReadonlySet<number>,
   deletionRoutes?: DeletionRoutes,
+  stranded = false,
 ) {
   const yToX = yToXOf(axis)
   const edgeThreshold = 10 / axis.scaleX
@@ -275,6 +281,7 @@ export function findHoveredEdge(
     version,
     deletions,
     deletionRoutes,
+    stranded,
   )
   const candidates = edgeIndex.query(
     graphX,

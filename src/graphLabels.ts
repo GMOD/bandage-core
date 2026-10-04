@@ -344,6 +344,7 @@ const arcCache = new WeakMap<
   {
     deletions: DeletionEdge[]
     routes: DeletionRoutes | undefined
+    stranded: boolean
     scaleX: number
     scaleY: number
     version: number
@@ -359,12 +360,14 @@ function arcPlacements(
   axis: AxisScale,
   version: number,
   routes: DeletionRoutes | undefined,
+  stranded: boolean,
 ) {
   const { scaleX, scaleY } = axis
   const cached = arcCache.get(nodePositions)
   if (
     cached?.deletions === deletions &&
     cached.routes === routes &&
+    cached.stranded === stranded &&
     cached.scaleX === scaleX &&
     cached.scaleY === scaleY &&
     cached.version === version
@@ -378,6 +381,7 @@ function arcPlacements(
       deletion,
       axis,
       routes?.[deletion.edgeIndex],
+      stranded,
     )
     const apex = curves ? curveMidpoint(curves) : undefined
     if (curves && apex) {
@@ -394,6 +398,7 @@ function arcPlacements(
   arcCache.set(nodePositions, {
     deletions,
     routes,
+    stranded,
     scaleX,
     scaleY,
     version,
@@ -408,6 +413,7 @@ interface SizeLabelArgs {
   nodeLengths: Map<string, number>
   deletions: DeletionEdge[]
   deletionRoutes?: DeletionRoutes
+  stranded?: boolean
   // Deletions the layout found that carry a segment, so `deletions` above
   // cannot: empty under a layout drawn at sequence scale, where a node's own
   // length IS what its drawn extent means. See AlleleDeletion.
@@ -439,6 +445,7 @@ export function sizeLabelCandidates({
   nodeLengths,
   deletions,
   deletionRoutes,
+  stranded = false,
   alleleDeletions,
   axis,
   translateX,
@@ -456,6 +463,7 @@ export function sizeLabelCandidates({
     axis,
     version,
     deletionRoutes,
+    stranded,
   )) {
     if (extent >= MIN_DELETION_LABEL_PX) {
       const text = deletionText(deletion.bp)

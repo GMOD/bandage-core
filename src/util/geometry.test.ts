@@ -113,6 +113,14 @@ describe('routedEdgeCurves', () => {
     const curves = routedEdgeCurves(reversed, to, route)
     expect([curves[0]!.x0, curves[0]!.y0]).toEqual([10, 0])
   })
+
+  test('attaches at the ends given, wherever the route is', () => {
+    const curves = routedEdgeCurves(from, to, route, {
+      from: 'start',
+      to: 'end',
+    })
+    expect([curves[0]!.x0, curves.at(-1)!.x1]).toEqual([0, 40])
+  })
 })
 
 describe('curveMidpoint', () => {

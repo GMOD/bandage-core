@@ -59,6 +59,8 @@ export interface FigureSpec extends Omit<
   layout?: LayoutModeValue
   quality?: number
   bubbleSpread?: BubbleSpread
+  spacing?: number
+  componentSeparation?: number
   walks?: (string | WalkLayer)[]
   // walk rows in a strip under a layout that draws nodes
   walkStrip?: boolean
@@ -273,6 +275,8 @@ async function renderSpec(spec: FigureSpec, base: string) {
           quality: spec.quality ?? 2,
           linearLayout: false,
           bubbleSpread: spec.bubbleSpread ?? 'auto',
+          spacing: spec.spacing,
+          componentSeparation: spec.componentSeparation,
         },
         engine,
       )

@@ -1,5 +1,10 @@
 import { bypassedPoints } from '../deletionEdges'
-import { computeEdgeCurves, routedEdgeCurves, selfLinkOf } from './geometry'
+import {
+  computeEdgeCurves,
+  edgeJoinOf,
+  routedEdgeCurves,
+  strandSides,
+} from './geometry'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'
@@ -36,6 +41,7 @@ const cache = new WeakMap<
     scaleY: number
     deletions: Map<number, string[]> | undefined
     routes: DeletionRoutes | undefined
+    stranded: boolean
     version: number
     curves: EdgeCurves
   }
@@ -51,6 +57,8 @@ export function baseEdgeCurves(
   version: number,
   // where a force layout ran each deletion; such an edge follows its route
   routes?: DeletionRoutes,
+  // LayoutResult.stranded: links join the ends their strands name
+  stranded = false,
 ): EdgeCurves {
   const { scaleX, scaleY } = axis
   const cached = cache.get(nodePositions)
@@ -60,6 +68,7 @@ export function baseEdgeCurves(
     cached.scaleY === scaleY &&
     cached.deletions === deletions &&
     cached.routes === routes &&
+    cached.stranded === stranded &&
     cached.version === version
   ) {
     return cached.curves
@@ -77,11 +86,16 @@ export function baseEdgeCurves(
       curves.set(
         ei,
         route
-          ? routedEdgeCurves(from, to, route)
+          ? routedEdgeCurves(
+              from,
+              to,
+              route,
+              stranded ? strandSides(edge) : undefined,
+            )
           : computeEdgeCurves(
               from,
               to,
-              selfLinkOf(edge),
+              edgeJoinOf(edge, stranded),
               0,
               0,
               axis,
@@ -96,6 +110,7 @@ export function baseEdgeCurves(
     scaleY,
     deletions,
     routes,
+    stranded,
     version,
     curves,
   })
