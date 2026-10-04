@@ -49,7 +49,7 @@ export {
 export { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 // the ratio the renderer sizes its backing store with, which the transform
 // handed to it has to be multiplied by
-export { getDpr } from '@jbrowse/render-core/canvas2dUtils'
+export { getDpr } from './renderer/canvas'
 export type { Renderer } from './renderer/types'
 export { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 export type { NodeInk } from './util/hitDetection'

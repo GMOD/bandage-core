@@ -1,6 +1,4 @@
-import { abgrToCssRgba, packAbgr } from '@jbrowse/core/util/colorBits'
-
-import { fadeAbgr } from './colorBits'
+import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,

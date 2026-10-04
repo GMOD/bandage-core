@@ -1,11 +1,9 @@
+import { syncCanvasSize } from './canvas'
 import {
   abgrToCssRgba,
+  brightenAbgr,
   normalizedRgbToCssRgba,
-} from '@jbrowse/core/util/colorBits'
-import { syncCanvasSize } from '@jbrowse/render-core/canvas2dUtils'
-import { Canvas2DRenderingBackendBase } from '@jbrowse/render-core/renderingBackendBase'
-
-import { brightenAbgr } from './colorBits'
+} from './colorBits'
 
 import type {
   Arrowhead,
@@ -21,26 +19,37 @@ import type {
 // ms as batched strokes (agent-docs/GRAPH_SCALE_AND_LOD.md). Highlighted things
 // are drawn last, in their own paths, so they sit on top of what they brighten.
 //
-// Extends the shared Canvas2D base rather than standing alone, which is how
-// `setErrorHandler` arrives — `useRenderingBackend` requires it. The base's
-// no-op implementation is the correct one here: Canvas2D allocates no GPU
-// resources, so there is no OOM channel to forward.
-export class Canvas2DRenderer
-  extends Canvas2DRenderingBackendBase
-  implements Renderer
-{
+// `setErrorHandler` is a no-op that a host's rendering-backend lifecycle can
+// call: Canvas2D allocates no GPU resources, so there is no OOM channel to
+// forward.
+export class Canvas2DRenderer implements Renderer {
+  readonly canvas: HTMLCanvasElement
+  readonly ctx: CanvasRenderingContext2D
   private transform: TransformUniform | null = null
   private batch: RenderBatch | null = null
   private nodeHighlights: ReadonlyMap<string, number> = new Map()
   private highlightedEdge: number | null = null
   private highlightFactor = 1
 
-  // render-core's, not a local `width * devicePixelRatio`: it clamps the
-  // backing store at MAX_CANVAS_DIM_PX, reads the ratio through `getDpr()` so
-  // this agrees with the transform the model builds, and writes the css size
+  constructor(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      throw new Error('Canvas 2D context not available')
+    }
+    this.canvas = canvas
+    this.ctx = ctx
+  }
+
+  setErrorHandler(_handler: (error: Error) => void) {}
+
+  releaseOffscreenTargets() {}
+
+  // Not a local `width * devicePixelRatio`: syncCanvasSize clamps the backing
+  // store at MAX_CANVAS_DIM_PX, reads the ratio through `getDpr()` so this
+  // agrees with the transform the model builds, and writes the css size
   // independently of the backing size.
   resize(width: number, height: number) {
-    syncCanvasSize(this.ctx.canvas, width, height)
+    syncCanvasSize(this.canvas, width, height)
   }
 
   uploadGeometry(batch: RenderBatch) {
@@ -202,8 +211,7 @@ export class Canvas2DRenderer
     }
   }
 
-  override dispose() {
-    super.dispose()
+  dispose() {
     this.batch = null
     this.nodeHighlights = new Map()
     this.highlightedEdge = null

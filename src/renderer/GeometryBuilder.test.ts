@@ -1,5 +1,3 @@
-import { packAbgr } from '@jbrowse/core/util/colorBits'
-
 import {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
@@ -7,6 +5,7 @@ import {
   endTangent,
   hslToRgb,
 } from './GeometryBuilder'
+import { packAbgr } from './colorBits'
 
 import type { RenderBatch } from './types'
 

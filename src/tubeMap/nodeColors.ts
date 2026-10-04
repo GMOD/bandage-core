@@ -1,9 +1,8 @@
-import { abgrToCssRgba } from '@jbrowse/core/util/colorBits'
-
 import {
   computeColorSchemeRange,
   getNodeColor,
 } from '../renderer/GeometryBuilder'
+import { abgrToCssRgba } from '../renderer/colorBits'
 
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { ReferenceRamp } from '../renderer/GeometryBuilder'

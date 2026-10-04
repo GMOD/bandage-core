@@ -1,6 +1,5 @@
-import { abgrAlpha } from '@jbrowse/core/util/colorBits'
-
 import { buildGeometry } from './GeometryBuilder'
+import { abgrAlpha } from './colorBits'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { anchorGraph } from '../pathAnchoring'

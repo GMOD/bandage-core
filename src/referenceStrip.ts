@@ -1,11 +1,10 @@
-import { abgrToCssRgba } from '@jbrowse/core/util/colorBits'
-
 import { isBackbone } from './anchoredNodes'
 import {
   LIFT_BACKDROP_CSS,
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
+import { abgrToCssRgba } from './renderer/colorBits'
 
 import type { ResolvedColorScheme } from './colorSchemes'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'

@@ -1,10 +1,9 @@
-import { packAbgr } from '@jbrowse/core/util/colorBits'
-
 import {
   REFERENCE_RAMP_ALT_COLOR,
   REFERENCE_RAMP_MAX_HUE,
   hslToRgb,
 } from './renderer/GeometryBuilder'
+import { packAbgr } from './renderer/colorBits'
 
 // How a lifted walk colours its lane, stated the way a grammar of graphics
 // states an encoding: a field, the quantity the walk has at each node it

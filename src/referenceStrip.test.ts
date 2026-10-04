@@ -1,5 +1,3 @@
-import { packAbgr } from '@jbrowse/core/util/colorBits'
-
 import {
   nodeAnchor,
   referenceStripBlocks,
@@ -8,6 +6,7 @@ import {
   stripPixels,
 } from './referenceStrip'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
+import { packAbgr } from './renderer/colorBits'
 
 import type { Graph, GraphNode } from './types'
 

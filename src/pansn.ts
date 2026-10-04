@@ -1,4 +1,8 @@
-import type { BaseFeatureDataAdapter } from '@jbrowse/core/data_adapters/BaseAdapter'
+// The slice of a JBrowse data adapter these functions read, so any adapter with
+// a config reader fits and nothing here imports a host.
+interface ConfAdapter {
+  getConf(slot: any): unknown
+}
 
 // PanSN naming convention: `sample#haplotype#contig`. Shared by the all-vs-all
 // PAF adapters (in-memory and tabix-indexed), which anchor on the sample prefix
@@ -61,7 +65,7 @@ export function panSNMatchesPrefix(
 //
 // `?? {}` so an adapter whose schema lacks the slot identity-maps rather than
 // throwing a TypeError deep inside a query.
-function assemblyNameToPanSN(adapter: BaseFeatureDataAdapter) {
+function assemblyNameToPanSN(adapter: ConfAdapter) {
   return (adapter.getConf('assemblyNameToPanSN') ?? {}) as Record<
     string,
     string
@@ -72,16 +76,13 @@ function assemblyNameToPanSN(adapter: BaseFeatureDataAdapter) {
 // it to nothing. Overloaded rather than widened: undefined passes through, so a
 // caller can express "no anchor/target supplied", and a caller that has a name
 // gets a `string` back instead of having to re-assert one.
+export function resolvePanSNPrefix(adapter: ConfAdapter, name: string): string
 export function resolvePanSNPrefix(
-  adapter: BaseFeatureDataAdapter,
-  name: string,
-): string
-export function resolvePanSNPrefix(
-  adapter: BaseFeatureDataAdapter,
+  adapter: ConfAdapter,
   name: string | undefined,
 ): string | undefined
 export function resolvePanSNPrefix(
-  adapter: BaseFeatureDataAdapter,
+  adapter: ConfAdapter,
   name: string | undefined,
 ) {
   return name === undefined
@@ -89,15 +90,12 @@ export function resolvePanSNPrefix(
     : (assemblyNameToPanSN(adapter)[name] ?? name)
 }
 
-const asmByPrefixCache = new WeakMap<
-  BaseFeatureDataAdapter,
-  Record<string, string>
->()
+const asmByPrefixCache = new WeakMap<ConfAdapter, Record<string, string>>()
 
 // The inverse: PanSN prefix -> the assembly name this session loads it as, for
 // naming the lane a haplotype draws on. A mapped assembly counts whether or not
 // `assemblyNames` also lists it.
-export function assemblyByPanSNPrefix(adapter: BaseFeatureDataAdapter) {
+export function assemblyByPanSNPrefix(adapter: ConfAdapter) {
   let out = asmByPrefixCache.get(adapter)
   if (out === undefined) {
     const map = assemblyNameToPanSN(adapter)
