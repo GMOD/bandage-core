@@ -13,8 +13,16 @@ import { build } from 'esbuild'
 
 rmSync('dist', { recursive: true, force: true })
 
+const isModule = file =>
+  file.endsWith('.ts') &&
+  !file.endsWith('.d.ts') &&
+  !/\.(test|bench)\.ts$/.test(file) &&
+  !file.startsWith('bandage/native')
+
+const modules = readdirSync('src', { recursive: true }).filter(isModule)
+
 await build({
-  entryPoints: ['src/index.ts', 'src/cli/figure.ts'],
+  entryPoints: modules.map(file => path.join('src', file)),
   bundle: true,
   format: 'esm',
   splitting: true,
