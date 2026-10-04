@@ -15,6 +15,13 @@ test('a tripped limit names a zoom from how far the walk got', () => {
   )
 })
 
+test('a tripped limit is marked as a window too large, not a failure', () => {
+  expect(nodeLimitError(tripped(1000), 3, 10_000)).toMatchObject({
+    regionTooLarge: true,
+    fitsBp: 800,
+  })
+})
+
 test('an error that is not the node limit passes through', () => {
   expect(nodeLimitError(new Error('network'), 3, 10_000)).toBeUndefined()
 })

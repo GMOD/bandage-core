@@ -21,8 +21,13 @@ export class NoReferenceSampleError extends Error {
 
 export class NodeLimitError extends Error {
   override name = 'NodeLimitError'
+  readonly regionTooLarge = true
 
-  constructor(limit: number, windowBp: number, fitsBp: number) {
+  constructor(
+    limit: number,
+    windowBp: number,
+    readonly fitsBp: number,
+  ) {
     super(
       `this ${windowBp.toLocaleString()} bp window reads more than nodeLimit (${limit.toLocaleString()}) graph nodes; zoom in to about ${fitsBp.toLocaleString()} bp or raise nodeLimit`,
     )
