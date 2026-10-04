@@ -114,6 +114,21 @@ test("the ramp spans a view's colour domain where it states one", () => {
   ).not.toBe(figureSvg(graph, layout, options))
 })
 
+test('the ramp key names the sample and contig, or what the host says', () => {
+  const options = {
+    width: 600,
+    colorScheme: 'reference-position' as const,
+    region: { refName: 'ref#0#chr', start: 0, end: 9 },
+  }
+  expect(figureSvg(graph, layout, options)).toContain('ref chr position')
+  const named = figureSvg(graph, layout, {
+    ...options,
+    referenceName: 'hg38 chr6',
+  })
+  expect(named).toContain('hg38 chr6 position')
+  expect(named).toMatch(/hg38 chr6:\d/)
+})
+
 test('genes outline their exons and are named under their pins', () => {
   const svg = figureSvg(graph, layout, { width: 600, genes })
   expect(svg).toContain('mask="url(#exons0)"')

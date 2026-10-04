@@ -149,3 +149,30 @@ test('a walk running against the reference draws a whole lane beside it', () => 
     both.walks.map(w => w.colors.get('v2+')),
   )
 })
+
+// v1 drawn backwards and bent, so its start faces v2 and its two ends turn
+// different ways
+test("a lifted walk's link fans out across the end it leaves from", () => {
+  const bent = {
+    ...positions,
+    'v1+': [
+      { x: 10, y: 0 },
+      { x: 0, y: 0 },
+      { x: 0, y: -10 },
+    ],
+  }
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: bent,
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 5,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: lift('ref#0#chr', 'alt#1#chr'),
+  })
+  const lane = batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves[0]!
+  expect(lane.x0).toBeCloseTo(10)
+  expect(lane.y0).not.toBeCloseTo(0)
+})

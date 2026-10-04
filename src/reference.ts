@@ -133,6 +133,22 @@ export function graphBackbone(graph: Graph): Backbone | undefined {
     : undefined
 }
 
+// `GRCh38 chr6`: the window's contig, else the backbone's one contig, after the
+// sample a named backbone lies on. Undefined where there is no one contig, so
+// a range never follows a bare sample.
+export function referenceLabel(graph: Graph, region?: { refName: string }) {
+  const backbone = graphBackbone(graph)
+  const contig = region
+    ? panSNContig(region.refName)
+    : backbone?.contigs.length === 1
+      ? backbone.contigs[0]!.contig
+      : undefined
+  const sample = backbone?.named
+    ? panSNSample(backbone.contigs[0]!.refName)
+    : undefined
+  return contig && (sample ? `${sample} ${contig}` : contig)
+}
+
 // The assembly the backbone's haplotype names by its name or an alias, else
 // the one its sample names, else the one whose well-known sample it is. A
 // backbone with no prefix binds to none.

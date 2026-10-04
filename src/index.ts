@@ -213,6 +213,7 @@ export {
   featuresOnBackbone,
   graphBackbone,
   refNameBinding,
+  referenceLabel,
   wellKnownSample,
 } from './reference'
 export type { AssemblyNames, Backbone, BackboneContig } from './reference'

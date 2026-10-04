@@ -13,6 +13,7 @@ import { baseEdgeCurves } from '../util/edgeCurves'
 import {
   dashCurves,
   pathRibbonOffsets,
+  strandSides,
   translateCurves,
   yToXOf,
 } from '../util/geometry'
@@ -20,7 +21,7 @@ import {
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { NodeWidth } from '../nodeWidths'
-import type { Graph, GraphNode, NodeSegment } from '../types'
+import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 import type { WalkLift } from '../walkHighlight'
 import type {
   Arrowhead,
@@ -259,6 +260,23 @@ function polylinePx(segments: NodeSegment[], scale: number, yToX: number) {
     )
   }
   return length * scale
+}
+
+// Whether a link leaves its from-node's start: as its strands say where the
+// layout is stranded, else wherever its curve begins
+function leavesStart(
+  edge: GraphEdge,
+  segments: NodeSegment[],
+  first: BezierCurve,
+  stranded: boolean | undefined,
+  yToX: number,
+) {
+  if (stranded) {
+    return strandSides(edge).from === 'start'
+  }
+  const gap = (p: NodeSegment) =>
+    Math.hypot(p.x - first.x0, (p.y - first.y0) * yToX)
+  return gap(segments[0]!) < gap(segments.at(-1)!)
 }
 
 // The way into a node from the end an edge reaches it at: the direction an
@@ -1001,10 +1019,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? nodeWidthPx(fromNode, contigThickness, nodeWidth, depthNorm)
         : contigThickness
       const laneWidth = Math.max(width / laneWalks.length, MIN_WALK_LANE_PX)
-      // the lanes' sideways direction where the link leaves its node, which
-      // is the end a '-' link leaves from the start of
       const normals = pointNormalsOf(fromSegments, yToX)
-      const { nx, ny } = (edge.fromStrand === '-'
+      const { nx, ny } = (leavesStart(
+        edge,
+        fromSegments,
+        baseCurves[0]!,
+        stranded,
+        yToX,
+      )
         ? normals[0]
         : normals.at(-1)) ?? {
         nx: 0,

@@ -10,6 +10,7 @@ import {
   featuresOnBackbone,
   graphBackbone,
   refNameBinding,
+  referenceLabel,
   wellKnownSample,
 } from './reference'
 
@@ -162,6 +163,32 @@ describe('graphBackbone', () => {
     expect(hap2?.contigs.map(c => c.refName)).toEqual(['HG002#2#chr6'])
     expect(hap2?.prefixes).toEqual(['HG002#2'])
     expect(hap2?.named).toBe(true)
+  })
+})
+
+describe('referenceLabel', () => {
+  const rgfa = (...names: string[]) =>
+    load(
+      names.map(
+        (name, i) => `S\ts${i}\t*\tLN:i:10\tSN:Z:${name}\tSO:i:0\tSR:i:0`,
+      ),
+    )
+
+  test('names the sample a named backbone lies on, then its contig', () => {
+    expect(referenceLabel(rgfa('GRCh38#0#chr6'))).toBe('GRCh38 chr6')
+    expect(referenceLabel(rgfa('chr6'))).toBe('chr6')
+  })
+
+  test('takes the contig from the window where there is one', () => {
+    const graph = rgfa('GRCh38#0#chr6', 'GRCh38#0#chr7')
+    expect(referenceLabel(graph)).toBeUndefined()
+    expect(referenceLabel(graph, { refName: 'GRCh38#0#chr7' })).toBe(
+      'GRCh38 chr7',
+    )
+  })
+
+  test('is undefined with no backbone and no window', () => {
+    expect(referenceLabel(load(['S\t1\tACGT']))).toBeUndefined()
   })
 })
 

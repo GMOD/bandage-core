@@ -236,12 +236,13 @@ export function strandSides(edge: GraphEdge): EdgeSides {
 // whichever end is nearer the OTHER node's drawn span, the forward reading
 // winning a tie.
 //
-// Nearer to the span, not to the other attachment point: a bubble's two nodes
-// usually overlap in x, which ties and keeps the bubble forward, where
-// distances to a point differ by a hair and can hang a node's entry and exit
-// off one end. `L s381 - s2087 +` then `L s2087 + s378 -` (NCTC86 crossing its
-// locus right to left) is the case the rule is for. Pinned by
-// bubbleCrossing.test.ts.
+// The distance is to the other node's span, not to its attachment point. A
+// bubble's two nodes usually overlap in x, so both ends of each lie 0 from the
+// other's span, the tie keeps the bubble forward, and its entry and exit stay
+// on opposite ends. Measured to a point, the two ends differ by a hair and can
+// hang both links off one end. `L s381 - s2087 +` then `L s2087 + s378 -`
+// (NCTC86 crossing its locus right to left) is the case the rule is for.
+// Pinned by bubbleCrossing.test.ts.
 function spanOf(segments: NodeSegment[]) {
   let min = Infinity
   let max = -Infinity
@@ -533,7 +534,11 @@ export type EdgeJoin = SelfLink | EdgeSides
 
 export function edgeJoinOf(edge: GraphEdge, stranded = false): EdgeJoin {
   const self = selfLinkOf(edge)
-  return self === false && stranded ? strandSides(edge) : self
+  if (!stranded) {
+    return self
+  }
+  const sides = strandSides(edge)
+  return self === false ? sides : sides.from === sides.to ? sides.from : true
 }
 
 // A teardrop off one end, after Bandage's: it leaves along the node, turns at

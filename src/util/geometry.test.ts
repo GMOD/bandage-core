@@ -3,6 +3,7 @@ import {
   curveMidpoint,
   curvePointAt,
   dashCurves,
+  edgeJoinOf,
   projectLine,
   routedEdgeCurves,
   selfLinkOf,
@@ -248,6 +249,22 @@ describe('computeEdgeCurves', () => {
     expect(selfLinkOf(edge('+', '+'))).toBe(true)
     expect(selfLinkOf({ from: 'a+', to: 'a+' })).toBe(true)
     expect(selfLinkOf({ from: 'a+', to: 'b+' })).toBe(false)
+  })
+
+  test('stranded, a self link reads its ends off its own node', () => {
+    const edge = (id: string, fromStrand: '+' | '-', toStrand: '+' | '-') => ({
+      from: id,
+      to: id,
+      fromStrand,
+      toStrand,
+    })
+    expect(edgeJoinOf(edge('a+', '+', '-'), true)).toBe('end')
+    expect(edgeJoinOf(edge('a+', '-', '+'), true)).toBe('start')
+    expect(edgeJoinOf(edge('a+', '+', '+'), true)).toBe(true)
+    expect(edgeJoinOf(edge('a-', '-', '+'), true)).toBe('end')
+    expect(edgeJoinOf(edge('a-', '+', '-'), true)).toBe('start')
+    expect(edgeJoinOf(edge('a-', '-', '-'), true)).toBe(true)
+    expect(edgeJoinOf(edge('a-', '-', '+'))).toBe('start')
   })
 
   test('a hairpin leaves an end and comes back to it, reaching outward', () => {

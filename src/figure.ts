@@ -33,6 +33,7 @@ import {
 } from './overlayLabels'
 import { pathLegend } from './pathColors'
 import { FIT_PADDING, drawingBounds, fitTransform } from './pipeline'
+import { referenceLabel } from './reference'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { svgCanvas } from './renderer/svgCanvas'
@@ -74,6 +75,9 @@ export interface FigureOptions {
   // the window the graph was cut for, which the anchored layouts and the
   // reference-position ramp span
   region?: { refName: string; start: number; end: number }
+  // what the ramp and the walk keys call the reference, `hg38 chr6`, in place
+  // of referenceLabel's
+  referenceName?: string
   // the interval the ramp spans where it is not `region`, as a view's
   // `colorDomain` states it
   colorDomain?: { start: number; end: number }
@@ -239,9 +243,10 @@ export function figureSvg(
     ]),
   )
   const labelOf = (name: string) => labels.get(name) ?? name
+  const referenceName = o.referenceName ?? referenceLabel(graph, region)
   const reference = lift?.referenceDomain && {
     ...lift.referenceDomain,
-    name: region?.refName,
+    name: referenceName,
   }
   const contigThickness = o.contigThickness ?? 6
   const nodeWidth = o.nodeWidth ?? 'depth'
@@ -463,10 +468,10 @@ export function figureSvg(
           x,
           2,
           encodingStops({ field: 'reference', scheme: 'rainbow' }),
-          'Reference position',
+          referenceName ? `${referenceName} position` : 'Reference position',
           '',
           rangeText(
-            region?.refName,
+            referenceName,
             referenceRamp.start,
             referenceRamp.start + referenceRamp.span,
           ),
