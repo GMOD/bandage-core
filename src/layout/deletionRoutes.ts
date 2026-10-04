@@ -12,13 +12,20 @@ const ROUTE_FRACTION = 0.5
 
 export type DeletionRoutes = Record<number, NodeSegment[]>
 
-export function withDeletionRoutes(graph: Graph, deletions: DeletionEdge[]) {
+export function withDeletionRoutes(
+  graph: Graph,
+  deletions: DeletionEdge[],
+  dropped = new Set<number>(),
+) {
   const routes = new Map(
     deletions.map(d => [d.edgeIndex, `${ROUTE_ID}${d.edgeIndex}`]),
   )
   const edges: GraphEdge[] = []
   graph.edges.forEach((edge, ei) => {
     const id = routes.get(ei)
+    if (dropped.has(ei)) {
+      return
+    }
     if (id === undefined) {
       edges.push(edge)
     } else {
@@ -46,6 +53,23 @@ export function withDeletionRoutes(graph: Graph, deletions: DeletionEdge[]) {
     routes,
     ids: new Set(routes.values()),
   }
+}
+
+// The deletions a layout without them can leave out: those whose skipped
+// reference is all in the graph, so the backbone still joins their ends. A cut
+// window can keep a deletion's ends but not all it skips, and dropping that
+// link would split the graph.
+export function closableDeletions(graph: Graph, deletions: DeletionEdge[]) {
+  const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
+  return new Set(
+    deletions
+      .filter(
+        d =>
+          d.bypassed.reduce((sum, id) => sum + (lengths.get(id) ?? 0), 0) >=
+          d.bp,
+      )
+      .map(d => d.edgeIndex),
+  )
 }
 
 // The route nodes as the engine takes them, each `length` in whatever unit

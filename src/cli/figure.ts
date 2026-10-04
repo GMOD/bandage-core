@@ -277,6 +277,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
           bubbleSpread: spec.bubbleSpread ?? 'auto',
           spacing: spec.spacing,
           componentSeparation: spec.componentSeparation,
+          showDeletionEdges: !!spec.showDeletionEdges,
         },
         engine,
       )

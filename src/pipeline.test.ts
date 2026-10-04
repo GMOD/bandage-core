@@ -48,6 +48,12 @@ test('a layout at another spacing is cached apart', () => {
   expect(engineKey(graph, { ...engine, componentSeparation: 2 })).not.toBe(
     engineKey(graph, engine),
   )
+  expect(engineKey(graph, { ...engine, showDeletionEdges: false })).not.toBe(
+    engineKey(graph, engine),
+  )
+  expect(engineKey(graph, { ...engine, showDeletionEdges: true })).toBe(
+    engineKey(graph, engine),
+  )
 })
 
 test('a force layout draws its nodes start to end', async () => {

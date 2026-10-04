@@ -4,6 +4,7 @@ import { deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
 import {
+  closableDeletions,
   routeNodes,
   takeRoutes,
   withDeletionRoutes,
@@ -76,6 +77,8 @@ export interface EngineSettings {
   // the graph's components; 1 when absent
   spacing?: number
   componentSeparation?: number
+  // false lays the graph out without the deletion edges it can close
+  showDeletionEdges?: boolean
 }
 
 // the engine's own gap between components, which `componentSeparation` scales
@@ -122,7 +125,7 @@ export function engineRequest(
 // seeds follow.
 export function engineKey(graph: Graph, settings: EngineSettings) {
   const anchored = graph.nodes.some(isBackbone)
-  return `${settings.quality}|${settings.linearLayout}|${settings.bubbleSpread}|${settings.spacing ?? 1}|${settings.componentSeparation ?? 1}|${anchored}|${graph.referencePath ?? ''}`
+  return `${settings.quality}|${settings.linearLayout}|${settings.bubbleSpread}|${settings.spacing ?? 1}|${settings.componentSeparation ?? 1}|${settings.showDeletionEdges !== false}|${anchored}|${graph.referencePath ?? ''}`
 }
 
 // The engine lays out the runs, not the nodes: a base-level cut is thousands
@@ -136,8 +139,13 @@ export async function forceLayout(
   engine: LayoutEngine,
 ) {
   const spread = spreadFor(settings.bubbleSpread)
-  const deletions = deletionEdges(graph)
-  const routed = withDeletionRoutes(graph, deletions)
+  const found = deletionEdges(graph)
+  const dropped =
+    settings.showDeletionEdges === false
+      ? closableDeletions(graph, found)
+      : new Set<number>()
+  const deletions = found.filter(d => !dropped.has(d.edgeIndex))
+  const routed = withDeletionRoutes(graph, deletions, dropped)
   const merged = mergeRuns(routed.graph, routed.ids)
   const runs = {
     ...merged.graph,

@@ -6,7 +6,7 @@ import { parseGFA } from '../gfa-core/index'
 import loadBandage from '../loadBandage'
 import { forceLayout } from '../pipeline'
 
-import type { LayoutEngine } from '../pipeline'
+import type { EngineRequest, LayoutEngine } from '../pipeline'
 
 // 2 is 20 kb of reference that 1 -> 3 skips; 4 is an allele beside 2.
 const RGFA = [
@@ -112,4 +112,39 @@ test('a graph without deletions lays out as before, with no routes', async () =>
   const { result } = await forceLayout(plain, settings, engine)
   expect(result.deletionRoutes).toBeUndefined()
   expect(result.extent).toBeUndefined()
+})
+
+test('a force layout without deletion edges closes the bubble', async () => {
+  const requests: EngineRequest[] = []
+  const recording: LayoutEngine = request => {
+    requests.push(request)
+    return engine(request)
+  }
+  const { result } = await forceLayout(
+    graph,
+    { ...settings, showDeletionEdges: false },
+    recording,
+  )
+  expect(result.deletionRoutes).toBeUndefined()
+  expect(requests[0]!.graph.nodes).toHaveLength(graph.nodes.length)
+  expect(requests[0]!.graph.edges).not.toContainEqual(
+    expect.objectContaining({ from: '1+', to: '3+' }),
+  )
+})
+
+test('a deletion whose skipped reference the cut lost keeps its link', async () => {
+  const cut = convertGFAToGraph(
+    parseGFA(
+      RGFA.split('\n')
+        .filter(l => !/^S\t2\t|\t2\t/.test(l))
+        .join('\n'),
+    ),
+  )
+  const [deletion] = deletionEdges(cut)
+  const { result } = await forceLayout(
+    cut,
+    { ...settings, showDeletionEdges: false },
+    engine,
+  )
+  expect(result.deletionRoutes?.[deletion!.edgeIndex]).toBeDefined()
 })
