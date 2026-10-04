@@ -274,6 +274,32 @@ function facingSides(fromSegments: NodeSegment[], toSegments: NodeSegment[]) {
   }
 }
 
+// The facing ends are read once, where the layout put the nodes, and held. A
+// host drags a node by shifting its segments in place, so the arrays outlive
+// the drag; read again, a node dragged past the middle of its neighbour would
+// swing the link to the neighbour's other end.
+const laidSides = new WeakMap<
+  NodeSegment[],
+  WeakMap<NodeSegment[], EdgeSides>
+>()
+
+function heldFacingSides(
+  fromSegments: NodeSegment[],
+  toSegments: NodeSegment[],
+) {
+  let byTo = laidSides.get(fromSegments)
+  if (!byTo) {
+    byTo = new WeakMap()
+    laidSides.set(fromSegments, byTo)
+  }
+  let sides = byTo.get(toSegments)
+  if (!sides) {
+    sides = facingSides(fromSegments, toSegments)
+    byTo.set(toSegments, sides)
+  }
+  return sides
+}
+
 // A cubic whose two control points both sit `b` off the chord reaches 3b/4 at
 // its midpoint: (P0 + 3C0 + 3C1 + P1)/8 with the endpoints on the chord.
 const APEX_FRACTION = 0.75
@@ -619,6 +645,9 @@ export function computeEdgeCurves(
   const scale = axis.scaleX
   const yToX = yToXOf(axis)
   const maxBow = maxBowIn ?? (axis.pixelRows ? MAX_ROW_BOW_PX : undefined)
+  if (join === false) {
+    join = heldFacingSides(fromSegments, toSegments)
+  }
   if (yToX !== 1) {
     // Recur once with y already in x units, then put the answer back. The
     // isotropic body below is the only implementation, so an anisotropic
@@ -655,9 +684,7 @@ export function computeEdgeCurves(
     )
   }
   const loop = join === true
-  const sides = loop
-    ? { from: 'end' as Side, to: 'start' as Side }
-    : join || facingSides(fromSegments, toSegments)
+  const sides: EdgeSides = join === true ? { from: 'end', to: 'start' } : join
   const fromAttach = attachment(fromSegments, sides.from)
   const toAttach = attachment(toSegments, sides.to)
   const fromEnd = fromAttach.at

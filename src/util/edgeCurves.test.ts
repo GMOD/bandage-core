@@ -158,3 +158,67 @@ describe('a folded node', () => {
     ])
   })
 })
+
+// An insertion hangs below the node it bypasses, as the anchored layout lays
+// it. Dragged left past the middle of `b`, it once pulled the link from `b`'s
+// end round to its start, where the other link already left from.
+describe('a dragged node', () => {
+  const laid = (): Record<string, NodeSegment[]> => ({
+    'a+': [
+      { x: 50, y: 0 },
+      { x: 115, y: 0 },
+    ],
+    'b+': [
+      { x: 115, y: 0 },
+      { x: 300, y: 0 },
+    ],
+    'ins+': [
+      { x: 220, y: 200 },
+      { x: 250, y: 200 },
+    ],
+  })
+  const bypass: Graph = {
+    name: 'bypass',
+    nodes: ['a+', 'b+', 'ins+'].map(id => ({
+      id,
+      name: id,
+      length: 1,
+      depth: 1,
+    })),
+    edges: [
+      { from: 'a+', to: 'ins+' },
+      { from: 'ins+', to: 'b+' },
+    ],
+  }
+  const ends = (positions: Record<string, NodeSegment[]>, version: number) =>
+    [...baseEdgeCurves(positions, bypass, iso, undefined, version)].map(
+      ([, curves]) => [curves[0]!.x0, curves.at(-1)!.x1],
+    )
+  const drag = (positions: Record<string, NodeSegment[]>, dx: number) => {
+    for (const seg of positions['ins+']!) {
+      seg.x += dx
+    }
+  }
+
+  test('keeps the ends it was laid with', () => {
+    const positions = laid()
+    expect(ends(positions, 0)).toEqual([
+      [115, 220],
+      [250, 300],
+    ])
+    drag(positions, -35)
+    expect(ends(positions, 1)).toEqual([
+      [115, 185],
+      [215, 300],
+    ])
+  })
+
+  test('a new layout reads its ends afresh', () => {
+    const positions = laid()
+    drag(positions, -35)
+    expect(ends(positions, 0)).toEqual([
+      [115, 185],
+      [215, 115],
+    ])
+  })
+})
