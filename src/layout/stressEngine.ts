@@ -1,4 +1,5 @@
 import { isBackbone } from '../anchoredNodes'
+import { stressPlacement } from './stressPlacement'
 
 import type { EngineRequest } from '../pipeline'
 import type { LayoutResult, NodeSegment } from '../types'
@@ -14,6 +15,9 @@ import type { LayoutResult, NodeSegment } from '../types'
 // their signed reference separation along x, which holds the backbone
 // straight and in order without pinning it. Stress has no repulsion, so a
 // final pass pushes apart points that are close but not joined.
+//
+// An anchored graph starts from stressPlacement's drawing and enters the
+// schedule part way, where the steps are small enough to keep its shape.
 
 // walks per point and iterations by the quality the request names
 const QUALITY = [
@@ -31,8 +35,10 @@ const SMOOTH_PASSES = 2
 const MAX_HOPS = 200
 // the step size the schedule ends on, as a share of the smallest pair's
 const EPS = 0.1
+// the share of the schedule an anchored graph skips
+const WARM = 0.5
 
-type Side = 0 | 1
+export type Side = 0 | 1
 
 function flipped(strand: string | undefined, name: string) {
   const own = name.at(-1)
@@ -55,7 +61,7 @@ function xorshift(seed: number) {
   }
 }
 
-interface Chains {
+export interface Chains {
   ids: string[]
   // each chain's first point, point count and distance between points
   first: Int32Array
@@ -82,7 +88,7 @@ function num(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
-function chains(request: EngineRequest): Chains {
+export function chains(request: EngineRequest): Chains {
   const { nodes, edges } = request.graph
   const o = request.options
   const perMegabase = num(o.nodeLengthPerMegabase, 1000)
@@ -243,9 +249,13 @@ export function stressLayout(
       break
     }
   }
+  const placed = anySeed ? stressPlacement(c) : undefined
   const side = Math.sqrt(n) * 20
   for (let i = 0; i < n; i++) {
-    if (anySeed && !Number.isNaN(seedX[i])) {
+    if (placed && !Number.isNaN(placed.X[i])) {
+      X[i] = placed.X[i]!
+      Y[i] = placed.Y[i]!
+    } else if (anySeed && !Number.isNaN(seedX[i])) {
       X[i] = seedX[i]! + rand() - 0.5
       Y[i] = seedY[i]! + rand() - 0.5
     } else {
@@ -374,7 +384,8 @@ export function stressLayout(
   for (let i = 0; i < n; i++) {
     order[i] = i
   }
-  for (let t = 0; t < iterations; t++) {
+  const warm = anySeed ? Math.floor(WARM * iterations) : 0
+  for (let t = warm; t < iterations; t++) {
     const eta = etaMax * Math.exp(-lambda * t)
     for (let k = n - 1; k > 0; k--) {
       const r = Math.floor(rand() * (k + 1))

@@ -7,7 +7,7 @@ import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 // any other and the drawing follows where it went. The node is half as long as
 // the reference it skips: long enough to read as a route, short enough to read
 // as the shortcut it is.
-const ROUTE_ID = '\u0000deletion:'
+export const ROUTE_ID = '\u0000deletion:'
 const ROUTE_FRACTION = 0.5
 
 export type DeletionRoutes = Record<number, NodeSegment[]>
