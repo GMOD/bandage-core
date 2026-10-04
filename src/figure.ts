@@ -9,6 +9,7 @@ import {
   facetGrid,
   facetSettingOf,
 } from './facetGrid'
+import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
 import { geneLabelCandidates } from './labelLayout'
 import { ROW_HEIGHT_PX } from './layout/rowSpacing'
@@ -110,13 +111,7 @@ const SWATCH_PX = 18
 const KEY_GAP_PX = 16
 const STRIP_KEY_PX = 22
 const FADED = 'rgb(160,160,160)'
-// the gene track's CDS colour, round each exon, as the viewer draws it
-const EXON_COLOR = '#daa520'
 const GENE_INK = '#1c1c22'
-// a lifted walk's lane at the least, as the geometry draws it
-const MIN_LANE_PX = 4
-const EXON_GAP_PX = 1
-const EXON_LINE_PX = 2
 
 function esc(s: string) {
   return s
@@ -159,6 +154,14 @@ function keySvg(
     markup: `${defs}<g transform="translate(${x} ${y})" ${FONT}><rect y="5" width="${bar}" height="8" rx="2" ${fill}/><text x="${bar + 5}" y="13"><tspan font-weight="bold">${esc(label)}</tspan>${esc(after)}</text>${
       under ? `<text y="28">${esc(under)}</text>` : ''
     }</g>`,
+  }
+}
+
+// the exon outline's key, as the viewer's gene legend draws it
+function exonKeySvg(x: number, y: number) {
+  return {
+    width: SWATCH_PX + 5 + 4 * LABEL_CHAR_PX,
+    markup: `<g transform="translate(${x} ${y})" ${FONT}><rect x="1" y="4" width="${SWATCH_PX - 2}" height="10" rx="4" fill="none" stroke="${EXON_COLOR}" stroke-width="2"/><text x="${SWATCH_PX + 5}" y="13">exon</text></g>`,
   }
 }
 
@@ -272,31 +275,12 @@ export function figureSvg(
     h: number,
   ) {
     const out: string[] = []
-    const inkPx = (nodeId: string) => {
-      const own = ink.halfWidthPx(nodeId) * 2
-      return highlight?.nodeIds.has(nodeId)
-        ? Math.max(own, highlight.walks.length * MIN_LANE_PX)
-        : own
-    }
-    const stretches = pins.flatMap(pin =>
-      pin.exonsByNode.map(({ nodeId, d }) => ({
-        d: screenPath(d, t),
-        inner: inkPx(nodeId) + 2 * EXON_GAP_PX,
-      })),
+    const outlines = exonOutlineTree(
+      exonStretches(pins, ink.halfWidthPx, highlight, d => screenPath(d, t)),
+      { id: `exons${masks++}`, width: w, height: h },
     )
-    if (stretches.length > 0) {
-      const id = `exons${masks++}`
-      const stroke = (color: string, width: number, d: string) =>
-        `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`
-      out.push(
-        `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}">${stretches
-          .map(s => stroke('#fff', s.inner + 2 * EXON_LINE_PX, s.d))
-          .join('')}${stretches
-          .map(s => stroke('#000', s.inner, s.d))
-          .join(
-            '',
-          )}</mask><rect width="${w}" height="${h}" fill="${EXON_COLOR}" mask="url(#${id})"/>`,
-      )
+    if (outlines) {
+      out.push(serializeEl(outlines))
     }
     const screen = (p: { x: number; y: number }) => ({
       x: p.x * t.scaleX + t.translateX,
@@ -483,6 +467,9 @@ export function figureSvg(
           ),
         ),
       )
+    }
+    if (pins.some(pin => pin.exonsByNode.length > 0)) {
+      push(exonKeySvg(x, 2))
     }
     const header = parts.length > 0 ? FACET_TITLE_PX : 0
     const usable = width - 2 * FIT_PADDING

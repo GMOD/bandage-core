@@ -129,12 +129,14 @@ test('the ramp key names the sample and contig, or what the host says', () => {
   expect(named).toMatch(/hg38 chr6:\d/)
 })
 
-test('genes outline their exons and are named under their pins', () => {
+test('genes outline their exons, are named under their pins and keyed', () => {
   const svg = figureSvg(graph, layout, { width: 600, genes })
   expect(svg).toContain('mask="url(#exons0)"')
   expect(svg).toContain(
     '<tspan font-style="italic" font-weight="600">GENE1</tspan>',
   )
+  expect(svg).toContain('>exon</text>')
+  expect(figureSvg(graph, layout, { width: 600 })).not.toContain('>exon<')
 })
 
 test('walk rows in a strip sit under the drawing, labelled and keyed', () => {

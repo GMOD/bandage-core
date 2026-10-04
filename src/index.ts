@@ -204,6 +204,8 @@ export {
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
 export { formatBp } from './graphLabels'
+export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
+export type { ExonStretch } from './genes/exonOutline'
 export { genePins } from './genes/genePins'
 export type { GeneModel, GenePin } from './genes/genePins'
 export {
