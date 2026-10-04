@@ -73,7 +73,6 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     genePins: [],
     labelsNodeSizes: true,
     nodeLengths: new Map(),
-    showDeletionEdges: false,
     deletions: [],
     alleleDeletions: [],
     positionsVersion: 0,

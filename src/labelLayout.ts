@@ -51,7 +51,7 @@ export interface LabelLayoutSource {
   // length label would sit on a box's tubes rather than beside a node
   labelsNodeSizes: boolean
   nodeLengths: Map<string, number>
-  showDeletionEdges: boolean
+  // the deletions drawn (deletionDrawing's `shown`)
   deletions: DeletionEdge[]
   deletionRoutes?: DeletionRoutes
   stranded?: boolean
@@ -202,7 +202,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
       ? sizeLabelCandidates({
           nodePositions: m.nodePositions,
           nodeLengths: m.nodeLengths,
-          deletions: m.showDeletionEdges ? m.deletions : [],
+          deletions: m.deletions,
           deletionRoutes: m.deletionRoutes,
           stranded: m.stranded,
           alleleDeletions: m.alleleDeletions,

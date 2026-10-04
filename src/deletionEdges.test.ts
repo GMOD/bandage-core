@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-import { deletionEdges } from './deletionEdges'
+import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
 import { computeEdgeCurves, curvePointAt } from './util/geometry'
@@ -195,4 +195,27 @@ test('the arc reaches past the reference it bows around', () => {
     { x: 145, y: 300 },
   ])
   expect(curvePointAt(curves[0]!, 0.5).y).toBeGreaterThan(300)
+})
+
+test('with deletion edges off, a drawing still draws one nothing else bridges', () => {
+  const graph = graphOf(RGFA)
+  const deletions = deletionEdges(graph)
+  const [deletion] = deletions
+  expect(deletionDrawing(graph, deletions, false).hidden).toEqual(
+    new Set([deletion!.edgeIndex]),
+  )
+  expect(deletionDrawing(graph, deletions, false).shown).toEqual([])
+  expect(deletionDrawing(graph, deletions).shown).toEqual(deletions)
+  expect(deletionDrawing(graph, deletions, false)).toBe(
+    deletionDrawing(graph, deletions, false),
+  )
+
+  const bridged = graphOf(
+    RGFA.split('\n')
+      .filter(l => !l.includes('\t4\t'))
+      .join('\n'),
+  )
+  const kept = deletionEdges(bridged)
+  expect(deletionDrawing(bridged, kept, false).hidden.size).toBe(0)
+  expect(deletionDrawing(bridged, kept, false).shown).toEqual(kept)
 })

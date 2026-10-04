@@ -273,7 +273,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
           engine: spec.engine,
           spacing: spec.spacing,
           componentSeparation: spec.componentSeparation,
-          showDeletionEdges: !!spec.showDeletionEdges,
+          showDeletionEdges: spec.showDeletionEdges,
         },
         layoutEngine,
       )

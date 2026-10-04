@@ -90,8 +90,8 @@ export {
 export type { Connector, ReferenceNode } from './tubeMap/connectors'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
-export { deletionEdges } from './deletionEdges'
-export type { DeletionEdge } from './deletionEdges'
+export { deletionDrawing, deletionEdges } from './deletionEdges'
+export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'

@@ -109,7 +109,6 @@ for (const backbone of [1000, 5000]) {
       nodePositions,
       labelsNodeSizes: true,
       nodeLengths,
-      showDeletionEdges: true,
       deletions,
       alleleDeletions: [],
       positionsVersion: 0,

@@ -1,5 +1,5 @@
 import { resolveColorScheme } from './colorSchemes'
-import { deletionEdges } from './deletionEdges'
+import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { serializeEl } from './el'
 import {
   FACET_GAP_PX,
@@ -71,6 +71,7 @@ export interface FigureOptions {
   facet?: FacetInput
   colorScheme?: ColorScheme
   nodeWidth?: NodeWidth
+  // true when absent, as for the layout
   showDeletionEdges?: boolean
   contigThickness?: number
   connectorThickness?: number
@@ -226,7 +227,11 @@ export function figureSvg(
     start: referenceRamp.start,
     end: referenceRamp.start + referenceRamp.span,
   }
-  const deletions = layout.tubeMap ? [] : deletionEdges(graph)
+  const drawnDeletions = deletionDrawing(
+    graph,
+    layout.tubeMap ? [] : deletionEdges(graph),
+    o.showDeletionEdges,
+  )
   const layers = o.walks ?? []
   const walkRamp = layers.some(l => l.color?.field === 'reference')
     ? (referenceRamp ?? computeReferenceRamp(graph, rampDomain))
@@ -368,12 +373,10 @@ export function figureSvg(
         highlight,
         axis,
         referenceRamp,
-        deletions: new Map(deletions.map(d => [d.edgeIndex, d.bypassed])),
+        deletions: drawnDeletions.bypassed,
         deletionRoutes: layout.deletionRoutes,
         stranded: layout.stranded,
-        hiddenEdges: new Set(
-          o.showDeletionEdges ? [] : deletions.map(d => d.edgeIndex),
-        ),
+        hiddenEdges: drawnDeletions.hidden,
       }),
     )
     const t = {

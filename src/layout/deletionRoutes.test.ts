@@ -1,6 +1,6 @@
-import { closableDeletions, withDeletionRoutes } from './deletionRoutes'
+import { withDeletionRoutes } from './deletionRoutes'
 import { mergeRuns } from './mergeRuns'
-import { deletionEdges } from '../deletionEdges'
+import { closableDeletions, deletionEdges } from '../deletionEdges'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import loadBandage from '../loadBandage'

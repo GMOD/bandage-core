@@ -233,3 +233,76 @@ export function deletionEdges(graph: Graph): DeletionEdge[] {
   }
   return found
 }
+
+// The deletions a layout without them can leave out: every one whose ends the
+// rest of the graph still joins. A cut window can keep a deletion's ends but
+// lose a link in the reference between them, and dropping that deletion would
+// split the graph.
+export function closableDeletions(graph: Graph, deletions: DeletionEdge[]) {
+  const parent = new Map<string, string>()
+  const root = (id: string) => {
+    let r = id
+    while (parent.has(r)) {
+      r = parent.get(r)!
+    }
+    if (r !== id) {
+      parent.set(id, r)
+    }
+    return r
+  }
+  const join = (a: string, b: string) => {
+    const [ra, rb] = [root(a), root(b)]
+    if (ra !== rb) {
+      parent.set(ra, rb)
+    }
+    return ra !== rb
+  }
+  const candidates = new Set(deletions.map(d => d.edgeIndex))
+  graph.edges.forEach((e, ei) => {
+    if (!candidates.has(ei)) {
+      join(e.from, e.to)
+    }
+  })
+  return new Set(
+    deletions.filter(d => !join(d.from, d.to)).map(d => d.edgeIndex),
+  )
+}
+
+export interface DeletionDrawing {
+  // the deletions drawn, which their labels name
+  shown: DeletionEdge[]
+  // the backbone each deletion bypasses by edge index, as the geometry and the
+  // hit index take it
+  bypassed: Map<number, string[]>
+  hidden: ReadonlySet<number>
+}
+
+const drawings = new WeakMap<DeletionEdge[], Map<boolean, DeletionDrawing>>()
+
+// How a drawing shows a graph's deletions, the same object for the same
+// arguments so caches keyed on it hold. With deletion edges off it still draws
+// those a layout without them keeps, so what the layout joined stays joined.
+export function deletionDrawing(
+  graph: Graph,
+  deletions: DeletionEdge[],
+  show = true,
+) {
+  let byShow = drawings.get(deletions)
+  if (!byShow) {
+    byShow = new Map()
+    drawings.set(deletions, byShow)
+  }
+  let drawing = byShow.get(show)
+  if (!drawing) {
+    const hidden = show
+      ? new Set<number>()
+      : closableDeletions(graph, deletions)
+    drawing = {
+      shown: deletions.filter(d => !hidden.has(d.edgeIndex)),
+      bypassed: new Map(deletions.map(d => [d.edgeIndex, d.bypassed])),
+      hidden,
+    }
+    byShow.set(show, drawing)
+  }
+  return drawing
+}

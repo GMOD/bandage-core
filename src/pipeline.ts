@@ -1,10 +1,9 @@
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
-import { deletionEdges } from './deletionEdges'
+import { closableDeletions, deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
 import {
-  closableDeletions,
   routeNodes,
   takeRoutes,
   withDeletionRoutes,

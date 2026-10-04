@@ -61,7 +61,7 @@ one (+49.9 kb); HG00133 takes both (+116.4 kb).
 | `width`, `height`          | the figure's width, and the most height it may take                                                                                                                                                         |
 | `colorScheme`, `nodeWidth` | as the view's Color menu and node width setting                                                                                                                                                             |
 | `contigThickness`          | a node's drawn width in px, 6 by default                                                                                                                                                                    |
-| `showDeletionEdges`        | draw the edges that skip reference sequence                                                                                                                                                                 |
+| `showDeletionEdges`        | `false` lays out and draws the graph without the edges that skip reference sequence, but for any that alone join their ends                                                                                 |
 | `walkStrip`                | walk rows in a strip under a layout that draws nodes, each haplotype's walk on its own bp; a `gbz` cut then follows whole walks unless `snarls` says otherwise                                              |
 | `walkRowSamples`           | the samples the strip keeps, in the order it draws them                                                                                                                                                     |
 
