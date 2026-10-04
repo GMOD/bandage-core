@@ -22,7 +22,7 @@ export const COLOR_SCHEMES = [
   { value: 'random', label: 'Random' },
   { value: 'rainbow', label: 'Rainbow' },
   { value: 'depth', label: 'Depth' },
-  { value: 'node-length', label: 'Node Length' },
+  { value: 'node-length', label: 'Node length' },
   { value: 'stable-rank', label: 'Stable rank' },
   { value: 'reference-position', label: 'Reference position' },
   { value: 'grey', label: 'Grey' },
