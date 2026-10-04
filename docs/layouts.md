@@ -360,6 +360,12 @@ much: `LPA · 35 of 132.8 kb`. A tube map in a view of its own draws genes in
 rows above the tubes instead, and one in a linear view leaves them to the gene
 track (see Tube maps).
 
+Where the linear view shows the gene track as a lane, the graph names only what
+that lane draws, so a lane filtered to `type == 'gene'` keeps mobile elements
+and repeats off the graph as well. A record spanning a whole sequence, such as
+the `region` RefSeq opens each molecule with, gets no name, and neither does one
+with no `Name` or `gene` of its own, whose ID only restates where it is.
+
 In MHC class II the gene track's HLA-DRB5, HLA-DRB6 and HLA-DRB1 sit over their
 exons on the graph's backbone. HLA-DR haplotypes differ in which DRB genes they
 have, and the longest allele off the reference is HG01071's own 46.9 kb.
