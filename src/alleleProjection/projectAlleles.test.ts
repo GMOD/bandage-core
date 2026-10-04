@@ -9,7 +9,7 @@ import { parseGFA } from '../gfa-core/index'
 // rank-0 backbone, Sakai/CFT073/NCTC86 contribute ranks 1-3.
 function ecoliGraph() {
   const gfa = readFileSync(
-    require.resolve('../../../../test_data/ecoli_rgfa_slice.gfa'),
+    require.resolve('../../test_data/ecoli_rgfa_slice.gfa'),
     'utf8',
   )
   return convertGFAToGraph(parseGFA(gfa), 'ecoli')

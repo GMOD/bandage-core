@@ -11,7 +11,7 @@ import { anchorGraph } from '../pathAnchoring'
 import type { Connector } from './connectors'
 
 const GFA = fs.readFileSync(
-  path.join(__dirname, '../../../../test_data/cactus/cactus_240_280.gfa'),
+  path.join(__dirname, '../../test_data/cactus/cactus_240_280.gfa'),
   'utf8',
 )
 

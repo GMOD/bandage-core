@@ -4,6 +4,6 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": ["src", "packages/core/src", "test", "vitest.e2e.config.ts"],
+  "include": ["src"],
   "exclude": ["**/dist/"]
 }

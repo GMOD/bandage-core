@@ -23,7 +23,7 @@ npm install @jbrowse/bandage-core
 - Figures: `figureSvg` draws a graph and its lifted walks to a standalone SVG,
   and the `bandage-figure` CLI makes one from a JSON spec with no browser:
   `npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg`. See
-  [docs/figures.md](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer/blob/main/docs/figures.md)
+  [docs/figures.md](docs/figures.md)
 
 Nothing here imports React, MobX or a JBrowse host. BandageJS's
 [`src/main.ts`](https://github.com/cmdcolin/BandageJS/blob/main/src/main.ts) is
@@ -31,10 +31,26 @@ the worked example.
 
 ## Developing
 
-Lives in the plugin repo as a pnpm workspace package. The plugin imports its
-source directly, so a change here needs no publish to reach the plugin.
+```
+pnpm install
+pnpm test          # unit tests
+pnpm build         # dist/ with declarations
+pnpm test:wasm     # the committed layout engine still loads
+```
 
-The core releases with the plugin, at the plugin's version: `pnpm version patch`
-at the repo root sets both, and `publish.yml` and `publish-core.yml` each
-publish one from the `v*` tag. `publish-core.yml` also runs by hand to publish a
-version a failed run left behind.
+The Bandage layout engine is OGDF's FMMM compiled to WASM and committed at
+`src/bandage/bandage-layout.js`; [src/bandage/README.md](src/bandage/README.md)
+says how to rebuild it from `src/bandage/native` and the vendored `vendor/ogdf`.
+A weekly workflow proves the committed artifact still reproduces.
+
+CI also packs the core and runs
+[BandageJS](https://github.com/cmdcolin/BandageJS) and
+[jbrowse-plugin-graphgenomeviewer](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer)
+against it. An API change lands with the consumer's side on a `core-next` branch
+in that repo, which CI tests in place of `main` until the release.
+
+Release with `pnpm version patch`: it lints, tests, stamps `src/version.ts`,
+writes the changelog with git-cliff and pushes the `v*` tag, and `publish.yml`
+publishes to npm with trusted publishing.
+
+Both Bandage and OGDF are GPL, which is why this package is GPL-3.0-or-later.

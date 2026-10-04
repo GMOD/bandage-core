@@ -9,7 +9,6 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "moduleResolution": "bundler",
-    "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -19,14 +18,11 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src", "packages/core/src"],
+  "include": ["src"],
   "exclude": [
     "**/dist/",
     "src/**/*.test.ts",
-    "src/**/*.test.tsx",
-    "packages/core/src/**/*.test.ts",
-    "src/launchSubgraph/testEnv.ts",
-    "packages/core/src/renderer/recordingCanvas.ts",
-    "packages/core/src/bandage/bandage-layout.js"
+    "src/renderer/recordingCanvas.ts",
+    "src/bandage/bandage-layout.js"
   ]
 }

@@ -8,7 +8,7 @@ this repo, beside the figures it moves.
 `bandage-layout.js` is the generated artifact — an Emscripten build of `native/`
 compiled with `-sSINGLE_FILE=1`, so the wasm is embedded as base64 and the file
 is a self-contained ES module with no imports. That is what lets `esbuild` leave
-it alone and the plugin load it as a lazy chunk at runtime.
+it alone and a consumer load it as a lazy chunk at runtime.
 
 Regenerate with `pnpm build:wasm` (`scripts/build-wasm.sh`). The Emscripten SDK
 is the only thing you have to install: OGDF is **vendored** at `vendor/ogdf`
@@ -94,7 +94,7 @@ nothing. Diff the **drawing**, which is what every committed figure is a
 function of:
 
 ```console
-git show HEAD:packages/core/src/bandage/bandage-layout.js > /tmp/old-engine.mjs
+git show HEAD:src/bandage/bandage-layout.js > /tmp/old-engine.mjs
 node scripts/layout-digest.mjs /tmp/old-engine.mjs > /tmp/before.txt
 pnpm build:wasm
 node scripts/layout-digest.mjs > /tmp/after.txt
@@ -123,4 +123,4 @@ across Emscripten versions, where the bytes genuinely do move.
 
 Upstream: https://github.com/cmdcolin/BandageNG-web (`bandage-layout-js/`)
 
-Both Bandage and OGDF are GPL, which is why this plugin is GPL-3.0-or-later.
+Both Bandage and OGDF are GPL, which is why this package is GPL-3.0-or-later.

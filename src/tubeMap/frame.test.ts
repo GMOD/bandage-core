@@ -8,7 +8,7 @@ import { tubeMapLayout, tubeMapReferenceLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
 
 const PGGB = fs.readFileSync(
-  path.join(__dirname, '../../../../test_data/ecoli_pggb_subgraph.gfa'),
+  path.join(__dirname, '../../test_data/ecoli_pggb_subgraph.gfa'),
   'utf8',
 )
 

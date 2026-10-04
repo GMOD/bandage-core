@@ -2,7 +2,7 @@
 //
 // Renders every spec in figures/ to img/figure_<name>.svg with the core's
 // bandage-figure, the way anyone can remake a figure from its spec. Build the
-// core first (`node packages/core/build.mjs` in packages/core).
+// core first (`node ./build.mjs` in the repo root).
 //
 //   node scripts/render-figures.mjs              # every spec
 //   node scripts/render-figures.mjs kiv2_walks   # one
@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
-const cli = 'packages/core/dist/cli/figure.js'
+const cli = './dist/cli/figure.js'
 const names = process.argv.slice(2)
 const specs = readdirSync('figures')
   .filter(f => f.endsWith('.json'))

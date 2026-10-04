@@ -1,0 +1,92 @@
+name: Push
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  wasm-smoke:
+    name: Bandage engine smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24.x
+      - run: node scripts/smoke-wasm.mjs
+
+  spellcheck:
+    name: Spell check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: crate-ci/typos@master
+
+  build-and-test:
+    name: Build, lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          version: latest
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+
+  # BandageJS and the JBrowse plugin both consume the packed core, so a change
+  # that breaks either shows only after a release unless this packs the core as
+  # it would publish and runs their tests on it. A core API change lands with
+  # the consumer's side on a core-next branch, tested here in place of main
+  # until the release.
+  consumers:
+    name: ${{ matrix.name }} on this core
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: BandageJS
+            repository: cmdcolin/BandageJS
+            tests:
+              pnpm typecheck && pnpm exec playwright install --with-deps
+              chromium && pnpm test
+          - name: graphgenomeviewer
+            repository: GMOD/jbrowse-plugin-graphgenomeviewer
+            tests: pnpm typecheck && pnpm test
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: ref
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ matrix.repository }}" core-next > /dev/null; then
+            echo ref=core-next >> "$GITHUB_OUTPUT"
+          else
+            echo ref=main >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ steps.ref.outputs.ref }}
+          path: consumer
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          version: latest
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24.x
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack --pack-destination "$RUNNER_TEMP"
+      - run: pnpm install --frozen-lockfile
+        working-directory: consumer
+      - run: pnpm add -D "$RUNNER_TEMP"/jbrowse-bandage-core-*.tgz
+        working-directory: consumer
+      - run: ${{ matrix.tests }}
+        working-directory: consumer

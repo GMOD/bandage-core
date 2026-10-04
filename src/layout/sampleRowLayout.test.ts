@@ -8,7 +8,7 @@ import { anchorGraph } from '../pathAnchoring'
 
 function ecoliGraph() {
   const gfa = readFileSync(
-    require.resolve('../../../../test_data/ecoli_rgfa_slice.gfa'),
+    require.resolve('../../test_data/ecoli_rgfa_slice.gfa'),
     'utf8',
   )
   return convertGFAToGraph(parseGFA(gfa), 'ecoli')
@@ -16,7 +16,7 @@ function ecoliGraph() {
 
 function pggbGraph() {
   const gfa = readFileSync(
-    require.resolve('../../../../test_data/ecoli_pggb_subgraph.gfa'),
+    require.resolve('../../test_data/ecoli_pggb_subgraph.gfa'),
     'utf8',
   )
   return convertGFAToGraph(parseGFA(gfa), 'pggb')

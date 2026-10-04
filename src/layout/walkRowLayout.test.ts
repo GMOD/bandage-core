@@ -8,7 +8,7 @@ import { anchorGraph } from '../pathAnchoring'
 
 function pggbGraph() {
   const gfa = readFileSync(
-    require.resolve('../../../../test_data/ecoli_pggb_subgraph.gfa'),
+    require.resolve('../../test_data/ecoli_pggb_subgraph.gfa'),
     'utf8',
   )
   return anchorGraph(convertGFAToGraph(parseGFA(gfa), 'pggb'), 'K12')

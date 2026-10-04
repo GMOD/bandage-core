@@ -24,7 +24,7 @@ const iso = (scale = 1) => ({ scaleX: scale, scaleY: scale })
 // called "the bezier curves to rank 1 are weird".
 
 function gfa(name: string) {
-  return readFileSync(require.resolve(`../../../../test_data/${name}`), 'utf8')
+  return readFileSync(require.resolve(`../../test_data/${name}`), 'utf8')
 }
 
 function sample(c: BezierCurve, t: number) {

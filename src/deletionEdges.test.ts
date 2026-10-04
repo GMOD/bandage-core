@@ -102,7 +102,7 @@ test('an unanchored graph has no deletions rather than throwing', () => {
 // against a graph nobody wrote for this test.
 test('finds deletions on the E. coli rGFA slice', () => {
   const gfa = readFileSync(
-    join(__dirname, '../../../test_data/ecoli_rgfa_slice.gfa'),
+    join(__dirname, '../test_data/ecoli_rgfa_slice.gfa'),
     'utf8',
   )
   const found = deletionEdges(graphOf(gfa))

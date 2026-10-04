@@ -12,7 +12,7 @@ import { pathCssColor, pathGreyCssColor } from '../pathColors'
 // Nodes 240..280 of sequenceTubeMap's cactus example, a run of SNP bubbles,
 // with the NA12879 reads vg giraffe aligned over them. Node lengths used below:
 // 249 is 100 bp, 250 is 27, 251 is 1 and 253 is 11.
-const dir = path.join(__dirname, '../../../../test_data/cactus')
+const dir = path.join(__dirname, '../../test_data/cactus')
 const GFA = fs.readFileSync(path.join(dir, 'cactus_240_280.gfa'), 'utf8')
 const GAF = fs.readFileSync(path.join(dir, 'cactus_240_280.gaf'), 'utf8')
 

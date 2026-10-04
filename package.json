@@ -5,8 +5,7 @@
   "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer.git",
-    "directory": "packages/core"
+    "url": "https://github.com/GMOD/bandage-core.git"
   },
   "keywords": [
     "pangenome",
@@ -36,7 +35,21 @@
   ],
   "scripts": {
     "build": "node build.mjs",
-    "prepack": "pnpm build"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench": "vitest bench --run",
+    "build:wasm": "./scripts/build-wasm.sh",
+    "test:wasm": "node scripts/smoke-wasm.mjs",
+    "bench:layout": "node scripts/bench-layout.mjs",
+    "layout-digest": "node scripts/layout-digest.mjs",
+    "prepack": "pnpm build",
+    "preversion": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm test:wasm",
+    "version": "node scripts/version.mjs",
+    "postversion": "git push --follow-tags"
   },
   "dependencies": {
     "@gmod/gbz-base": "^7.0.0",
@@ -46,7 +59,23 @@
     "@jbrowse/render-core": "5.0.0-beta.11"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.4",
     "esbuild": "^0.28.2",
-    "typescript": "^6.0.3"
+    "eslint": "^10.11.0",
+    "eslint-plugin-import-x": "^4.17.1",
+    "git-cliff": "^2.14.2",
+    "jsdom": "^30.1.1",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  },
+  "homepage": "https://github.com/GMOD/bandage-core#readme",
+  "bugs": {
+    "url": "https://github.com/GMOD/bandage-core/issues"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -13,9 +13,7 @@ import type { Graph } from './types'
 
 function fixture(file: string) {
   return convertGFAToGraph(
-    parseGFA(
-      readFileSync(require.resolve(`../../../test_data/${file}`), 'utf8'),
-    ),
+    parseGFA(readFileSync(require.resolve(`../test_data/${file}`), 'utf8')),
     file,
   )
 }

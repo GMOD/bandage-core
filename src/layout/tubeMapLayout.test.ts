@@ -13,7 +13,7 @@ import { anchorGraph } from '../pathAnchoring'
 // Five E. coli haplotypes through a pggb subgraph; IAI39 walks it on the
 // reverse strand and CFT073 covers only its right half.
 const PGGB = fs.readFileSync(
-  path.join(__dirname, '../../../../test_data/ecoli_pggb_subgraph.gfa'),
+  path.join(__dirname, '../../test_data/ecoli_pggb_subgraph.gfa'),
   'utf8',
 )
 

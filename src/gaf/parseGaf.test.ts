@@ -4,7 +4,7 @@ import path from 'path'
 import { parseCs, parseGaf, parseGafLine, parseGafPath } from './parseGaf'
 
 const GAF = fs.readFileSync(
-  path.join(__dirname, '../../../../test_data/cactus/cactus_240_280.gaf'),
+  path.join(__dirname, '../../test_data/cactus/cactus_240_280.gaf'),
   'utf8',
 )
 

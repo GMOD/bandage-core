@@ -2,7 +2,7 @@
 
 The harness behind `agent-docs/adr-042-reference-seeded-layouts-and-bubbles.md`.
 It runs layouts on a GFA outside the browser and writes PNGs, so a layout idea
-can be judged on a real HPRC cut in seconds. Nothing here ships in the plugin.
+can be judged on a real HPRC cut in seconds. Nothing here ships in the package.
 
 Needs node, `rsvg-convert` and ImageMagick's `magick` on the path. The native
 variants also need `scripts/profile/build.sh` to have built OGDF once, then:
@@ -55,7 +55,7 @@ One PNG per `--v`, plus a montage. Variants:
 - `ordered[:laneGap=N,gutter=N]`: the reference-ordered layered prototype.
 - `sugiyama[:ranking=longest|optimal|coffman,coord=fast|optimal]`: OGDF
   Sugiyama, native driver.
-- `anchored`: the plugin's own anchored layout, bundled from `src/` by esbuild
+- `anchored`: the anchored layout, bundled from `src/` by esbuild
   (`plugin-layouts.entry.ts`).
 
 `--region s-e` sets the reference-position colour ramp's domain, as the view
@@ -81,9 +81,9 @@ carries between a window's flanking reference nodes, as repeat units, plus
 per-node carriage. `popbubble.mjs` cuts one bubble's segments out of a GFA so
 `one.mjs` can draw it alone. `graphBubbles.mjs` derives the bubbles from the
 graph alone, off the layered order, the prototype of
-`packages/core/src/bubbles/bubblesFromGraph.ts`; `validate-decomp.mjs` checks
-that against the walks, and `collapse.mjs` merges runs of equal carriage and
-draws thickness by haplotype count.
+`src/bubbles/bubblesFromGraph.ts`; `validate-decomp.mjs` checks that against the
+walks, and `collapse.mjs` merges runs of equal carriage and draws thickness by
+haplotype count.
 
 ## Coarsen a tube map
 
@@ -96,10 +96,10 @@ node /tmp/coarsen-tubemap.mjs cuts/micb.gfa:31492000-31514000 --sigma 3,10,50
 
 `cut-gbz.mjs` saves the GFA the hosted HPRC demo's gbz-base track cuts for a
 window, walks included, which the rGFA pair above lacks and a tube map needs.
-`coarsen-tubemap.entry.ts` runs `packages/core/src/tubeMap/coarsen.ts` at each σ
-and reports columns, whether the own axis fits 1388 px at 5 px tubes, the share
-of the pane the reference axis's curve gaps take, the time, the cuts by cause,
-and any walk whose length the fold did not conserve. On 2026-09-27:
+`coarsen-tubemap.entry.ts` runs `src/tubeMap/coarsen.ts` at each σ and reports
+columns, whether the own axis fits 1388 px at 5 px tubes, the share of the pane
+the reference axis's curve gaps take, the time, the cuts by cause, and any walk
+whose length the fold did not conserve. On 2026-09-27:
 
 | Cut         | Raw columns | σ=3 | σ=10 | σ=50 |
 | ----------- | ----------- | --- | ---- | ---- |

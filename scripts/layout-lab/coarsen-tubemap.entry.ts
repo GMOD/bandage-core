@@ -11,12 +11,12 @@ import path from 'node:path'
 import {
   tubeMapLayout,
   tubeMapReferenceLayout,
-} from '../../packages/core/src/layout/tubeMapLayout'
-import { loadGraph } from '../../packages/core/src/pipeline'
-import { coarsenTubeMap } from '../../packages/core/src/tubeMap/coarsen'
-import { referenceKnots } from '../../packages/core/src/tubeMap/warp'
+} from '../../src/layout/tubeMapLayout'
+import { loadGraph } from '../../src/pipeline'
+import { coarsenTubeMap } from '../../src/tubeMap/coarsen'
+import { referenceKnots } from '../../src/tubeMap/warp'
 
-import type { Graph } from '../../packages/core/src/types'
+import type { Graph } from '../../src/types'
 
 const PANE_PX = 1388
 const FIT_PADDING = 40

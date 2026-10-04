@@ -139,7 +139,7 @@ test("a small deletion across another walk's cut is cut too, so no walk skips a 
 
 test('lengths survive coarsening on a real cut, at every sigma', () => {
   const text = fs.readFileSync(
-    path.join(__dirname, '../../../../test_data/cactus/cactus_240_280.gfa'),
+    path.join(__dirname, '../../test_data/cactus/cactus_240_280.gfa'),
     'utf8',
   )
   const graph = loadGraph(text, 'cactus', { referencePath: 'ref' })
