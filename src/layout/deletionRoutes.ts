@@ -55,20 +55,37 @@ export function withDeletionRoutes(
   }
 }
 
-// The deletions a layout without them can leave out: those whose skipped
-// reference is all in the graph, so the backbone still joins their ends. A cut
-// window can keep a deletion's ends but not all it skips, and dropping that
-// link would split the graph.
+// The deletions a layout without them can leave out: every one whose ends the
+// rest of the graph still joins. A cut window can keep a deletion's ends but
+// lose a link in the reference between them, and dropping that deletion would
+// split the graph.
 export function closableDeletions(graph: Graph, deletions: DeletionEdge[]) {
-  const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const parent = new Map<string, string>()
+  const root = (id: string) => {
+    let r = id
+    while (parent.has(r)) {
+      r = parent.get(r)!
+    }
+    if (r !== id) {
+      parent.set(id, r)
+    }
+    return r
+  }
+  const join = (a: string, b: string) => {
+    const [ra, rb] = [root(a), root(b)]
+    if (ra !== rb) {
+      parent.set(ra, rb)
+    }
+    return ra !== rb
+  }
+  const candidates = new Set(deletions.map(d => d.edgeIndex))
+  graph.edges.forEach((e, ei) => {
+    if (!candidates.has(ei)) {
+      join(e.from, e.to)
+    }
+  })
   return new Set(
-    deletions
-      .filter(
-        d =>
-          d.bypassed.reduce((sum, id) => sum + (lengths.get(id) ?? 0), 0) >=
-          d.bp,
-      )
-      .map(d => d.edgeIndex),
+    deletions.filter(d => !join(d.from, d.to)).map(d => d.edgeIndex),
   )
 }
 

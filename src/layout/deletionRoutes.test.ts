@@ -1,4 +1,4 @@
-import { withDeletionRoutes } from './deletionRoutes'
+import { closableDeletions, withDeletionRoutes } from './deletionRoutes'
 import { mergeRuns } from './mergeRuns'
 import { deletionEdges } from '../deletionEdges'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
@@ -136,7 +136,7 @@ test('a deletion whose skipped reference the cut lost keeps its link', async () 
   const cut = convertGFAToGraph(
     parseGFA(
       RGFA.split('\n')
-        .filter(l => !/^S\t2\t|\t2\t/.test(l))
+        .filter(l => !/^S\t[24]\t|\t[24]\t/.test(l))
         .join('\n'),
     ),
   )
@@ -147,4 +147,17 @@ test('a deletion whose skipped reference the cut lost keeps its link', async () 
     engine,
   )
   expect(result.deletionRoutes?.[deletion!.edgeIndex]).toBeDefined()
+})
+
+test('a deletion keeps its link when the cut lost a link it skips', () => {
+  // 2 is in the graph but nothing links 1 to it, and no allele 4 joins 1 to 3
+  const cut = convertGFAToGraph(
+    parseGFA(
+      RGFA.split('\n')
+        .filter(l => l !== 'L\t1\t+\t2\t+\t0M' && !l.includes('\t4\t'))
+        .join('\n'),
+    ),
+  )
+  expect(closableDeletions(cut, deletionEdges(cut)).size).toBe(0)
+  expect(closableDeletions(graph, deletionEdges(graph)).size).toBe(1)
 })
