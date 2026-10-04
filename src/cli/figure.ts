@@ -22,8 +22,8 @@ import {
 } from '../genes/geneFiles'
 import { genesOnRow, placeRowGenes } from '../layout/walkRowDraw'
 import { filterSamples, walkRows } from '../layout/walkRows'
+import { layoutEngine } from '../layoutEngines'
 import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
-import loadBandage from '../loadBandage'
 import { forceLayout, loadGraph } from '../pipeline'
 import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
 
@@ -31,8 +31,8 @@ import type { BubbleSpread } from '../bubbleSpreads'
 import type { FigureOptions } from '../figure'
 import type { GbzSource } from '../gbzCut'
 import type { GeneModel } from '../genes/genePins'
+import type { LayoutEngineKind } from '../layout/stressEngine'
 import type { LayoutModeValue } from '../layoutModes'
-import type { LayoutEngine } from '../pipeline'
 import type { BackboneContig } from '../reference'
 import type { Graph } from '../types'
 import type { WalkLayer } from '../walkEncoding'
@@ -59,6 +59,8 @@ export interface FigureSpec extends Omit<
   layout?: LayoutModeValue
   quality?: number
   bubbleSpread?: BubbleSpread
+  // which force engine, Bandage's FMMM when absent
+  engine?: LayoutEngineKind
   spacing?: number
   componentSeparation?: number
   walks?: (string | WalkLayer)[]
@@ -194,13 +196,6 @@ async function indexedGenes(
   }
 }
 
-const engine: LayoutEngine = async request => {
-  const bandage = await loadBandage()
-  const start = performance.now()
-  const result = bandage.computeLayout(request.graph, request.options)
-  return { result, duration: performance.now() - start }
-}
-
 async function exists(location: string) {
   try {
     await (isUrl(location)
@@ -275,11 +270,12 @@ async function renderSpec(spec: FigureSpec, base: string) {
           quality: spec.quality ?? 2,
           linearLayout: false,
           bubbleSpread: spec.bubbleSpread ?? 'auto',
+          engine: spec.engine,
           spacing: spec.spacing,
           componentSeparation: spec.componentSeparation,
           showDeletionEdges: !!spec.showDeletionEdges,
         },
-        engine,
+        layoutEngine,
       )
     ).result
   const bars = spec.walkStrip ? walkRows(graph, source.region) : undefined

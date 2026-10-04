@@ -22,6 +22,7 @@ import { anchorGraph } from './pathAnchoring'
 import type { BubbleSpread } from './bubbleSpreads'
 import type { LayoutScaling } from './layout/drawnScale'
 import type { LayoutNode } from './layout/referenceSeeds'
+import type { LayoutEngineKind } from './layout/stressEngine'
 import type { Graph, LayoutResult, NodeSegment } from './types'
 
 // The graph a view draws, from GFA text to layouts, with no host in it: the
@@ -79,6 +80,8 @@ export interface EngineSettings {
   componentSeparation?: number
   // false lays the graph out without the deletion edges it can close
   showDeletionEdges?: boolean
+  // which engine draws it; Bandage's FMMM when absent (LAYOUT_ENGINES)
+  engine?: LayoutEngineKind
 }
 
 // the engine's own gap between components, which `componentSeparation` scales
@@ -116,16 +119,17 @@ export function engineRequest(
       componentSeparation:
         COMPONENT_SEPARATION * (settings.componentSeparation ?? 1),
       ...(anchored ? { rotateComponents: false } : {}),
+      engine: settings.engine ?? 'fmmm',
     },
   }
 }
 
 // What a force layout of this graph is a function of, as a cache key: the
-// settings `engineRequest` reads, whether it seeds, and the reference path the
-// seeds follow.
+// settings `engineRequest` reads, the engine, whether it seeds, and the
+// reference path the seeds follow.
 export function engineKey(graph: Graph, settings: EngineSettings) {
   const anchored = graph.nodes.some(isBackbone)
-  return `${settings.quality}|${settings.linearLayout}|${settings.bubbleSpread}|${settings.spacing ?? 1}|${settings.componentSeparation ?? 1}|${settings.showDeletionEdges !== false}|${anchored}|${graph.referencePath ?? ''}`
+  return `${settings.engine ?? 'fmmm'}|${settings.quality}|${settings.linearLayout}|${settings.bubbleSpread}|${settings.spacing ?? 1}|${settings.componentSeparation ?? 1}|${settings.showDeletionEdges !== false}|${anchored}|${graph.referencePath ?? ''}`
 }
 
 // The engine lays out the runs, not the nodes: a base-level cut is thousands
