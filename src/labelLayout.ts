@@ -11,6 +11,7 @@ import {
   occupancy,
   placeLabels,
 } from './overlayLabels'
+import { nodesUnderBox } from './util/hitDetection'
 
 import type { BubbleHalo, RouteLabel } from './bubbles/bubbleHalos'
 import type { DeletionEdge } from './deletionEdges'
@@ -83,12 +84,15 @@ export function geneCoverageNote(pin: GenePin) {
 }
 
 // Each gene's name under its pin, the longest gene first, with how much of
-// it the cut carries where that is not all of it
+// it the cut carries where that is not all of it. A name over a node the gene
+// does not lie on reads as that node's, so it moves or goes.
 export function geneLabelCandidates(
   pins: GenePin[],
   screen: (p: { x: number; y: number }) => { x: number; y: number },
   contigThickness: number,
+  nodesUnder: (box: Box) => ReadonlySet<string>,
 ) {
+  const ink = contigThickness / 2
   return byExtent(pins, pin => pin.gene.end - pin.gene.start).map(pin => {
     const { x, y } = screen(pin.at)
     const note = geneCoverageNote(pin)
@@ -99,6 +103,15 @@ export function geneLabelCandidates(
       text: note ? `${pin.gene.name} · ${note}` : pin.gene.name,
       fallback: note ? `${pin.gene.name} …` : undefined,
       stack: GENE_STACK,
+      fits: (box: Box) =>
+        [
+          ...nodesUnder({
+            x0: box.x0 - ink,
+            x1: box.x1 + ink,
+            y0: box.y0 - ink,
+            y1: box.y1 + ink,
+          }),
+        ].every(id => pin.nodeIds.has(id)),
     }
   })
 }
@@ -171,7 +184,16 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   )
 
   const genes = placeLabels(
-    geneLabelCandidates(m.genePins, screen, m.contigThickness),
+    geneLabelCandidates(
+      m.genePins,
+      screen,
+      m.contigThickness,
+      nodesUnderBox(
+        m.nodePositions ?? {},
+        { scaleX, scaleY, translateX, translateY },
+        m.positionsVersion,
+      ),
+    ),
     frame,
     take,
   )

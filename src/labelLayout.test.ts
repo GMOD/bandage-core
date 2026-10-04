@@ -53,6 +53,7 @@ function pin(at: NodeSegment): GenePin {
     },
     exons: '',
     exonsByNode: [],
+    nodeIds: new Set(['bb']),
     at,
     covered: 1,
   }
@@ -225,4 +226,43 @@ test('a gene the cut carries only part of says how much, in its own unit', () =>
   expect(
     layoutLabels(source({ genePins: [lpa] })).genes.map(l => l.text),
   ).toEqual(['LPA · 35 of 132.8 kb'])
+})
+
+// `pangenome/pggb_bubble_tier` labelled K12's IS5 node `oppA`: oppA's chip
+// hangs under its pin on the backbone, which is the rank-1 row, where the IS5
+// node lies, and oppA starts past the element.
+test("a gene's name never covers a node the gene does not lie on", () => {
+  const at = { x: 300, y: 100 }
+  const backbone = {
+    bb: [
+      { x: 0, y: 100 },
+      { x: 800, y: 100 },
+    ],
+  }
+  const free = layoutLabels(
+    source({ genePins: [pin(at)], nodePositions: backbone }),
+  )
+  const pinY = free.genes[0]!.y
+  const element = {
+    is5: [
+      { x: 250, y: pinY - 4 },
+      { x: 350, y: pinY - 4 },
+    ],
+  }
+  const layout = layoutLabels(
+    source({
+      genePins: [pin(at)],
+      nodePositions: { ...backbone, ...element },
+    }),
+  )
+  expect(layout.genes.map(l => l.text)).toEqual(['hemA'])
+  expect(layout.genes[0]!.y).not.toBe(pinY)
+
+  const own = layoutLabels(
+    source({
+      genePins: [{ ...pin(at), nodeIds: new Set(['bb', 'is5']) }],
+      nodePositions: { ...backbone, ...element },
+    }),
+  )
+  expect(own.genes.map(l => l.y)).toEqual([pinY])
 })

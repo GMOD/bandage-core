@@ -37,6 +37,7 @@ import { referenceLabel } from './reference'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { svgCanvas } from './renderer/svgCanvas'
+import { nodesUnderBox } from './util/hitDetection'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
@@ -303,7 +304,12 @@ export function figureSvg(
     })
     const frame = { width: w, height: h }
     for (const { item: pin, x, y, w: cw, text } of placeLabels(
-      geneLabelCandidates(pins, screen, contigThickness),
+      geneLabelCandidates(
+        pins,
+        screen,
+        contigThickness,
+        nodesUnderBox(layout.nodePositions, t),
+      ),
       frame,
       occupancy(frame),
     )) {

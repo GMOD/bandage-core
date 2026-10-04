@@ -353,12 +353,15 @@ assembly with its gene track.
 ## Genes on the graph
 
 The session's gene track draws each exon as a goldenrod outline, the gene
-track's CDS colour, around its backbone stretch, and pins each gene's name under
-its midpoint. The outline clears the node, and any lifted lanes on it, so the
-colour inside stays the node's own. A gene only partly inside the cut says how
-much: `LPA · 35 of 132.8 kb`. A tube map in a view of its own draws genes in
-rows above the tubes instead, and one in a linear view leaves them to the gene
-track (see Tube maps).
+track's CDS colour, around the stretch of node that carries it, and pins each
+gene's name under its midpoint. The nodes that carry a gene are the ones on its
+sequence: the backbone, and a coarse tier's bubble nodes, each of which stands
+for a span of the reference. The outline clears the node, and any lifted lanes
+on it, so the colour inside stays the node's own. A name never covers a node its
+gene does not lie on; it moves a row or is left off. A gene only partly inside
+the cut says how much: `LPA · 35 of 132.8 kb`. A tube map in a view of its own
+draws genes in rows above the tubes instead, and one in a linear view leaves
+them to the gene track (see Tube maps).
 
 Where the linear view shows the gene track as a lane, the graph names only what
 that lane draws, so a lane filtered to `type == 'gene'` keeps mobile elements

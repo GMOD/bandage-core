@@ -25,6 +25,8 @@ export interface LabelCandidate<T> {
   // a shorter text to try where `text` does not fit, such as against the
   // pane's edge
   fallback?: string
+  // whether the label may stand in a box, beyond its being free
+  fits?: (box: Box) => boolean
 }
 
 export interface PlacedLabel<T> extends LabelCandidate<T> {
@@ -97,7 +99,7 @@ export function placeLabels<T>(
       if (offFrame(box, frame)) {
         return undefined
       }
-      if (insideFrame(box, frame) && take(box)) {
+      if (insideFrame(box, frame) && (c.fits?.(box) ?? true) && take(box)) {
         return { ...c, text, y, w }
       }
     }

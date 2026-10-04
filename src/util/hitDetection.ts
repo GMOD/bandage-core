@@ -2,6 +2,7 @@ import { EdgeSpatialIndex, SpatialIndex } from './SpatialIndex'
 import { pathRibbonOffsets, translateCurves, yToXOf } from './geometry'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
+import type { Box } from '../overlayLabels'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
@@ -256,6 +257,68 @@ export function findHoveredNode(
     }
   }
   return hovered
+}
+
+// Liang-Barsky: whether any of the segment a-b lies inside the box
+function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  let t0 = 0
+  let t1 = 1
+  for (const [p, q] of [
+    [-dx, a.x - box.x0],
+    [dx, box.x1 - a.x],
+    [-dy, a.y - box.y0],
+    [dy, box.y1 - a.y],
+  ] as const) {
+    if (p === 0) {
+      if (q < 0) {
+        return false
+      }
+    } else if (p < 0) {
+      t0 = Math.max(t0, q / p)
+    } else {
+      t1 = Math.min(t1, q / p)
+    }
+  }
+  return t0 <= t1
+}
+
+// The nodes whose centreline crosses a box in screen px, for a label that
+// must not cover a node it does not name
+export function nodesUnderBox(
+  nodePositions: Record<string, NodeSegment[]>,
+  t: { scaleX: number; scaleY: number; translateX: number; translateY: number },
+  version = 0,
+) {
+  const index = getSpatialIndex(nodePositions, version)
+  const screen = (p: NodeSegment) => ({
+    x: p.x * t.scaleX + t.translateX,
+    y: p.y * t.scaleY + t.translateY,
+  })
+  return (box: Box) => {
+    const hits = new Set<string>()
+    const candidates = index.query(
+      ((box.x0 + box.x1) / 2 - t.translateX) / t.scaleX,
+      ((box.y0 + box.y1) / 2 - t.translateY) / t.scaleY,
+      Math.abs((box.x1 - box.x0) / 2 / t.scaleX),
+      Math.abs((box.y1 - box.y0) / 2 / t.scaleY),
+    )
+    for (const { nodeId, segmentIdx } of candidates) {
+      const line = nodePositions[nodeId]!
+      if (
+        !hits.has(nodeId) &&
+        segmentMeetsBox(
+          screen(line[segmentIdx]!),
+          screen(line[segmentIdx + 1]!),
+          box,
+        )
+      ) {
+        hits.add(nodeId)
+      }
+    }
+    return hits
+  }
 }
 
 export function findHoveredEdge(
