@@ -8,6 +8,8 @@
 import fs from 'node:fs'
 import { TabixIndexedFile } from '@gmod/tabix'
 import {
+  closingLinks,
+  closingSpans,
   formatSubgraph,
   linkKey,
   parseLinkLine,
@@ -59,6 +61,29 @@ for (let h = 0; h < hops; h++) {
     frontier.map(s => addLinksOver(s.refName, s.start, s.end)),
   )
   frontier = reached.flat().filter(s => s.rank > 0)
+}
+if (hops > 0) {
+  const spans = closingSpans(
+    [...segments.values()],
+    new Set(frontier.map(s => s.id)),
+    { refName: tabixRefName, start: Number(start), end: Number(end) },
+  )
+  const found: RgfaLink[] = []
+  for (const span of spans) {
+    await linksFile.getLines(span.refName, span.start, span.end, {
+      lineCallback: line => {
+        found.push(parseLinkLine(line))
+      },
+    })
+  }
+  for (const link of closingLinks(found, segments, spans)) {
+    links.set(linkKey(link), link)
+    for (const seg of [link.sourceSegment, link.targetSegment]) {
+      if (!segments.has(seg.id)) {
+        segments.set(seg.id, seg)
+      }
+    }
+  }
 }
 fs.writeFileSync(out!, `${formatSubgraph(segments, links)}\n`)
 console.log(out, segments.size, 'segments,', links.size, 'links')
