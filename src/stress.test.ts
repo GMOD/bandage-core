@@ -201,7 +201,8 @@ function uniformBatch(bubbleCount: number) {
     contigThickness: 10,
     connectorThickness: 4,
     drawPaths: false,
-    axis: iso(),
+    // zoomed until a 2-unit link is long enough to carry a head
+    axis: iso(20),
   })
 }
 

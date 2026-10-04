@@ -98,19 +98,19 @@ const MIN_WALK_LANE_PX = 4
 // Guards the screen-px-to-world division below against a degenerate transform.
 const MIN_SCALE_FOR_OFFSET = 1e-6
 
-// An arrowhead's size in SCREEN px, grown from the half-width of the edge it
-// ends: the renderer expands it after the transform (see TransformUniform), so
-// a head is the same size at every zoom. A fixed 12 px head was twice the width
-// of a default 6 px node and hid the 1 bp nodes it pointed at; this one is about
-// a node wide on a default edge and grows with a deletion's or a walk's weight.
+// An arrowhead's size in SCREEN px, the same at every zoom since the renderer
+// expands it after the transform, and about a node wide. It grows from a plain
+// link's half-width, not the link's own: a deletion's heavier head hid the
+// dashes of a short one.
 const ARROW_LENGTH_BASE_PX = 7
 const ARROW_LENGTH_PER_EDGE_PX = 3
 const ARROW_HALF_WIDTH_BASE_PX = 3
 const ARROW_HALF_WIDTH_PER_EDGE_PX = 1.5
-// A head on an edge shorter than itself would overhang the node it leaves, so
-// it shrinks to fit, and below this fraction of its size it is dropped until a
-// zoom lengthens the edge. In a tight bubble the old heads, laid over every
-// 1 bp allele, were most of the ink.
+// A link shorter on screen than this many heads draws none until a zoom
+// lengthens it, so a head never stands in for the link it ends. An abutting
+// joint's head lies over the node the link leaves instead, shrinking to fit it
+// and dropped below this fraction of its size.
+const MIN_LINK_HEADS = 3
 const MIN_ARROW_FIT = 0.5
 const MIN_ARROW_SCALE = 0.45
 
@@ -183,22 +183,16 @@ function walkPointAt(n: number, px: number) {
   }
 }
 
-// Bandage's rule, from GraphicsItemNode::shape: a node's arrow is sized by the
-// node's own width. Here the head belongs to the edge, so the edge sets its
-// size, and the node it enters sets where the tip stops. The tip lands on that
-// node's outline, which a round cap puts `nodeHalfWidth` from the endpoint in
-// every direction; on the centreline it sank half a node deep and covered the
-// node's first few px. Only as far as the edge is long, so an abutting joint
-// keeps its head on the joint.
-//
-// A joint's head lies over the node the edge leaves, so that node's drawn
-// length is the room it fits to. A run of 1 bp nodes on a walk row otherwise
-// drew a head at every joint, a serration along the row.
+// The head belongs to the link, and the node it enters sets where the tip
+// stops: on that node's outline, `nodeHalfWidth` from the endpoint, as far as
+// the link is long, so an abutting joint keeps its head on the joint. A joint's
+// head lies over the node the link leaves, whose drawn length is the room it
+// fits to; a run of 1 bp nodes on a walk row otherwise drew a head at every
+// joint.
 //
 // The head lies along the curve it ends, from the curve point a head-length
-// back to the tip. The end tangent alone runs along the entered node, and an
-// edge that turns in its last few px then drew a head pointing across its own
-// stroke.
+// back to the tip, so a link that turns in its last few px still points along
+// its own stroke.
 function arrowheadFor({
   curves,
   edgeHalfWidth,
@@ -219,15 +213,19 @@ function arrowheadFor({
   toSegments: NodeSegment[]
 }): Arrowhead | undefined {
   const length = ARROW_LENGTH_BASE_PX + ARROW_LENGTH_PER_EDGE_PX * edgeHalfWidth
-  const n = backFromEnd(curves, scale, yToX, nodeHalfWidth + length)
+  const n = backFromEnd(
+    curves,
+    scale,
+    yToX,
+    nodeHalfWidth + MIN_LINK_HEADS * length,
+  )
   const lengthPx = walkPx[n - 1]!
+  const abutting = lengthPx < ABUTTING_PX
   const inset = Math.min(nodeHalfWidth, lengthPx)
-  const room =
-    lengthPx < ABUTTING_PX
-      ? polylinePx(fromSegments, scale, yToX)
-      : lengthPx - inset
-  const fit = Math.min(1, room / length)
-  if (fit < MIN_ARROW_FIT) {
+  const fit = abutting
+    ? Math.min(1, polylinePx(fromSegments, scale, yToX) / length)
+    : 1
+  if (abutting ? fit < MIN_ARROW_FIT : lengthPx < MIN_LINK_HEADS * length) {
     return undefined
   }
   const tip = walkPointAt(n, inset)
@@ -992,7 +990,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         showArrows && arrowColor !== undefined
           ? arrowheadFor({
               curves,
-              edgeHalfWidth: edgeThickness,
+              edgeHalfWidth: connectorThickness / 2,
               nodeHalfWidth: intoHalfWidth,
               scale,
               yToX,

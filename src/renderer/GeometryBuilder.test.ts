@@ -727,6 +727,7 @@ describe('arrowhead placement', () => {
     positions: Record<string, { x: number; y: number }[]>,
     scale: number,
     connectorThickness = 2,
+    deletions?: Map<number, string[]>,
   ) {
     return buildGeometry({
       nodePositions: positions,
@@ -737,6 +738,7 @@ describe('arrowhead placement', () => {
       connectorThickness,
       drawPaths: false,
       axis: iso(scale),
+      deletions,
     }).arrows[0]
   }
 
@@ -761,20 +763,29 @@ describe('arrowhead placement', () => {
           { x: 14, y: 14 },
         ],
       },
-      4,
+      8,
     )!
     const endTangentAngle = Math.PI / 2
     expect(Math.abs(head.angle - endTangentAngle)).toBeGreaterThan(0.2)
   })
 
-  test('a heavier edge draws a bigger head', () => {
-    const thin = headOf(simplePositions, 4, 2)!
-    const heavy = headOf(simplePositions, 4, 6)!
+  test('heavier links draw bigger heads', () => {
+    const thin = headOf(simplePositions, 8, 2)!
+    const heavy = headOf(simplePositions, 8, 6)!
     expect(heavy.length).toBeGreaterThan(thin.length)
     expect(heavy.halfWidth).toBeGreaterThan(thin.halfWidth)
   })
 
-  test('an edge too short for its head drops it until a zoom lengthens it', () => {
+  // a deletion's heavier head hid the dashes of a short one
+  test("a deletion's head is a plain link's", () => {
+    const plain = headOf(simplePositions, 4)!
+    const deletion = headOf(simplePositions, 4, 2, new Map([[0, []]]))!
+    expect(deletion.length).toBe(plain.length)
+    expect(deletion.halfWidth).toBe(plain.halfWidth)
+  })
+
+  // a head is 10 px on a plain link, so it waits for 30 px of link
+  test('a link under three heads long drops its head until a zoom lengthens it', () => {
     const tight = {
       ...simplePositions,
       'B+': [
@@ -782,8 +793,9 @@ describe('arrowhead placement', () => {
         { x: 21, y: 0 },
       ],
     }
-    expect(headOf(tight, 1)).toBeUndefined()
-    expect(headOf(tight, 10)).toBeDefined()
+    expect(headOf(tight, 10)).toBeUndefined()
+    expect(headOf(tight, 20)).toBeUndefined()
+    expect(headOf(tight, 40)).toMatchObject({ length: 10 })
   })
 
   // an anchored layout's joint: the edge has no length, so no curve direction
