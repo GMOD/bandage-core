@@ -285,6 +285,18 @@ describe('genes on the backbone', () => {
     expect(hostPins(onCHM13, HG38, genes)).toEqual([])
   })
 
+  test('a gene with no exons in the cut keeps its pin, with no exon marks', () => {
+    const graph = load(CHR6, 'GRCh38')
+    const intronic = { ...gene('HLA', 'GRCh38#0#chr6', 1002, 1008), exons: [] }
+    const [pin] = genePins(
+      graph,
+      [intronic],
+      backbonePositions(backboneNodes(graph)),
+    )
+    expect(pin).toMatchObject({ exons: '', exonsByNode: [] })
+    expect(pin!.at).toBeDefined()
+  })
+
   test('genePins pins no gene the host has not renamed onto the backbone', () => {
     const genes = [gene('HLA', 'chr6', 1002, 1008)]
     expect(pinned(load(CHR6, 'GRCh38'), genes)).toEqual([])

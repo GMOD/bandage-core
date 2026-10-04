@@ -125,9 +125,15 @@ export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
     const start = top?.start ?? Math.min(...rows.map(r => r.start))
     const end = top?.end ?? Math.max(...rows.map(r => r.end))
     const a = first.attrs
-    const exons = rows
-      .filter(r => r.type === 'exon')
-      .map(r => ({ start: r.start, end: r.end }))
+    const spans = (type: string) =>
+      rows
+        .filter(r => r.type === type)
+        .map(r => ({ start: r.start, end: r.end }))
+    const exons = spans('exon')
+    const coding = spans('CDS')
+    const transcribed = rows.some(
+      r => r !== top && r.type !== 'exon' && r.type !== 'CDS',
+    )
     genes.push({
       name:
         a.get('Name') ??
@@ -139,7 +145,14 @@ export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
       start,
       end,
       strand: first.strand,
-      exons: exons.length ? mergedIntervals(exons) : [{ start, end }],
+      // A range read holds only the rows over its window, so a gene with
+      // transcripts but no exon or CDS there is intronic in it. Only a gene
+      // with no transcripts, as a bacterium's gene and CDS, is one exon.
+      exons: exons.length
+        ? mergedIntervals(exons)
+        : transcribed
+          ? mergedIntervals(coding)
+          : [{ start, end }],
     })
   }
   return genes

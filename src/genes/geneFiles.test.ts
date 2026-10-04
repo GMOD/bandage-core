@@ -85,6 +85,37 @@ test('genesFromGff3Lines climbs Parent to the gene and names it by Name', () => 
   ])
 })
 
+// what a range read over an intron returns: the gene and its transcript,
+// which span the window, and none of their exons
+test('genesFromGff3Lines gives a gene no exons where only its intron is read', () => {
+  const [gene] = genesFromGff3Lines([
+    gff('chr1', 'gene', 1001, 9000, '+', 'ID=G;Name=DENND1B'),
+    gff('chr1', 'mRNA', 1001, 9000, '+', 'ID=T;Parent=G'),
+  ])
+  expect(gene).toMatchObject({ name: 'DENND1B', start: 1000, exons: [] })
+})
+
+test('genesFromGff3Lines reads CDS where a transcript lists no exons', () => {
+  const [gene] = genesFromGff3Lines([
+    gff('chr1', 'gene', 1, 900, '+', 'ID=G'),
+    gff('chr1', 'mRNA', 1, 900, '+', 'ID=T;Parent=G'),
+    gff('chr1', 'CDS', 101, 200, '+', 'Parent=T'),
+    gff('chr1', 'CDS', 501, 600, '+', 'Parent=T'),
+  ])
+  expect(gene!.exons).toEqual([
+    { start: 100, end: 200 },
+    { start: 500, end: 600 },
+  ])
+})
+
+test("genesFromGff3Lines draws a bacterium's gene and CDS as one exon", () => {
+  const [gene] = genesFromGff3Lines([
+    gff('NC_1', 'gene', 101, 400, '+', 'ID=gene-b1;Name=thrA'),
+    gff('NC_1', 'CDS', 101, 400, '+', 'ID=cds-b1;Parent=gene-b1'),
+  ])
+  expect(gene!.exons).toEqual([{ start: 100, end: 400 }])
+})
+
 test("genesFromGff3Lines skips the rest of NCBI's top level", () => {
   const genes = genesFromGff3Lines([
     gff('NC_1', 'region', 1, 5000, '+', 'ID=NC_1:1..5000'),

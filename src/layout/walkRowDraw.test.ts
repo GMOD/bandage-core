@@ -102,6 +102,16 @@ test('a gene longer than its bar is cut to it', () => {
   ])
 })
 
+test('a gene with no exons in the cut keeps its line on the row', () => {
+  const placed = placeRowGenes(
+    rows().rows,
+    new Map([['HG1#1#ctg1', [{ ...gene('INTRON', 400, 900), exons: [] }]]]),
+  )
+  expect(placed.get('HG1#1#ctg1')).toEqual([
+    { name: 'INTRON', start: 0, end: 25, exons: [] },
+  ])
+})
+
 test('shorter genes take their name room first', () => {
   const boxes = rowGeneBoxes(
     [
