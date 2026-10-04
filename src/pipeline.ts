@@ -21,7 +21,7 @@ import { anchorGraph } from './pathAnchoring'
 import type { BubbleSpread } from './bubbleSpreads'
 import type { LayoutScaling } from './layout/drawnScale'
 import type { LayoutNode } from './layout/referenceSeeds'
-import type { LayoutEngineKind } from './layout/stressEngine'
+import type { LayoutEngineKind } from './layoutEngines'
 import type { Graph, LayoutResult, NodeSegment } from './types'
 
 // The graph a view draws, from GFA text to layouts, with no host in it: the

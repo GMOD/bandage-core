@@ -22,7 +22,11 @@ import {
 } from '../genes/geneFiles'
 import { genesOnRow, placeRowGenes } from '../layout/walkRowDraw'
 import { filterSamples, walkRows } from '../layout/walkRows'
-import { layoutEngine } from '../layoutEngines'
+import {
+  LAYOUT_ENGINE_VALUES,
+  isLayoutEngineKind,
+  layoutEngine,
+} from '../layoutEngines'
 import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
 import { forceLayout, loadGraph } from '../pipeline'
 import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
@@ -31,7 +35,7 @@ import type { BubbleSpread } from '../bubbleSpreads'
 import type { FigureOptions } from '../figure'
 import type { GbzSource } from '../gbzCut'
 import type { GeneModel } from '../genes/genePins'
-import type { LayoutEngineKind } from '../layout/stressEngine'
+import type { LayoutEngineKind } from '../layoutEngines'
 import type { LayoutModeValue } from '../layoutModes'
 import type { BackboneContig } from '../reference'
 import type { Graph } from '../types'
@@ -226,8 +230,17 @@ function checkLayout(layout: string | undefined) {
   }
 }
 
+function checkEngine(engine: string | undefined) {
+  if (engine !== undefined && !isLayoutEngineKind(engine)) {
+    throw new Error(
+      `no "${engine}" layout engine: one of ${LAYOUT_ENGINE_VALUES.join(', ')}`,
+    )
+  }
+}
+
 async function renderSpec(spec: FigureSpec, base: string) {
   checkLayout(spec.layout)
+  checkEngine(spec.engine)
   const resolve = (location: string) =>
     isUrl(location) ? location : path.resolve(base, location)
   let source: {

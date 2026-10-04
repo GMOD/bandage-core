@@ -80,6 +80,30 @@ test('a seeded backbone keeps its reference order along x', () => {
   }
 })
 
+test('a chain with free ends keeps its points evenly spaced', () => {
+  const one: EngineRequest = {
+    graph: {
+      nodes: [{ id: 'p+', name: 'p', length: 4000, depth: 1 }],
+      edges: [],
+    },
+    options: {
+      nodeLengthPerMegabase: 10_000,
+      minimumNodeLength: 5,
+      nodeSegmentLength: 20,
+      edgeLength: 5,
+    },
+  }
+  const points = stressLayout(one).nodePositions['p+']!
+  const steps = points
+    .slice(1)
+    .map((p, i) => Math.hypot(p.x - points[i]!.x, p.y - points[i]!.y))
+  const per = 40 / (points.length - 1)
+  for (const step of steps) {
+    expect(step / per).toBeGreaterThan(0.85)
+    expect(step / per).toBeLessThan(1.15)
+  }
+})
+
 test('components stack apart, and an unseeded one lies along x', () => {
   const two: EngineRequest = {
     graph: {

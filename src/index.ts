@@ -40,9 +40,9 @@ export {
 export type { NodeWidth } from './nodeWidths'
 export { BUBBLE_SPREADS } from './bubbleSpreads'
 export type { BubbleSpread } from './bubbleSpreads'
-export { LAYOUT_ENGINES, stressLayout } from './layout/stressEngine'
-export type { LayoutEngineKind } from './layout/stressEngine'
-export { layoutEngine } from './layoutEngines'
+export { stressLayout } from './layout/stressEngine'
+export { LAYOUT_ENGINES, layoutEngine } from './layoutEngines'
+export type { LayoutEngineKind } from './layoutEngines'
 
 export {
   REFERENCE_RAMP_MAX_HUE,
