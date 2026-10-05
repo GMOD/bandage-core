@@ -12,13 +12,12 @@ import {
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
 import { geneLabelCandidates } from './labelLayout'
-import { ROW_HEIGHT_PX } from './layout/rowSpacing'
 import {
   walkRowsKey,
   walkRowsKeyTree,
   walkRowsTree,
 } from './layout/walkRowDraw'
-import { walkRowsExtent } from './layout/walkRowLayout'
+import { walkRowLabels, walkRowsExtent } from './layout/walkRowLayout'
 import {
   stripGeneGaps,
   walkStripFrame,
@@ -37,6 +36,7 @@ import { FIT_PADDING, drawingBounds, fitTransform } from './pipeline'
 import { referenceLabel } from './reference'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
+import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { svgCanvas } from './renderer/svgCanvas'
 import { nodesUnderBox } from './util/hitDetection'
 import { version } from './version'
@@ -331,15 +331,7 @@ export function figureSvg(
         ),
       )
     }
-    const pitch = o.walkRowPitch
-    const rowLabels = rows
-      ? pitch && !pitch.labelled
-        ? []
-        : [rows.reference, ...rows.rows].map((r, i) => ({
-            label: r.label,
-            y: i * (pitch?.rowPx ?? ROW_HEIGHT_PX),
-          }))
-      : (layout.rowLabels ?? [])
+    const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)
     for (const { label, y } of rowLabels) {
       const sy = y * t.scaleY + t.translateY
       if (sy >= 0 && sy <= h) {
@@ -374,7 +366,9 @@ export function figureSvg(
     const renderer = new Canvas2DRenderer(canvas)
     renderer.uploadGeometry(
       buildGeometry({
-        nodePositions: rows ? {} : layout.nodePositions,
+        ...layoutGeometryInputs(layout, drawnDeletions, {
+          drawsRows: !!rows,
+        }),
         graph,
         nodeById,
         colorScheme,
@@ -386,10 +380,6 @@ export function figureSvg(
         highlight,
         axis,
         referenceRamp,
-        deletions: drawnDeletions.bypassed,
-        deletionRoutes: layout.deletionRoutes,
-        stranded: layout.stranded,
-        hiddenEdges: drawnDeletions.hidden,
       }),
     )
     const t = {

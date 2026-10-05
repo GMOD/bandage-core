@@ -21,6 +21,10 @@ export type {
   LayoutEngine,
 } from './pipeline'
 export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
+export { createForceLayoutCache } from './layout/forceCache'
+export type { ForceLayoutCache } from './layout/forceCache'
+export { edgeHoverText, regionLabel } from './hoverText'
+export { layoutGeometryInputs } from './renderer/geometryInputs'
 export { FIGURE_DEFAULTS, figureSpecSettings } from './figureSettings'
 export type { FigureSettings } from './figureSettings'
 
@@ -206,7 +210,7 @@ export {
   rampHueCss,
   rampStops,
 } from './referenceRampCss'
-export { walkRowsExtent } from './layout/walkRowLayout'
+export { walkRowLabels, walkRowsExtent } from './layout/walkRowLayout'
 export { ROW_HEIGHT_PX } from './layout/rowSpacing'
 
 export {

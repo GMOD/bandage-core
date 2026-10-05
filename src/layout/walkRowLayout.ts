@@ -38,6 +38,26 @@ export function walkRowsExtent(
   }
 }
 
+// The label beside each walk row, the reference's first, at the pitch the rows
+// are drawn at. A strip packed too dense to label has none, and a layout with
+// no rows of its own states its labels itself.
+export function walkRowLabels(
+  rows: WalkRows | undefined,
+  layout?: LayoutResult,
+  pitch?: RowPitch,
+): RowLabel[] {
+  if (!rows) {
+    return layout?.rowLabels ?? []
+  }
+  if (pitch && !pitch.labelled) {
+    return []
+  }
+  return [rows.reference, ...rows.rows].map((row, i) => ({
+    label: row.label,
+    y: i * (pitch?.rowPx ?? ROW_HEIGHT_PX),
+  }))
+}
+
 export function walkRowLayout(
   graph: Graph,
   region?: { start: number; end: number },
