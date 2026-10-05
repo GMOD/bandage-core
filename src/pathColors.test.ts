@@ -1,4 +1,4 @@
-import { nameHue, pathCssColor, pathLegend } from './pathColors'
+import { nameHue, pathCssColor, pathLegend, walkLabelsOf } from './pathColors'
 
 test('a P record legend is labelled by sample', () => {
   expect(
@@ -102,5 +102,19 @@ test('a legend names the colours the paths were drawn in where given', () => {
   expect(pathLegend(paths, ['#111', '#222']).map(e => e.color)).toEqual([
     '#111',
     '#222',
+  ])
+})
+
+test('a repeated label takes its ordinal', () => {
+  expect([
+    ...walkLabelsOf([
+      { name: 'a#1#chr1', label: 'chr1' },
+      { name: 'b#1#chr1', label: 'chr1' },
+      { name: 'c#1#chr2', label: 'chr2' },
+    ]),
+  ]).toEqual([
+    ['a#1#chr1', 'chr1'],
+    ['b#1#chr1', 'chr1 (2)'],
+    ['c#1#chr2', 'chr2'],
   ])
 })

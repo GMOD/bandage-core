@@ -32,7 +32,7 @@ import {
   occupancy,
   placeLabels,
 } from './overlayLabels'
-import { pathLegend } from './pathColors'
+import { pathLegend, walkLabelsOf } from './pathColors'
 import { FIT_PADDING, drawingBounds, fitTransform } from './pipeline'
 import { referenceLabel } from './reference'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
@@ -78,6 +78,9 @@ export interface FigureOptions {
   nodeWidth?: NodeWidth
   // true when absent, as for the layout
   showDeletionEdges?: boolean
+  // the layout was laid out for a linear view, which draws strand arrows from
+  // a lower zoom (EngineSettings)
+  linearLayout?: boolean
   contigThickness?: number
   connectorThickness?: number
   // the window the graph was cut for, which the anchored layouts and the
@@ -254,11 +257,8 @@ export function figureSvg(
     facet.field && lift && lift.walks.length > 1
       ? facetLifts(graph, lift, layers, walkRamp)
       : undefined
-  const labels = new Map(
-    (graph.paths?.length ? pathLegend(graph.paths) : []).map(p => [
-      p.name,
-      p.label,
-    ]),
+  const labels = walkLabelsOf(
+    graph.paths?.length ? pathLegend(graph.paths) : [],
   )
   const labelOf = (name: string) => labels.get(name) ?? name
   const referenceName = o.referenceName ?? referenceLabel(graph, region)
@@ -382,6 +382,7 @@ export function figureSvg(
         connectorThickness: o.connectorThickness ?? 2,
         drawPaths: false,
         nodeWidth,
+        linearLayout: o.linearLayout,
         highlight,
         axis,
         referenceRamp,

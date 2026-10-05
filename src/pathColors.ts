@@ -144,3 +144,20 @@ export function pathLegend(
     color: colors?.[i] ?? pathCssColor(i, paths.length),
   }))
 }
+
+// A label per walk name, which is what a key, a bubble label and a walk row
+// all show. The legend's labels are the shortest distinct tier, but two walks
+// can share a name outright (fragments of one contig), so a repeat takes its
+// ordinal.
+export function walkLabelsOf(entries: { name: string; label: string }[]) {
+  const seen = new Map<string, number>()
+  return new Map(
+    [...entries]
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map(e => {
+        const n = (seen.get(e.label) ?? 0) + 1
+        seen.set(e.label, n)
+        return [e.name, n > 1 ? `${e.label} (${n})` : e.label]
+      }),
+  )
+}

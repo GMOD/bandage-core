@@ -28,7 +28,7 @@ import {
   layoutEngine,
 } from '../layoutEngines'
 import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
-import { forceLayout, loadGraph } from '../pipeline'
+import { engineSettingsOf, forceLayout, loadGraph } from '../pipeline'
 import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
 
 import type { BubbleSpread } from '../bubbleSpreads'
@@ -276,21 +276,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
   })
   const layout =
     layoutModeByValue(spec.layout ?? 'force').run(graph, source.region) ??
-    (
-      await forceLayout(
-        graph,
-        {
-          quality: spec.quality ?? 2,
-          linearLayout: false,
-          bubbleSpread: spec.bubbleSpread ?? 'auto',
-          engine: spec.engine,
-          spacing: spec.spacing,
-          componentSeparation: spec.componentSeparation,
-          showDeletionEdges: spec.showDeletionEdges,
-        },
-        layoutEngine,
-      )
-    ).result
+    (await forceLayout(graph, engineSettingsOf(spec), layoutEngine)).result
   const bars = spec.walkStrip ? walkRows(graph, source.region) : undefined
   const stripRows = bars && {
     ...bars,

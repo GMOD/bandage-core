@@ -83,6 +83,36 @@ export interface EngineSettings {
   engine?: LayoutEngineKind
 }
 
+// What every setting means when a caller leaves it out, so a spec, a view and
+// the CLI lay the same graph out the same way.
+export const ENGINE_DEFAULTS: Required<EngineSettings> = {
+  engine: 'fmmm',
+  quality: 2,
+  linearLayout: false,
+  bubbleSpread: 'auto',
+  spacing: 1,
+  componentSeparation: 1,
+  showDeletionEdges: true,
+}
+
+// Settings from a partial set, which is what a figure spec and a host's own
+// settings both are. An explicit `undefined` reads as absent, so spreading a
+// spec in cannot turn a default off.
+export function engineSettingsOf(
+  s: Partial<EngineSettings> = {},
+): Required<EngineSettings> {
+  return {
+    engine: s.engine ?? ENGINE_DEFAULTS.engine,
+    quality: s.quality ?? ENGINE_DEFAULTS.quality,
+    linearLayout: s.linearLayout ?? ENGINE_DEFAULTS.linearLayout,
+    bubbleSpread: s.bubbleSpread ?? ENGINE_DEFAULTS.bubbleSpread,
+    spacing: s.spacing ?? ENGINE_DEFAULTS.spacing,
+    componentSeparation:
+      s.componentSeparation ?? ENGINE_DEFAULTS.componentSeparation,
+    showDeletionEdges: s.showDeletionEdges ?? ENGINE_DEFAULTS.showDeletionEdges,
+  }
+}
+
 // the engine's own gap between components, which `componentSeparation` scales
 const COMPONENT_SEPARATION = 15
 

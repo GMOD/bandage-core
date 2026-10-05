@@ -20,6 +20,9 @@ export type {
   EngineSettings,
   LayoutEngine,
 } from './pipeline'
+export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
+export { FIGURE_DEFAULTS, figureSpecSettings } from './figureSettings'
+export type { FigureSettings } from './figureSettings'
 
 export {
   FORCE_LAYOUT_LABEL,
@@ -39,6 +42,8 @@ export {
 } from './nodeWidths'
 export type { NodeWidth } from './nodeWidths'
 export { BUBBLE_SPREADS } from './bubbleSpreads'
+export { LAYOUT_QUALITIES } from './layoutQualities'
+export type { LayoutQuality } from './layoutQualities'
 export type { BubbleSpread } from './bubbleSpreads'
 export { stressLayout } from './layout/stressEngine'
 export { LAYOUT_ENGINES, layoutEngine } from './layoutEngines'
@@ -130,7 +135,7 @@ export type {
   WalkLayer,
   WalkScheme,
 } from './walkEncoding'
-export { pathColorsLegible, pathLegend } from './pathColors'
+export { pathColorsLegible, pathLegend, walkLabelsOf } from './pathColors'
 export { bubblesFromGraph } from './bubbles/bubblesFromGraph'
 export { bubbleHalos } from './bubbles/bubbleHalos'
 export type { BubbleHalo } from './bubbles/bubbleHalos'
