@@ -43,13 +43,16 @@ export function fadeAbgr(c: number, alpha: number) {
   )
 }
 
-// Scale a packed color's channels, clamped at full brightness and leaving alpha
-// alone. factor === 1 returns the color unchanged.
+// Lighten a packed color toward white by 1 - 1/factor, leaving alpha alone.
+// Mixing keeps the hue, where scaling each channel clamps the largest first
+// and turns a green yellow. factor <= 1 returns the color unchanged.
 export function brightenAbgr(c: number, factor: number) {
+  const t = Math.max(0, 1 - 1 / factor)
+  const lift = (v: number) => Math.round(v + (255 - v) * t)
   return packAbgr(
-    Math.min(255, Math.round(abgrRed(c) * factor)),
-    Math.min(255, Math.round(abgrGreen(c) * factor)),
-    Math.min(255, Math.round(abgrBlue(c) * factor)),
+    lift(abgrRed(c)),
+    lift(abgrGreen(c)),
+    lift(abgrBlue(c)),
     abgrAlpha(c),
   )
 }
