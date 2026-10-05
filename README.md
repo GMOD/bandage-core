@@ -53,4 +53,6 @@ Release with `pnpm version patch`: it lints, tests, stamps `src/version.ts`,
 writes the changelog with git-cliff and pushes the `v*` tag, and `publish.yml`
 publishes to npm with trusted publishing.
 
+## License
+
 Both Bandage and OGDF are GPL, which is why this package is GPL-3.0-or-later.
