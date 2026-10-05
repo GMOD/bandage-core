@@ -1,11 +1,11 @@
 // Render a vg JSON through sequenceTubeMapModern's layout headlessly, the way
 // its own scripts/tubemap-cli.ts does. Run from that repo's directory so its
 // imports resolve, with TUBEMAP pointing at the checkout:
-//   TUBEMAP=~/src/vendor/sequenceTubeMapModern node --experimental-strip-types \
+//   TUBEMAP=~/src/sequenceTubeMapModern node --experimental-strip-types \
 //     tubemap-render.mts <vg.json> <out.svg> [normal]
 import { readFileSync, writeFileSync } from 'node:fs'
 const TUBEMAP =
-  process.env.TUBEMAP ?? `${process.env.HOME}/src/vendor/sequenceTubeMapModern`
+  process.env.TUBEMAP ?? `${process.env.HOME}/src/sequenceTubeMapModern`
 const { JSDOM } = await import(`${TUBEMAP}/node_modules/jsdom/lib/api.js`)
 const [file, out, mode] = process.argv.slice(2)
 const dom = new JSDOM(
@@ -40,9 +40,9 @@ g.getComputedStyle = window.getComputedStyle.bind(window)
 g.requestAnimationFrame = window.requestAnimationFrame.bind(window)
 g.cancelAnimationFrame = window.cancelAnimationFrame.bind(window)
 const tubeMap =
-  await import('/home/cdiesh/src/vendor/sequenceTubeMapModern/src/util/tubemap.ts')
+  await import('/home/cdiesh/src/sequenceTubeMapModern/src/util/tubemap.ts')
 const { exportSvg } =
-  await import('/home/cdiesh/src/vendor/sequenceTubeMapModern/src/util/svgExport.ts')
+  await import('/home/cdiesh/src/sequenceTubeMapModern/src/util/svgExport.ts')
 const vg = JSON.parse(readFileSync(file, 'utf8'))
 const nodes = tubeMap.vgExtractNodes(vg)
 const tracks = tubeMap.vgExtractTracks(vg, 0, 0)
