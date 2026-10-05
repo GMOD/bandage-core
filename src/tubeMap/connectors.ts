@@ -1,7 +1,7 @@
 import { isBackbone } from '../anchoredNodes'
 
 import type { Graph } from '../types'
-import type { TubeMapLayout } from '@gmod/tubemap-core'
+import type { TubeMapLayout } from '@jbrowse/tubemap-core'
 
 // On its own axis a tube map keeps none of the linear view's bp: a box is as
 // wide as log2 of its length, and the lane changes between boxes take px that

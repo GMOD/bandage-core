@@ -3,7 +3,7 @@ import { formatBp } from '../graphLabels'
 
 import type { TubeMapFrame } from './draw'
 import type { Graph } from '../types'
-import type { TubeMapLayout } from '@gmod/tubemap-core'
+import type { TubeMapLayout } from '@jbrowse/tubemap-core'
 
 // The reference's boxes carry bp, so a reference coordinate maps into tube x
 // through the box that holds it. On the own axis a box is log-scaled, so bp

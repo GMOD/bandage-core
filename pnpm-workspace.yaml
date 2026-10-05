@@ -3,5 +3,5 @@ allowBuilds:
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@gmod/gbz-base@7.0.0'
-  - '@gmod/tubemap-core@0.1.0'
+  - '@jbrowse/tubemap-core'
   - '@gmod/tabix@3.9.0'

@@ -1,14 +1,9 @@
-import { layoutTubeMap } from '@gmod/tubemap-core'
+import { layoutTubeMap } from '@jbrowse/tubemap-core'
 
 import { isBackbone } from '../anchoredNodes'
 import { pathOrigin } from '../pathAnchoring'
 import { pathCssColor, pathGreyCssColor } from '../pathColors'
-import {
-  canonicalStrand,
-  readColor,
-  stepName,
-  tubeMapReads,
-} from '../tubeMap/reads'
+import { canonicalStrand, stepName, tubeMapReads } from '../tubeMap/reads'
 
 import type { Coarsened } from '../tubeMap/coarsen'
 import type { Graph, LayoutResult, NodeSegment } from '../types'
@@ -17,12 +12,13 @@ import type {
   InputTrack,
   LayoutNode,
   TubeMapLayout,
-} from '@gmod/tubemap-core'
+} from '@jbrowse/tubemap-core'
 
 // The sequenceTubeMap drawing of a graph's paths: every P or W line a tube,
-// every node a box the tubes pass through, laid out by @gmod/tubemap-core. The
-// canvas draws none of it; TubeMapOverlay draws the shapes, and nodePositions
-// is each box's centreline, for the hit test, the fit and the labels.
+// every node a box the tubes pass through, laid out by @jbrowse/tubemap-core.
+// The canvas draws none of it; TubeMapOverlay draws the shapes, and
+// nodePositions is each box's centreline, for the hit test, the fit and the
+// labels.
 //
 // Two x axes. `own` is the tube map's: columns in node order, a node as wide as
 // log2 of its length, which is the compact picture sequenceTubeMap draws.
@@ -150,8 +146,6 @@ function runTubeMap(graph: Graph) {
   const layout = layoutTubeMap(tubeMapNodes(graph), tracks, reads, {
     nodeWidthOption: 'compressed',
     trackWidth: tubeWidth(tracks.length),
-    trackColor: track =>
-      track.type === 'read' ? readColor(track) : pathColors[track.id]!,
   })
   return layout ? { layout, pathColors } : undefined
 }

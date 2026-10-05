@@ -7,7 +7,7 @@ import { build } from 'esbuild'
 // tree or a UI framework reached from here would land in a page that has none
 // of them. These are the packages it may take from outside src/ instead.
 const ALLOWED = [
-  /^@gmod\/tubemap-core\/dist\//,
+  /^@jbrowse\/tubemap-core\/(dist|esm)\//,
   /^@gmod\/gbz-base\/(dist|esm)\//,
 ]
 

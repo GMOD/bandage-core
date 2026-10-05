@@ -3,7 +3,7 @@ import { isBackbone } from '../anchoredNodes'
 import type { Deviation } from './coarsen'
 import type { TubeMapFrame } from './draw'
 import type { Graph } from '../types'
-import type { LayoutNode, TubeMapLayout } from '@gmod/tubemap-core'
+import type { LayoutNode, TubeMapLayout } from '@jbrowse/tubemap-core'
 
 // A folded variant on the tube of the walk that carries it, in tube
 // coordinates. Placed by bp through the box that holds it, since tubemap-core

@@ -14,9 +14,9 @@ importers:
       '@gmod/tabix':
         specifier: ^3.9.1
         version: 3.9.1
-      '@gmod/tubemap-core':
-        specifier: ^0.1.0
-        version: 0.1.0
+      '@jbrowse/tubemap-core':
+        specifier: ^0.2.1
+        version: 0.2.1
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -334,9 +334,6 @@ packages:
   '@gmod/tabix@3.9.1':
     resolution: {integrity: sha512-RaiSL3O4eclLOYaoHkkqdpr0EfhwmmGPj5xdbmsNNItdVlpnEM4lJ1dRzl26nFYVodEJSv+Krqr/5hWxMy1Q6w==}
 
-  '@gmod/tubemap-core@0.1.0':
-    resolution: {integrity: sha512-PUrfgB3QWDkeIxhi6CA9vS3zz1nru9mLo9GENwlyPKt0N8xMu/Fg6pz0L9kjnrUKSz9SjhW/vJPiY5hiTJODPw==}
-
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
     engines: {node: '>=18.18.0'}
@@ -360,6 +357,9 @@ packages:
   '@jbrowse/quick-lru@8.0.0':
     resolution: {integrity: sha512-zToC0THd94TGr4cWMp9eOCRB8eeN004ncajZzVOoM8WEWV90YMTX5SX9zY6Nk1hhY7ASKWnfOmguXt7SoXaLzw==}
     engines: {node: '>=22'}
+
+  '@jbrowse/tubemap-core@0.2.1':
+    resolution: {integrity: sha512-93MYJ6W6pJQij5y055GBFsNxp/cOplN7/hC+wBxI5xbySZI385V627ENR2HN0aNbnIysxF+pWhl2pnehNRg5VA==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1675,8 +1675,6 @@ snapshots:
       '@jbrowse/quick-lru': 8.0.0
       generic-filehandle2: 2.5.0
 
-  '@gmod/tubemap-core@0.1.0': {}
-
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -1694,6 +1692,8 @@ snapshots:
   '@humanwhocodes/retry@0.4.3': {}
 
   '@jbrowse/quick-lru@8.0.0': {}
+
+  '@jbrowse/tubemap-core@0.2.1': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

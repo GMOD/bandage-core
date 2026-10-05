@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
+import { tubeMapPicture } from './draw'
 import { tubeMapReads } from './reads'
 import { parseGaf, parseGafLine } from '../gaf/parseGaf'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
@@ -101,9 +102,7 @@ test('beside reads the tubes are grey, and the drawing names their colours', () 
     [0, 1, 2].map(i => pathGreyCssColor(i, 3)),
   )
   const tubeColors = new Set(
-    withReads.layout.shapes.rectangles
-      .filter(r => r.type === 'haplotype')
-      .map(r => r.color),
+    tubeMapPicture(withReads).layers[0]!.rects.map(r => r.color),
   )
   expect([...tubeColors].every(c => withReads.pathColors.includes(c))).toBe(
     true,

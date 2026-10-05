@@ -1,6 +1,6 @@
-import { forward, getXCoordinateOfBaseWithinNode } from '@gmod/tubemap-core'
+import { forward, getXCoordinateOfBaseWithinNode } from '@jbrowse/tubemap-core'
 
-import type { Track, TubeMapLayout } from '@gmod/tubemap-core'
+import type { Track, TubeMapLayout } from '@jbrowse/tubemap-core'
 
 // Where a read differs from the nodes it runs through, in tube coordinates:
 // the marks sequenceTubeMap's drawMismatches puts on a read's tube. Each mark

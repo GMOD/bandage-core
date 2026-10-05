@@ -2,7 +2,7 @@ import { parseCs } from '../gaf/parseGaf'
 
 import type { GafRecord } from '../gaf/parseGaf'
 import type { Graph, GraphNode } from '../types'
-import type { InputTrack, Mismatch } from '@gmod/tubemap-core'
+import type { InputTrack, Mismatch } from '@jbrowse/tubemap-core'
 
 // GAF reads as tube map reads over a cut. A read keeps the steps whose
 // segments the cut holds, and its cs edits land on the node they fall in, at

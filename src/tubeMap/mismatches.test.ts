@@ -1,4 +1,4 @@
-import { READ_WIDTH, layoutTubeMap } from '@gmod/tubemap-core'
+import { READ_WIDTH, layoutTubeMap } from '@jbrowse/tubemap-core'
 
 import { tubeMapMismatches } from './mismatches'
 
@@ -7,7 +7,7 @@ import type {
   InputTrack,
   Mismatch,
   TubeMapLayout,
-} from '@gmod/tubemap-core'
+} from '@jbrowse/tubemap-core'
 
 // ref walks 1 2 4, alt 1 3 4; ten bases a node so a base is 1/10 of a node
 const nodes: InputNode[] = [
