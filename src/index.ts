@@ -22,6 +22,7 @@ export type {
 } from './pipeline'
 export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
 export { createForceLayoutCache } from './layout/forceCache'
+export { cutsWholeWalks, walkStripApplies } from './layout/walkStrip'
 export type { ForceLayoutCache } from './layout/forceCache'
 export { edgeHoverText, regionLabel } from './hoverText'
 export { layoutGeometryInputs } from './renderer/geometryInputs'

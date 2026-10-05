@@ -5,6 +5,7 @@ import { pathOrigin } from '../pathAnchoring'
 
 import type { GeneGaps, RowGene, WalkRowsFrame } from './walkRowDraw'
 import type { WalkRow, WalkRows } from './walkRows'
+import type { LayoutMode } from '../layoutModes'
 import type { Graph, GraphNode } from '../types'
 
 export { LABELLED_ROW_PX } from './walkRowDraw'
@@ -14,6 +15,50 @@ export { LABELLED_ROW_PX } from './walkRowDraw'
 // multiples of one mapping, x the walk's own bp and colour whether it runs on
 // the reference's path, so the strip shows every row and sizes them to fit,
 // down to a dense overview, rather than asking which to show.
+
+// Whether the strip of walk rows sits under the drawing: asked for, under a
+// layout that draws nodes, not while a tube map or walk rows are already on
+// screen, for a graph with walks, and not while a bubble is popped — the
+// popped graph is a few segments of one bubble, which no walk reads as a row.
+// A hosted view has no room under the drawing for it.
+export function walkStripApplies(o: {
+  walkStrip: boolean
+  mode: Pick<LayoutMode, 'drawsNodes'>
+  // a tube map or walk rows already drawing in place of nodes
+  drawsPicture?: boolean
+  popped?: boolean
+  walks: number
+  // the view is embedded in a host rather than standing alone
+  host?: boolean
+}) {
+  return (
+    o.walkStrip &&
+    o.mode.drawsNodes &&
+    !o.drawsPicture &&
+    !o.popped &&
+    !o.host &&
+    o.walks > 1
+  )
+}
+
+// Whether a GBZ cut must follow every snarl a walk leaves the window by, so
+// the walks come back whole: walk rows measure them, and so does the strip.
+//
+// Read before the layout exists, so it asks what the chosen mode and the
+// settings say rather than what is drawn. It stays coarser than
+// `walkStripApplies` for that reason, and because changing the answer re-cuts:
+// the strip switch left on under a tube map keeps the cut it already has
+// rather than fetching the window again on the way back to a node layout.
+// Measured on six HPRC windows (KIV-2, C4, CFH, MHC class II, MICB), the
+// heavier cut returned exactly the same graph as the lighter one — the 1 kb
+// of context around a window already carries the snarls that straddle it — so
+// what this saves is the re-cut, not the nodes.
+export function cutsWholeWalks(
+  mode: Pick<LayoutMode, 'wholeWalks'>,
+  o: { walkStrip: boolean; host?: boolean },
+) {
+  return mode.wholeWalks || (o.walkStrip && !o.host)
+}
 
 const PAD_PX = 6
 // the most height the strip takes, its rows shrinking to fit
