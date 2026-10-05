@@ -105,16 +105,22 @@ test('a legend names the colours the paths were drawn in where given', () => {
   ])
 })
 
-test('a repeated label takes its ordinal', () => {
+test('a repeated label takes its ordinal, in label order', () => {
   expect([
     ...walkLabelsOf([
-      { name: 'a#1#chr1', label: 'chr1' },
-      { name: 'b#1#chr1', label: 'chr1' },
-      { name: 'c#1#chr2', label: 'chr2' },
+      { name: 'HG002#1#chr6:10-20', label: 'HG002#1' },
+      { name: 'CHM13#0#chr6', label: 'CHM13' },
+      { name: 'HG002#1#chr6:30-40', label: 'HG002#1' },
+      { name: 'HG002#1#chr6:50-60', label: 'HG002#1' },
     ]),
   ]).toEqual([
-    ['a#1#chr1', 'chr1'],
-    ['b#1#chr1', 'chr1 (2)'],
-    ['c#1#chr2', 'chr2'],
+    ['CHM13#0#chr6', 'CHM13'],
+    ['HG002#1#chr6:10-20', 'HG002#1'],
+    ['HG002#1#chr6:30-40', 'HG002#1 (2)'],
+    ['HG002#1#chr6:50-60', 'HG002#1 (3)'],
   ])
+})
+
+test('no walks label as nothing', () => {
+  expect(walkLabelsOf([]).size).toBe(0)
 })
