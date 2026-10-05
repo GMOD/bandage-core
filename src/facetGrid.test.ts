@@ -1,4 +1,5 @@
 import {
+  FACET_FIELDS,
   FACET_GAP_PX,
   FACET_TITLE_PX,
   facetCells,
@@ -110,4 +111,12 @@ test('a facet setting reads a bare field, drops one the pane cannot split on, an
   expect(
     facetSettingOf({ field: 'sample', domain: ['B'], columns: 2 }),
   ).toEqual({ field: 'sample', domain: ['B'], columns: 2 })
+})
+
+test('the fields a picker offers lead with none, as a JBrowse menu does', () => {
+  expect(FACET_FIELDS.map(f => f.value)).toEqual(['', 'walk', 'sample'])
+  expect(FACET_FIELDS[0]!.label).toBe('None')
+  for (const f of FACET_FIELDS) {
+    expect(facetSettingOf(f.value).field).toBe(f.value)
+  }
 })

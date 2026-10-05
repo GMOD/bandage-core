@@ -117,6 +117,7 @@ export { version } from './version'
 export type { FigureOptions } from './figure'
 export { svgCanvas } from './renderer/svgCanvas'
 export {
+  FACET_FIELDS,
   FACET_GAP_PX,
   FACET_PAD_PX,
   FACET_TITLE_PX,

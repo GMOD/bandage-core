@@ -20,6 +20,7 @@ const PUBLISHED = [
   'COLOR_SCHEMES',
   'Canvas2DRenderer',
   'EXON_COLOR',
+  'FACET_FIELDS',
   'FACET_GAP_PX',
   'FACET_PAD_PX',
   'FACET_TITLE_PX',

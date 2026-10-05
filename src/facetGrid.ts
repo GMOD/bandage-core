@@ -89,6 +89,28 @@ export interface FacetSetting {
   columns?: number
 }
 
+/**
+ * The fields panels can split on, as a picker lists them: '' for none, the way
+ * a JBrowse display's `facet` writes it and its Group by menu labels it.
+ */
+export const FACET_FIELDS: {
+  value: FacetSetting['field']
+  label: string
+  description: string
+}[] = [
+  { value: '', label: 'None', description: 'Every lifted walk in one drawing' },
+  {
+    value: 'walk',
+    label: 'A panel per walk',
+    description: 'One panel per lifted walk, side by side',
+  },
+  {
+    value: 'sample',
+    label: 'A row per sample',
+    description: 'A row per sample, a column per haplotype',
+  },
+]
+
 /** What a session or a spec may write for the facet: the field bare, or the setting's members. */
 export type FacetInput =
   string | { field?: string; domain?: readonly string[]; columns?: number }
