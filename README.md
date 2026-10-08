@@ -8,7 +8,8 @@ and [BandageJS](https://github.com/cmdcolin/BandageJS).
 npm install @jbrowse/bandage-core
 ```
 
-- GFA and rGFA text in (`loadGraph`)
+- GFA and rGFA text in (`loadGraph`), or the same graph as typed arrays a worker
+  can transfer (`GraphTables`)
 - Layouts: Bandage's FMMM engine as WASM (`loadBandage`, `forceLayout`),
   ordered, anchored, sample rows, walk rows, tube map
 - A Canvas2D renderer (`buildGeometry`, `Canvas2DRenderer`), hit testing and

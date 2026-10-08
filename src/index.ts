@@ -257,6 +257,9 @@ export {
 } from './gbzWindow'
 export type { GbzWindowOptions } from './gbzWindow'
 
+export { graphFromTables, graphTablesGFA } from './gfa/graphTables'
+export type { GraphTables } from './gfa/graphTables'
+
 export { engineKey } from './pipeline'
 export {
   axisScaleOf,

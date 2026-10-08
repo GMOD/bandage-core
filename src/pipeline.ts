@@ -2,6 +2,7 @@ import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { closableDeletions, deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
+import { graphFromTables } from './gfa/graphTables'
 import { parseGFA } from './gfa-core/index'
 import {
   routeNodes,
@@ -19,6 +20,7 @@ import { seededNodes } from './layout/referenceSeeds'
 import { anchorGraph } from './pathAnchoring'
 
 import type { BubbleSpread } from './bubbleSpreads'
+import type { GraphTables } from './gfa/graphTables'
 import type { LayoutScaling } from './layout/drawnScale'
 import type { LayoutNode } from './layout/referenceSeeds'
 import type { LayoutEngineKind } from './layoutEngines'
@@ -34,17 +36,20 @@ export interface Bounds {
   maxY: number
 }
 
-// A general GFA states its coordinates only in its P/W lines, so the walk that
-// recovers them happens before anything reads `stable`; otherwise the anchored
-// layouts see an unanchored graph and hand off to force. `maxNodes` is checked
-// here because it is upstream of everything that scales with the node count.
+// GFA text, or the same graph as typed arrays. A general GFA states its
+// coordinates only in its P/W lines, so the walk that recovers them happens
+// before anything reads `stable`; otherwise the anchored layouts see an
+// unanchored graph and hand off to force. `maxNodes` is checked here because it
+// is upstream of everything that scales with the node count.
 export function loadGraph(
-  text: string,
+  source: string | GraphTables,
   name: string,
   opts: { referencePath?: string; maxNodes?: number } = {},
 ) {
   const graph = anchorGraph(
-    convertGFAToGraph(parseGFA(text), name),
+    typeof source === 'string'
+      ? convertGFAToGraph(parseGFA(source), name)
+      : graphFromTables(source, name),
     opts.referencePath,
   )
   if (graph.nodes.length === 0) {
