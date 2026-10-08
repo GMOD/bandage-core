@@ -1,7 +1,12 @@
 import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
 
-import type { GFAGraph, GFANode, GFAWalk } from '../gfa-core/index'
+import type {
+  GFAGraph,
+  GFANode,
+  GFAWalk,
+  GFAWalkSegment,
+} from '../gfa-core/index'
 import type { PathSteps } from '../pathAnchoring'
 import type { Graph, GraphEdge, GraphNode, GraphPath } from '../types'
 
@@ -29,8 +34,11 @@ function surveySegments(gfaGraph: GFAGraph) {
     }
   }
   function traverse(id: string, strand: '+' | '-') {
-    claim(id, strand)
-    traversals.set(id, (traversals.get(id) ?? 0) + 1)
+    const seen = traversals.get(id)
+    if (seen === undefined) {
+      claim(id, strand)
+    }
+    traversals.set(id, (seen ?? 0) + 1)
   }
   for (const link of gfaGraph.links) {
     claim(link.source, link.strand1 === '-' ? '-' : '+')
@@ -54,6 +62,10 @@ function surveySegments(gfaGraph: GFAGraph) {
 // wrong
 const walkStart = (w: GFAWalk) => (w.start === -1 ? 0 : w.start)
 
+// parseGFA writes only these two, so its steps pass through as they are
+const stranded = (s: GFAWalkSegment): s is PathSteps['steps'][number] =>
+  s.strand === '+' || s.strand === '-'
+
 // P and W state the same thing in different shapes: a P body is a comma-joined
 // `<id><strand>` list whose start offset lives in the record's *name*, a W
 // record arrives already split into steps and states its start as a field.
@@ -70,10 +82,12 @@ function anchorablePaths(gfaGraph: GFAGraph): PathSteps[] {
     ...gfaGraph.walks.map(w => ({
       name: `${w.sample}#${w.haplotype}#${w.contig}`,
       start: walkStart(w),
-      steps: w.segments.map(s => ({
-        id: s.id,
-        strand: s.strand === '-' ? ('-' as const) : ('+' as const),
-      })),
+      steps: w.segments.every(stranded)
+        ? w.segments
+        : w.segments.map(s => ({
+            id: s.id,
+            strand: s.strand === '-' ? ('-' as const) : ('+' as const),
+          })),
     })),
   ]
 }
@@ -137,9 +151,17 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
   const edges: GraphEdge[] = []
 
   const { canonical, traversals } = surveySegments(gfaGraph)
-  // segments no link, path, or walk mentions are drawn forward-strand
-  const nodeId = (segmentId: string) =>
-    `${segmentId}${canonical.get(segmentId) ?? '+'}`
+  // segments no link, path, or walk mentions are drawn forward-strand. One
+  // string per segment, not per step: a walk of 100k steps built 100k.
+  const nodeIds = new Map<string, string>()
+  const nodeId = (segmentId: string) => {
+    let id = nodeIds.get(segmentId)
+    if (id === undefined) {
+      id = `${segmentId}${canonical.get(segmentId) ?? '+'}`
+      nodeIds.set(segmentId, id)
+    }
+    return id
+  }
 
   for (const gfaNode of gfaGraph.nodes) {
     const depth =
@@ -157,19 +179,36 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
   }
 
   const paths: GraphPath[] = []
-  const edgeToPathsMap = new Map<string, Set<string>>()
 
-  // A path that walks the graph on the reverse strand visits an edge's nodes in
-  // the opposite order to the L line that declared it, so the key is unordered.
-  const edgeKey = (a: string, b: string) => [a, b].sort().join('--')
+  // The paths crossing each edge, found by the node pair either way round: a
+  // path that walks the graph on the reverse strand visits an edge's nodes in
+  // the opposite order to the L line that declared it. Links between the same
+  // two nodes share one set. Looked up through the node id strings already
+  // built, so a step allocates nothing; a key string per step was most of the
+  // conversion of a cut with walks.
+  const pathsByPair = new Map<string, Map<string, Set<string>>>()
+  const pairPaths = (a: string, b: string) => pathsByPair.get(a)?.get(b)
+  function addPair(a: string, b: string, set: Set<string>) {
+    let to = pathsByPair.get(a)
+    if (!to) {
+      to = new Map()
+      pathsByPair.set(a, to)
+    }
+    to.set(b, set)
+  }
+  const edgePaths = edges.map(edge => {
+    let set = pairPaths(edge.from, edge.to)
+    if (!set) {
+      set = new Set()
+      addPair(edge.from, edge.to, set)
+      addPair(edge.to, edge.from, set)
+    }
+    return set
+  })
 
   function recordPathEdges(nodeIds: string[], name: string) {
     for (let i = 0; i < nodeIds.length - 1; i++) {
-      const key = edgeKey(nodeIds[i]!, nodeIds[i + 1]!)
-      if (!edgeToPathsMap.has(key)) {
-        edgeToPathsMap.set(key, new Set())
-      }
-      edgeToPathsMap.get(key)!.add(name)
+      pairPaths(nodeIds[i]!, nodeIds[i + 1]!)?.add(name)
     }
   }
 
@@ -212,12 +251,12 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     recordPathEdges(nodeIds, name)
   }
 
-  for (const edge of edges) {
-    const pathIds = edgeToPathsMap.get(edgeKey(edge.from, edge.to))
-    if (pathIds && pathIds.size > 0) {
+  edges.forEach((edge, i) => {
+    const pathIds = edgePaths[i]!
+    if (pathIds.size > 0) {
       edge.pathIds = [...pathIds]
     }
-  }
+  })
 
   // Only walked when the file has paths to walk, so an rGFA — which has none at
   // all — pays nothing for it. `lengthOf` reads the segment table rather than

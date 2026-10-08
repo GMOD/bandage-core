@@ -163,6 +163,22 @@ W\tw2\t1\tchr1\t*\t*\t>A>B`)
   expect(edge.pathIds).toContain('w2#1#chr1')
 })
 
+test('a walk annotates its edges read either way, and no step pair without one', () => {
+  const gfa = parseGFA(`S\tA\tACGT
+S\tB\tGGCC
+S\tC\tTT
+L\tA\t+\tB\t+\t0M
+L\tA\t+\tB\t-\t0M
+W\tw1\t0\tchr1\t*\t*\t>A>B>C
+W\tw2\t1\tchr1\t*\t*\t<B<A`)
+  const graph = convertGFAToGraph(gfa)
+
+  expect(graph.edges.map(e => e.pathIds)).toEqual([
+    ['w1#0#chr1', 'w2#1#chr1'],
+    ['w1#0#chr1', 'w2#1#chr1'],
+  ])
+})
+
 test('handles getSubgraph output format (star sequences with LN tags)', () => {
   // This is the format produced by GfaAdapter/GfaTabixAdapter getSubgraph:
   // segments have * sequences with LN:i: tags, links and P-line paths
