@@ -166,7 +166,9 @@ export function graphFromTables(
   const lastWalk = new Int32Array(lists).fill(-1)
   const paths: GraphPath[] = []
   const anchorPaths: PathOrigin[] = []
-  const visits: (PathVisit[] | undefined)[] = new Array(count)
+  // each segment's visits, sized by its traversals and filled in walk order
+  const visits: PathVisit[][] = new Array(count)
+  const filled = new Int32Array(count)
   const visitOrder: number[] = []
   for (const p of drawnWalks) {
     const { sample, haplotype, contig } = walkFields(w.names[p]!)
@@ -180,24 +182,22 @@ export function graphFromTables(
     }
     const start = w.starts[p]!
     const visitSample = panSNSample(pathName)
-    const nodeIds: string[] = []
+    const first = w.offsets[p]!
+    const nodeIds = new Array<string>(w.offsets[p + 1]! - first)
     let pos = start
     let prev = -1
-    for (let s = w.offsets[p]!; s < w.offsets[p + 1]!; s++) {
+    for (let s = first; s < w.offsets[p + 1]!; s++) {
       const node = w.steps[s]!
-      nodeIds.push(ids[node]!)
-      const visit: PathVisit = {
+      nodeIds[s - first] = ids[node]!
+      if (filled[node] === 0) {
+        visits[node] = new Array<PathVisit>(traversals[node]!)
+        visitOrder.push(node)
+      }
+      visits[node]![filled[node]!++] = {
         path: pathName,
         sample: visitSample,
         start: pos,
         strand: w.reversed[s] ? '-' : '+',
-      }
-      const seen = visits[node]
-      if (seen) {
-        seen.push(visit)
-      } else {
-        visits[node] = [visit]
-        visitOrder.push(node)
       }
       pos += node < declared ? n.lengths[node]! : 0
       if (prev >= 0) {
