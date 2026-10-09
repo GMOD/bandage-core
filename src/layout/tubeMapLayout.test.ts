@@ -88,6 +88,23 @@ test('a column of inserted sequence covers no reference', () => {
   ])
 })
 
+// alt is cut into two pieces, the second reading both segments backwards
+const PIECES = `S\t1\tACGT
+S\t2\tGGGG
+L\t1\t+\t2\t+\t0M
+P\tref#1#chr:0-8\t1+,2+\t*
+P\talt#1#chr:0-8\t1+,2+\t*
+P\talt#1#chr:100-108\t2-,1-\t*`
+
+test("a walk's pieces each read their own strand of a segment they share", () => {
+  const graph = anchorGraph(convertGFAToGraph(parseGFA(PIECES)), 'ref#1#chr')
+  expect(tubeMapTracks(graph).map(t => [t.name, t.sequence])).toEqual([
+    ['ref#1#chr:0-8', ['1+', '2+']],
+    ['alt#1#chr:0-8', ['1+', '2+']],
+    ['alt#1#chr:100-108', ['-2+', '-1+']],
+  ])
+})
+
 test('no layout without paths', () => {
   const graph = { ...pggb(), paths: [] }
   expect(tubeMapLayout(graph)).toBeUndefined()

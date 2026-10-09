@@ -6,7 +6,7 @@ import { pathCssColor, pathGreyCssColor } from '../pathColors'
 import { canonicalStrand, stepName, tubeMapReads } from '../tubeMap/reads'
 
 import type { Coarsened } from '../tubeMap/coarsen'
-import type { Graph, LayoutResult, NodeSegment } from '../types'
+import type { Graph, GraphNode, LayoutResult, NodeSegment } from '../types'
 import type {
   InputNode,
   InputTrack,
@@ -49,10 +49,19 @@ export interface TubeMapDrawing {
   coarse?: Coarsened
 }
 
-// Strand of every visit a path makes to a segment, in walk order, so the k-th
-// time a path reaches a segment reads the k-th entry. Visits name a path
-// without the range suffix `odgi extract` appends (pathOrigin).
-export function visitStrands(graph: Graph) {
+export interface PathStep {
+  node: GraphNode
+  strand: '+' | '-'
+}
+
+// Each path's steps, with the strand it reads each segment on. A segment's
+// visits are listed in walk order and name the walk without the range suffix
+// `odgi extract` appends (pathOrigin), and a walk cut into pieces lists its
+// pieces in the order of the paths. So replaying the paths in that order, with
+// one count per walk and segment that its pieces share, reads each step's own
+// visit, as trimToWindow's trimVisits does.
+export function pathSteps(graph: Graph): PathStep[][] {
+  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
   const strands = new Map<string, ('+' | '-')[]>()
   for (const [segment, visits] of graph.pathVisits ?? []) {
     for (const visit of visits) {
@@ -65,7 +74,20 @@ export function visitStrands(graph: Graph) {
       }
     }
   }
-  return strands
+  const seen = new Map<string, number>()
+  return (graph.paths ?? []).map(path => {
+    const walk = pathOrigin(path.name).name
+    return path.nodeIds.flatMap(id => {
+      const node = nodeById.get(id)
+      if (!node) {
+        return []
+      }
+      const key = `${walk}\t${node.name}`
+      const k = seen.get(key) ?? 0
+      seen.set(key, k + 1)
+      return [{ node, strand: strands.get(key)?.[k] ?? canonicalStrand(node) }]
+    })
+  })
 }
 
 // A tube map track per path, the reference first: the layout straightens
@@ -73,29 +95,9 @@ export function visitStrands(graph: Graph) {
 // reverse where the path walks the segment against the strand the node is
 // drawn in.
 export function tubeMapTracks(graph: Graph): InputTrack[] {
-  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const strands = visitStrands(graph)
-  const paths = (graph.paths ?? []).map((path, index) => ({ path, index }))
-  const reference = paths.findIndex(
-    p => pathOrigin(p.path.name).name === graph.referencePath,
-  )
-  if (reference > 0) {
-    paths.unshift(...paths.splice(reference, 1))
-  }
-  return paths.flatMap(({ path, index }) => {
-    const visitName = pathOrigin(path.name).name
-    const seen = new Map<string, number>()
-    const sequence = path.nodeIds.flatMap(id => {
-      const node = nodeById.get(id)
-      if (!node) {
-        return []
-      }
-      const k = seen.get(node.name) ?? 0
-      seen.set(node.name, k + 1)
-      const strand =
-        strands.get(`${visitName}\t${node.name}`)?.[k] ?? canonicalStrand(node)
-      return [stepName(node, strand)]
-    })
+  const steps = pathSteps(graph)
+  const tracks = (graph.paths ?? []).flatMap((path, index) => {
+    const sequence = steps[index]!.map(s => stepName(s.node, s.strand))
     return sequence.length > 0
       ? [
           {
@@ -108,6 +110,13 @@ export function tubeMapTracks(graph: Graph): InputTrack[] {
         ]
       : []
   })
+  const reference = tracks.findIndex(
+    t => pathOrigin(t.name).name === graph.referencePath,
+  )
+  if (reference > 0) {
+    tracks.unshift(...tracks.splice(reference, 1))
+  }
+  return tracks
 }
 
 function tubeMapNodes(graph: Graph): InputNode[] {

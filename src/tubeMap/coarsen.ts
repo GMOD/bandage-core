@@ -1,9 +1,9 @@
 import { isBackbone } from '../anchoredNodes'
-import { visitStrands } from '../layout/tubeMapLayout'
+import { pathSteps } from '../layout/tubeMapLayout'
 import { pathOrigin } from '../pathAnchoring'
-import { canonicalStrand } from './reads'
 
 import type { AnchoredNode } from '../anchoredNodes'
+import type { PathStep } from '../layout/tubeMapLayout'
 import type {
   Graph,
   GraphEdge,
@@ -52,11 +52,6 @@ export interface Coarsened {
   cuts: Map<number, CutCause>
 }
 
-interface Step {
-  node: GraphNode
-  strand: Strand
-}
-
 // A stretch of reference a walk reads contiguously, in reference order
 // whichever way it reads it
 interface Run {
@@ -68,7 +63,7 @@ interface Run {
 interface Gap {
   a: number
   b: number
-  detour: Step[]
+  detour: PathStep[]
   bp: number
 }
 
@@ -81,25 +76,11 @@ interface Walk {
   gaps: Gap[]
 }
 
-function readWalk(
-  path: GraphPath,
-  nodeById: Map<string, GraphNode>,
-  strands: Map<string, Strand[]>,
-): Walk {
-  const visitName = pathOrigin(path.name).name
-  const seen = new Map<string, number>()
+function readWalk(path: GraphPath, steps: readonly PathStep[]): Walk {
   const runs: Run[] = []
   const open = (): Gap => ({ a: -Infinity, b: Infinity, detour: [], bp: 0 })
   const gaps: Gap[] = [open()]
-  for (const id of path.nodeIds) {
-    const node = nodeById.get(id)
-    if (!node) {
-      continue
-    }
-    const k = seen.get(node.name) ?? 0
-    seen.set(node.name, k + 1)
-    const strand =
-      strands.get(`${visitName}\t${node.name}`)?.[k] ?? canonicalStrand(node)
+  for (const { node, strand } of steps) {
     const gap = gaps.at(-1)!
     const last = runs.at(-1)
     if (isBackbone(node)) {
@@ -201,15 +182,15 @@ function findCuts(
       }
     }
   }
+  const spans = walks.flatMap(({ runs, gaps }) => [
+    ...gaps.filter(g => isSmall(g, sigma)).map(g => [g.a, g.b] as const),
+    ...runs
+      .filter(r => r.inverted && r.end - r.start < sigma)
+      .map(r => [r.start, r.end] as const),
+  ])
   for (let changed = true; changed;) {
     changed = false
     const sorted = [...cuts.keys()].sort((x, y) => x - y)
-    const spans = walks.flatMap(({ runs, gaps }) => [
-      ...gaps.filter(g => isSmall(g, sigma)).map(g => [g.a, g.b] as const),
-      ...runs
-        .filter(r => r.inverted && r.end - r.start < sigma)
-        .map(r => [r.start, r.end] as const),
-    ])
     for (const [a, b] of spans) {
       if (strictlyInside(sorted, a, b)) {
         changed ||= !cuts.has(a) || !cuts.has(b)
@@ -278,9 +259,8 @@ export function coarsenTubeMap(
   if (backbone.length === 0 || paths.length === 0) {
     return undefined
   }
-  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const strands = visitStrands(graph)
-  const walks = paths.map(p => readWalk(p, nodeById, strands))
+  const stepsOf = pathSteps(graph)
+  const walks = paths.map((p, i) => readWalk(p, stepsOf[i]!))
   const cuts = findCuts(walks, sigma, referenceGaps(backbone))
   const sortedCuts = [...cuts.keys()].sort((x, y) => x - y)
   const merged = mergeReference(backbone, cuts)
@@ -352,7 +332,7 @@ export function coarsenTubeMap(
   const depth = new Map<string, number>()
 
   for (const { path, runs, gaps } of walks) {
-    const steps: { node: GraphNode; strand: Strand }[] = []
+    const steps: PathStep[] = []
     const devs: Deviation[] = []
     // a structural gap ends the stretch a merged node may be continued over
     let continuing = false
