@@ -6,13 +6,11 @@ import type { Track, TubeMapLayout } from '@jbrowse/tubemap-core'
 // the marks sequenceTubeMap's drawMismatches puts on a read's tube. Each mark
 // spans the bases it covers and sits on the tube of the read that carries it
 // (`y` is the tube's top, `height` its width), so a painter only maps them
-// through the frame. `nodeY` is the top of the node, which a hover draws a
-// leader up to.
+// through the frame.
 interface MarkBase {
   readId: number
   y: number
   height: number
-  nodeY: number
 }
 
 export type TubeMapMismatch =
@@ -27,24 +25,19 @@ export type TubeMapMismatch =
   | (MarkBase & { kind: 'deletion'; x0: number; x1: number })
   | (MarkBase & { kind: 'substitution'; x0: number; x1: number; seq: string })
 
+// A read's path holds one visit per entry of its sequence, in order, between
+// the passes it makes over the columns it skips. Merging rewrites sequence and
+// sequenceNew together, so entry i is visit i, even where a loop revisits a node.
 function readMismatches(read: Track, layout: TubeMapLayout) {
   const marks: TubeMapMismatch[] = []
   const entries = read.sequenceNew ?? []
+  const visits = read.path.filter(segment => segment.node !== null)
   entries.forEach((entry, i) => {
     const nodeIndex = layout.nodeMap.get(forward(entry.nodeName))
     const node = nodeIndex === undefined ? undefined : layout.nodes[nodeIndex]
-    // Node merging can drop a visit, so the segment for entry i is at or after
-    // path[i], and the walk stops at the path's end.
-    let pathIndex = i
-    while (
-      pathIndex < read.path.length &&
-      read.path[pathIndex]!.node !== nodeIndex
-    ) {
-      pathIndex += 1
-    }
-    const y = read.path[pathIndex]?.y
+    const y = visits[i]?.y
     if (node && y !== undefined) {
-      const base = { readId: read.id, y, height: read.width, nodeY: node.y }
+      const base = { readId: read.id, y, height: read.width }
       // A base past a merged node's end has no x.
       const at = (pos: number) => getXCoordinateOfBaseWithinNode(node, pos)
       for (const mm of entry.mismatches) {

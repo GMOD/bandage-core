@@ -76,7 +76,6 @@ test('a substitution spans its bases on the tube of the read that carries it', (
     seq: 'TT',
     y: segment.y,
     height: READ_WIDTH,
-    nodeY: node(layout, '1').y,
   })
 })
 
@@ -139,6 +138,33 @@ test('a reverse read marks the base the layout mirrored it to', () => {
     x0: baseX(layout, '4', 7),
     x1: baseX(layout, '4', 8),
   })
+})
+
+test('a read that loops back marks the pass that carries the mismatch', () => {
+  // the read skips columns 2 and 3 on its way to 4, so its path holds passes
+  // before its first visit to 4, then turns back for a second
+  const loop = layoutTubeMap(
+    ['1', '2', '3', '4', '5'].map(name => ({ name, seq: 'ACGTACGTAC' })),
+    [
+      { id: 0, name: 'ref', sequence: ['1', '2', '3', '4', '5'] },
+      { id: 1, name: 'alt', sequence: ['1', '4', '5', '4', '5'] },
+    ],
+    [
+      read(2, [
+        ['1', []],
+        ['4', []],
+        ['5', []],
+        ['4', [{ type: 'substitution', pos: 2, seq: 'T' }]],
+        ['5', []],
+      ]),
+    ],
+    { mergeNodes: false },
+  )!
+  const four = loop.nodeMap.get('4')
+  const passes = loop.reads[0]!.path.filter(s => s.node === four)
+  expect(passes.map(s => s.y)).toHaveLength(2)
+  expect(passes[0]!.y).not.toBe(passes[1]!.y)
+  expect(tubeMapMismatches(loop).map(m => m.y)).toEqual([passes[1]!.y])
 })
 
 test('haplotype tracks carry no marks', () => {
