@@ -65,6 +65,18 @@ test('a read running out of the cut keeps its steps inside it', () => {
   expect(read!.finalNodeCoverLength).toBe(20)
 })
 
+test('a deletion starting outside the cut keeps the part inside it', () => {
+  // 999 is the walk's first 50 bp; the deletion runs from 40 to 55
+  const record = gaf(
+    '>999>249>250',
+    `177\t10\t170\t100\t101\t60\tcs:Z::30-${'a'.repeat(15)}:115`,
+  )
+  const [read] = tubeMapReads(cactus(), [record], 0)
+  expect(read!.sequenceNew![0]!.mismatches).toEqual([
+    { type: 'deletion', pos: 0, length: 5 },
+  ])
+})
+
 test('a read walking the graph backwards visits its nodes in reverse', () => {
   const record = gaf('<250<249', '127\t2\t120\t100\t101\t60')
   const [read] = tubeMapReads(cactus(), [record], 0)

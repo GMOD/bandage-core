@@ -47,21 +47,33 @@ function mismatchesByStep(
     return byStep
   }
   const starts = stepStarts(lengths, record.pathLength)
+  const known = starts.flatMap((start, s) => (start === undefined ? [] : [s]))
+  const startOf = (k: number) => starts[known[k]!]!
+  const endOf = (k: number) => startOf(k) + lengths[known[k]!]!
+  // Walk positions only grow, so the steps wholly behind the last one asked
+  // about are never looked at again
+  let first = 0
   // the step holding walk position `pos`, or for `atEnd` the one ending there
   const stepAt = (pos: number, atEnd = false) => {
-    for (let s = 0; s < starts.length; s++) {
-      const start = starts[s]
-      const length = lengths[s]
-      if (
-        start !== undefined &&
-        length !== undefined &&
-        start <= pos &&
-        (pos < start + length || (atEnd && pos === start + length))
-      ) {
-        return { s, local: pos - start, room: start + length - pos }
+    while (first < known.length && endOf(first) < pos) {
+      first++
+    }
+    for (let k = first; k < known.length && startOf(k) <= pos; k++) {
+      const end = endOf(k)
+      if (pos < end || (atEnd && pos === end)) {
+        return { s: known[k]!, local: pos - startOf(k), room: end - pos }
       }
     }
     return undefined
+  }
+  // how far past `pos` the next step with a known start begins
+  const unplacedFrom = (pos: number) => {
+    for (let k = first; k < known.length; k++) {
+      if (startOf(k) > pos) {
+        return startOf(k) - pos
+      }
+    }
+    return Infinity
   }
   const add = (s: number, mismatch: Mismatch) => {
     const list = byStep[s]!
@@ -95,7 +107,7 @@ function mismatchesByStep(
       let left = op.length
       while (left > 0) {
         const at = stepAt(pos)
-        const take = at ? Math.min(left, at.room) : left
+        const take = Math.min(left, at ? at.room : unplacedFrom(pos))
         if (at) {
           add(at.s, { type: 'deletion', pos: at.local, length: take })
         }
