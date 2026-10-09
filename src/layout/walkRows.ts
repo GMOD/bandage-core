@@ -42,6 +42,14 @@ export interface WalkAxis {
   reversed: boolean
 }
 
+// How a walk that reaches one flank stops: on a reference node, where its
+// contig ends (`shortBp` short of the region when it never enters it), or off
+// the reference, where it does not rejoin within the cut
+export interface WalkStop {
+  contigEnds: boolean
+  shortBp: number
+}
+
 export interface WalkRow {
   name: string
   label: string
@@ -51,9 +59,10 @@ export interface WalkRow {
   offReferenceBp: number
   // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
   gapBp: number
-  // false when the walk does not reach both flanking reference nodes, in which
-  // case the whole walk is measured and the bar says so
+  // false when the walk does not reach both flanking reference nodes; one
+  // that reaches one flank is measured from it, a lower bound
   complete: boolean
+  stop?: WalkStop
   runs: WalkRun[]
   // undefined where a piece states no start or overlaps the one before, so
   // bar offsets don't map linearly onto the contig
@@ -128,7 +137,8 @@ function stepSpans(pieces: GraphPath[], lengthOf: Map<string, number>) {
 
 // Each walk is cut at the nearest reference nodes IT visits on either side of
 // the region, so a walk that skips one flanking node at a SNP is still measured
-// between flanks rather than whole.
+// between flanks rather than whole. A walk with one flank is measured from it,
+// in its direction along the reference.
 function sliceBetween(
   steps: Step[],
   span: Map<string, { start: number; end: number }>,
@@ -140,12 +150,16 @@ function sliceBetween(
   if (!region || !flanked) {
     return { ids: steps, complete: true, from: -1, to: -1 }
   }
+  const spanAt = (i: number) => {
+    const id = steps[i]
+    return typeof id === 'string' ? span.get(id) : undefined
+  }
   let i0 = -1
   let i1 = -1
   let bestEnd = -Infinity
   let bestStart = Infinity
-  steps.forEach((id, i) => {
-    const s = typeof id === 'string' ? span.get(id) : undefined
+  steps.forEach((_, i) => {
+    const s = spanAt(i)
     if (s) {
       if (s.end <= region.start && s.end > bestEnd) {
         bestEnd = s.end
@@ -157,15 +171,40 @@ function sliceBetween(
       }
     }
   })
-  if (i0 < 0 || i1 < 0) {
+  if (i0 >= 0 && i1 >= 0) {
+    const ids = steps.slice(Math.min(i0, i1) + 1, Math.max(i0, i1))
+    return {
+      ids: i0 < i1 ? ids : ids.reverse(),
+      complete: true,
+      from: i0,
+      to: i1,
+    }
+  }
+  const flank = i0 >= 0 ? i0 : i1
+  let near = -1
+  for (let d = 1; flank >= 0 && near < 0 && d < steps.length; d++) {
+    near = [flank - d, flank + d].find(j => spanAt(j) !== undefined) ?? -1
+  }
+  if (near < 0) {
     return { ids: steps, complete: false, from: -1, to: -1 }
   }
-  const ids = steps.slice(Math.min(i0, i1) + 1, Math.max(i0, i1))
+  const forward = near > flank === spanAt(near)!.start > spanAt(flank)!.start
+  const after = forward === (flank === i0)
+  const ids = after ? steps.slice(flank + 1) : steps.slice(0, flank).reverse()
+  const last = ids.length > 0 ? ids.length - 1 : -1
+  const end = last < 0 ? spanAt(flank) : spanAt(after ? flank + 1 + last : 0)
+  const stop: WalkStop = {
+    contigEnds: end !== undefined,
+    shortBp: !end
+      ? 0
+      : Math.max(0, region.start - end.end, end.start - region.end),
+  }
   return {
-    ids: i0 < i1 ? ids : ids.reverse(),
-    complete: true,
-    from: i0,
-    to: i1,
+    ids,
+    complete: false,
+    from: flank,
+    to: after ? steps.length : -1,
+    stop,
   }
 }
 
@@ -235,7 +274,7 @@ export function walkRows(
   const rowOf = (pieces: GraphPath[]): WalkRow => {
     const path = pieces[0]!
     const ordered = [...pieces].sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
-    const { ids, complete, from, to } = sliceBetween(
+    const { ids, complete, from, to, stop } = sliceBetween(
       stepsOf(ordered, lengthOf),
       span,
       cut,
@@ -304,6 +343,7 @@ export function walkRows(
       offReferenceBp,
       gapBp,
       complete,
+      stop,
       runs,
       axis,
     }

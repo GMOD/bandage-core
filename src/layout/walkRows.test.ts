@@ -119,7 +119,69 @@ test('a walk that stops inside a flanked region reads partial', () => {
     { ...graph, paths: [...graph.paths!, truncated] },
     region,
   )!
-  expect(cut.rows.find(r => r.name === 'truncated')!.complete).toBe(false)
+  const row = cut.rows.find(r => r.name === 'truncated')!
+  expect(row.complete).toBe(false)
+  expect(row.stop).toEqual({ contigEnds: true, shortBp: 0 })
+  expect(row.bp).toBe(ends[Math.floor(n / 2)]! - region.start)
+})
+
+test('a walk whose contig ends before the region says how far short', () => {
+  const graph = pggbGraph()
+  const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const reference = graph.paths!.find(
+    p => pathOrigin(p.name).name === graph.referencePath,
+  )!
+  const start = graph.anchorPaths!.find(
+    p => p.name === graph.referencePath,
+  )!.start
+  const ends = [start]
+  for (const id of reference.nodeIds) {
+    ends.push(ends.at(-1)! + byId.get(id)!)
+  }
+  const n = reference.nodeIds.length
+  const region = { start: ends[3]!, end: ends[n - 2]! }
+  const short = {
+    ...reference,
+    name: 'short',
+    nodeIds: reference.nodeIds.slice(0, 2),
+  }
+  const row = walkRows(
+    { ...graph, paths: [...graph.paths!, short] },
+    region,
+  )!.rows.find(r => r.name === 'short')!
+  expect(row.bp).toBe(0)
+  expect(row.stop).toEqual({ contigEnds: true, shortBp: ends[3]! - ends[2]! })
+})
+
+test('a walk that leaves the reference and does not come back stops off it', () => {
+  const graph = pggbGraph()
+  const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const reference = graph.paths!.find(
+    p => pathOrigin(p.name).name === graph.referencePath,
+  )!
+  const onReference = new Set(reference.nodeIds)
+  const off = graph.nodes.find(node => !onReference.has(node.id))!
+  const start = graph.anchorPaths!.find(
+    p => p.name === graph.referencePath,
+  )!.start
+  const ends = [start]
+  for (const id of reference.nodeIds) {
+    ends.push(ends.at(-1)! + byId.get(id)!)
+  }
+  const n = reference.nodeIds.length
+  const region = { start: ends[2]!, end: ends[n - 2]! }
+  const open = {
+    ...reference,
+    name: 'open',
+    nodeIds: [...reference.nodeIds.slice(0, 3), off.id],
+  }
+  const row = walkRows(
+    { ...graph, paths: [...graph.paths!, open] },
+    region,
+  )!.rows.find(r => r.name === 'open')!
+  expect(row.complete).toBe(false)
+  expect(row.stop).toEqual({ contigEnds: false, shortBp: 0 })
+  expect(row.bp).toBe(byId.get(reference.nodeIds[2]!)! + off.length)
 })
 
 test('a walk that skips the flanking node is cut at the next one it visits', () => {

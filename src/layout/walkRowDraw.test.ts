@@ -143,6 +143,47 @@ test('the readout states length, change and what the cut left out', () => {
   ).toBe('168 kb (−72 kb) · 19 kb outside the cut')
 })
 
+test('a partial walk states a lower bound and why it stops', () => {
+  const reference = { bp: 700 }
+  const call = { bp: 8600 }
+  expect(
+    walkRowReadout(
+      {
+        bp: 0,
+        gapBp: 0,
+        complete: false,
+        stop: { contigEnds: true, shortBp: 580 },
+      },
+      reference,
+      51,
+      call,
+    ),
+  ).toBe('contig ends 0.6 kb before the repeat · called 8.6 kb')
+  expect(
+    walkRowReadout(
+      {
+        bp: 1500,
+        gapBp: 0,
+        complete: false,
+        stop: { contigEnds: false, shortBp: 0 },
+      },
+      reference,
+      51,
+    ),
+  ).toBe('≥ 1.5 kb ≈ 29 units · does not rejoin the reference within the cut')
+  expect(
+    walkRowReadout(
+      {
+        bp: 1500,
+        gapBp: 0,
+        complete: false,
+        stop: { contigEnds: true, shortBp: 0 },
+      },
+      reference,
+    ),
+  ).toBe('≥ 1.5 kb · contig ends inside the window')
+})
+
 test('the key says the colours are the graph’s alignment', () => {
   const key = walkRowsKey(rows(), { genes: { untracked: 2, unread: 0 } })
   expect(key.map(e => e.label)).toEqual([

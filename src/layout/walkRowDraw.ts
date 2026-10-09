@@ -50,25 +50,39 @@ export interface ReadoutCall {
 }
 
 // The text at the end of a bar: its length, what it carries against the
-// reference row, and what the cut left out
+// reference row, and what the cut left out. A walk reaching one flank states
+// a lower bound and why it stops.
 export function walkRowReadout(
-  row: Pick<WalkRow, 'bp' | 'gapBp' | 'complete'>,
+  row: Pick<WalkRow, 'bp' | 'gapBp' | 'complete' | 'stop'>,
   reference: Pick<WalkRow, 'bp'> | undefined,
   unit?: number,
   call?: ReadoutCall,
 ) {
-  const { bp, gapBp, complete } = row
+  const { bp, gapBp, complete, stop } = row
   if (!reference) {
     return `${kb(bp)}${units(bp, unit)}`
   }
-  const delta = bp - reference.bp
-  const against =
-    delta === 0 ? '' : ` (${delta > 0 ? '+' : '−'}${kb(Math.abs(delta))})`
   const outside = gapBp > 0 ? ` · ${kb(gapBp)} outside the cut` : ''
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
-  return `${kb(bp)}${units(bp, unit)}${against}${outside}${complete ? '' : ' · partial walk'}${called}`
+  if (complete) {
+    const delta = bp - reference.bp
+    const against =
+      delta === 0 ? '' : ` (${delta > 0 ? '+' : '−'}${kb(Math.abs(delta))})`
+    return `${kb(bp)}${units(bp, unit)}${against}${outside}${called}`
+  }
+  const region = unit ? 'repeat' : 'window'
+  if (stop?.contigEnds && bp === 0) {
+    const where = stop.shortBp > 0 ? `${kb(stop.shortBp)} before` : 'at'
+    return `contig ends ${where} the ${region}${called}`
+  }
+  const why = !stop
+    ? 'partial walk'
+    : stop.contigEnds
+      ? `contig ends inside the ${region}`
+      : 'does not rejoin the reference within the cut'
+  return `≥ ${kb(bp)}${units(bp, unit)} · ${why}${outside}${called}`
 }
 
 // A readout right of its bar's end, or inside it where it would leave the pane
