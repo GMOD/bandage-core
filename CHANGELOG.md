@@ -1,3 +1,9 @@
+## [9.8.0](https://github.com/GMOD/bandage-core/compare/v9.7.0...v9.8.0) (2026-10-10)
+
+### Other Changes
+
+- A highlight with no walks is a focus: its nodes and links keep their own colours ([0e5258e](https://github.com/GMOD/bandage-core/commit/0e5258e9daf9a83534ece95fb120807258eeb32f))
+
 ## [9.7.0](https://github.com/GMOD/bandage-core/compare/v9.6.0...v9.7.0) (2026-10-10)
 
 ### Other Changes
