@@ -1,3 +1,12 @@
+## [9.7.0](https://github.com/GMOD/bandage-core/compare/v9.6.0...v9.7.0) (2026-10-10)
+
+### Other Changes
+
+- Walks taking one route draw as one tube, as wide as their count ([3e9714f](https://github.com/GMOD/bandage-core/commit/3e9714fd1aa598800ecdacf6524ef6bb9f62bee8))
+- BundleRoutes splits a route by a group of its walks, strands side by side ([cb0fcfd](https://github.com/GMOD/bandage-core/commit/cb0fcfd3d79695a2b2a27aafebb2b5e88241d0b0))
+- BundleRoutes with merge false orders the walks route by route, a tube each ([656b8a6](https://github.com/GMOD/bandage-core/commit/656b8a6e0cc468fb75deb22ae373d30c772bfc5c))
+- Take @jbrowse/tubemap-core 0.2.2, for freqWidth ([12b7f9c](https://github.com/GMOD/bandage-core/commit/12b7f9c98d909798809a61f3eeb0668170b3a4f7))
+
 ## [9.6.0](https://github.com/GMOD/bandage-core/compare/v9.5.0...v9.6.0) (2026-10-10)
 
 ### Other Changes
