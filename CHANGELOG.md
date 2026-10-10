@@ -1,3 +1,9 @@
+## [9.9.2](https://github.com/GMOD/bandage-core/compare/v9.9.1...v9.9.2) (2026-10-10)
+
+### Other Changes
+
+- A lane change names its tube on hover, and steep curves keep their width on the reference axis ([eddbc06](https://github.com/GMOD/bandage-core/commit/eddbc06b0cd6f388d3f56cf1ba9c35688a164aa8))
+
 ## [9.9.1](https://github.com/GMOD/bandage-core/compare/v9.9.0...v9.9.1) (2026-10-10)
 
 ### Other Changes
