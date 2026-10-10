@@ -1,4 +1,4 @@
-import { layoutTubeMap } from '@jbrowse/tubemap-core'
+import { forward, isReverse, layoutTubeMap } from '@jbrowse/tubemap-core'
 
 import { isBackbone } from '../anchoredNodes'
 import { pathOrigin } from '../pathAnchoring'
@@ -6,7 +6,13 @@ import { pathCssColor, pathGreyCssColor } from '../pathColors'
 import { canonicalStrand, stepName, tubeMapReads } from '../tubeMap/reads'
 
 import type { Coarsened } from '../tubeMap/coarsen'
-import type { Graph, GraphNode, LayoutResult, NodeSegment } from '../types'
+import type {
+  Graph,
+  GraphEdge,
+  GraphNode,
+  LayoutResult,
+  NodeSegment,
+} from '../types'
 import type {
   InputNode,
   InputTrack,
@@ -47,6 +53,10 @@ export interface TubeMapDrawing {
   // set when the cut was folded before layout (coarsen.ts): the drawing's node
   // ids are the coarse graph's, not the cut's
   coarse?: Coarsened
+  // the graph the boxes address: the one laid out, each merged run one node
+  graph: Graph
+  // box to the nodes it stands for, in run order, where that is more than one
+  members: Map<string, string[]>
 }
 
 export interface PathStep {
@@ -144,6 +154,118 @@ export function tubeWidth(trackCount: number) {
   )
 }
 
+// Which nodes each box stands for. tubemap-core merges a run that every track
+// and read walks straight through into the run's first node, and gives the
+// rest no box. Each of the rest has one predecessor in its run, which a walk
+// visits just before it going forward and just after it going in reverse.
+export function boxMembers(
+  layout: TubeMapLayout,
+  walks: readonly InputTrack[],
+) {
+  const before = new Map<string, string>()
+  for (const { sequence } of walks) {
+    sequence.forEach((step, i) => {
+      const id = forward(step)
+      const neighbour = isReverse(step) ? sequence[i + 1] : sequence[i - 1]
+      if (!layout.nodeMap.has(id) && neighbour !== undefined) {
+        before.set(id, forward(neighbour))
+      }
+    })
+  }
+  const after = new Map([...before].map(([node, prev]) => [prev, node]))
+  const members = new Map<string, string[]>()
+  for (const head of after.keys()) {
+    if (layout.nodeMap.has(head)) {
+      const run = [head]
+      for (let n = after.get(head); n !== undefined; n = after.get(n)) {
+        run.push(n)
+      }
+      members.set(head, run)
+    }
+  }
+  return members
+}
+
+// A link's two node sides: it leaves `from`'s right end read forward, its left
+// end read in reverse, and arrives at `to`'s left end, or its right in reverse
+function sides(edge: GraphEdge) {
+  return {
+    from: `${edge.from}${edge.fromStrand === '-' ? 'L' : 'R'}`,
+    to: `${edge.to}${edge.toStrand === '-' ? 'R' : 'L'}`,
+  }
+}
+
+// The graph as its boxes draw it: each merged run one node, as long as its
+// members together and starting where the first of them on the reference
+// does, the links inside the run gone and the rest moved onto its box
+export function boxGraph(
+  graph: Graph,
+  members: ReadonlyMap<string, string[]>,
+): Graph {
+  if (members.size === 0) {
+    return graph
+  }
+  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
+  const boxOf = new Map<string, string>()
+  const inner = new Set<string>()
+  for (const [box, run] of members) {
+    run.forEach((id, i) => {
+      boxOf.set(id, box)
+      const next = run[i + 1]
+      if (next !== undefined) {
+        inner.add(`${id}R\t${next}L`)
+      }
+    })
+  }
+  const absorbed = new Set(
+    [...boxOf].filter(([id, box]) => id !== box).map(([id]) => id),
+  )
+  const nodes = graph.nodes.flatMap(node => {
+    const run = members.get(node.id)
+    if (!run) {
+      return absorbed.has(node.id) ? [] : [node]
+    }
+    const parts = run.map(id => nodeById.get(id)!)
+    const starts = parts.flatMap(p => (p.stable ? [p.stable.start] : []))
+    return [
+      {
+        ...node,
+        length: parts.reduce((sum, p) => sum + p.length, 0),
+        stable: node.stable && { ...node.stable, start: Math.min(...starts) },
+      },
+    ]
+  })
+  const edges = graph.edges.flatMap(edge => {
+    const { from, to } = sides(edge)
+    return inner.has(`${from}\t${to}`) || inner.has(`${to}\t${from}`)
+      ? []
+      : [
+          {
+            ...edge,
+            from: boxOf.get(edge.from) ?? edge.from,
+            to: boxOf.get(edge.to) ?? edge.to,
+          },
+        ]
+  })
+  const absorbedNames = new Set(
+    [...absorbed].map(id => nodeById.get(id)?.name ?? id),
+  )
+  return {
+    ...graph,
+    nodes,
+    edges,
+    paths: graph.paths?.map(path => ({
+      ...path,
+      nodeIds: path.nodeIds.filter(id => !absorbed.has(id)),
+    })),
+    pathVisits:
+      graph.pathVisits &&
+      new Map(
+        [...graph.pathVisits].filter(([name]) => !absorbedNames.has(name)),
+      ),
+  }
+}
+
 function runTubeMap(graph: Graph) {
   const paths = graph.paths ?? []
   const tracks = tubeMapTracks(graph)
@@ -156,7 +278,11 @@ function runTubeMap(graph: Graph) {
     nodeWidthOption: 'compressed',
     trackWidth: tubeWidth(tracks.length),
   })
-  return layout ? { layout, pathColors } : undefined
+  if (!layout) {
+    return undefined
+  }
+  const members = boxMembers(layout, [...tracks, ...reads])
+  return { layout, pathColors, members, graph: boxGraph(graph, members) }
 }
 
 // Drawn nodes only: an unreached one has no x.
@@ -190,7 +316,7 @@ export function tubeMapLayout(graph: Graph): LayoutResult | undefined {
   if (!run) {
     return undefined
   }
-  const { layout, pathColors } = run
+  const { layout, ...drawing } = run
   const yOffset = layout.bounds.minY
   const nodePositions: Record<string, NodeSegment[]> = {}
   for (const node of drawnNodes(layout)) {
@@ -204,7 +330,7 @@ export function tubeMapLayout(graph: Graph): LayoutResult | undefined {
   const { minY, maxY } = extentOf(layout, yOffset)
   return {
     nodePositions,
-    tubeMap: { layout, yOffset, pathColors },
+    tubeMap: { layout, yOffset, ...drawing },
     extent: {
       minX: layout.bounds.minX,
       maxX: layout.bounds.maxX,
@@ -268,17 +394,17 @@ function tubeMapColumns(graph: Graph, layout: TubeMapLayout): TubeMapColumn[] {
   return columns
 }
 
-function pathsReachBackbone(graph: Graph) {
-  return graph.nodes.some(isBackbone) && hasTubeMapPaths(graph)
+export function hasTubeMapBackbone(graph: Graph) {
+  return hasTubeMapPaths(graph) && graph.nodes.some(isBackbone)
 }
 
 export function tubeMapReferenceLayout(graph: Graph): LayoutResult | undefined {
-  const run = pathsReachBackbone(graph) ? runTubeMap(graph) : undefined
+  const run = hasTubeMapBackbone(graph) ? runTubeMap(graph) : undefined
   if (!run) {
     return undefined
   }
-  const { layout, pathColors } = run
-  const columns = tubeMapColumns(graph, layout)
+  const { layout, ...drawing } = run
+  const columns = tubeMapColumns(drawing.graph, layout)
   const byOrder = new Map(columns.map(c => [c.order, c]))
   const yOffset = layout.bounds.minY
   const nodePositions: Record<string, NodeSegment[]> = {}
@@ -288,7 +414,7 @@ export function tubeMapReferenceLayout(graph: Graph): LayoutResult | undefined {
   }
   return {
     nodePositions,
-    tubeMap: { layout, yOffset, columns, pathColors },
+    tubeMap: { layout, yOffset, columns, ...drawing },
     referenceAxis: true,
     pixelRows: true,
     extent: extentOf(layout, yOffset),

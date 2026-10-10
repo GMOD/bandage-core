@@ -9,6 +9,9 @@ import {
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { anchorGraph } from '../pathAnchoring'
+import { buildNeighbors, nodeReferenceSpan } from '../referenceSpan'
+
+import type { Graph } from '../types'
 
 // Five E. coli haplotypes through a pggb subgraph; IAI39 walks it on the
 // reverse strand and CFT073 covers only its right half.
@@ -103,6 +106,73 @@ test("a walk's pieces each read their own strand of a segment they share", () =>
     ['alt#1#chr:0-8', ['1+', '2+']],
     ['alt#1#chr:100-108', ['-2+', '-1+']],
   ])
+})
+
+// 1 2 3 run straight through on every path, then a SNP 4|5 and 6. `alt` is
+// given forwards or backwards.
+function snp(alt: string, extra = '') {
+  const gfa = `S\t1\tACGTACGTAC
+S\t2\tGGGGGGGGGG
+S\t3\tTTTTTTTTTT
+S\t4\tA
+S\t5\tC
+S\t6\tAAAAAAAAAA
+L\t1\t+\t2\t+\t0M
+L\t2\t+\t3\t+\t0M
+L\t3\t+\t4\t+\t0M
+L\t3\t+\t5\t+\t0M
+L\t4\t+\t6\t+\t0M
+L\t5\t+\t6\t+\t0M
+${extra}P\tref#1#chr:0-41\t1+,2+,3+,4+,6+\t*
+P\talt#1#chr:0-41\t${alt}\t*`
+  return anchorGraph(convertGFAToGraph(parseGFA(gfa)), 'ref#1#chr')
+}
+
+function boxOf(graph: Graph, id: string) {
+  const { graph: drawn } = tubeMapLayout(graph)!.tubeMap!
+  return nodeReferenceSpan({
+    nodeId: id,
+    nodeById: new Map(drawn.nodes.map(n => [n.id, n])),
+    neighbors: buildNeighbors(drawn),
+  })
+}
+
+test('a merged run is one node of the drawn graph, as long as its members', () => {
+  const { tubeMap, nodePositions } = tubeMapLayout(snp('1+,2+,3+,5+,6+'))!
+  expect(tubeMap!.members).toEqual(new Map([['1+', ['1+', '2+', '3+']]]))
+  expect(Object.keys(nodePositions).sort()).toEqual(['1+', '4+', '5+', '6+'])
+  const { nodes, edges, paths } = tubeMap!.graph
+  expect(nodes.map(n => [n.id, n.length, n.stable?.start])).toEqual([
+    ['1+', 30, 0],
+    ['4+', 1, 30],
+    ['5+', 1, 30],
+    ['6+', 10, 31],
+  ])
+  expect(edges.map(e => `${e.from}>${e.to}`)).toEqual([
+    '1+>4+',
+    '1+>5+',
+    '4+>6+',
+    '5+>6+',
+  ])
+  expect(paths!.map(p => p.nodeIds)).toEqual([
+    ['1+', '4+', '6+'],
+    ['1+', '5+', '6+'],
+  ])
+  expect(boxOf(snp('1+,2+,3+,5+,6+'), '1+')).toEqual({ start: 0, end: 30 })
+  expect(boxOf(snp('1+,2+,3+,5+,6+'), '5+')).toEqual({ start: 30, end: 31 })
+})
+
+test('a run walked backwards merges into the same box', () => {
+  const { tubeMap } = tubeMapLayout(snp('6-,5-,3-,2-,1-'))!
+  expect(tubeMap!.members).toEqual(new Map([['1+', ['1+', '2+', '3+']]]))
+  expect(tubeMap!.graph.paths![1]!.nodeIds).toEqual(['6+', '5+', '1+'])
+})
+
+test('a link looping back over a run stays, as a loop on its box', () => {
+  const graph = snp('1+,2+,3+,1+,2+,3+,5+,6+', 'L\t3\t+\t1\t+\t0M\n')
+  const { tubeMap } = tubeMapLayout(graph)!
+  expect(tubeMap!.members.get('1+')).toEqual(['1+', '2+', '3+'])
+  expect(tubeMap!.graph.edges.map(e => `${e.from}>${e.to}`)).toContain('1+>1+')
 })
 
 test('no layout without paths', () => {

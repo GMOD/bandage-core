@@ -3,6 +3,7 @@ import { anchoredLayout } from './layout/anchoredLayout'
 import { orderedLayout } from './layout/orderedLayout'
 import { sampleRowLayout } from './layout/sampleRowLayout'
 import {
+  hasTubeMapBackbone,
   hasTubeMapPaths,
   tubeMapLayout,
   tubeMapReferenceLayout,
@@ -68,8 +69,6 @@ export interface LayoutMode {
 const hasBackbone = (graph: Graph) => graph.nodes.some(isBackbone)
 const hasWalks = (graph: Graph) =>
   hasBackbone(graph) && (graph.paths?.length ?? 0) > 1
-const hasTubeMapBackbone = (graph: Graph) =>
-  hasBackbone(graph) && hasTubeMapPaths(graph)
 const hasAlleles = (graph: Graph) =>
   hasBackbone(graph) && graph.nodes.some(isOffReference)
 
