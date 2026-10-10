@@ -6,10 +6,12 @@ import {
   tubeMapReferenceLayout,
   tubeMapTracks,
 } from './tubeMapLayout'
+import { parseGaf, parseGafLine } from '../gaf/parseGaf'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { anchorGraph } from '../pathAnchoring'
 import { buildNeighbors, nodeReferenceSpan } from '../referenceSpan'
+import { referenceBoxes, rulerBoxes } from '../tubeMap/axis'
 
 import type { Graph } from '../types'
 
@@ -108,24 +110,32 @@ test("a walk's pieces each read their own strand of a segment they share", () =>
   ])
 })
 
-// 1 2 3 run straight through on every path, then a SNP 4|5 and 6. `alt` is
-// given forwards or backwards.
-function snp(alt: string, extra = '') {
-  const gfa = `S\t1\tACGTACGTAC
+const SEGMENTS = `S\t1\tACGTACGTAC
 S\t2\tGGGGGGGGGG
 S\t3\tTTTTTTTTTT
 S\t4\tA
 S\t5\tC
 S\t6\tAAAAAAAAAA
-L\t1\t+\t2\t+\t0M
+`
+
+const LINKS = `L\t1\t+\t2\t+\t0M
 L\t2\t+\t3\t+\t0M
 L\t3\t+\t4\t+\t0M
 L\t3\t+\t5\t+\t0M
 L\t4\t+\t6\t+\t0M
 L\t5\t+\t6\t+\t0M
-${extra}P\tref#1#chr:0-41\t1+,2+,3+,4+,6+\t*
+`
+
+function walks(ref: string, alt: string, links = LINKS) {
+  const gfa = `${SEGMENTS}${links}P\tref#1#chr:0-41\t${ref}\t*
 P\talt#1#chr:0-41\t${alt}\t*`
   return anchorGraph(convertGFAToGraph(parseGFA(gfa)), 'ref#1#chr')
+}
+
+// 1 2 3 run straight through on every path, then a SNP 4|5 and 6. `alt` is
+// given forwards or backwards.
+function snp(alt: string, extra = '') {
+  return walks('1+,2+,3+,4+,6+', alt, `${LINKS}${extra}`)
 }
 
 function boxOf(graph: Graph, id: string) {
@@ -173,6 +183,77 @@ test('a link looping back over a run stays, as a loop on its box', () => {
   const { tubeMap } = tubeMapLayout(graph)!
   expect(tubeMap!.members.get('1+')).toEqual(['1+', '2+', '3+'])
   expect(tubeMap!.graph.edges.map(e => `${e.from}>${e.to}`)).toContain('1+>1+')
+})
+
+test('a reference read backwards merges its run as the layout turns it', () => {
+  const graph = walks('6-,4-,3-,2-,1-', '6-,5-,3-,2-,1-')
+  const { members } = tubeMapLayout(graph)!.tubeMap!
+  expect(members).toEqual(new Map([['3+', ['3+', '2+', '1+']]]))
+  expect(boxOf(graph, '3+')).toEqual({ start: 11, end: 41 })
+})
+
+test('the links inside a run read each node against its own strand', () => {
+  const graph = walks(
+    '1+,2-,3+,4+,6+',
+    '1+,2-,3+,5+,6+',
+    LINKS.replace('L\t1\t+\t2\t+', 'L\t1\t+\t2\t-').replace(
+      'L\t2\t+\t3\t+',
+      'L\t2\t-\t3\t+',
+    ),
+  )
+  const { members, graph: drawn } = tubeMapLayout(graph)!.tubeMap!
+  expect([...members.values()].map(run => run.length)).toEqual([3])
+  expect(drawn.edges.filter(e => e.from === e.to)).toEqual([])
+})
+
+test('a secondary read, which the layout drops, merges nothing', () => {
+  const graph = snp('1+,2+,3+,5+,6+', 'L\t5\t+\t2\t+\t0M\n')
+  const read = parseGafLine(
+    'r\t11\t0\t11\t+\t>5>2\t11\t0\t11\t11\t11\t0\ttp:A:S',
+  )!
+  expect(read.secondary).toBe(true)
+  const { members } = tubeMapLayout({ ...graph, reads: [read] })!.tubeMap!
+  expect(members).toEqual(new Map([['1+', ['1+', '2+', '3+']]]))
+})
+
+// a box the layout merged is one the drawn graph merged too, so each reports
+// the length the layout gave it
+test('every merged box in the fixtures is accounted for', () => {
+  const cactus = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        fs.readFileSync(
+          path.join(__dirname, '../../test_data/cactus/cactus_240_280.gfa'),
+          'utf8',
+        ),
+      ),
+    ),
+    'ref',
+  )
+  const reads = parseGaf(
+    fs.readFileSync(
+      path.join(__dirname, '../../test_data/cactus/cactus_240_280.gaf'),
+      'utf8',
+    ),
+  )
+  for (const graph of [pggb(), cactus, { ...cactus, reads }]) {
+    const { layout, graph: drawn } = tubeMapLayout(graph)!.tubeMap!
+    const lengthOf = new Map(drawn.nodes.map(n => [n.id, n.length]))
+    layout.nodes.forEach(node => {
+      expect(Math.max(1, lengthOf.get(node.name)!)).toBe(node.sequenceLength)
+    })
+  }
+})
+
+test("a box's reference bp are its members', not the layout's 1 bp floor", () => {
+  const graph = walks('1+,2+,3+,4+,6+', '1+,2+,3+,5+,6+', LINKS)
+  const empty = {
+    ...graph,
+    nodes: graph.nodes.map(n => (n.name === '2' ? { ...n, length: 0 } : n)),
+  }
+  const drawing = tubeMapLayout(empty)!.tubeMap!
+  const [box] = rulerBoxes(referenceBoxes(drawing))!
+  expect(box).toMatchObject({ name: '1+', bp0: 0, bp1: 20 })
 })
 
 test('no layout without paths', () => {

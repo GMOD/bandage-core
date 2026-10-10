@@ -152,11 +152,12 @@ test('lengths survive coarsening on a real cut, at every sigma', () => {
 test("a folded variant marks its walk's tube at its bp through the box", () => {
   const graph = gfa({ alt: 'b0+,xa+,b1+,y+,b2+,za+,b3+' }, { xa: 1, za: 1 })
   const coarse = coarsenTubeMap(graph, 50)!
-  const layout = tubeMapLayout(coarse.graph)!.tubeMap!.layout
+  const drawing = tubeMapLayout(coarse.graph)!.tubeMap!
+  const { layout } = drawing
   const box = layout.nodes[layout.nodeMap.get('0-502+')!]!
   const alt = layout.tracks.find(t => t.name === 'alt')!
   const at = (bp: number) => box.x + (bp / 502) * box.pixelWidth
-  const marks = deviationMarks(coarse.graph, layout, coarse.deviations)
+  const marks = deviationMarks(drawing, coarse.deviations)
   expect(marks).toHaveLength(2)
   for (const [i, bp] of [100, 401].entries()) {
     expect(marks[i]!.x0).toBeCloseTo(at(bp))

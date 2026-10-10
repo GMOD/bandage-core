@@ -4,15 +4,10 @@ import { isBackbone } from '../anchoredNodes'
 import { pathOrigin } from '../pathAnchoring'
 import { pathCssColor, pathGreyCssColor } from '../pathColors'
 import { canonicalStrand, stepName, tubeMapReads } from '../tubeMap/reads'
+import { ownStrand, strandSides } from '../util/geometry'
 
 import type { Coarsened } from '../tubeMap/coarsen'
-import type {
-  Graph,
-  GraphEdge,
-  GraphNode,
-  LayoutResult,
-  NodeSegment,
-} from '../types'
+import type { Graph, GraphNode, LayoutResult, NodeSegment } from '../types'
 import type {
   InputNode,
   InputTrack,
@@ -154,53 +149,83 @@ export function tubeWidth(trackCount: number) {
   )
 }
 
+// The nodes tubemap-core turns around before it merges (straightenTrack):
+// those the first track reads in reverse before it reads them forward
+function straightened(first: InputTrack | undefined) {
+  const flipped = new Set<string>()
+  const forwards = new Set<string>()
+  for (const step of first?.sequence ?? []) {
+    if (!isReverse(step)) {
+      forwards.add(step)
+    } else if (!forwards.has(forward(step))) {
+      flipped.add(forward(step))
+    }
+  }
+  return flipped
+}
+
+export interface MergedRuns {
+  // box to the nodes it stands for, in the order the layout draws them
+  members: Map<string, string[]>
+  // the nodes the layout draws against their own strand
+  flipped: Set<string>
+}
+
 // Which nodes each box stands for. tubemap-core merges a run that every track
-// and read walks straight through into the run's first node, and gives the
-// rest no box. Each of the rest has one predecessor in its run, which a walk
-// visits just before it going forward and just after it going in reverse.
-export function boxMembers(
+// and primary read walks straight through into the run's first node, and gives
+// the rest no box. Each of the rest has one predecessor in its run, which a
+// walk visits just before it going the way the layout draws it, and just after
+// it going against. A run is kept only where its members add up to the box the
+// layout drew, so a merge this misreads leaves the box standing for its first
+// node alone.
+export function mergedRuns(
+  graph: Graph,
   layout: TubeMapLayout,
   walks: readonly InputTrack[],
-) {
+): MergedRuns {
+  const flipped = straightened(walks[0])
   const before = new Map<string, string>()
-  for (const { sequence } of walks) {
-    sequence.forEach((step, i) => {
-      const id = forward(step)
-      const neighbour = isReverse(step) ? sequence[i + 1] : sequence[i - 1]
-      if (!layout.nodeMap.has(id) && neighbour !== undefined) {
-        before.set(id, forward(neighbour))
-      }
-    })
+  for (const { sequence, is_secondary } of walks) {
+    if (!is_secondary) {
+      sequence.forEach((step, i) => {
+        const id = forward(step)
+        const against = isReverse(step) !== flipped.has(id)
+        const neighbour = against ? sequence[i + 1] : sequence[i - 1]
+        if (!layout.nodeMap.has(id) && neighbour !== undefined) {
+          before.set(id, forward(neighbour))
+        }
+      })
+    }
   }
+  const lengthOf = new Map(graph.nodes.map(n => [n.id, Math.max(1, n.length)]))
   const after = new Map([...before].map(([node, prev]) => [prev, node]))
   const members = new Map<string, string[]>()
   for (const head of after.keys()) {
-    if (layout.nodeMap.has(head)) {
+    const index = layout.nodeMap.get(head)
+    if (index !== undefined) {
       const run = [head]
       for (let n = after.get(head); n !== undefined; n = after.get(n)) {
         run.push(n)
       }
-      members.set(head, run)
+      const bp = run.reduce((sum, id) => sum + (lengthOf.get(id) ?? 0), 0)
+      if (bp === layout.nodes[index]!.sequenceLength) {
+        members.set(head, run)
+      }
     }
   }
-  return members
+  return { members, flipped }
 }
 
-// A link's two node sides: it leaves `from`'s right end read forward, its left
-// end read in reverse, and arrives at `to`'s left end, or its right in reverse
-function sides(edge: GraphEdge) {
-  return {
-    from: `${edge.from}${edge.fromStrand === '-' ? 'L' : 'R'}`,
-    to: `${edge.to}${edge.toStrand === '-' ? 'R' : 'L'}`,
-  }
-}
+const opposite = { start: 'end', end: 'start' } as const
+const otherStrand = { '+': '-', '-': '+' } as const
 
 // The graph as its boxes draw it: each merged run one node, as long as its
 // members together and starting where the first of them on the reference
-// does, the links inside the run gone and the rest moved onto its box
+// does, the links inside the run gone and the rest moved onto the side of the
+// box they reach
 export function boxGraph(
   graph: Graph,
-  members: ReadonlyMap<string, string[]>,
+  { members, flipped }: MergedRuns,
 ): Graph {
   if (members.size === 0) {
     return graph
@@ -208,12 +233,15 @@ export function boxGraph(
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
   const boxOf = new Map<string, string>()
   const inner = new Set<string>()
+  // a node's side as the layout draws the node
+  const drawn = (id: string, side: 'start' | 'end') =>
+    flipped.has(id) ? opposite[side] : side
   for (const [box, run] of members) {
     run.forEach((id, i) => {
       boxOf.set(id, box)
       const next = run[i + 1]
       if (next !== undefined) {
-        inner.add(`${id}R\t${next}L`)
+        inner.add(`${id}:${drawn(id, 'end')}\t${next}:${drawn(next, 'start')}`)
       }
     })
   }
@@ -235,17 +263,38 @@ export function boxGraph(
       },
     ]
   })
+  // the strand a link leaving the box reads it with, to leave from the side
+  // of the box that its member's `side` is on
+  const leaving = (id: string, box: string, side: 'start' | 'end') =>
+    drawn(box, drawn(id, side)) === 'end'
+      ? ownStrand(box)
+      : otherStrand[ownStrand(box)]
   const edges = graph.edges.flatMap(edge => {
-    const { from, to } = sides(edge)
-    return inner.has(`${from}\t${to}`) || inner.has(`${to}\t${from}`)
-      ? []
-      : [
-          {
-            ...edge,
-            from: boxOf.get(edge.from) ?? edge.from,
-            to: boxOf.get(edge.to) ?? edge.to,
-          },
-        ]
+    const sides = strandSides(edge)
+    const from = `${edge.from}:${sides.from}`
+    const to = `${edge.to}:${sides.to}`
+    if (inner.has(`${from}\t${to}`) || inner.has(`${to}\t${from}`)) {
+      return []
+    }
+    const fromBox = boxOf.get(edge.from)
+    const toBox = boxOf.get(edge.to)
+    return [
+      {
+        ...edge,
+        ...(fromBox === undefined
+          ? {}
+          : {
+              from: fromBox,
+              fromStrand: leaving(edge.from, fromBox, sides.from),
+            }),
+        ...(toBox === undefined
+          ? {}
+          : {
+              to: toBox,
+              toStrand: otherStrand[leaving(edge.to, toBox, sides.to)],
+            }),
+      },
+    ]
   })
   const absorbedNames = new Set(
     [...absorbed].map(id => nodeById.get(id)?.name ?? id),
@@ -281,8 +330,13 @@ function runTubeMap(graph: Graph) {
   if (!layout) {
     return undefined
   }
-  const members = boxMembers(layout, [...tracks, ...reads])
-  return { layout, pathColors, members, graph: boxGraph(graph, members) }
+  const runs = mergedRuns(graph, layout, [...tracks, ...reads])
+  return {
+    layout,
+    pathColors,
+    members: runs.members,
+    graph: boxGraph(graph, runs),
+  }
 }
 
 // Drawn nodes only: an unreached one has no x.
@@ -340,8 +394,7 @@ export function tubeMapLayout(graph: Graph): LayoutResult | undefined {
   }
 }
 
-// Each column's reference bp: the span of its backbone nodes, whose merged
-// length the layout summed, or a point where the previous column ended for a
+// Each column's reference bp: the span of its backbone nodes, or a point where the previous column ended for a
 // column of inserted sequence alone. Clamped to run left to right, so an
 // inversion the reference walks backwards cannot fold the axis over.
 function tubeMapColumns(graph: Graph, layout: TubeMapLayout): TubeMapColumn[] {
@@ -365,7 +418,7 @@ function tubeMapColumns(graph: Graph, layout: TubeMapLayout): TubeMapColumn[] {
       const graphNode = nodeById.get(node.name)
       if (graphNode && isBackbone(graphNode)) {
         bp0 = Math.min(bp0, graphNode.stable.start)
-        bp1 = Math.max(bp1, graphNode.stable.start + node.sequenceLength)
+        bp1 = Math.max(bp1, graphNode.stable.start + graphNode.length)
       }
     }
     if (bp0 === Infinity) {

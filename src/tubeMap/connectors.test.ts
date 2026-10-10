@@ -17,13 +17,13 @@ const GFA = fs.readFileSync(
 
 function cactus() {
   const graph = anchorGraph(convertGFAToGraph(parseGFA(GFA)), 'ref')
-  const layout = tubeMapLayout(graph)!.tubeMap!.layout
-  return { graph, layout }
+  return tubeMapLayout(graph)!.tubeMap!
 }
 
 test('every reference box names its node, once, at the layout index it has', () => {
-  const { graph, layout } = cactus()
-  const boxes = rulerBoxes(referenceBoxes(graph, layout))!
+  const drawing = cactus()
+  const { layout } = drawing
+  const boxes = rulerBoxes(referenceBoxes(drawing))!
   expect(new Set(boxes.map(b => b.name)).size).toBe(boxes.length)
   for (const box of boxes) {
     expect(layout.nodes[box.index]!.name).toBe(box.name)

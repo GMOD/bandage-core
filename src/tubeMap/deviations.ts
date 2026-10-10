@@ -3,8 +3,7 @@ import { referenceBoxes } from './axis'
 import type { ReferenceBox } from './axis'
 import type { Deviation } from './coarsen'
 import type { TubeMapFrame } from './draw'
-import type { Graph } from '../types'
-import type { TubeMapLayout } from '@jbrowse/tubemap-core'
+import type { TubeMapDrawing } from '../layout/tubeMapLayout'
 
 // A folded variant on the tube of the walk that carries it, in tube
 // coordinates. Placed by bp through the box that holds it, since tubemap-core
@@ -39,11 +38,11 @@ function boxAt(
 }
 
 export function deviationMarks(
-  graph: Graph,
-  layout: TubeMapLayout,
+  drawing: Pick<TubeMapDrawing, 'graph' | 'layout'>,
   deviations: Map<string, Deviation[]>,
 ) {
-  const boxes = [...referenceBoxes(graph, layout).values()]
+  const { layout } = drawing
+  const boxes = [...referenceBoxes(drawing).values()]
     .flat()
     .sort((a, b) => a.bp0 - b.bp0)
   const marks: DeviationMark[] = []

@@ -19,8 +19,7 @@ const GFA = fs.readFileSync(
 
 function cactus() {
   const graph = anchorGraph(convertGFAToGraph(parseGFA(GFA)), 'ref')
-  const layout = tubeMapLayout(graph)!.tubeMap!.layout
-  const byRefName = referenceBoxes(graph, layout)
+  const byRefName = referenceBoxes(tubeMapLayout(graph)!.tubeMap!)
   return { byRefName, boxes: rulerBoxes(byRefName)! }
 }
 

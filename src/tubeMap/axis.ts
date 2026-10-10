@@ -2,8 +2,7 @@ import { isBackbone } from '../anchoredNodes'
 import { formatBp } from '../graphLabels'
 
 import type { TubeMapFrame } from './draw'
-import type { Graph } from '../types'
-import type { TubeMapLayout } from '@jbrowse/tubemap-core'
+import type { TubeMapDrawing } from '../layout/tubeMapLayout'
 
 // The reference's boxes carry bp, so a reference coordinate maps into tube x
 // through the box that holds it. On the own axis a box is log-scaled, so bp
@@ -23,8 +22,12 @@ export interface ReferenceBox extends Box {
   index: number
 }
 
-// keyed by the graph's refName, `GRCh38#0#chr6`, each sorted by bp
-export function referenceBoxes(graph: Graph, layout: TubeMapLayout) {
+// keyed by the graph's refName, `GRCh38#0#chr6`, each sorted by bp. A box's
+// bp are its node's in the drawn graph, which merged runs it stands for.
+export function referenceBoxes({
+  graph,
+  layout,
+}: Pick<TubeMapDrawing, 'graph' | 'layout'>) {
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
   const byRefName = new Map<string, ReferenceBox[]>()
   // sparse: an unreached node has no entry
@@ -38,7 +41,7 @@ export function referenceBoxes(graph: Graph, layout: TubeMapLayout) {
         name: node.name,
         index,
         bp0: start,
-        bp1: start + node.sequenceLength,
+        bp1: start + graphNode.length,
         x0: node.x,
         x1: node.x + node.pixelWidth,
       })
