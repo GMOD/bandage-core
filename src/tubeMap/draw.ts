@@ -69,8 +69,10 @@ export function parsePath(d: string): Command[] {
 
 interface Filled {
   color: string
-  // a haplotype tube's track id, which is its path's index in the graph
-  track?: number
+  // the track's id: a haplotype's is its path's index in the graph
+  id: number
+  // a haplotype's fill is its path's, which a host may restyle (tubeColors)
+  haplotype: boolean
   // tube x extent, for culling
   x0: number
   x1: number
@@ -113,9 +115,9 @@ function extentOf(commands: Command[]) {
   return { x0, x1 }
 }
 
-function shapeOf(d: string, color: string, track: number | undefined): Shape {
+function shapeOf(d: string, color: string, id: number, haplotype: boolean) {
   const commands = parsePath(d)
-  return { commands, color, track, ...extentOf(commands) }
+  return { commands, color, id, haplotype, ...extentOf(commands) }
 }
 
 // Each track's fill by id: a read takes its strand's palette, a haplotype its
@@ -138,25 +140,25 @@ function layerOf(
   colors: ReadonlyMap<number, string>,
 ): Layer {
   const { shapes } = layout
+  const haplotype = type === 'haplotype'
   const colorOf = (s: { id: number }) => colors.get(s.id)!
-  const trackOf = (s: { id: number }) =>
-    type === 'haplotype' ? s.id : undefined
   const rects = [...shapes.rectangles, ...shapes.verticalRectangles]
     .filter(r => r.type === type)
     .map(r => ({
       color: colorOf(r),
-      track: trackOf(r),
+      id: r.id,
+      haplotype,
       x0: r.xStart,
       x1: r.xEnd + 1,
       y0: r.yStart,
       y1: r.yEnd + 1,
     }))
   const curves = curvePaths(shapes.curves, type).map(c =>
-    shapeOf(c.path!, colorOf(c), trackOf(c)),
+    shapeOf(c.path!, colorOf(c), c.id, haplotype),
   )
   const corners = shapes.corners
     .filter(c => c.type === type)
-    .map(c => shapeOf(c.path, colorOf(c), trackOf(c)))
+    .map(c => shapeOf(c.path, colorOf(c), c.id, haplotype))
   return { rects, shapes: [...curves, ...corners] }
 }
 
@@ -293,7 +295,7 @@ export function drawTubeMap(
   const visible = (item: { x0: number; x1: number }) =>
     x(item.x1) >= 0 && x(item.x0) <= width
   const colorOf = (item: Filled) =>
-    (item.track !== undefined && frame.tubeColors?.[item.track]) || item.color
+    (item.haplotype && frame.tubeColors?.[item.id]) || item.color
   ctx.globalAlpha = 1
   for (const layer of picture.layers) {
     fillByColor(ctx, layer.rects, visible, colorOf, r => {
@@ -364,6 +366,7 @@ function drawMismatches(
   }
   ctx.fill()
   ctx.font = `${fontPx}px monospace`
+  ctx.textAlign = 'left'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = darkMode ? '#ffffff' : '#000000'
   for (const m of marks) {
@@ -376,4 +379,46 @@ function drawMismatches(
       ctx.fillText('*', x(m.x) - 3, y(m.y + m.height))
     }
   }
+}
+
+// The track whose straight run of tube is under a screen point, reads before
+// haplotypes since they draw over them. The curves between columns are left
+// out: tubes cross there, so a curve's bounds would name the wrong one.
+export function tubeMapTrackAt(
+  picture: TubeMapPicture,
+  { x, y }: TubeMapTransform,
+  sx: number,
+  sy: number,
+) {
+  for (let l = picture.layers.length - 1; l >= 0; l--) {
+    for (const r of picture.layers[l]!.rects) {
+      if (x(r.x0) <= sx && sx <= x(r.x1) && y(r.y0) <= sy && sy <= y(r.y1)) {
+        return r.id
+      }
+    }
+  }
+  return undefined
+}
+
+// an insertion's star is a point, so the pointer gets a few px either side
+const INSERTION_SLOP_PX = 4
+
+// The mismatch mark under a screen point, while the marks are drawn
+export function tubeMapMismatchAt(
+  picture: TubeMapPicture,
+  frame: TubeMapTransform,
+  sx: number,
+  sy: number,
+) {
+  const { x, y, yScale } = frame
+  return mismatchesLegible(yScale)
+    ? picture.mismatches.find(
+        m =>
+          y(m.y) <= sy &&
+          sy <= y(m.y + m.height) &&
+          (m.kind === 'insertion'
+            ? Math.abs(x(m.x) - sx) <= INSERTION_SLOP_PX
+            : x(m.x0) <= sx && sx <= x(m.x1)),
+      )
+    : undefined
 }

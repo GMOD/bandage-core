@@ -22,7 +22,7 @@ export type TubeMapMismatch =
       // inserts; sequenceTubeMap hides these unless soft clips are shown
       softClip: boolean
     })
-  | (MarkBase & { kind: 'deletion'; x0: number; x1: number })
+  | (MarkBase & { kind: 'deletion'; x0: number; x1: number; length: number })
   | (MarkBase & { kind: 'substitution'; x0: number; x1: number; seq: string })
 
 // A read's path holds one visit per entry of its sequence, in order, between
@@ -57,7 +57,13 @@ function readMismatches(read: Track, layout: TubeMapLayout) {
           } else if (mm.type === 'deletion' && mm.length !== undefined) {
             const x1 = at(mm.pos + mm.length)
             if (x1 !== null) {
-              marks.push({ ...base, kind: 'deletion', x0, x1 })
+              marks.push({
+                ...base,
+                kind: 'deletion',
+                x0,
+                x1,
+                length: mm.length,
+              })
             }
           } else if (mm.type === 'substitution' && mm.seq !== undefined) {
             const x1 = at(mm.pos + mm.seq.length)

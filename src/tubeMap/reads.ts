@@ -155,8 +155,9 @@ export function tubeMapReads(
           last === record.path.length - 1
             ? lastLength - (record.pathLength - record.pathEnd)
             : lastLength,
+        // 255 is GAF's missing MAPQ
         mapping_quality:
-          record.mappingQuality === 255 ? 0 : record.mappingQuality,
+          record.mappingQuality === 255 ? undefined : record.mappingQuality,
         is_secondary: record.secondary,
         is_reverse: record.strand === '-',
       })
