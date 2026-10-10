@@ -59,7 +59,7 @@
   "dependencies": {
     "@gmod/gbz-base": "^7.0.0",
     "@gmod/tabix": "^3.9.1",
-    "@jbrowse/tubemap-core": "^0.2.1"
+    "@jbrowse/tubemap-core": "^0.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
