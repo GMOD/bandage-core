@@ -112,7 +112,18 @@ export function drawTubeMapConnectors(
   ctx.strokeStyle = `rgba(${ink},0.35)`
   ctx.lineWidth = 0.5
   ctx.stroke()
-  const lit = connectors.find(c => c.node === highlightNode)
+  drawLitConnector(ctx, connectors, bottom, highlightNode)
+}
+
+// The lit band alone, for a hover layer over bands drawn without it
+export function drawLitConnector(
+  ctx: CanvasRenderingContext2D,
+  connectors: readonly Connector[],
+  bottom: number,
+  node: string | null | undefined,
+) {
+  const lit =
+    bottom > 0 && node ? connectors.find(c => c.node === node) : undefined
   if (lit) {
     ctx.beginPath()
     band(ctx, lit, bottom)

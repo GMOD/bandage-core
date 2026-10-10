@@ -20,6 +20,7 @@ export function recordingCanvas() {
   const fills: string[] = []
   const lineWidths: number[] = []
   const points: { x: number; y: number }[] = []
+  let clears = 0
   const at = (x: number, y: number) => {
     points.push({ x, y })
   }
@@ -47,6 +48,9 @@ export function recordingCanvas() {
       at(x, y)
     },
     fillRect: () => {},
+    clearRect: () => {
+      clears++
+    },
     stroke: () => {
       strokes.push(ctx.strokeStyle)
       lineWidths.push(ctx.lineWidth)
@@ -59,5 +63,12 @@ export function recordingCanvas() {
   // context is a stand-in, which is the one cast this needs.
   const canvas = document.createElement('canvas')
   canvas.getContext = () => ctx as unknown as CanvasRenderingContext2D
-  return { canvas, strokes, fills, lineWidths, points }
+  return {
+    canvas,
+    strokes,
+    fills,
+    lineWidths,
+    points,
+    clears: () => clears,
+  }
 }

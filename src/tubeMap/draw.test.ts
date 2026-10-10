@@ -2,6 +2,8 @@ import fs from 'fs'
 import path from 'path'
 
 import {
+  drawTubeMap,
+  drawTubeMapHighlight,
   trackColors,
   tubeMapMismatchAt,
   tubeMapPicture,
@@ -93,4 +95,42 @@ test('the pointer finds a mismatch mark while the marks are drawn', () => {
   })
   const squeezed = { ...identity, yScale: 0.1 }
   expect(tubeMapMismatchAt(picture, squeezed, ...at)).toBeUndefined()
+})
+
+// every stroke's colour, from a context that accepts any other call
+function strokeRecorder() {
+  const strokes: string[] = []
+  const state: Record<string, unknown> = {}
+  const ctx = new Proxy(state, {
+    get: (target, key: string) =>
+      key === 'stroke'
+        ? () => strokes.push(String(target.strokeStyle))
+        : key in target
+          ? target[key]
+          : () => {},
+    set: (target, key: string, value) => {
+      target[key] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  return { ctx, strokes }
+}
+
+test('a hover layer outlines the lit box alone, as the full drawing does', () => {
+  const picture = tubeMapPicture(drawing())
+  const frame = {
+    ...identity,
+    width: 1e6,
+    highlightNode: picture.nodes[0]!.name,
+  }
+  const full = strokeRecorder()
+  drawTubeMap(full.ctx, picture, frame)
+  expect(full.strokes.filter(s => s === '#ff0000')).toHaveLength(1)
+  expect(full.strokes).toHaveLength(picture.nodes.length)
+
+  const layer = strokeRecorder()
+  drawTubeMapHighlight(layer.ctx, picture, frame)
+  expect(layer.strokes).toEqual(['#ff0000'])
+  drawTubeMapHighlight(layer.ctx, picture, { ...frame, highlightNode: null })
+  expect(layer.strokes).toHaveLength(1)
 })

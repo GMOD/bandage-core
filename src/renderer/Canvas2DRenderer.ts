@@ -7,8 +7,11 @@ import {
 
 import type {
   Arrowhead,
+  EdgeCurveBatch,
+  NodeStroke,
   RenderBatch,
   Renderer,
+  Run,
   TransformUniform,
 } from './types'
 
@@ -96,55 +99,86 @@ export class Canvas2DRenderer implements Renderer {
     }
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    this.renderEdges(batch)
-    this.renderNodes(batch)
-    this.renderArrows(batch)
-  }
-
-  private renderEdges(batch: RenderBatch) {
-    const t = this.transform!
-    const ctx = this.ctx
-    const hl =
-      this.highlightedEdge === null
-        ? undefined
-        : batch.edgeCurveRuns.get(this.highlightedEdge)
+    const factor = this.highlightFactor
+    const edgeRun = this.edgeRun(batch.edgeCurveRuns)
     for (const { color, items } of groupByPaint(batch.edgeCurves, (e, i) => ({
-      color: inRun(hl, i)
-        ? brightenAbgr(e.color, this.highlightFactor)
-        : e.color,
+      color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
       weight: e.thickness,
-      last: inRun(hl, i),
+      last: inRun(edgeRun, i),
     }))) {
-      ctx.strokeStyle = abgrToCssRgba(color)
-      // thickness is the half-width in css px, so the stroke is twice it at
-      // the device ratio the transform already carries
-      ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
-      ctx.beginPath()
-      for (const e of items) {
-        const first = e.curves[0]!
-        ctx.moveTo(
-          first.x0 * t.scaleX + t.translateX,
-          first.y0 * t.scaleY + t.translateY,
-        )
-        for (const c of e.curves) {
-          ctx.bezierCurveTo(
-            c.cx0 * t.scaleX + t.translateX,
-            c.cy0 * t.scaleY + t.translateY,
-            c.cx1 * t.scaleX + t.translateX,
-            c.cy1 * t.scaleY + t.translateY,
-            c.x1 * t.scaleX + t.translateX,
-            c.y1 * t.scaleY + t.translateY,
-          )
-        }
+      this.strokeCurves(items, color)
+    }
+    const lifted = this.liftedStrokes(batch)
+    for (const { color, items } of groupByPaint(batch.nodeStrokes, (s, i) => {
+      const f = lifted.get(i)
+      return {
+        color: f === undefined ? s.color : brightenAbgr(s.color, f),
+        weight: s.thickness,
+        last: f !== undefined,
       }
-      ctx.stroke()
+    })) {
+      this.strokeNodes(items, color)
+    }
+    const arrowRun = this.edgeRun(batch.arrowRuns)
+    for (const { color, items } of groupByPaint(batch.arrows, (a, i) => ({
+      color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
+      weight: 0,
+      last: inRun(arrowRun, i),
+    }))) {
+      this.fillArrows(items, color)
     }
   }
 
-  private renderNodes(batch: RenderBatch) {
-    const t = this.transform!
+  // Only what the highlights lift, over a transparent clear, for a hover layer
+  // stacked on a canvas that drew the batch without them: a pointer move then
+  // repaints one node or edge rather than the whole drawing
+  renderHighlights() {
     const ctx = this.ctx
-    // stroke index -> brighten factor, for the nodes the model lifted
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    const batch = this.batch
+    if (!this.transform || !batch) {
+      return
+    }
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    const factor = this.highlightFactor
+    const curves = runItems(batch.edgeCurves, this.edgeRun(batch.edgeCurveRuns))
+    for (const { color, items } of groupByPaint(curves, e => ({
+      color: brightenAbgr(e.color, factor),
+      weight: e.thickness,
+      last: false,
+    }))) {
+      this.strokeCurves(items, color)
+    }
+    const lifted = [...this.liftedStrokes(batch)]
+    for (const { color, items } of groupByPaint(lifted, ([i, f]) => ({
+      color: brightenAbgr(batch.nodeStrokes[i]!.color, f),
+      weight: batch.nodeStrokes[i]!.thickness,
+      last: false,
+    }))) {
+      this.strokeNodes(
+        items.map(([i]) => batch.nodeStrokes[i]!),
+        color,
+      )
+    }
+    const arrows = runItems(batch.arrows, this.edgeRun(batch.arrowRuns))
+    for (const { color, items } of groupByPaint(arrows, a => ({
+      color: brightenAbgr(a.color, factor),
+      weight: 0,
+      last: false,
+    }))) {
+      this.fillArrows(items, color)
+    }
+  }
+
+  private edgeRun(runs: Map<number, Run>) {
+    return this.highlightedEdge === null
+      ? undefined
+      : runs.get(this.highlightedEdge)
+  }
+
+  // stroke index -> brighten factor, for the nodes the model lifted
+  private liftedStrokes(batch: RenderBatch) {
     const lifted = new Map<number, number>()
     for (const [nodeId, factor] of this.nodeHighlights) {
       const run = batch.nodeStrokeRuns.get(nodeId)
@@ -154,61 +188,68 @@ export class Canvas2DRenderer implements Renderer {
         }
       }
     }
-    for (const { color, items } of groupByPaint(batch.nodeStrokes, (s, i) => {
-      const factor = lifted.get(i)
-      return {
-        color: factor === undefined ? s.color : brightenAbgr(s.color, factor),
-        weight: s.thickness,
-        last: factor !== undefined,
-      }
-    })) {
-      ctx.strokeStyle = abgrToCssRgba(color)
-      ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
-      ctx.beginPath()
-      for (const s of items) {
-        const p0 = s.points[0]!
-        ctx.moveTo(
-          p0.x * t.scaleX + t.translateX,
-          p0.y * t.scaleY + t.translateY,
-        )
-        for (let i = 1, l = s.points.length; i < l; i++) {
-          const p = s.points[i]!
-          ctx.lineTo(
-            p.x * t.scaleX + t.translateX,
-            p.y * t.scaleY + t.translateY,
-          )
-        }
-      }
-      ctx.stroke()
-    }
+    return lifted
   }
 
-  private renderArrows(batch: RenderBatch) {
+  private strokeCurves(items: EdgeCurveBatch[], color: number) {
     const t = this.transform!
     const ctx = this.ctx
-    const hl =
-      this.highlightedEdge === null
-        ? undefined
-        : batch.arrowRuns.get(this.highlightedEdge)
-    for (const { color, items } of groupByPaint(batch.arrows, (a, i) => ({
-      color: inRun(hl, i)
-        ? brightenAbgr(a.color, this.highlightFactor)
-        : a.color,
-      weight: 0,
-      last: inRun(hl, i),
-    }))) {
-      ctx.fillStyle = abgrToCssRgba(color)
-      ctx.beginPath()
-      for (const a of items) {
-        const [tip, left, notch, right] = arrowheadOutline(a, t)
-        ctx.moveTo(tip.x, tip.y)
-        ctx.lineTo(left.x, left.y)
-        ctx.lineTo(notch.x, notch.y)
-        ctx.lineTo(right.x, right.y)
-        ctx.closePath()
+    ctx.strokeStyle = abgrToCssRgba(color)
+    // thickness is the half-width in css px, so the stroke is twice it at
+    // the device ratio the transform already carries
+    ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
+    ctx.beginPath()
+    for (const e of items) {
+      const first = e.curves[0]!
+      ctx.moveTo(
+        first.x0 * t.scaleX + t.translateX,
+        first.y0 * t.scaleY + t.translateY,
+      )
+      for (const c of e.curves) {
+        ctx.bezierCurveTo(
+          c.cx0 * t.scaleX + t.translateX,
+          c.cy0 * t.scaleY + t.translateY,
+          c.cx1 * t.scaleX + t.translateX,
+          c.cy1 * t.scaleY + t.translateY,
+          c.x1 * t.scaleX + t.translateX,
+          c.y1 * t.scaleY + t.translateY,
+        )
       }
-      ctx.fill()
     }
+    ctx.stroke()
+  }
+
+  private strokeNodes(items: NodeStroke[], color: number) {
+    const t = this.transform!
+    const ctx = this.ctx
+    ctx.strokeStyle = abgrToCssRgba(color)
+    ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
+    ctx.beginPath()
+    for (const s of items) {
+      const p0 = s.points[0]!
+      ctx.moveTo(p0.x * t.scaleX + t.translateX, p0.y * t.scaleY + t.translateY)
+      for (let i = 1, l = s.points.length; i < l; i++) {
+        const p = s.points[i]!
+        ctx.lineTo(p.x * t.scaleX + t.translateX, p.y * t.scaleY + t.translateY)
+      }
+    }
+    ctx.stroke()
+  }
+
+  private fillArrows(items: Arrowhead[], color: number) {
+    const t = this.transform!
+    const ctx = this.ctx
+    ctx.fillStyle = abgrToCssRgba(color)
+    ctx.beginPath()
+    for (const a of items) {
+      const [tip, left, notch, right] = arrowheadOutline(a, t)
+      ctx.moveTo(tip.x, tip.y)
+      ctx.lineTo(left.x, left.y)
+      ctx.lineTo(notch.x, notch.y)
+      ctx.lineTo(right.x, right.y)
+      ctx.closePath()
+    }
+    ctx.fill()
   }
 
   dispose() {
@@ -242,7 +283,11 @@ export function arrowheadOutline(a: Arrowhead, t: TransformUniform) {
   ] as const
 }
 
-function inRun(run: { start: number; count: number } | undefined, i: number) {
+function runItems<T>(items: T[], run: Run | undefined) {
+  return run ? items.slice(run.start, run.start + run.count) : []
+}
+
+function inRun(run: Run | undefined, i: number) {
   return run !== undefined && i >= run.start && i < run.start + run.count
 }
 

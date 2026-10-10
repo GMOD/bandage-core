@@ -78,6 +78,7 @@ export {
 export type { StripBlock } from './referenceStrip'
 export {
   drawTubeMap,
+  drawTubeMapHighlight,
   tubeMapMismatchAt,
   tubeMapPicture,
   tubeMapTrackAt,
@@ -102,6 +103,7 @@ export { drawTubeMapGenes, tubeMapGenes } from './tubeMap/genes'
 export type { TubeMapGene } from './tubeMap/genes'
 export {
   connectorAt,
+  drawLitConnector,
   drawTubeMapConnectors,
   tubeMapConnectors,
 } from './tubeMap/connectors'

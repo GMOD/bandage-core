@@ -8,14 +8,8 @@ import type { TransformUniform } from './types'
 const iso = (scale = 1) => ({ scaleX: scale, scaleY: scale })
 
 function makeRenderer() {
-  const { canvas, strokes, fills, lineWidths, points } = recordingCanvas()
-  return {
-    renderer: new Canvas2DRenderer(canvas),
-    strokes,
-    fills,
-    lineWidths,
-    points,
-  }
+  const { canvas, ...recorded } = recordingCanvas()
+  return { renderer: new Canvas2DRenderer(canvas), ...recorded }
 }
 
 const TRANSFORM: TransformUniform = {
@@ -162,6 +156,31 @@ test('a highlighted node is stroked brighter, last, and survives a rebuild', () 
   renderer.uploadGeometry(batchOf2Edges())
   renderer.render([1, 1, 1, 1])
   expect(strokes).toHaveLength(3)
+})
+
+// A hover layer over a canvas that drew the batch without the hover strokes
+// the hovered things alone, in the colours a full render lifts them to
+test('renderHighlights strokes only what is lit, over a clear', () => {
+  const full = makeRenderer()
+  full.renderer.uploadGeometry(batchOf2Edges())
+  full.renderer.updateTransform(TRANSFORM)
+  full.renderer.setNodeHighlights(new Map([['B+', 1.4]]))
+  full.renderer.setEdgeHighlight(1, 1.6)
+  full.renderer.render([1, 1, 1, 1])
+  const [, litEdge, , litNode] = full.strokes
+
+  const { renderer, strokes, clears } = makeRenderer()
+  renderer.uploadGeometry(batchOf2Edges())
+  renderer.updateTransform(TRANSFORM)
+  renderer.renderHighlights()
+  expect(clears()).toBe(1)
+  expect(strokes).toEqual([])
+
+  renderer.setNodeHighlights(new Map([['B+', 1.4]]))
+  renderer.setEdgeHighlight(1, 1.6)
+  renderer.renderHighlights()
+  expect(clears()).toBe(2)
+  expect(strokes).toEqual([litEdge, litNode])
 })
 
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it

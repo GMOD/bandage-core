@@ -309,23 +309,48 @@ export function drawTubeMap(
   }
   const stroke = frame.darkMode ? '#d0d0d0' : '#000000'
   const fill = frame.darkMode ? 'rgba(40,40,40,0.4)' : 'rgba(255,255,255,0.4)'
-  ctx.lineWidth = 2 * Math.max(0.25, Math.min(1, frame.yScale))
+  ctx.lineWidth = outlineWidth(frame)
   for (const node of picture.nodes) {
-    if (visible(node)) {
-      const lit = node.name === frame.highlightNode
+    if (visible(node) && node.name !== frame.highlightNode) {
       ctx.beginPath()
       trace(ctx, node.commands, x, y)
-      const tint = lit ? undefined : frame.nodeColors?.get(node.name)
-      ctx.fillStyle = lit ? 'rgba(255,192,203,0.5)' : (tint ?? fill)
-      ctx.strokeStyle = lit ? '#ff0000' : stroke
+      const tint = frame.nodeColors?.get(node.name)
+      ctx.fillStyle = tint ?? fill
+      ctx.strokeStyle = stroke
       ctx.globalAlpha = tint ? NODE_TINT_ALPHA : 1
       ctx.fill()
-      ctx.globalAlpha = lit ? 1 : outlineAlpha(x(node.x1) - x(node.x0))
+      ctx.globalAlpha = outlineAlpha(x(node.x1) - x(node.x0))
       ctx.stroke()
       ctx.globalAlpha = 1
     }
   }
+  drawTubeMapHighlight(ctx, picture, frame)
   drawMismatches(ctx, picture.mismatches, frame)
+}
+
+function outlineWidth(frame: TubeMapFrame) {
+  return 2 * Math.max(0.25, Math.min(1, frame.yScale))
+}
+
+// The lit box alone, for a hover layer over a tube map drawn without it
+export function drawTubeMapHighlight(
+  ctx: CanvasRenderingContext2D,
+  picture: TubeMapPicture,
+  frame: TubeMapFrame,
+) {
+  const node = frame.highlightNode
+    ? picture.nodes.find(n => n.name === frame.highlightNode)
+    : undefined
+  if (node) {
+    ctx.beginPath()
+    trace(ctx, node.commands, frame.x, frame.y)
+    ctx.globalAlpha = 1
+    ctx.lineWidth = outlineWidth(frame)
+    ctx.fillStyle = 'rgba(255,192,203,0.5)'
+    ctx.strokeStyle = '#ff0000'
+    ctx.fill()
+    ctx.stroke()
+  }
 }
 
 // sequenceTubeMap's marks, which it draws at 12px and hides once zoomed out
