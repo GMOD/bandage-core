@@ -5,12 +5,25 @@ the reference. Indexed by [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix),
 it is the coarse tier a graph track draws once zoomed out past the fine index.
 
 ```console
+gfa-to-tabix fold graph.rgfa.gz --below 10000 -o graph.fold10000
+```
+
+[`gfa-to-tabix fold`](https://github.com/GMOD/gfa-to-tabix#fold) is a port of
+`foldVariants`, byte-identical to `bandage-fold | gfa-to-tabix -` on the
+fixtures `scripts/parity-fold.sh` runs, in one pass with no node. `bandage-fold`
+reads the whole graph into one string, which Node caps at 512 MB, so it cannot
+fold a whole human pangenome.
+
+```console
 npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 \
   | gfa-to-tabix - -o graph.fold10000
 ```
 
+Both take the same options:
+
 - `--reference SAMPLE` names a plain GFA's backbone path; an rGFA states its own
-- `-` reads stdin, and `-o out.gfa` writes a file instead of stdout
+- `-` reads stdin; `bandage-fold` also takes `-o out.gfa`, where
+  `gfa-to-tabix fold` takes `-o prefix` and writes the index
 - gfa-to-tabix's `--layout anchored|contig` should match the fine index, so a
   tier window returns what a fine window does: an anchored window inside a large
   bubble returns the whole bubble, a contig one only what links reach from it
