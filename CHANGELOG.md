@@ -1,3 +1,10 @@
+## [9.8.1](https://github.com/GMOD/bandage-core/compare/v9.8.0...v9.8.1) (2026-10-10)
+
+### Other Changes
+
+- Reference axis: a run of thin columns slides apart, so its lane changes keep their width ([9bfc4d3](https://github.com/GMOD/bandage-core/commit/9bfc4d3ff4790a9a1cfc55f97acdafade978812e))
+- The reference fills over every tube that crosses it ([15bf3ec](https://github.com/GMOD/bandage-core/commit/15bf3ec6326f887a8a0fcc6c45447449b9a7089d))
+
 ## [9.8.0](https://github.com/GMOD/bandage-core/compare/v9.7.0...v9.8.0) (2026-10-10)
 
 ### Other Changes
