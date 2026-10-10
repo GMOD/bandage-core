@@ -2,6 +2,7 @@ import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { closableDeletions, deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
+import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
 import { parseGFA } from './gfa-core/index'
 import {
@@ -36,6 +37,18 @@ export interface Bounds {
   maxY: number
 }
 
+// Text the tables can hold takes their route, a few times faster over a cut
+// of millions of walk steps
+function graphOf(source: string | GraphTables, name: string) {
+  if (typeof source !== 'string') {
+    return graphFromTables(source, name)
+  }
+  const tables = gfaTables(source)
+  return tables
+    ? graphFromTables(tables, name)
+    : convertGFAToGraph(parseGFA(source), name)
+}
+
 // GFA text, or the same graph as typed arrays. A general GFA states its
 // coordinates only in its P/W lines, so the walk that recovers them happens
 // before anything reads `stable`; otherwise the anchored layouts see an
@@ -46,12 +59,7 @@ export function loadGraph(
   name: string,
   opts: { referencePath?: string; maxNodes?: number } = {},
 ) {
-  const graph = anchorGraph(
-    typeof source === 'string'
-      ? convertGFAToGraph(parseGFA(source), name)
-      : graphFromTables(source, name),
-    opts.referencePath,
-  )
+  const graph = anchorGraph(graphOf(source, name), opts.referencePath)
   if (graph.nodes.length === 0) {
     throw new Error(`No graph segments in ${name}`)
   }

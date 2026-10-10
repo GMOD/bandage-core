@@ -275,6 +275,7 @@ export {
 } from './gbzWindow'
 export type { GbzWindowOptions } from './gbzWindow'
 
+export { gfaTables } from './gfa/gfaTables'
 export { graphFromTables, graphTablesGFA } from './gfa/graphTables'
 export type { GraphTables } from './gfa/graphTables'
 
