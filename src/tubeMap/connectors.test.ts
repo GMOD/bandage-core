@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { referenceBoxes, rulerBoxes } from './axis'
-import { connectorAt, referenceNodes, tubeMapConnectors } from './connectors'
+import { connectorAt, tubeMapConnectors } from './connectors'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
@@ -21,23 +21,23 @@ function cactus() {
   return { graph, layout }
 }
 
-test('every reference box is a node, with the bp and tube x its box has', () => {
+test('every reference box names its node, once, at the layout index it has', () => {
   const { graph, layout } = cactus()
-  const nodes = referenceNodes(graph, layout)
   const boxes = rulerBoxes(referenceBoxes(graph, layout))!
-  const sorted = nodes.toSorted((a, b) => a.bp0 - b.bp0)
-  expect(sorted.map(({ node: _node, ...box }) => box)).toEqual(boxes)
-  expect(new Set(nodes.map(n => n.node)).size).toBe(nodes.length)
+  expect(new Set(boxes.map(b => b.name)).size).toBe(boxes.length)
+  for (const box of boxes) {
+    expect(layout.nodes[box.index]!.name).toBe(box.name)
+  }
 })
 
 test('a band runs from its bp on the linear view to its box on the tubes', () => {
-  const nodes = [
-    { node: 'a', bp0: 1000, bp1: 1100, x0: 0, x1: 20 },
-    { node: 'b', bp0: 1100, bp1: 1101, x0: 60, x1: 70 },
-    { node: 'c', bp0: 1101, bp1: 1200, x0: 110, x1: 130 },
+  const boxes = [
+    { name: 'a', index: 1, bp0: 1000, bp1: 1100, x0: 0, x1: 20 },
+    { name: 'b', index: 2, bp0: 1100, bp1: 1101, x0: 60, x1: 70 },
+    { name: 'c', index: 3, bp0: 1101, bp1: 1200, x0: 110, x1: 130 },
   ]
   const connectors = tubeMapConnectors(
-    nodes,
+    boxes,
     bp => (bp - 1000) / 2,
     tx => tx * 4 + 10,
     300,

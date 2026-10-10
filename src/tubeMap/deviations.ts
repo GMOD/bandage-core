@@ -1,9 +1,10 @@
-import { isBackbone } from '../anchoredNodes'
+import { referenceBoxes } from './axis'
 
+import type { ReferenceBox } from './axis'
 import type { Deviation } from './coarsen'
 import type { TubeMapFrame } from './draw'
 import type { Graph } from '../types'
-import type { LayoutNode, TubeMapLayout } from '@jbrowse/tubemap-core'
+import type { TubeMapLayout } from '@jbrowse/tubemap-core'
 
 // A folded variant on the tube of the walk that carries it, in tube
 // coordinates. Placed by bp through the box that holds it, since tubemap-core
@@ -15,30 +16,10 @@ export interface DeviationMark {
   height: number
 }
 
-interface Box {
-  bp0: number
-  bp1: number
-  index: number
-  node: LayoutNode
-}
-
-function boxesOf(graph: Graph, layout: TubeMapLayout) {
-  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const boxes: Box[] = []
-  layout.nodes.forEach((node, index) => {
-    const g = nodeById.get(node.name)
-    if (node.order >= 0 && g && isBackbone(g)) {
-      const bp0 = g.stable.start
-      boxes.push({ bp0, bp1: bp0 + node.sequenceLength, index, node })
-    }
-  })
-  return boxes.sort((a, b) => a.bp0 - b.bp0)
-}
-
 // The box holding `bp` that this walk passes through; an insertion on a
 // boundary between two boxes sits on whichever the walk visits
 function boxAt(
-  boxes: readonly Box[],
+  boxes: readonly ReferenceBox[],
   bp: number,
   visited: Map<number, number>,
 ) {
@@ -62,7 +43,9 @@ export function deviationMarks(
   layout: TubeMapLayout,
   deviations: Map<string, Deviation[]>,
 ) {
-  const boxes = boxesOf(graph, layout)
+  const boxes = [...referenceBoxes(graph, layout).values()]
+    .flat()
+    .sort((a, b) => a.bp0 - b.bp0)
   const marks: DeviationMark[] = []
   for (const track of layout.tracks) {
     const devs = track.name ? deviations.get(track.name) : undefined
@@ -81,13 +64,13 @@ export function deviationMarks(
       for (const d of devs) {
         const box = boxAt(boxes, d.start, visited)
         if (box) {
-          const { node, bp0, bp1 } = box
+          const { bp0, bp1, x0, x1, index } = box
           const at = (bp: number) =>
-            node.x + ((Math.min(bp, bp1) - bp0) / (bp1 - bp0)) * node.pixelWidth
+            x0 + ((Math.min(bp, bp1) - bp0) / (bp1 - bp0)) * (x1 - x0)
           marks.push({
             x0: at(d.start),
             x1: at(d.end),
-            y: visited.get(box.index)!,
+            y: visited.get(index)!,
             height: track.width,
           })
         }

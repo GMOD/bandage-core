@@ -88,16 +88,19 @@ export {
   rulerBoxes,
   tubeX,
 } from './tubeMap/axis'
-export type { Box as TubeMapBox, ReferenceBoxes } from './tubeMap/axis'
+export type {
+  Box as TubeMapBox,
+  ReferenceBox,
+  ReferenceBoxes,
+} from './tubeMap/axis'
 export { drawTubeMapGenes, tubeMapGenes } from './tubeMap/genes'
 export type { TubeMapGene } from './tubeMap/genes'
 export {
   connectorAt,
   drawTubeMapConnectors,
-  referenceNodes,
   tubeMapConnectors,
 } from './tubeMap/connectors'
-export type { Connector, ReferenceNode } from './tubeMap/connectors'
+export type { Connector } from './tubeMap/connectors'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export { deletionDrawing, deletionEdges } from './deletionEdges'

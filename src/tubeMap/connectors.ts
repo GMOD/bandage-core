@@ -1,21 +1,10 @@
-import { isBackbone } from '../anchoredNodes'
-
-import type { Graph } from '../types'
-import type { TubeMapLayout } from '@jbrowse/tubemap-core'
+import type { ReferenceBox } from './axis'
 
 // On its own axis a tube map keeps none of the linear view's bp: a box is as
 // wide as log2 of its length, and the lane changes between boxes take px that
 // cover no reference at all. A band from each reference box up to the bp it
 // covers on the linear view's ruler ties the two back together, the way the
 // LD display ties its matrix columns to their variants.
-
-export interface ReferenceNode {
-  node: string
-  bp0: number
-  bp1: number
-  x0: number
-  x1: number
-}
 
 // A reference node's band, in screen px: its bp span along the top of the
 // zone, its box's span along the bottom
@@ -27,42 +16,23 @@ export interface Connector {
   bottom1: number
 }
 
-export function referenceNodes(graph: Graph, layout: TubeMapLayout) {
-  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const out: ReferenceNode[] = []
-  // sparse: an unreached node has no entry
-  layout.nodes.forEach(node => {
-    const graphNode = nodeById.get(node.name)
-    if (node.order >= 0 && graphNode && isBackbone(graphNode)) {
-      out.push({
-        node: node.name,
-        bp0: graphNode.stable.start,
-        bp1: graphNode.stable.start + node.sequenceLength,
-        x0: node.x,
-        x1: node.x + node.pixelWidth,
-      })
-    }
-  })
-  return out
-}
-
 // The bands whose box is on screen. A band's top may still run off the side,
 // which is the linear view saying that box is outside its window.
 export function tubeMapConnectors(
-  nodes: readonly ReferenceNode[],
+  boxes: readonly ReferenceBox[],
   bpToScreen: (bp: number) => number,
   tubeToScreen: (tx: number) => number,
   width: number,
 ): Connector[] {
   const out: Connector[] = []
-  for (const n of nodes) {
-    const bottom0 = tubeToScreen(n.x0)
-    const bottom1 = tubeToScreen(n.x1)
+  for (const box of boxes) {
+    const bottom0 = tubeToScreen(box.x0)
+    const bottom1 = tubeToScreen(box.x1)
     if (bottom1 >= 0 && bottom0 <= width) {
       out.push({
-        node: n.node,
-        top0: bpToScreen(n.bp0),
-        top1: bpToScreen(n.bp1),
+        node: box.name,
+        top0: bpToScreen(box.bp0),
+        top1: bpToScreen(box.bp1),
         bottom0,
         bottom1,
       })

@@ -17,18 +17,26 @@ export interface Box {
   x1: number
 }
 
-// keyed by the graph's refName, `GRCh38#0#chr6`
+// A reference node's box, named for it, with its index in the layout's nodes
+export interface ReferenceBox extends Box {
+  name: string
+  index: number
+}
+
+// keyed by the graph's refName, `GRCh38#0#chr6`, each sorted by bp
 export function referenceBoxes(graph: Graph, layout: TubeMapLayout) {
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const byRefName = new Map<string, Box[]>()
+  const byRefName = new Map<string, ReferenceBox[]>()
   // sparse: an unreached node has no entry
-  layout.nodes.forEach(node => {
+  layout.nodes.forEach((node, index) => {
     const graphNode = nodeById.get(node.name)
     if (node.order >= 0 && graphNode && isBackbone(graphNode)) {
       const { refName, start } = graphNode.stable
       const boxes =
         byRefName.get(refName) ?? byRefName.set(refName, []).get(refName)!
       boxes.push({
+        name: node.name,
+        index,
         bp0: start,
         bp1: start + node.sequenceLength,
         x0: node.x,
