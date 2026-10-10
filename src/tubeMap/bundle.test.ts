@@ -53,3 +53,16 @@ test('a graph whose walks all differ is left as it is', () => {
   const distinct = { ...g, paths: g.paths!.slice(0, 2) }
   expect(bundleRoutes(distinct)).toBe(distinct)
 })
+
+// A and C share a route, and split by group they sit side by side under it
+test("a route's walks split by group, the strands side by side", () => {
+  const group = (walk: string) => (walk.startsWith('C') ? 'x' : 'y')
+  const bundled = bundleRoutes(graph(), group)
+  expect(bundled.paths!.map(p => [p.name, p.members ?? [p.name]])).toEqual([
+    ['ref', ['ref']],
+    ['C#1#c', ['C#1#c']],
+    ['A#1#c', ['A#1#c', 'A#2#c']],
+    ['C#2#c', ['C#2#c']],
+    ['B#1#c', ['B#1#c']],
+  ])
+})
