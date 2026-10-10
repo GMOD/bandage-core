@@ -111,6 +111,7 @@ export function tubeMapTracks(graph: Graph): InputTrack[] {
             sequence,
             sourceTrackID: 0,
             type: 'haplotype' as const,
+            ...(path.members ? { freq: path.members.length } : {}),
           },
         ]
       : []
@@ -323,9 +324,14 @@ function runTubeMap(graph: Graph) {
     : []
   const tubeColor = reads.length > 0 ? pathGreyCssColor : pathCssColor
   const pathColors = paths.map((_, i) => tubeColor(i, paths.length))
+  // a bundle is as many tubes wide as walks it stands for, each as wide as
+  // one tube of the walks unbundled
+  const bundled = paths.some(p => p.members)
+  const walks = paths.reduce((n, p) => n + (p.members?.length ?? 1), 0)
   const layout = layoutTubeMap(tubeMapNodes(graph), tracks, reads, {
     nodeWidthOption: 'compressed',
-    trackWidth: tubeWidth(tracks.length),
+    trackWidth: tubeWidth(bundled ? walks : tracks.length),
+    ...(bundled ? { freqWidth: 'linear' as const } : {}),
   })
   if (!layout) {
     return undefined

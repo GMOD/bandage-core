@@ -39,6 +39,9 @@ export interface GraphPath {
   sample?: string
   haplotype?: number
   contig?: string
+  // set on a record bundleRoutes kept for a route several walks take: the
+  // walks it stands for, its own first
+  members?: string[]
 }
 
 // One P or W record, named the way a coordinate is named: the range suffix

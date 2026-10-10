@@ -108,6 +108,7 @@ export {
   tubeMapConnectors,
 } from './tubeMap/connectors'
 export type { Connector } from './tubeMap/connectors'
+export { bundleRoutes } from './tubeMap/bundle'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export { deletionDrawing, deletionEdges } from './deletionEdges'
