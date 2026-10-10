@@ -116,6 +116,8 @@ export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
+export { figureData, gfaFigureData } from './figureData'
+export type { FigureDataOptions, GfaFigureSpec } from './figureData'
 export {
   genesFromBed,
   genesFromGff3Lines,

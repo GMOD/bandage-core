@@ -25,6 +25,9 @@ npm install @jbrowse/bandage-core
   and the `bandage-figure` CLI makes one from a JSON spec with no browser:
   `npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg`. See
   [docs/figures.md](docs/figures.md)
+- Figure data: `figureData` returns what `figureSvg` would paint as columnar
+  tables, for another graphics system to draw;
+  [ggbandage](https://github.com/GMOD/ggbandage) draws them in ggplot2
 
 Nothing here imports React, MobX or a JBrowse host. BandageJS's
 [`src/main.ts`](https://github.com/cmdcolin/BandageJS/blob/main/src/main.ts) is
