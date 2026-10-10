@@ -1,3 +1,10 @@
+## [9.9.0](https://github.com/GMOD/bandage-core/compare/v9.8.1...v9.9.0) (2026-10-10)
+
+### Other Changes
+
+- Anchoring sorts the graph's samples once, not each node's ([cd860dd](https://github.com/GMOD/bandage-core/commit/cd860dd674951b42d793e27b17ef5e73886085ed))
+- GFA text of S, L and W lines loads through the graph tables ([6954a70](https://github.com/GMOD/bandage-core/commit/6954a70acb270b50ea5c11b3b3d8966b3d13a513))
+
 ## [9.8.1](https://github.com/GMOD/bandage-core/compare/v9.8.0...v9.8.1) (2026-10-10)
 
 ### Other Changes
