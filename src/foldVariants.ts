@@ -274,7 +274,7 @@ function nearestOutside(
       Number.isFinite(dist[j]!) &&
       (best === undefined ||
         dist[j]! < dist[best]! ||
-        (dist[j] === dist[best] && nodes[j]!.id < nodes[best]!.id))
+        (dist[j] === dist[best] && nodes[j]!.name < nodes[best]!.name))
     ) {
       best = j
     }
@@ -288,7 +288,7 @@ function distancesFromBackbone(nodes: GraphNode[], links: Link[][]) {
   const dist = new Float64Array(nodes.length).fill(Infinity)
   const pred = new Int32Array(nodes.length).fill(-1)
   const heap = new MinHeap<[number, number]>(
-    ([da, a], [db, b]) => da - db || cmp(nodes[a]!.id, nodes[b]!.id),
+    ([da, a], [db, b]) => da - db || cmp(nodes[a]!.name, nodes[b]!.name),
   )
   nodes.forEach((node, i) => {
     if (isBackbone(node)) {
@@ -312,7 +312,7 @@ function distancesFromBackbone(nodes: GraphNode[], links: Link[][]) {
         heap.push([d, other])
       } else if (
         d === dist[other] &&
-        cmp(nodes[i]!.id, nodes[pred[other]!]!.id) < 0
+        cmp(nodes[i]!.name, nodes[pred[other]!]!.name) < 0
       ) {
         pred[other] = i
       }

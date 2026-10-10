@@ -304,7 +304,7 @@ const tieBySpelling = (bigToP: string) =>
   ])
 const TIE_BY_SPELLING = tieBySpelling(link('p', '-', 'big', '-'))
 
-test.fails('a tie does not turn on how a link is spelled', () => {
+test('a tie does not turn on how a link is spelled', () => {
   for (const bigToP of [
     link('big', '+', 'p', '+'),
     link('p', '-', 'big', '-'),
@@ -348,7 +348,7 @@ describe.skipIf(!VERSION)(
       expect(rs).toEqual(js)
     })
 
-    test.fails('a tie does not turn on how a link is spelled', async () => {
+    test('a tie does not turn on how a link is spelled', async () => {
       const { js, rs } = await bothFolds(TIE_BY_SPELLING, 1000, dir, 'spelling')
       expect(rs).toEqual(js)
     })
