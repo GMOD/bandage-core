@@ -171,6 +171,11 @@ export function engineKey(graph: Graph, settings: EngineSettings) {
 // a third of the time. Members take their share of the run's polyline by drawn
 // length, so the picture is per node again before anything else sees it, and
 // it is turned so the reference reads left to right.
+//
+// Seeding a re-cut from the layout before it, and turning the result to
+// match, was prototyped and declined (scripts/layout-lab/continuity.ts): FMMM
+// keeps only its coarsest level's seeds, and the matched turn carried a
+// curled reference's angle forward, to 45 degrees by 125 kb at bovine DEFB.
 export async function forceLayout(
   graph: Graph,
   settings: EngineSettings,

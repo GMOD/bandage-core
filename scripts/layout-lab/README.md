@@ -107,6 +107,31 @@ whose length the fold did not conserve. On 2026-09-27:
 | C4 25 kb    | 184         | 4   | 4    | 4    |
 | KIV-2 33 kb | 2,995       | 70  | 17   | 13   |
 
+## Hold a drawing across zoom steps
+
+```
+node scripts/cut-hprc.ts <prefix> bosTau9 chr27 5925000 7325000 cuts/w1400000.gfa 1
+node_modules/.bin/esbuild scripts/layout-lab/continuity.ts --bundle \
+  --format=esm --platform=node --outfile=/tmp/continuity.mjs
+node /tmp/continuity.mjs cuts/ 6625000 1500 1400000,1000000,700000,...
+```
+
+The cut is the plugin's `scripts/cut-hprc.ts`, run once per window centred on
+one position. `continuity.ts` folds and clips each window as the graph track
+does at that zoom, lays every one out fresh with each engine, and compares
+consecutive steps over the nodes they share. Each cell gives the turn of the
+best similarity fit (`R` where it mirrors) and the movement it leaves as a share
+of the drawing. On 2026-10-10, zooming in 1.4 Mb to 125 kb in seven steps:
+
+| Locus                   | FMMM turn | FMMM left | stress turn | stress left |
+| ----------------------- | --------- | --------- | ----------- | ----------- |
+| bovine DEFB, chr27      | 0-27°, 1R | 2.7-12.7% | 0-1°        | 1.4-3.8%    |
+| HPRC MHC class II, chr6 | 0-15°, 1R | 2.2-11.9% | 0-3°        | 0.9-10.5%   |
+| HPRC KIR, chr19         | 0-5°      | 1.7-6.8%  | 0-5°        | 1.1-5.2%    |
+
+FMMM curls the bovine reference into a ring at 1.4 Mb to 700 kb and draws a
+straight line from 500 kb. Stress holds the reference along x at every step.
+
 ## Files
 
 - `gfa.mjs`: GFA reader mirroring `gfaConverter.ts`, path anchoring, window cuts
