@@ -1,4 +1,5 @@
 import { panSNSample } from '../pansn'
+import { PathVisits } from '../pathVisits'
 
 import type {
   Graph,
@@ -6,7 +7,6 @@ import type {
   GraphNode,
   GraphPath,
   PathOrigin,
-  PathVisit,
 } from '../types'
 
 /**
@@ -49,6 +49,39 @@ export interface GraphTables {
 function walkFields(panSN: string) {
   const [sample = '', haplotype = '', ...contig] = panSN.split('#')
   return { sample, haplotype, contig: contig.join('#') }
+}
+
+// Each list's names, in the order the crossings came, each once
+function namesByList(
+  lists: Int32Array,
+  names: Int32Array,
+  listCount: number,
+  pathNames: string[],
+) {
+  const starts = new Int32Array(listCount + 1)
+  for (const list of lists) {
+    starts[list + 1]!++
+  }
+  for (let i = 0; i < listCount; i++) {
+    starts[i + 1]! += starts[i]!
+  }
+  const fill = starts.slice(0, listCount)
+  const grouped = new Int32Array(lists.length)
+  lists.forEach((list, i) => {
+    grouped[fill[list]!++] = names[i]!
+  })
+  const listed = new Int32Array(pathNames.length).fill(-1)
+  return Array.from({ length: listCount }, (_, list) => {
+    const out: string[] = []
+    for (let i = starts[list]!; i < starts[list + 1]!; i++) {
+      const k = grouped[i]!
+      if (listed[k] !== list) {
+        listed[k] = list
+        out.push(pathNames[k]!)
+      }
+    }
+    return out
+  })
 }
 
 /**
@@ -156,32 +189,64 @@ export function graphFromTables(
     }
     edgeLists.push(list)
   }
+  // the same, flattened for the walk steps to look up
+  const adjacency = new Int32Array(count + 1)
+  for (let a = 0; a < count; a++) {
+    adjacency[a + 1] = adjacency[a]! + (neighbours[a]?.length ?? 0) / 2
+  }
+  const adjacentNode = new Int32Array(adjacency[count]!)
+  const adjacentList = new Int32Array(adjacency[count]!)
+  neighbours.forEach((near, a) => {
+    for (let j = 0; j < near!.length; j += 2) {
+      adjacentNode[adjacency[a]! + j / 2] = near![j]!
+      adjacentList[adjacency[a]! + j / 2] = near![j + 1]!
+    }
+  })
+  const listOf = (a: number, b: number) => {
+    for (let j = adjacency[a]!; j < adjacency[a + 1]!; j++) {
+      if (adjacentNode[j] === b) {
+        return adjacentList[j]!
+      }
+    }
+    return -1
+  }
 
   // Each list holds a walk's name once, in the order walks first cross it.
-  // Fragments of one haplotype share a name, so only a name's later fragments
-  // need to look for it.
+  // A crossing is recorded flat, a fragment of a haplotype naming it again,
+  // and grouped by list with repeats dropped once at the end: an array per
+  // list grown at each crossing, searched for the name, was most of AMY1's
+  // load, 1,816 fragments of 233 samples.
   const nameIndex = new Map<string, number>()
   const pathNames: string[] = []
-  const crossing: number[][] = Array.from({ length: lists }, () => [])
+  // a walk crosses at most a list per step
+  const crossedList = new Int32Array(w.offsets[w.names.length] ?? 0)
+  const crossedName = new Int32Array(crossedList.length)
+  let crossings = 0
   const lastWalk = new Int32Array(lists).fill(-1)
   const paths: GraphPath[] = []
   const anchorPaths: PathOrigin[] = []
-  // each segment's visits, sized by its traversals and filled in walk order
-  const visits: PathVisit[][] = new Array(count)
-  const filled = new Int32Array(count)
+  // each segment's visits, a block sized by its traversals that is placed at
+  // its first visit and filled in walk order
+  const totalSteps = w.offsets[w.names.length] ?? 0
+  const visitPath = new Int32Array(totalSteps)
+  const visitStart = new Float64Array(totalSteps)
+  const visitReversed = new Uint8Array(totalSteps)
+  const fill = new Int32Array(count).fill(-1)
   const visitOrder: number[] = []
+  const blocks = [0]
+  const pathSamples: string[] = []
   for (const p of drawnWalks) {
     const { sample, haplotype, contig } = walkFields(w.names[p]!)
     const pathName = `${sample}#${+haplotype}#${contig}`
     let named = nameIndex.get(pathName)
-    const repeat = named !== undefined
     if (named === undefined) {
       named = pathNames.length
       nameIndex.set(pathName, named)
       pathNames.push(pathName)
+      pathSamples.push(panSNSample(pathName))
     }
     const start = w.starts[p]!
-    const visitSample = panSNSample(pathName)
+    const visitSample = pathSamples[named]!
     const first = w.offsets[p]!
     const nodeIds = new Array<string>(w.offsets[p + 1]! - first)
     let pos = start
@@ -189,25 +254,22 @@ export function graphFromTables(
     for (let s = first; s < w.offsets[p + 1]!; s++) {
       const node = w.steps[s]!
       nodeIds[s - first] = ids[node]!
-      if (filled[node] === 0) {
-        visits[node] = new Array<PathVisit>(traversals[node]!)
+      if (fill[node] === -1) {
+        fill[node] = blocks.at(-1)!
+        blocks.push(fill[node] + traversals[node]!)
         visitOrder.push(node)
       }
-      visits[node]![filled[node]!++] = {
-        path: pathName,
-        sample: visitSample,
-        start: pos,
-        strand: w.reversed[s] ? '-' : '+',
-      }
+      const at = fill[node]!++
+      visitPath[at] = named
+      visitStart[at] = pos
+      visitReversed[at] = w.reversed[s]!
       pos += node < declared ? n.lengths[node]! : 0
       if (prev >= 0) {
-        const list = pairList(prev, node)
-        if (list !== undefined && lastWalk[list] !== p) {
+        const list = listOf(prev, node)
+        if (list >= 0 && lastWalk[list] !== p) {
           lastWalk[list] = p
-          const names = crossing[list]!
-          if (!repeat || !names.includes(named)) {
-            names.push(named)
-          }
+          crossedList[crossings] = list
+          crossedName[crossings++] = named
         }
       }
       prev = node
@@ -227,10 +289,16 @@ export function graphFromTables(
       length: pos - start,
     })
   }
+  const listNames = namesByList(
+    crossedList.subarray(0, crossings),
+    crossedName,
+    lists,
+    pathNames,
+  )
   edges.forEach((edge, i) => {
-    const names = crossing[edgeLists[i]!]!
+    const names = listNames[edgeLists[i]!]!
     if (names.length > 0) {
-      edge.pathIds = names.map(k => pathNames[k]!)
+      edge.pathIds = names
     }
   })
 
@@ -242,7 +310,15 @@ export function graphFromTables(
     paths: walked ? paths : undefined,
     anchorPaths: walked ? anchorPaths : undefined,
     pathVisits: walked
-      ? new Map(visitOrder.map(node => [n.names[node]!, visits[node]!]))
+      ? new PathVisits({
+          segments: visitOrder.map(node => n.names[node]!),
+          offsets: Int32Array.from(blocks),
+          path: visitPath.subarray(0, blocks.at(-1)),
+          start: visitStart.subarray(0, blocks.at(-1)),
+          reversed: visitReversed.subarray(0, blocks.at(-1)),
+          paths: pathNames,
+          samples: pathSamples,
+        })
       : undefined,
     anchoredBy: nodes.some(node => node.stable) ? 'tags' : undefined,
   }

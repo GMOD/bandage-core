@@ -1,6 +1,7 @@
 import type { GafRecord } from './gaf/parseGaf'
 import type { StableCoordinate } from './gfa-core/index'
 import type { TubeMapDrawing } from './layout/tubeMapLayout'
+import type { PathVisits } from './pathVisits'
 
 export interface GraphNode {
   id: string
@@ -75,7 +76,7 @@ export interface Graph {
   // every segment visit they make. Absent for a GFA with no P/W records — an
   // rGFA, where the segments carry their own coordinates instead.
   anchorPaths?: PathOrigin[]
-  pathVisits?: Map<string, PathVisit[]>
+  pathVisits?: PathVisits
   // Where the nodes' `stable` came from. 'tags' is rGFA's SN/SO/SR; 'paths' is
   // derived, and the only one that can be re-derived against a different
   // reference path. Absent when nothing anchors the graph at all.

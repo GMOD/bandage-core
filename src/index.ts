@@ -280,6 +280,7 @@ export type { GbzWindowOptions } from './gbzWindow'
 export { gfaTables } from './gfa/gfaTables'
 export { graphFromTables, graphTablesGFA } from './gfa/graphTables'
 export type { GraphTables } from './gfa/graphTables'
+export { PathVisits, PathVisitsBuilder } from './pathVisits'
 
 export { engineKey } from './pipeline'
 export {

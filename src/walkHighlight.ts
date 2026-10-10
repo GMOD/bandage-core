@@ -164,14 +164,19 @@ function reversedNodes(graph: Graph, walk: WalkHighlight) {
   if (!referencePath || walk.reference) {
     return { reversed, bp }
   }
-  const walkPath = pathOrigin(walk.name).name
+  const visits = graph.pathVisits
+  if (!visits) {
+    return { reversed, bp }
+  }
+  const own = visits.pathIndex(pathOrigin(walk.name).name)
+  const theirs = visits.pathIndex(referencePath)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   for (const id of walk.progress.keys()) {
     const node = byId.get(id)
-    const visits = node ? graph.pathVisits?.get(node.name) : undefined
-    const own = visits?.find(v => v.path === walkPath)?.strand
-    const theirs = visits?.find(v => v.path === referencePath)?.strand
-    if (own && theirs && own !== theirs) {
+    const slot: number = node ? visits.slot(node.name) : -1
+    const a = slot < 0 ? -1 : visits.firstBy(slot, own)
+    const b = slot < 0 ? -1 : visits.firstBy(slot, theirs)
+    if (a >= 0 && b >= 0 && visits.reversed[a] !== visits.reversed[b]) {
       reversed.add(id)
       bp += node!.length
     }

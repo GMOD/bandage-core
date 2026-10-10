@@ -80,13 +80,6 @@ export function bundleRoutes(
     ...graph,
     paths: kept,
     anchorPaths: graph.anchorPaths?.filter(p => keptWalks.has(p.name)),
-    pathVisits: graph.pathVisits
-      ? new Map(
-          [...graph.pathVisits].map(([segment, visits]) => [
-            segment,
-            visits.filter(v => keptWalks.has(v.path)),
-          ]),
-        )
-      : undefined,
+    pathVisits: graph.pathVisits?.filter(path => keptWalks.has(path)),
   }
 }

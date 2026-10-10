@@ -1,7 +1,9 @@
 import { isBackbone, overlapsWindow } from '../anchoredNodes'
 import { pathOrigin, trimOrigins } from '../pathAnchoring'
+import { PathVisitsBuilder } from '../pathVisits'
 
-import type { Graph, GraphPath, PathVisit } from '../types'
+import type { PathVisits } from '../pathVisits'
+import type { Graph, GraphPath } from '../types'
 
 // A cut reaches past its window by the track's context, which is what lets
 // walk rows see where a walk ends. A tube map is a picture of the window, so
@@ -85,40 +87,31 @@ export function trimToWindow(
 // every path's steps consumes the visits one for one; a visit is kept when its
 // step lies in the kept stretch.
 function trimVisits(
-  visits: Map<string, PathVisit[]>,
+  visits: PathVisits,
   paths: GraphPath[],
   spans: ({ first: number; last: number } | undefined)[],
   nameOf: Map<string, string>,
 ) {
-  const cursor = new Map<string, number>()
-  const out = new Map<string, PathVisit[]>()
+  const next = visits.replay()
+  const out = new PathVisitsBuilder()
   paths.forEach((path, p) => {
-    const origin = pathOrigin(path.name).name
+    const origin = visits.pathIndex(pathOrigin(path.name).name)
     const span = spans[p]
     path.nodeIds.forEach((id, i) => {
       const segment = nameOf.get(id) ?? id
-      const list = visits.get(segment)
-      if (!list) {
-        return
-      }
-      const key = `${origin}\t${segment}`
-      let at = cursor.get(key) ?? 0
-      while (at < list.length && list[at]!.path !== origin) {
-        at++
-      }
-      const visit = list[at]
-      cursor.set(key, at + 1)
-      if (visit && span && i >= span.first && i <= span.last) {
-        const keptVisits = out.get(segment)
-        if (keptVisits) {
-          keptVisits.push(visit)
-        } else {
-          out.set(segment, [visit])
-        }
+      const at = next(visits.slot(segment), origin)
+      if (at >= 0 && span && i >= span.first && i <= span.last) {
+        out.add(
+          segment,
+          visits.paths[origin]!,
+          visits.samples[origin]!,
+          visits.start[at]!,
+          visits.reversed[at] === 1,
+        )
       }
     })
   })
-  return out
+  return out.build()
 }
 
 // A drawing of the window shows the window's reference: a backbone segment

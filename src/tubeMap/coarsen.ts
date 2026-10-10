@@ -1,16 +1,11 @@
 import { isBackbone } from '../anchoredNodes'
 import { pathSteps } from '../layout/tubeMapLayout'
 import { pathOrigin } from '../pathAnchoring'
+import { PathVisitsBuilder } from '../pathVisits'
 
 import type { AnchoredNode } from '../anchoredNodes'
 import type { PathStep } from '../layout/tubeMapLayout'
-import type {
-  Graph,
-  GraphEdge,
-  GraphNode,
-  GraphPath,
-  PathVisit,
-} from '../types'
+import type { Graph, GraphEdge, GraphNode, GraphPath } from '../types'
 
 // A tube map of a human window is mostly SNP bubbles: MICB's 22 kb cut draws
 // 475 columns for 238 bubbles, one of them 50 bp or more. This folds every
@@ -327,7 +322,7 @@ export function coarsenTubeMap(
 
   const deviations = new Map<string, Deviation[]>()
   const coarsePaths: GraphPath[] = []
-  const pathVisits = new Map<string, PathVisit[]>()
+  const pathVisits = new PathVisitsBuilder()
   const edges = new Map<string, GraphEdge>()
   const depth = new Map<string, number>()
 
@@ -398,14 +393,13 @@ export function coarsenTubeMap(
     let pos = 0
     steps.forEach(({ node, strand }, i) => {
       depth.set(node.id, (depth.get(node.id) ?? 0) + 1)
-      const visits = pathVisits.get(node.name) ?? []
-      visits.push({
-        path: visitName,
-        sample: path.sample ?? visitName,
-        start: pos,
-        strand,
-      })
-      pathVisits.set(node.name, visits)
+      pathVisits.add(
+        node.name,
+        visitName,
+        path.sample ?? visitName,
+        pos,
+        strand === '-',
+      )
       pos += node.length
       const next = steps[i + 1]
       if (next) {
@@ -437,7 +431,7 @@ export function coarsenTubeMap(
       nodes,
       edges: [...edges.values()],
       paths: coarsePaths,
-      pathVisits,
+      pathVisits: pathVisits.build(),
       reads: undefined,
     },
     members,

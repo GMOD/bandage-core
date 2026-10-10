@@ -67,30 +67,19 @@ export interface PathStep {
 // visit, as trimToWindow's trimVisits does.
 export function pathSteps(graph: Graph): PathStep[][] {
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const strands = new Map<string, ('+' | '-')[]>()
-  for (const [segment, visits] of graph.pathVisits ?? []) {
-    for (const visit of visits) {
-      const key = `${visit.path}\t${segment}`
-      const list = strands.get(key)
-      if (list) {
-        list.push(visit.strand)
-      } else {
-        strands.set(key, [visit.strand])
-      }
-    }
-  }
-  const seen = new Map<string, number>()
+  const visits = graph.pathVisits
+  const next = visits?.replay()
   return (graph.paths ?? []).map(path => {
-    const walk = pathOrigin(path.name).name
+    const walk = visits?.pathIndex(pathOrigin(path.name).name) ?? -1
     return path.nodeIds.flatMap(id => {
       const node = nodeById.get(id)
       if (!node) {
         return []
       }
-      const key = `${walk}\t${node.name}`
-      const k = seen.get(key) ?? 0
-      seen.set(key, k + 1)
-      return [{ node, strand: strands.get(key)?.[k] ?? canonicalStrand(node) }]
+      const at = visits && next ? next(visits.slot(node.name), walk) : -1
+      return [
+        { node, strand: at >= 0 ? visits!.strand(at) : canonicalStrand(node) },
+      ]
     })
   })
 }
@@ -308,11 +297,10 @@ export function boxGraph(
       ...path,
       nodeIds: path.nodeIds.filter(id => !absorbed.has(id)),
     })),
-    pathVisits:
-      graph.pathVisits &&
-      new Map(
-        [...graph.pathVisits].filter(([name]) => !absorbedNames.has(name)),
-      ),
+    pathVisits: graph.pathVisits?.filter(
+      () => true,
+      segment => !absorbedNames.has(segment),
+    ),
   }
 }
 

@@ -1,13 +1,9 @@
 import { REFERENCE_RANK } from './anchoredNodes'
 import { panSNSample } from './pansn'
+import { PathVisitsBuilder } from './pathVisits'
 
-import type {
-  Graph,
-  GraphNode,
-  GraphPath,
-  PathOrigin,
-  PathVisit,
-} from './types'
+import type { PathVisits } from './pathVisits'
+import type { Graph, GraphNode, GraphPath, PathOrigin } from './types'
 
 // Reference coordinates for a GFA that tags none of its segments with one.
 //
@@ -54,23 +50,13 @@ export function surveyPaths(
   lengthOf: (segmentId: string) => number,
 ) {
   const anchorPaths: PathOrigin[] = []
-  const pathVisits = new Map<string, PathVisit[]>()
+  const visits = new PathVisitsBuilder()
   for (const path of paths) {
     const sample = panSNSample(path.name)
+    const p = visits.pathOf(path.name, sample)
     let pos = path.start
     for (const step of path.steps) {
-      const visit = {
-        path: path.name,
-        sample,
-        start: pos,
-        strand: step.strand,
-      }
-      const existing = pathVisits.get(step.id)
-      if (existing) {
-        existing.push(visit)
-      } else {
-        pathVisits.set(step.id, [visit])
-      }
+      visits.addAt(visits.declare(step.id), p, pos, step.strand === '-')
       pos += lengthOf(step.id)
     }
     anchorPaths.push({
@@ -80,7 +66,7 @@ export function surveyPaths(
       length: pos - path.start,
     })
   }
-  return { anchorPaths, pathVisits }
+  return { anchorPaths, pathVisits: visits.build() }
 }
 
 // Which path x is drawn on. This is a choice, not a fact: a general GFA's path
@@ -121,49 +107,66 @@ const OFF_REFERENCE_RANK = 1
 // is a multiple of the path count.
 function anchorNode(
   node: GraphNode,
-  visits: PathVisit[] | undefined,
-  reference: string,
-  samplesOf: (visits: PathVisit[]) => string[],
+  visits: PathVisits,
+  reference: number,
+  samplesOf: (slot: number) => string[],
 ): GraphNode {
-  let anchored = node
-  if (visits && visits.length > 0) {
-    const anchor = visits.find(v => v.path === reference) ?? visits[0]!
-    anchored = {
-      ...node,
-      stable: {
-        refName: anchor.path,
-        start: anchor.start,
-        rank: anchor.path === reference ? REFERENCE_RANK : OFF_REFERENCE_RANK,
-        strand: anchor.strand,
-      },
-      samples: samplesOf(visits),
-    }
+  const slot = visits.slot(node.name)
+  if (slot < 0 || visits.offsets[slot] === visits.offsets[slot + 1]) {
+    return node
   }
-  return anchored
+  const own = visits.firstBy(slot, reference)
+  const anchor = own >= 0 ? own : visits.offsets[slot]!
+  return {
+    ...node,
+    stable: {
+      refName: visits.paths[visits.path[anchor]!]!,
+      start: visits.start[anchor]!,
+      rank: own >= 0 ? REFERENCE_RANK : OFF_REFERENCE_RANK,
+      strand: visits.strand(anchor),
+    },
+    samples: samplesOf(slot),
+  }
 }
 
-// A node's samples, sorted, by their place in the graph's samples sorted once:
-// sorting each node's own was 40 M string comparisons on KIV-2 cut with every
-// haplotype, whose 22 k nodes are each walked by most of its 233 samples
-function sampleSorter(paths: PathOrigin[]) {
-  const sorted = [...new Set(paths.map(p => p.sample))].sort()
+// A segment's samples, sorted, by each path's sample's place in the graph's
+// samples sorted once: sorting each node's own was 40 M string comparisons on
+// KIV-2 cut with every haplotype, whose 22 k nodes are each walked by most of
+// its 233 samples. A node every sample walks shares one list.
+function sampleSorter(visits: PathVisits) {
+  const sorted = [...new Set(visits.samples)].sort()
   const rank = new Map(sorted.map((sample, i) => [sample, i]))
+  const pathRank = Int32Array.from(visits.samples, s => rank.get(s)!)
   const seen = new Uint8Array(sorted.length)
-  return (visits: PathVisit[]) => {
-    const ranks: number[] = []
-    for (const { sample } of visits) {
-      const r = rank.get(sample)
-      if (r === undefined) {
-        ranks.forEach(r => (seen[r] = 0))
-        return [...new Set(visits.map(v => v.sample))].sort()
-      }
+  const ranks = new Int32Array(sorted.length)
+  return (slot: number) => {
+    let n = 0
+    for (let i = visits.offsets[slot]!; i < visits.offsets[slot + 1]!; i++) {
+      const r = pathRank[visits.path[i]!]!
       if (seen[r] === 0) {
         seen[r] = 1
-        ranks.push(r)
+        ranks[n++] = r
       }
     }
-    ranks.forEach(r => (seen[r] = 0))
-    return Array.from(Int32Array.from(ranks).sort(), r => sorted[r]!)
+    let out: string[]
+    if (n === sorted.length) {
+      out = sorted
+      seen.fill(0)
+    } else if (n * 8 < sorted.length) {
+      const found = ranks.subarray(0, n)
+      found.forEach(r => (seen[r] = 0))
+      out = Array.from(found.sort(), r => sorted[r]!)
+    } else {
+      // most samples: read them off in order rather than sort
+      out = []
+      for (let r = 0; r < sorted.length; r++) {
+        if (seen[r] === 1) {
+          seen[r] = 0
+          out.push(sorted[r]!)
+        }
+      }
+    }
+    return out
   }
 }
 
@@ -179,11 +182,12 @@ export function anchorFromPaths(graph: Graph, preferred: string | undefined) {
   if (!reference || !anchorPaths || !pathVisits) {
     return graph
   }
-  const samplesOf = sampleSorter(anchorPaths)
+  const samplesOf = sampleSorter(pathVisits)
+  const referenceIndex = pathVisits.pathIndex(reference.name)
   return {
     ...graph,
     nodes: graph.nodes.map(node =>
-      anchorNode(node, pathVisits.get(node.name), reference.name, samplesOf),
+      anchorNode(node, pathVisits, referenceIndex, samplesOf),
     ),
     anchoredBy: 'paths',
     referencePath: reference.name,
