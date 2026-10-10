@@ -1,4 +1,8 @@
 import { referenceKnots, warpX } from './warp'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { parseGFA } from '../gfa-core/index'
+import { tubeMapReferenceLayout } from '../layout/tubeMapLayout'
+import { anchorGraph } from '../pathAnchoring'
 
 import type { TubeMapColumn } from '../layout/tubeMapLayout'
 
@@ -75,4 +79,37 @@ test('past either end the drawing runs at one px per tube px', () => {
   const knots = referenceKnots(COLUMNS, at(1))
   expect(warpX(knots, -20)).toBe(warpX(knots, 0) - 20)
   expect(warpX(knots, 190)).toBe(warpX(knots, 170) + 20)
+})
+
+// Two reference nodes of 6 and 23 bp between 2 kb flanks, each with an
+// alternative, so the haplotypes change lanes on both sides of the short ones
+// and between them
+const THIN_RUN = `S\t1\t${'A'.repeat(2000)}
+S\t2\t${'C'.repeat(6)}
+S\t3\t${'G'.repeat(23)}
+S\t4\t${'T'.repeat(2000)}
+S\t5\t${'A'.repeat(6)}
+S\t6\t${'A'.repeat(23)}
+L\t1\t+\t2\t+\t0M
+L\t1\t+\t5\t+\t0M
+L\t2\t+\t3\t+\t0M
+L\t2\t+\t6\t+\t0M
+L\t5\t+\t3\t+\t0M
+L\t5\t+\t6\t+\t0M
+L\t3\t+\t4\t+\t0M
+L\t6\t+\t4\t+\t0M
+P\tref#1#chr:0-4029\t1+,2+,3+,4+\t*
+P\ta#1#chr:0-4029\t1+,5+,3+,4+\t*
+P\tb#1#chr:0-4029\t1+,2+,6+,4+\t*
+P\tc#1#chr:0-4029\t1+,5+,6+,4+\t*`
+
+test('on a laid out graph, every lane change keeps its width across a run of short nodes', () => {
+  const graph = anchorGraph(convertGFAToGraph(parseGFA(THIN_RUN)), 'ref#1#chr')
+  const { layout, columns } = tubeMapReferenceLayout(graph)!.tubeMap!
+  const knots = referenceKnots(columns!, at(10))
+  const changes = layout.shapes.curves.filter(c => c.yStart !== c.yEnd)
+  expect(changes.length).toBeGreaterThan(0)
+  for (const c of changes) {
+    expect(warpX(knots, c.xEnd) - warpX(knots, c.xStart)).toBeGreaterThan(12)
+  }
 })

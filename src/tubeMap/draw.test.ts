@@ -134,3 +134,31 @@ test('a hover layer outlines the lit box alone, as the full drawing does', () =>
   drawTubeMapHighlight(layer.ctx, picture, { ...frame, highlightNode: null })
   expect(layer.strokes).toHaveLength(1)
 })
+
+test('the reference fills last, over any tube that crosses it', () => {
+  const tubeMap = drawing()
+  const { paths, referencePath } = tubeMap.graph
+  const pathColors = paths!.map((_, i) => `#00000${i + 1}`)
+  const reference = pathColors[paths!.findIndex(p => p.name === referencePath)]!
+  const fills: string[] = []
+  const state: Record<string, unknown> = {}
+  const ctx = new Proxy(state, {
+    get: (target, key: string) =>
+      key === 'fill'
+        ? () => fills.push(String(target.fillStyle))
+        : key in target
+          ? target[key]
+          : () => {},
+    set: (target, key: string, value) => {
+      target[key] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  const picture = tubeMapPicture({ ...tubeMap, pathColors })
+  drawTubeMap(ctx, picture, { ...identity, width: 1e6 })
+  const tubes = fills.filter(f => pathColors.includes(f))
+  expect(new Set(tubes).size).toBeGreaterThan(1)
+  const first = tubes.indexOf(reference)
+  expect(first).toBeGreaterThan(0)
+  expect(tubes.slice(first).every(f => f === reference)).toBe(true)
+})

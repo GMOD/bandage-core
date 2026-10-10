@@ -2,6 +2,7 @@ import { curvePaths, nodeOutlinePath } from '@jbrowse/tubemap-core'
 
 import { tubeMapMismatches } from './mismatches'
 import { readColor } from './reads'
+import { pathOrigin } from '../pathAnchoring'
 
 import type { TubeMapTransform } from './frame'
 import type { TubeMapMismatch } from './mismatches'
@@ -73,6 +74,8 @@ interface Filled {
   id: number
   // a haplotype's fill is its path's, which a host may restyle (tubeColors)
   haplotype: boolean
+  // filled last, so no tube crossing it can cut the line
+  reference: boolean
   // tube x extent, for culling
   x0: number
   x1: number
@@ -115,9 +118,15 @@ function extentOf(commands: Command[]) {
   return { x0, x1 }
 }
 
-function shapeOf(d: string, color: string, id: number, haplotype: boolean) {
+function shapeOf(
+  d: string,
+  color: string,
+  id: number,
+  haplotype: boolean,
+  reference: boolean,
+) {
   const commands = parsePath(d)
-  return { commands, color, id, haplotype, ...extentOf(commands) }
+  return { commands, color, id, haplotype, reference, ...extentOf(commands) }
 }
 
 // Each track's fill by id: a read takes its strand's palette, a haplotype its
@@ -138,36 +147,53 @@ function layerOf(
   layout: TubeMapLayout,
   type: TrackType,
   colors: ReadonlyMap<number, string>,
+  referenceIds: ReadonlySet<number>,
 ): Layer {
   const { shapes } = layout
   const haplotype = type === 'haplotype'
   const colorOf = (s: { id: number }) => colors.get(s.id)!
+  const isReference = (s: { id: number }) => haplotype && referenceIds.has(s.id)
   const rects = [...shapes.rectangles, ...shapes.verticalRectangles]
     .filter(r => r.type === type)
     .map(r => ({
       color: colorOf(r),
       id: r.id,
       haplotype,
+      reference: isReference(r),
       x0: r.xStart,
       x1: r.xEnd + 1,
       y0: r.yStart,
       y1: r.yEnd + 1,
     }))
   const curves = curvePaths(shapes.curves, type).map(c =>
-    shapeOf(c.path!, colorOf(c), c.id, haplotype),
+    shapeOf(c.path!, colorOf(c), c.id, haplotype, isReference(c)),
   )
   const corners = shapes.corners
     .filter(c => c.type === type)
-    .map(c => shapeOf(c.path, colorOf(c), c.id, haplotype))
+    .map(c => shapeOf(c.path, colorOf(c), c.id, haplotype, isReference(c)))
   return { rects, shapes: [...curves, ...corners] }
+}
+
+// The track ids of the reference's paths: a path's track id is its index
+function referenceTrackIds(graph: TubeMapDrawing['graph'] | undefined) {
+  const ids = new Set<number>()
+  graph?.paths?.forEach((path, i) => {
+    if (pathOrigin(path.name).name === graph.referencePath) {
+      ids.add(i)
+    }
+  })
+  return ids
 }
 
 // Everything a frame needs that does not depend on the transform
 export function tubeMapPicture({
   layout,
   pathColors,
-}: Pick<TubeMapDrawing, 'layout' | 'pathColors'>): TubeMapPicture {
+  graph,
+}: Pick<TubeMapDrawing, 'layout' | 'pathColors'> &
+  Partial<Pick<TubeMapDrawing, 'graph'>>): TubeMapPicture {
   const colors = trackColors(layout, pathColors)
+  const referenceIds = referenceTrackIds(graph)
   const nodes: TubeMapPicture['nodes'] = []
   layout.nodes.forEach(node => {
     if (node.order >= 0) {
@@ -178,8 +204,8 @@ export function tubeMapPicture({
   return {
     bounds: layout.bounds,
     layers: [
-      layerOf(layout, 'haplotype', colors),
-      layerOf(layout, 'read', colors),
+      layerOf(layout, 'haplotype', colors, referenceIds),
+      layerOf(layout, 'read', colors, referenceIds),
     ],
     nodes,
     mismatches: tubeMapMismatches(layout).filter(
@@ -243,8 +269,9 @@ export interface TubeMapFrame extends TubeMapTransform {
   nodeColors?: ReadonlyMap<string, string>
 }
 
-// One fill per colour per layer: a layer's shapes do not overlap in a way the
-// order within it would decide, and a fill per shape costs a draw call each.
+// One fill per colour per layer, since a fill per shape costs a draw call
+// each. Which of two crossing tubes covers the other is then the order of
+// their colours, except that the reference goes over every other tube.
 function fillByColor<T extends Filled>(
   ctx: CanvasRenderingContext2D,
   items: T[],
@@ -298,14 +325,29 @@ export function drawTubeMap(
     (item.haplotype && frame.tubeColors?.[item.id]) || item.color
   ctx.globalAlpha = 1
   for (const layer of picture.layers) {
-    fillByColor(ctx, layer.rects, visible, colorOf, r => {
-      const left = x(r.x0)
-      const top = y(r.y0)
-      ctx.rect(left, top, x(r.x1) - left, y(r.y1) - top)
-    })
-    fillByColor(ctx, layer.shapes, visible, colorOf, s => {
-      trace(ctx, s.commands, x, y)
-    })
+    for (const reference of [false, true]) {
+      const inPass = (item: Filled) => item.reference === reference
+      fillByColor(
+        ctx,
+        layer.rects,
+        r => inPass(r) && visible(r),
+        colorOf,
+        r => {
+          const left = x(r.x0)
+          const top = y(r.y0)
+          ctx.rect(left, top, x(r.x1) - left, y(r.y1) - top)
+        },
+      )
+      fillByColor(
+        ctx,
+        layer.shapes,
+        s => inPass(s) && visible(s),
+        colorOf,
+        s => {
+          trace(ctx, s.commands, x, y)
+        },
+      )
+    }
   }
   const stroke = frame.darkMode ? '#d0d0d0' : '#000000'
   const fill = frame.darkMode ? 'rgba(40,40,40,0.4)' : 'rgba(255,255,255,0.4)'
