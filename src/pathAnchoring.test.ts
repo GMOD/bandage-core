@@ -29,6 +29,27 @@ test('splits an odgi extract range suffix off the path name', () => {
   })
 })
 
+// The MaizeGDB Pangenome Viewer's Zm00001eb332160 locus, checked against the
+// founder assemblies: B97's slice is chr8:493996-495734.
+test('adds a vg subrange to the GBZ fragment it counts from', () => {
+  expect(pathOrigin('B97#0#chr8#145994[348002-349740]')).toEqual({
+    name: 'B97#0#chr8',
+    start: 493996,
+  })
+  expect(pathOrigin('B97#0#chr8#145994')).toEqual({
+    name: 'B97#0#chr8',
+    start: 145994,
+  })
+  expect(pathOrigin('B73#0#chr8[363449-365187]')).toEqual({
+    name: 'B73#0#chr8',
+    start: 363449,
+  })
+  expect(pathOrigin('HG002#1#5[100-200]')).toEqual({
+    name: 'HG002#1#5',
+    start: 100,
+  })
+})
+
 // A stable name may contain colons of its own, so only a trailing digit range
 // is a range; `chr:1-1000` as a whole sequence name would otherwise be halved.
 test('a name with no range starts at zero', () => {

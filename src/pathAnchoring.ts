@@ -18,19 +18,28 @@ import type { Graph, GraphNode, GraphPath, PathOrigin } from './types'
 // assemblies that actually traverse it. rGFA's SR is build order, so there the
 // most a segment can say is which assembly first contributed it.
 
-// `odgi extract` names an extracted path for the interval it covers on its own
-// sequence: `K12#1#chr:1004500-1004961`. That suffix is the only place a cut
-// subgraph states where in the genome it sits, so it is split off here rather
-// than carried around as part of the name — no assembly has a sequence called
-// `K12#1#chr:1004500-1004961`, and PanSN parsing of it yields a contig no
-// linear view can open.
+// A cut subgraph states where it sits only in its path names, so the range is
+// split off here rather than carried as part of the name: no assembly has a
+// sequence called `K12#1#chr:1004500-1004961`, and PanSN parsing of it yields
+// a contig no linear view can open. Two tools write it:
+//
+// - `odgi extract`: `K12#1#chr:1004500-1004961`, absolute on the sequence
+// - `vg find`/`vg chunk`: `B97#0#chr8#145994[348002-349740]`, where the
+//   bracketed range counts from the GBZ fragment's start, the fourth PanSN
+//   field (Minigraph-Cactus clipping splits a contig into such fragments)
 //
 // Anchored on the digits rather than on a trailing colon, because a stable name
 // may legitimately contain one (the same hazard gfaParser's tag splitting has).
 const RANGE_SUFFIX = /:(\d+)-\d+$/
+const VG_FRAGMENT = /^([^#]*#[^#]*#[^#[]*)#(\d+)(?:\[(\d+)-\d+\])?$/
+const VG_SUBRANGE = /\[(\d+)-\d+\]$/
 
 export function pathOrigin(pathName: string) {
-  const match = RANGE_SUFFIX.exec(pathName)
+  const fragment = VG_FRAGMENT.exec(pathName)
+  if (fragment) {
+    return { name: fragment[1]!, start: +fragment[2]! + +(fragment[3] ?? 0) }
+  }
+  const match = RANGE_SUFFIX.exec(pathName) ?? VG_SUBRANGE.exec(pathName)
   return match
     ? { name: pathName.slice(0, match.index), start: +match[1]! }
     : { name: pathName, start: 0 }
