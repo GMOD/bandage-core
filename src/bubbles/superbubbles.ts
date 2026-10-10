@@ -17,7 +17,8 @@ import type { Graph, GraphNode } from '../types'
 // the search. Unlike bubblesFromGraph this needs no reference, so it opens a
 // bubble whose own interior the reach rule cannot split.
 
-// The rest are SNP-sized and open to nothing
+// The largest, by segment count: KIV-2's array holds 1,219 outermost
+// superbubbles, and past the 50th they are SNPs and small indels
 export const MAX_SUPERBUBBLES = 50
 
 // A node side is a slot, node * 2 for its start and node * 2 + 1 for its end
