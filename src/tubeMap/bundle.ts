@@ -9,9 +9,11 @@ import type { Graph } from '../types'
 // `groupOf` splits a route's walks by a value of theirs, such as a sample's
 // population, and those strands sit side by side, so a route reads as a stack
 // of its groups.
+// With `merge` false every walk keeps its tube, ordered route by route.
 export function bundleRoutes(
   graph: Graph,
   groupOf: (walk: string) => string = () => '',
+  merge = true,
 ): Graph {
   const paths = graph.paths ?? []
   const steps = pathSteps(graph)
@@ -44,7 +46,7 @@ export function bundleRoutes(
       bundles.set(key, { rank, group, walks: [walk] })
     }
   }
-  if (bundles.size === routes.size) {
+  if (merge && bundles.size === routes.size) {
     return graph
   }
   const ordered = [...bundles.values()].sort(
@@ -58,6 +60,14 @@ export function bundleRoutes(
       records.push(path)
     } else {
       recordsOf.set(walk, [path])
+    }
+  }
+  if (!merge) {
+    return {
+      ...graph,
+      paths: ordered.flatMap(({ walks }) =>
+        walks.flatMap(walk => recordsOf.get(walk)!),
+      ),
     }
   }
   const kept = ordered.flatMap(({ walks }) =>

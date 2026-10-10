@@ -66,3 +66,16 @@ test("a route's walks split by group, the strands side by side", () => {
     ['B#1#c', ['B#1#c']],
   ])
 })
+
+test('unmerged, every walk keeps its tube, ordered route by route', () => {
+  const ordered = bundleRoutes(graph(), () => '', false)
+  expect(ordered.paths!.map(p => p.name)).toEqual([
+    'ref',
+    'A#1#c',
+    'A#2#c',
+    'C#1#c',
+    'B#1#c',
+    'C#2#c',
+  ])
+  expect(ordered.paths!.every(p => !p.members)).toBe(true)
+})
