@@ -143,6 +143,15 @@ test('the readout states length, change and what the cut left out', () => {
   ).toBe('168 kb (−72 kb) · 19 kb outside the cut')
 })
 
+test('a change under a kilobase reads in bp rather than rounding to 0.0 kb', () => {
+  expect(
+    walkRowReadout({ bp: 1741, gapBp: 0, complete: true }, { bp: 1738 }),
+  ).toBe('1.7 kb (+3 bp)')
+  expect(
+    walkRowReadout({ bp: 2054, gapBp: 0, complete: true }, { bp: 1738 }),
+  ).toBe('2.1 kb (+316 bp)')
+})
+
 test('a partial walk states a lower bound and why it stops', () => {
   const reference = { bp: 700 }
   const call = { bp: 8600 }

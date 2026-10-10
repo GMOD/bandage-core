@@ -35,6 +35,11 @@ export function kb(bp: number) {
   return `${(bp / 1000).toFixed(bp < 10_000 ? 1 : 0)} kb`
 }
 
+function signedLength(delta: number) {
+  const size = Math.abs(delta)
+  return `${delta > 0 ? '+' : '−'}${size < 1000 ? `${size} bp` : kb(size)}`
+}
+
 function units(bp: number, unit: number | undefined) {
   return unit ? ` ≈ ${Math.round(bp / unit)} units` : ''
 }
@@ -68,8 +73,7 @@ export function walkRowReadout(
     : ''
   if (complete) {
     const delta = bp - reference.bp
-    const against =
-      delta === 0 ? '' : ` (${delta > 0 ? '+' : '−'}${kb(Math.abs(delta))})`
+    const against = delta === 0 ? '' : ` (${signedLength(delta)})`
     return `${kb(bp)}${units(bp, unit)}${against}${outside}${called}`
   }
   const region = unit ? 'repeat' : 'window'
