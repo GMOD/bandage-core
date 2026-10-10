@@ -83,17 +83,33 @@ test('one rule says a bubble is the whole drawing', () => {
   expect([90, 89].map(m => coversGraph(m, 100))).toEqual([true, false])
 })
 
+// one segment more than the bubble and its anchors, so the bubble is not the
+// whole drawing
+const wider = {
+  ...graph,
+  nodes: [...graph.nodes, { id: 'z+', name: 'z', length: 1, depth: 1 }],
+}
+
 test('a variant under 50 bp is a tick, and one of 50 bp or more a halo', () => {
   const ticked = (longestAlleleLength: number) =>
-    bubbleHalos(graph, [{ ...bubble, longestAlleleLength }], positions)[0]?.tick
+    bubbleHalos(wider, [{ ...bubble, longestAlleleLength }], positions)[0]?.tick
   expect([ticked(2), ticked(49), ticked(50)]).toEqual([true, true, false])
 })
 
 test('a partial bubble stays a halo, its lengths only a floor', () => {
   const [halo] = bubbleHalos(
-    graph,
+    wider,
     [{ ...bubble, longestAlleleLength: 2, partial: true }],
     positions,
   )
   expect(halo?.tick).toBe(false)
+})
+
+test('the bubble a drawing is draws no halo and no tick, however small', () => {
+  const [halo] = bubbleHalos(
+    graph,
+    [{ ...bubble, covering: true, longestAlleleLength: 2 }],
+    positions,
+  )
+  expect([halo?.whole, halo?.tick]).toEqual([true, false])
 })

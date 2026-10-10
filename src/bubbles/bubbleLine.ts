@@ -33,6 +33,9 @@ export interface MinigraphBubble {
   // its ends are not both on the reference, so start and end are the span of
   // the bubble it was found in
   offReference?: true
+  // the bubble the whole drawing is, listed so its name still shows; opening
+  // it would draw the same graph
+  covering?: true
 }
 
 export interface BubbleRoute {

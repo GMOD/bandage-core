@@ -124,8 +124,12 @@ const span = {
 
 describe('graphBubbles', () => {
   it('opens a bubble that is the whole graph into the SNP on its alt arm', () => {
-    const [snp, ...rest] = graphBubbles(altSnp)
+    const bubbles = graphBubbles(altSnp)
+    const [snp, ...rest] = bubbles.filter(b => !b.covering)
     expect(rest).toEqual([])
+    expect(bubbles.filter(b => b.covering).map(b => b.segmentCount)).toEqual([
+      7,
+    ])
     expect(snp).toMatchObject({
       key: 'x1>x2',
       offReference: true,
@@ -141,11 +145,16 @@ describe('graphBubbles', () => {
   })
 
   it('keeps the outer superbubble at the top and its chain on the pop', () => {
-    const top = graphBubbles(chain)
+    const top = graphBubbles(chain).filter(b => !b.covering)
     expect(top.map(b => b.key)).toEqual(['p>q'])
     const popped = bubbleSubgraph(chain, bubbleSegmentIds(top[0]!))
     const inner = graphBubbles(popped, top[0])
-    expect(inner.map(b => b.key)).toEqual(['a>d', 'd>g'])
+    expect(inner.map(b => [b.key, b.covering])).toEqual([
+      ['a>d', undefined],
+      ['d>g', undefined],
+      ['p>q', true],
+    ])
+    inner.pop()
     expect(inner.every(b => b.offReference && b.start === 10)).toBe(true)
   })
 
@@ -158,7 +167,7 @@ describe('graphBubbles', () => {
     let pops = 0
     const descend = (g: Graph, b: MinigraphBubble) => {
       const popped = bubbleSubgraph(g, bubbleSegmentIds(b))
-      const inner = graphBubbles(popped, b)
+      const inner = graphBubbles(popped, b).filter(x => !x.covering)
       const own = segmentSet(b)
       pops++
       for (const x of inner) {
@@ -169,7 +178,7 @@ describe('graphBubbles', () => {
         descend(popped, x)
       }
     }
-    for (const b of graphBubbles(graph)) {
+    for (const b of graphBubbles(graph).filter(x => !x.covering)) {
       descend(graph, b)
     }
     expect(pops).toBeGreaterThan(30)

@@ -305,23 +305,30 @@ export function superbubblesFromGraph(
 
 // The bubbles a drawing marks: the reach rule's, with any that is the whole
 // drawing opened into the superbubbles inside it, and the superbubbles of the
-// whole graph where the reach rule finds nothing
+// whole graph where the reach rule finds nothing. The bubble the drawing is
+// stays on the list, marked `covering`: the reach rule's, or else the `span` a
+// pop opened.
 export function graphBubbles(
   graph: Graph,
   span?: MinigraphBubble,
 ): MinigraphBubble[] {
   const n = graph.nodes.length
   const reach = bubblesFromGraph(graph)
-  return reach.length === 0
-    ? superbubblesFromGraph(graph, span)
-    : reach.flatMap(b =>
-        coversGraph(b.segmentCount - 2, n)
-          ? superbubblesFromGraph(
-              b.segmentCount === n
-                ? graph
-                : bubbleSubgraph(graph, bubbleSegmentIds(b)),
-              b,
-            )
-          : [b],
-      )
+  if (reach.length === 0) {
+    const inside = superbubblesFromGraph(graph, span)
+    return span ? [...inside, { ...span, covering: true }] : inside
+  }
+  return reach.flatMap(b =>
+    coversGraph(b.segmentCount - 2, n)
+      ? [
+          ...superbubblesFromGraph(
+            b.segmentCount === n
+              ? graph
+              : bubbleSubgraph(graph, bubbleSegmentIds(b)),
+            b,
+          ),
+          { ...b, covering: true as const },
+        ]
+      : [b],
+  )
 }

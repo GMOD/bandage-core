@@ -284,3 +284,30 @@ test('a small variant stands as a tick above its nodes, with no chip', () => {
   expect(bubbles.map(b => b.item.labelAt.x)).toEqual([300])
   expect(ticks.map(t => [t.x, t.y])).toEqual([[500, 200 - (6 * 3.4) / 2 - 2]])
 })
+
+test('bubble names on one spot stack, and a long one falls back to its kind', () => {
+  const named = (label: string, x: number) => ({
+    ...halo({ x, y: 200 }),
+    label,
+    members: label.length,
+  })
+  const { bubbles } = layoutLabels(
+    source({
+      bubbleHalos: [
+        named('0 bp–22 kb superbubble, 1584 segments, 4 routes', 400),
+        named('0 bp–11 kb superbubble, 1198 segments, 5 routes', 410),
+        named('11–11 kb superbubble, 488 segments, 3 routes', 420),
+      ],
+    }),
+  )
+  expect(new Set(bubbles.map(b => b.y)).size).toBe(3)
+  const tight = layoutLabels(
+    source({
+      paneWidth: 220,
+      bubbleHalos: [
+        named('0 bp–22 kb superbubble, 1584 segments, 4 routes', 110),
+      ],
+    }),
+  )
+  expect(tight.bubbles.map(b => b.text)).toEqual(['0 bp–22 kb superbubble'])
+})

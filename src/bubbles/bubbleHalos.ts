@@ -144,6 +144,9 @@ export function bubbleHalos(
         routes.push({ route, at, text: routeText(route, walkLabel) })
       }
     }
+    const whole =
+      bubble.covering === true ||
+      coversGraph(nodeIds.length, graph.nodes.length)
     halos.push({
       bubble,
       ...classifyBubble(bubble, repeats),
@@ -151,9 +154,13 @@ export function bubbleHalos(
       labelAt,
       members: nodeIds.length,
       nodeIds,
-      whole: coversGraph(nodeIds.length, graph.nodes.length),
-      // a partial bubble's lengths are a floor, so it may be no small variant
-      tick: !bubble.partial && bubble.longestAlleleLength < SMALL_VARIANT_BP,
+      whole,
+      // The drawing's own bubble keeps its name however small. A partial
+      // bubble's lengths are a floor, so it may be no small variant.
+      tick:
+        !whole &&
+        !bubble.partial &&
+        bubble.longestAlleleLength < SMALL_VARIANT_BP,
       routes,
     })
   }

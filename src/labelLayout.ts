@@ -29,6 +29,9 @@ const ROUTE_STACK = 8
 const GENE_PIN_DROP_PX = 18
 // a gene's name drops a row or two rather than vanish under a bubble's
 const GENE_STACK = 2
+// structural variants inside one array sit side by side at a zoom that shows
+// the array, and each name is worth a row of its own
+const BUBBLE_STACK = 3
 // a chip's baseline this far down is the highest it sits whole in the pane
 const TOPMOST_BASELINE = LABEL_PX + LABEL_PAD
 
@@ -180,12 +183,21 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     const baseline = y - halo / 2 - gap
     return { x, y: onRows ? Math.max(baseline, TOPMOST_BASELINE) : baseline }
   }
+  // the drawing's own name last: it says where the reader is, the others
+  // what to open next
   const byBubble = byExtent(
     m.bubbleHalos.filter(h => !h.tick),
-    h => h.members,
+    h => (h.whole ? -1 : h.members),
   )
   const bubbles = placeLabels(
-    byBubble.map(h => ({ item: h, ...above(h, 6), text: h.label })),
+    byBubble.map(h => ({
+      item: h,
+      ...above(h, 6),
+      text: h.label,
+      // `0 bp–11 kb superbubble` where `…, 1198 segments, 5 routes` does not fit
+      fallback: h.label.includes(',') ? h.label.split(',')[0] : undefined,
+      stack: BUBBLE_STACK,
+    })),
     frame,
     take,
   )
