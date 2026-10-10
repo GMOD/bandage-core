@@ -1,11 +1,11 @@
 import { isReverse, nodeId } from '@gmod/gbz-base'
 
 import { joinCuts } from './gbzJoin.ts'
-import { gfaTables } from './gfa/gfaTables.ts'
+import { gfaTables } from './gfa/gfaTables'
 import { panSNMatchesPrefix, panSNSample } from './pansn.ts'
 import { wellKnownSample } from './reference.ts'
 
-import type { GraphTables } from './gfa/graphTables.ts'
+import type { GraphTables } from './gfa/graphTables'
 import type {
   CompactSubgraph,
   GBZBase,
