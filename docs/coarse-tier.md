@@ -14,6 +14,12 @@ fixtures `scripts/parity-fold.sh` runs, in one pass with no node. `bandage-fold`
 reads the whole graph into one string, which Node caps at 512 MB, so it cannot
 fold a whole human pangenome.
 
+gfa-to-tabix's CI holds its port to a pinned bandage-core, and
+`src/foldParity.test.ts` holds `foldVariants` to the gfa-to-tabix release pinned
+in `.github/workflows/push.yml`, failing when a few hundred random rGFA graphs
+fold differently. Locally it runs against the `gfa-to-tabix` on PATH or named by
+`GFA_TO_TABIX`, and skips without one.
+
 ```console
 npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 \
   | gfa-to-tabix - -o graph.fold10000

@@ -1,0 +1,45 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden folds > reverse-strand links 1`] = `
+"H	VN:Z:1.0
+S	r1	*	LN:i:2000	SN:Z:ref#chr	SO:i:0	SR:i:0
+S	r3	*	LN:i:2000	SN:Z:ref#chr	SO:i:2000	SR:i:0
+S	x1	*	LN:i:6000	SN:Z:a#chr	SO:i:0	SR:i:1
+L	r1	+	r3	+	0M
+L	r1	+	x1	-	0M
+L	x1	-	r3	+	0M
+"
+`;
+
+exports[`golden folds > run merging 1`] = `
+"H	VN:Z:1.0
+S	r1	*	LN:i:1000	SN:Z:ref#chr	SO:i:0	SR:i:0
+S	r2	*	LN:i:2000	SN:Z:ref#chr	SO:i:1000	SR:i:0
+S	r4	*	LN:i:1000	SN:Z:ref#chr	SO:i:3000	SR:i:0
+S	a1	*	LN:i:2000	SN:Z:a#chr	SO:i:0	SR:i:1
+S	a3	*	LN:i:2000	SN:Z:a#chr	SO:i:2000	SR:i:1
+L	r1	+	r2	+	0M
+L	r2	+	r4	+	0M
+L	r1	+	a1	+	0M
+L	a1	+	a3	+	0M
+L	a3	+	r4	+	0M
+L	a1	+	r4	+	0M
+"
+`;
+
+exports[`golden folds > ties to the lowest id 1`] = `
+"H	VN:Z:1.0
+S	r1	*	LN:i:1000	SN:Z:ref#chr	SO:i:0	SR:i:0
+S	r2	*	LN:i:1000	SN:Z:ref#chr	SO:i:1000	SR:i:0
+S	s10	*	LN:i:10	SN:Z:q#chr	SO:i:0	SR:i:1
+S	m	*	LN:i:5	SN:Z:u#chr	SO:i:0	SR:i:2
+S	t10	*	LN:i:10	SN:Z:w#chr	SO:i:0	SR:i:1
+S	big	*	LN:i:5000	SN:Z:x#chr	SO:i:0	SR:i:3
+L	r1	+	r2	+	0M
+L	r1	+	t10	+	0M
+L	t10	+	m	+	0M
+L	m	+	big	+	0M
+L	big	+	s10	+	0M
+L	s10	+	r2	+	0M
+"
+`;

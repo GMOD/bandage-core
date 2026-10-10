@@ -25,6 +25,10 @@ jobs:
   build-and-test:
     name: Build, lint, typecheck, unit tests
     runs-on: ubuntu-latest
+    env:
+      # the release src/foldParity.test.ts holds foldVariants to
+      GFA_TO_TABIX_VERSION: v0.10.0
+      GFA_TO_TABIX_SHA256: 7a0f4616da6d6d0e312f18e9038feb34d29ef35e11bdb52e1ade4e8d258d3829
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
@@ -35,6 +39,14 @@ jobs:
           node-version: 24.x
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install gfa-to-tabix ${{ env.GFA_TO_TABIX_VERSION }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          asset=gfa-to-tabix-x86_64-unknown-linux-musl
+          curl -fsSLO "https://github.com/GMOD/gfa-to-tabix/releases/download/$GFA_TO_TABIX_VERSION/$asset.tar.gz"
+          echo "$GFA_TO_TABIX_SHA256  $asset.tar.gz" | sha256sum -c
+          tar -xzf "$asset.tar.gz"
+          echo "$RUNNER_TEMP/$asset" >> "$GITHUB_PATH"
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint
