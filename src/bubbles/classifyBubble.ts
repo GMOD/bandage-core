@@ -114,6 +114,11 @@ function classifyShape(
   if (inversion) {
     return { kind: 'inversion', label: `${formatBp(longest)} inv` }
   }
+  if (b.offReference) {
+    return shortest === longest
+      ? sameLength(shortest)
+      : { kind: 'complex', label: `${range}, ${routes(pathCount)}` }
+  }
   // routes of one length are substitutions inside an array, not copies
   const repeat = longest !== shortest ? coveringRepeat(b, repeats) : undefined
   if (repeat) {
@@ -125,9 +130,7 @@ function classifyShape(
   }
   const alleles = pathCount > 2 ? `, ${pathCount} alleles` : ''
   if (shortest === longest && shortest === refSpan) {
-    return refSpan <= 1
-      ? { kind: 'snp', label: 'SNP' }
-      : { kind: 'substitution', label: `${formatBp(refSpan)} sub` }
+    return sameLength(refSpan)
   }
   if (refSpan === 0 || shortest === refSpan) {
     return {
@@ -145,6 +148,12 @@ function classifyShape(
     kind: 'complex',
     label: `${formatBp(refSpan)} ref → ${range}, ${pathCount} alleles`,
   }
+}
+
+function sameLength(bp: number): BubbleClass {
+  return bp <= 1
+    ? { kind: 'snp', label: 'SNP' }
+    : { kind: 'substitution', label: `${formatBp(bp)} sub` }
 }
 
 // One hue per kind, the deletion arc's near-black and the reference blue kept

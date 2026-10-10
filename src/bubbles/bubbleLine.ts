@@ -27,6 +27,12 @@ export interface MinigraphBubble {
   // Every distinct route the walks take through a derived bubble, with the
   // walks that take it. Only a graph with walks can state this.
   routes?: BubbleRoute[]
+  // `source>sink`, set on a superbubble (superbubbles.ts): siblings off the
+  // reference share their parent's span, so the span cannot tell them apart
+  key?: string
+  // its ends are not both on the reference, so start and end are the span of
+  // the bubble it was found in
+  offReference?: true
 }
 
 export interface BubbleRoute {
@@ -60,9 +66,16 @@ export function parseBubbleLine(line: string): MinigraphBubble {
   }
 }
 
-// A bubble is its span on the reference, whichever array it was read into
+// A bubble is its span on the reference, whichever array it was read into,
+// unless it carries a key
 export function sameBubble(a: MinigraphBubble, b: MinigraphBubble) {
-  return a.refName === b.refName && a.start === b.start && a.end === b.end
+  return a.key !== undefined || b.key !== undefined
+    ? a.key === b.key
+    : a.refName === b.refName && a.start === b.start && a.end === b.end
+}
+
+export function bubbleKey(b: MinigraphBubble) {
+  return b.key ?? `${b.refName}:${b.start}-${b.end}`
 }
 
 // How far apart the two extreme alleles are, which is the concrete thing a

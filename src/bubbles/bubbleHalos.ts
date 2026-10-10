@@ -38,7 +38,14 @@ export interface RouteLabel {
   text: string
 }
 
-const WHOLE_FRACTION = 0.9
+export const WHOLE_FRACTION = 0.9
+
+// Holding every node but its own two ends, as a popped bubble's own row does,
+// or nearly every node, as a repeat array filling its window does
+export function coversGraph(members: number, nodes: number) {
+  return members + 2 >= nodes || members >= WHOLE_FRACTION * nodes
+}
+
 const NAMED_WALKS = 2
 // a SNP's routes are a dot each; chips are for loops a reader can see
 const MIN_CHIPPED_BP = 1000
@@ -59,15 +66,19 @@ export function bubbleHalos(
     let minY = Infinity
     const nodeIds: string[] = []
     const ends: NodeSegment[] = []
-    for (const name of bubbleSegmentIds(bubble)) {
+    const names = bubbleSegmentIds(bubble)
+    for (const [i, name] of names.entries()) {
       const node = byName.get(name)
       const line = node && positions[node.id]
       if (!node || !line?.length) {
         continue
       }
       if (
-        isBackbone(node) &&
-        (node.stable.start < bubble.start || node.stable.start >= bubble.end)
+        bubble.key
+          ? i === 0 || i === names.length - 1
+          : isBackbone(node) &&
+            (node.stable.start < bubble.start ||
+              node.stable.start >= bubble.end)
       ) {
         ends.push(line[Math.floor(line.length / 2)]!)
         continue
@@ -135,7 +146,7 @@ export function bubbleHalos(
       labelAt,
       members: nodeIds.length,
       nodeIds,
-      whole: nodeIds.length >= WHOLE_FRACTION * graph.nodes.length,
+      whole: coversGraph(nodeIds.length, graph.nodes.length),
       routes,
     })
   }

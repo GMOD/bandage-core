@@ -191,6 +191,23 @@ describe('classifyBubble', () => {
     ).toBe('41 kb sub, partial')
   })
 
+  it('reads a bubble off the reference by its routes alone', () => {
+    const off = (shortest: number, longest: number) =>
+      classifyBubble(
+        bubble({
+          start: 160616010,
+          end: 160646745,
+          shortestAlleleLength: shortest,
+          longestAlleleLength: longest,
+          pathCount: 4,
+          offReference: true,
+        }),
+      )
+    expect(off(1, 1)).toEqual({ kind: 'snp', label: 'SNP' })
+    expect(off(5, 5).label).toBe('5 bp sub')
+    expect(off(0, 12)).toEqual({ kind: 'complex', label: '0–12 bp, 4 routes' })
+  })
+
   it('formats bp the way the node labels do', () => {
     expect(formatBp(58)).toBe('58 bp')
     expect(formatBp(1245)).toBe('1.2 kb')

@@ -23,7 +23,7 @@ import type { Graph, GraphNode } from '../types'
 // DP over the ordered DAG otherwise. A reversed stretch comes out as one
 // bubble whose interior runs against the reference, not as an inversion flag.
 
-interface Routes {
+export interface Routes {
   min: number
   max: number
   n: number
@@ -71,15 +71,7 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
     .map(node => [node, indexOf.get(node.id)!] as const)
     .filter(([node, i]) => ends.has(node.id) || reach[i] === 0)
     .sort(([a, ia], [b, ib]) => ia - ib || a.stable.start - b.stable.start)
-  const walkIndex = graph.paths?.map(p => {
-    const at = new Map<string, number>()
-    p.nodeIds.forEach((id, i) => {
-      if (!at.has(id)) {
-        at.set(id, i)
-      }
-    })
-    return at
-  })
+  const walkIndex = walkIndexOf(graph)
 
   const bubbles: MinigraphBubble[] = []
   for (let i = 0; i + 1 < boundaries.length; i++) {
@@ -157,6 +149,19 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
   return bubbles
 }
 
+// Where each walk first visits each node
+export function walkIndexOf(graph: Graph) {
+  return graph.paths?.map(p => {
+    const at = new Map<string, number>()
+    p.nodeIds.forEach((id, i) => {
+      if (!at.has(id)) {
+        at.set(id, i)
+      }
+    })
+    return at
+  })
+}
+
 // For every walk that passes both boundary nodes, the bp between them and the
 // step sequence, so routes are distinct sequences and lengths are the true
 // haplotype lengths. `left` counts the walks that pass one boundary and end
@@ -164,7 +169,7 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
 //
 // `byId` is the caller's: this runs once per bubble, and a map of every node
 // built here made the whole pass quadratic, seven seconds at 15k nodes.
-function walkRoutes(
+export function walkRoutes(
   graph: Graph,
   byId: Map<string, GraphNode>,
   walkIndex: Map<string, number>[],

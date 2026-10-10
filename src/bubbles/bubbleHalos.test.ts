@@ -1,4 +1,4 @@
-import { bubbleHalos } from './bubbleHalos'
+import { bubbleHalos, coversGraph } from './bubbleHalos'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 
@@ -66,4 +66,19 @@ test('the name centres on the nodes, at the height of the highest', () => {
     ],
   })
   expect(halo?.labelAt).toEqual({ x: 26, y: -8 })
+})
+
+test("a keyed bubble's ends are its first and last segment, on or off the reference", () => {
+  const [halo] = bubbleHalos(
+    graph,
+    [{ ...bubble, segments: 'v2,a1,v3', key: 'v2>v3', offReference: true }],
+    positions,
+  )
+  expect(halo?.nodeIds).toEqual(['a1+'])
+})
+
+test('one rule says a bubble is the whole drawing', () => {
+  expect([17, 16].map(m => coversGraph(m, 19))).toEqual([true, false])
+  expect([18, 17].map(m => coversGraph(m, 20))).toEqual([true, false])
+  expect([90, 89].map(m => coversGraph(m, 100))).toEqual([true, false])
 })

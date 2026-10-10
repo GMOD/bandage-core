@@ -151,6 +151,7 @@ export type {
 } from './walkEncoding'
 export { pathColorsLegible, pathLegend, walkLabelsOf } from './pathColors'
 export { bubblesFromGraph } from './bubbles/bubblesFromGraph'
+export { graphBubbles, superbubblesFromGraph } from './bubbles/superbubbles'
 export { bubbleHalos } from './bubbles/bubbleHalos'
 export type { BubbleHalo } from './bubbles/bubbleHalos'
 export {
