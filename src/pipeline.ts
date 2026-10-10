@@ -18,6 +18,7 @@ import {
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
 import { seededNodes } from './layout/referenceSeeds'
+import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
 
 import type { BubbleSpread } from './bubbleSpreads'
@@ -226,11 +227,13 @@ export async function forceLayout(
   const drawn = new Map(
     scaling.nodes.map(n => [n.id, drawnNodeLength(scaling.opts, n.length)]),
   )
-  const positions = splitRuns(
-    result.nodePositions,
-    merged.runs,
-    id => drawn.get(id) ?? 0,
+  const smoothed = Object.fromEntries(
+    Object.entries(result.nodePositions).map(([id, line]) => [
+      id,
+      smoothChain(line),
+    ]),
   )
+  const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
   const { nodePositions, deletionRoutes } = takeRoutes(
     graph.nodes.some(isBackbone)
       ? orientToReference(graph, positions)
