@@ -57,6 +57,25 @@ Release with `pnpm version patch`: it lints, tests, stamps `src/version.ts`,
 writes the changelog with git-cliff and pushes the `v*` tag, and `publish.yml`
 publishes to npm with trusted publishing.
 
+## See also
+
+- [jbrowse-plugin-graphgenomeviewer](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer) -
+  JBrowse 2 plugin that browses these graphs by locus
+- [BandageJS](https://github.com/cmdcolin/BandageJS) - standalone page for GFA
+  and gbz-base graphs
+- [@jbrowse/graph-stress-layout](https://github.com/GMOD/graph-stress-layout) -
+  stress layout that keeps the reference straight
+- [ggbandage](https://github.com/GMOD/ggbandage) - Bandage-style graph figures
+  as ggplot2 layers
+- [ggtubemap](https://github.com/GMOD/ggtubemap) - tube maps as ggplot2 layers
+- [@jbrowse/tubemap-core](https://github.com/GMOD/tubemap-core) -
+  sequenceTubeMap's layout, without the DOM
+
+Tutorials on [jbrowse.org](https://jbrowse.org/jb2/docs/tutorials/)
+
+- [HPRC part 1: graph alleles and haplotypes](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc/)
+- [HPRC part 3: repeat lengths](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc_repeats/)
+
 ## License
 
 Both Bandage and OGDF are GPL, which is why this package is GPL-3.0-or-later.
