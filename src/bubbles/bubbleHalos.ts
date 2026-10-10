@@ -152,7 +152,8 @@ export function bubbleHalos(
       members: nodeIds.length,
       nodeIds,
       whole: coversGraph(nodeIds.length, graph.nodes.length),
-      tick: bubble.longestAlleleLength < SMALL_VARIANT_BP,
+      // a partial bubble's lengths are a floor, so it may be no small variant
+      tick: !bubble.partial && bubble.longestAlleleLength < SMALL_VARIANT_BP,
       routes,
     })
   }

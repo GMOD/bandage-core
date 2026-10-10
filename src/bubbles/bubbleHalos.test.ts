@@ -88,3 +88,12 @@ test('a variant under 50 bp is a tick, and one of 50 bp or more a halo', () => {
     bubbleHalos(graph, [{ ...bubble, longestAlleleLength }], positions)[0]?.tick
   expect([ticked(2), ticked(49), ticked(50)]).toEqual([true, true, false])
 })
+
+test('a partial bubble stays a halo, its lengths only a floor', () => {
+  const [halo] = bubbleHalos(
+    graph,
+    [{ ...bubble, longestAlleleLength: 2, partial: true }],
+    positions,
+  )
+  expect(halo?.tick).toBe(false)
+})
