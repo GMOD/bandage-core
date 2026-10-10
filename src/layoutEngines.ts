@@ -1,4 +1,5 @@
-import { stressLayout } from './layout/stressEngine'
+import { stressLayout } from '@jbrowse/graph-stress-layout'
+
 import loadBandage from './loadBandage'
 
 import type { LayoutEngine } from './pipeline'

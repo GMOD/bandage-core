@@ -1,4 +1,5 @@
-import { stressLayout } from './stressEngine'
+import { stressLayout } from '@jbrowse/graph-stress-layout'
+
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { engineRequest, forceLayout } from '../pipeline'

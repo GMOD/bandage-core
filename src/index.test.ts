@@ -8,6 +8,7 @@ import { build } from 'esbuild'
 // of them. These are the packages it may take from outside src/ instead.
 const ALLOWED = [
   /^@jbrowse\/tubemap-core\/(dist|esm)\//,
+  /^@jbrowse\/graph-stress-layout\/esm\//,
   /^@gmod\/gbz-base\/(dist|esm)\//,
 ]
 

@@ -50,7 +50,7 @@ export { BUBBLE_SPREADS } from './bubbleSpreads'
 export { LAYOUT_QUALITIES } from './layoutQualities'
 export type { LayoutQuality } from './layoutQualities'
 export type { BubbleSpread } from './bubbleSpreads'
-export { stressLayout } from './layout/stressEngine'
+export { stressLayout } from '@jbrowse/graph-stress-layout'
 export { LAYOUT_ENGINES, layoutEngine } from './layoutEngines'
 export type { LayoutEngineKind } from './layoutEngines'
 

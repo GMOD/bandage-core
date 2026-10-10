@@ -5,3 +5,4 @@ minimumReleaseAgeExclude:
   - '@gmod/gbz-base@7.0.0'
   - '@jbrowse/tubemap-core'
   - '@gmod/tabix@3.9.0'
+  - '@jbrowse/graph-stress-layout@0.1.0 || 0.1.1'

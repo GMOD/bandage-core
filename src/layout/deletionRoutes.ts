@@ -1,3 +1,5 @@
+import { ROUTE_ID } from '@jbrowse/graph-stress-layout'
+
 import type { BandageScaleOpts } from './drawnScale'
 import type { DeletionEdge } from '../deletionEdges'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
@@ -6,8 +8,8 @@ import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 // link through a node of its own, so the simulation makes room for the arm like
 // any other and the drawing follows where it went. The node is half as long as
 // the reference it skips: long enough to read as a route, short enough to read
-// as the shortcut it is.
-export const ROUTE_ID = '\u0000deletion:'
+// as the shortcut it is. Its id starts with ROUTE_ID, which the stress
+// engine's placement arches over the backbone.
 const ROUTE_FRACTION = 0.5
 
 export type DeletionRoutes = Record<number, NodeSegment[]>
