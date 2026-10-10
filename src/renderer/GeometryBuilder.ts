@@ -1008,7 +1008,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // A lifted walk's link carries on its lane from the node it leaves, so a
     // lane runs unbroken through the joints rather than beside a grey link
     const laneWalks =
-      highlight && onWalk && !ribbons ? highlight.walks : undefined
+      highlight?.walks.length && onWalk && !ribbons
+        ? highlight.walks
+        : undefined
     if (laneWalks) {
       const fromNode = nodeById.get(edge.from)
       const width = fromNode
@@ -1071,7 +1073,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         buildSingleEdge(
           offset.x,
           offset.y,
-          highlight && !highlight.names.has(edge.pathIds![pathIdx]!)
+          highlight &&
+            (highlight.walks.length
+              ? !highlight.names.has(edge.pathIds![pathIdx]!)
+              : !onWalk)
             ? fadeAbgr(ribbonColor, FADED_ALPHA)
             : ribbonColor,
           pathIdx === arrowRibbon ? edgeColor : undefined,
@@ -1129,7 +1134,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // Each lifted walk keeps one lane across the whole drawing, so a lane
     // missing from a node is a walk that does not visit it
     const lanes =
-      highlight && !faded && !slots?.length ? highlight.walks : undefined
+      highlight?.walks.length && !faded && !slots?.length
+        ? highlight.walks
+        : undefined
     if (drawable && lanes) {
       const laneWidth = Math.max(width / lanes.length, MIN_WALK_LANE_PX)
       const normals = pointNormalsOf(segments, yToX)

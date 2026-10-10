@@ -120,6 +120,35 @@ test('a node painted in path stripes fades off the lifted walk too', () => {
   }
 })
 
+// the alt bubble: v1 a1 v3 and the links among them, as an open bubble is
+test('a focus with no walks keeps its nodes and links as drawn, the rest fades', () => {
+  const plain = build()
+  const focus = {
+    walks: [],
+    nodeIds: new Set(['v1+', 'a1+', 'v3+']),
+    edgeIndexes: new Set([2, 3]),
+    names: new Set<string>(),
+  }
+  const focused = build(focus)
+  const strokesOf = (batch: typeof plain, id: string) => {
+    const { start, count } = batch.nodeStrokeRuns.get(id)!
+    return batch.nodeStrokes.slice(start, start + count)
+  }
+  expect(strokesOf(focused, 'a1+')).toEqual(strokesOf(plain, 'a1+'))
+  expect(abgrAlpha(strokesOf(focused, 'v2+')[0]!.color)).toBeLessThan(
+    abgrAlpha(strokesOf(plain, 'v2+')[0]!.color) / 4,
+  )
+  const edgeOf = (batch: typeof plain, edge: number) =>
+    batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
+  expect(edgeOf(focused, 2)).toEqual(edgeOf(plain, 2))
+  expect(abgrAlpha(edgeOf(focused, 0).color)).toBeLessThan(
+    abgrAlpha(edgeOf(plain, 0).color) / 4,
+  )
+  const ribbons = build(focus, true)
+  const plainRibbons = build(undefined, true)
+  expect(edgeOf(ribbons, 2).color).toBe(edgeOf(plainRibbons, 2).color)
+})
+
 // inv crosses the reference's nodes end first
 const INVERTED = `${GFA}
 W\tinv\t1\tchr\t0\t9\t<v3<v2<v1`

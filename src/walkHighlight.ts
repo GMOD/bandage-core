@@ -38,7 +38,8 @@ export interface LiftedWalk extends WalkHighlight {
 
 // The walks lifted together, reference first and the rest in the order they
 // were picked, each in its lane of the nodes it visits. A node or link on any
-// of them keeps its ink.
+// of them keeps its ink. With no walks it is a focus, such as an open bubble:
+// its nodes and links keep their own colours and the rest fades.
 export interface WalkLift {
   walks: LiftedWalk[]
   // the reference interval a lane coloured by reference position spans
