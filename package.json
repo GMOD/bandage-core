@@ -32,7 +32,8 @@
     }
   },
   "bin": {
-    "bandage-figure": "dist/cli/figure.js"
+    "bandage-figure": "dist/cli/figure.js",
+    "bandage-fold": "dist/cli/fold.js"
   },
   "files": [
     "dist"

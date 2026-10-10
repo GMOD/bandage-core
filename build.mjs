@@ -32,10 +32,9 @@ await build({
   packages: 'external',
   logLevel: 'info',
 })
-writeFileSync(
-  'dist/cli/figure.js',
-  `#!/usr/bin/env node\n${readFileSync('dist/cli/figure.js', 'utf8')}`,
-)
+for (const cli of ['dist/cli/figure.js', 'dist/cli/fold.js']) {
+  writeFileSync(cli, `#!/usr/bin/env node\n${readFileSync(cli, 'utf8')}`)
+}
 
 execFileSync('tsc', ['-p', 'tsconfig.build.json'], { stdio: 'inherit' })
 cpSync(

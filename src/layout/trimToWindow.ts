@@ -120,3 +120,34 @@ function trimVisits(
   })
   return out
 }
+
+// A drawing of the window shows the window's reference: a backbone segment
+// reaching past either edge is cut back to it, and one lying wholly outside,
+// which a link from inside reaches, is drawn `reachBp` long at the end nearer
+// the window. A fold merges the reference between kept variants into one
+// segment, and a coarse tier's can run for megabases, which drawn whole
+// squeezed the window into a corner of a force layout.
+export function clipToWindow(
+  graph: Graph,
+  window: { start: number; end: number },
+  reachBp: number,
+): Graph {
+  const nodes = graph.nodes.map(node => {
+    if (!isBackbone(node)) {
+      return node
+    }
+    const from = node.stable.start
+    const to = from + node.length
+    const [start, end] = overlapsWindow(node, window)
+      ? [Math.max(from, window.start), Math.min(to, window.end)]
+      : to <= window.start
+        ? [Math.max(from, to - reachBp), to]
+        : [from, Math.min(to, from + reachBp)]
+    return start === from && end === to
+      ? node
+      : { ...node, length: end - start, stable: { ...node.stable, start } }
+  })
+  return nodes.some((node, i) => node !== graph.nodes[i])
+    ? { ...graph, nodes }
+    : graph
+}

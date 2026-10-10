@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-import { trimToWindow } from './trimToWindow'
+import { clipToWindow, trimToWindow } from './trimToWindow'
 import { tubeMapLayout } from './tubeMapLayout'
 import { isBackbone } from '../anchoredNodes'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
@@ -86,4 +86,32 @@ test('the tube map of a trimmed cut draws fewer columns', () => {
   const trimmed = tubeMapLayout(trimToWindow(graph, innerWindow(graph)))!
     .tubeMap!.layout.nodes.length
   expect(trimmed).toBeLessThan(whole)
+})
+
+test('clipping cuts the backbone back to the window, and what lies outside to a stub', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(
+      [
+        'S\tfar\t*\tLN:i:50000\tSN:Z:chr\tSO:i:0\tSR:i:0',
+        'S\tr1\t*\tLN:i:5000\tSN:Z:chr\tSO:i:100000\tSR:i:0',
+        'S\tr2\t*\tLN:i:5000\tSN:Z:chr\tSO:i:105000\tSR:i:0',
+        'S\tpast\t*\tLN:i:50000\tSN:Z:chr\tSO:i:200000\tSR:i:0',
+        'S\ta\t*\tLN:i:9000\tSN:Z:alt\tSO:i:0\tSR:i:1',
+        'L\tr1\t+\tr2\t+\t0M',
+        'L\tfar\t+\ta\t+\t0M',
+        'L\ta\t+\tr2\t+\t0M',
+        'L\tr2\t+\tpast\t+\t0M',
+      ].join('\n'),
+    ),
+  )
+  const clipped = clipToWindow(graph, { start: 104_000, end: 106_000 }, 1000)
+  expect(clipped.nodes.map(n => [n.name, n.stable?.start, n.length])).toEqual([
+    ['far', 49_000, 1000],
+    ['r1', 104_000, 1000],
+    ['r2', 105_000, 1000],
+    ['past', 200_000, 1000],
+    ['a', 0, 9000],
+  ])
+  expect(clipped.edges).toBe(graph.edges)
+  expect(clipToWindow(graph, { start: 0, end: 250_000 }, 1000)).toBe(graph)
 })
