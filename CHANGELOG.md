@@ -1,3 +1,9 @@
+## [9.9.1](https://github.com/GMOD/bandage-core/compare/v9.9.0...v9.9.1) (2026-10-10)
+
+### Other Changes
+
+- Take @jbrowse/tubemap-core 0.2.3, for steep curves that keep their width ([6e5f8e7](https://github.com/GMOD/bandage-core/commit/6e5f8e7eab04b8077c27af853dde198d53706e06))
+
 ## [9.9.0](https://github.com/GMOD/bandage-core/compare/v9.8.1...v9.9.0) (2026-10-10)
 
 ### Other Changes
