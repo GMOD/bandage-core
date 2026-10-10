@@ -1,3 +1,10 @@
+## [9.10.0](https://github.com/GMOD/bandage-core/compare/v9.9.2...v9.10.0) (2026-10-10)
+
+### Other Changes
+
+- A force-laid node bends as a curve through the points its engine placed ([11d9ba6](https://github.com/GMOD/bandage-core/commit/11d9ba64e642fc38ca96c27765a13cefbe3bb174))
+- A figure as tables, for another graphics system to draw ([d42495d](https://github.com/GMOD/bandage-core/commit/d42495d2ce44e7835ac85100a0d9d45f9fedc7a5))
+
 ## [9.9.2](https://github.com/GMOD/bandage-core/compare/v9.9.1...v9.9.2) (2026-10-10)
 
 ### Other Changes
