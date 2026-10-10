@@ -89,50 +89,99 @@ function labelOf(path: GraphPath) {
     : sampleOf(path)
 }
 
-// A walk's steps through the cut: its node ids, and between two pieces of it
-// the bp of contig the cut does not hold
-type Step = string | number
+// The nodes the rows read, by index: each id's length, and the span of the
+// reference walk's first visit, `onReference` 0 for a node it never visits.
+// An id no node declares is a step of length 0, as in a GFA.
+class NodeTable {
+  index = new Map<string, number>()
+  lengths: number[] = []
+  onReference = new Uint8Array(0)
+  referenceStart = new Float64Array(0)
+  referenceEnd = new Float64Array(0)
 
-// The pieces of one walk in contig order, with the bp between them as gaps.
+  constructor(graph: Graph) {
+    for (const node of graph.nodes) {
+      this.lengths[this.indexOf(node.id)] = node.length
+    }
+  }
+
+  indexOf(id: string) {
+    let i = this.index.get(id)
+    if (i === undefined) {
+      i = this.lengths.length
+      this.index.set(id, i)
+      this.lengths.push(0)
+    }
+    return i
+  }
+
+  nodesOf(path: GraphPath) {
+    const nodes = new Int32Array(path.nodeIds.length)
+    path.nodeIds.forEach((id, k) => {
+      nodes[k] = this.indexOf(id)
+    })
+    return nodes
+  }
+
+  spanAt(steps: Float64Array, k: number) {
+    const node = k >= 0 && k < steps.length ? steps[k]! : -1
+    return node >= 0 && this.onReference[node]
+      ? { start: this.referenceStart[node]!, end: this.referenceEnd[node]! }
+      : undefined
+  }
+}
+
+interface Piece {
+  start: number | undefined
+  nodes: Int32Array
+}
+
+// A walk's steps through the cut, its pieces in contig order: a node index,
+// and between two pieces of it minus the bp of contig the cut does not hold.
 // A piece with no start, or one that overlaps the last, follows it directly.
-function stepsOf(pieces: GraphPath[], lengthOf: Map<string, number>): Step[] {
-  const steps: Step[] = []
+function stepsOf(pieces: Piece[], table: NodeTable) {
+  const out: number[] = []
   let end: number | undefined
   for (const piece of pieces) {
     if (end !== undefined && piece.start !== undefined && piece.start > end) {
-      steps.push(piece.start - end)
+      out.push(end - piece.start)
     }
-    steps.push(...piece.nodeIds)
-    const bp = piece.nodeIds.reduce(
-      (sum, id) => sum + (lengthOf.get(id) ?? 0),
-      0,
-    )
+    let bp = 0
+    for (const node of piece.nodes) {
+      out.push(node)
+      bp += table.lengths[node]!
+    }
     end = piece.start === undefined ? undefined : piece.start + bp
   }
-  return steps
+  return Float64Array.from(out)
 }
 
-// Where each step lies on the walk's contig, steps and gaps alike; undefined
+// Where step `k` lies on the walk's contig, steps and gaps alike; undefined
 // where a piece states no start or overlaps the one before
-function stepSpans(pieces: GraphPath[], lengthOf: Map<string, number>) {
-  const spans: { start: number; end: number }[] = []
+function stepSpan(pieces: Piece[], table: NodeTable, k: number) {
   let end: number | undefined
+  let at = 0
+  let found: { start: number; end: number } | undefined
   for (const piece of pieces) {
     if (piece.start === undefined || (end !== undefined && piece.start < end)) {
       return undefined
     }
     if (end !== undefined && piece.start > end) {
-      spans.push({ start: end, end: piece.start })
+      if (at++ === k) {
+        found = { start: end, end: piece.start }
+      }
     }
     let pos = piece.start
-    for (const id of piece.nodeIds) {
-      const len = lengthOf.get(id) ?? 0
-      spans.push({ start: pos, end: pos + len })
+    for (const node of piece.nodes) {
+      const len = table.lengths[node]!
+      if (at++ === k) {
+        found = { start: pos, end: pos + len }
+      }
       pos += len
     }
     end = pos
   }
-  return spans
+  return found
 }
 
 // Each walk is cut at the nearest reference nodes IT visits on either side of
@@ -140,8 +189,8 @@ function stepSpans(pieces: GraphPath[], lengthOf: Map<string, number>) {
 // between flanks rather than whole. A walk with one flank is measured from it,
 // in its direction along the reference.
 function sliceBetween(
-  steps: Step[],
-  span: Map<string, { start: number; end: number }>,
+  steps: Float64Array,
+  table: NodeTable,
   region: { start: number; end: number } | undefined,
   flanked = true,
 ) {
@@ -150,27 +199,26 @@ function sliceBetween(
   if (!region || !flanked) {
     return { ids: steps, complete: true, from: -1, to: -1 }
   }
-  const spanAt = (i: number) => {
-    const id = steps[i]
-    return typeof id === 'string' ? span.get(id) : undefined
-  }
+  const { onReference, referenceStart, referenceEnd } = table
   let i0 = -1
   let i1 = -1
   let bestEnd = -Infinity
   let bestStart = Infinity
-  steps.forEach((_, i) => {
-    const s = spanAt(i)
-    if (s) {
-      if (s.end <= region.start && s.end > bestEnd) {
-        bestEnd = s.end
+  for (let i = 0; i < steps.length; i++) {
+    const node = steps[i]!
+    if (node >= 0 && onReference[node]) {
+      const end = referenceEnd[node]!
+      const start = referenceStart[node]!
+      if (end <= region.start && end > bestEnd) {
+        bestEnd = end
         i0 = i
       }
-      if (s.start >= region.end && s.start < bestStart) {
-        bestStart = s.start
+      if (start >= region.end && start < bestStart) {
+        bestStart = start
         i1 = i
       }
     }
-  })
+  }
   if (i0 >= 0 && i1 >= 0) {
     const ids = steps.slice(Math.min(i0, i1) + 1, Math.max(i0, i1))
     return {
@@ -180,6 +228,7 @@ function sliceBetween(
       to: i1,
     }
   }
+  const spanAt = (k: number) => table.spanAt(steps, k)
   const flank = i0 >= 0 ? i0 : i1
   let near = -1
   for (let d = 1; flank >= 0 && near < 0 && d < steps.length; d++) {
@@ -246,19 +295,34 @@ export function walkRows(
   // a cut hands a walk back as one record per piece inside its nodes
   const walks = new Map<string, GraphPath[]>()
   for (const path of others) {
-    walks.set(path.name, [...(walks.get(path.name) ?? []), path])
+    const pieces = walks.get(path.name)
+    if (pieces) {
+      pieces.push(path)
+    } else {
+      walks.set(path.name, [path])
+    }
   }
-  const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const table = new NodeTable(graph)
   const referenceStart = first.start ?? 0
 
   const cut = region && region.end > region.start ? region : undefined
-  const span = new Map<string, { start: number; end: number }>()
-  for (const piece of referencePieces) {
+  const referenceNodes = referencePieces.map(piece => table.nodesOf(piece))
+  const nodeCount = table.lengths.length
+  table.onReference = new Uint8Array(nodeCount)
+  table.referenceStart = new Float64Array(nodeCount)
+  table.referenceEnd = new Float64Array(nodeCount)
+  let reachesBefore = false
+  let reachesAfter = false
+  for (const [p, piece] of referencePieces.entries()) {
     let pos = piece.start ?? 0
-    for (const id of piece.nodeIds) {
-      const len = lengthOf.get(id) ?? 0
-      if (!span.has(id)) {
-        span.set(id, { start: pos, end: pos + len })
+    for (const node of referenceNodes[p]!) {
+      const len = table.lengths[node]!
+      if (!table.onReference[node]) {
+        table.onReference[node] = 1
+        table.referenceStart[node] = pos
+        table.referenceEnd[node] = pos + len
+        reachesBefore ||= cut !== undefined && pos + len <= cut.start
+        reachesAfter ||= cut !== undefined && pos >= cut.end
       }
       pos += len
     }
@@ -266,71 +330,79 @@ export function walkRows(
 
   // Whether the reference reaches past the region on both sides, i.e. whether
   // a flanking node exists for any walk to be cut at.
-  const flanked =
-    cut === undefined ||
-    ([...span.values()].some(s => s.end <= cut.start) &&
-      [...span.values()].some(s => s.start >= cut.end))
-
-  const rowOf = (pieces: GraphPath[]): WalkRow => {
-    const path = pieces[0]!
-    const ordered = [...pieces].sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
+  const flanked = cut === undefined || (reachesBefore && reachesAfter)
+  const rowOf = (paths: GraphPath[], nodes?: Int32Array[]): WalkRow => {
+    const path = paths[0]!
+    const pieces = paths
+      .map((piece, p) => ({
+        start: piece.start,
+        nodes: nodes?.[p] ?? table.nodesOf(piece),
+      }))
+      .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
     const { ids, complete, from, to, stop } = sliceBetween(
-      stepsOf(ordered, lengthOf),
-      span,
+      stepsOf(pieces, table),
+      table,
       cut,
       flanked,
     )
-    const spans = stepSpans(ordered, lengthOf)
     const contig = path.contig ?? panSNContig(pathOrigin(path.name).name)
-    const axis: WalkAxis | undefined = !spans?.length
+    const axisSpan = stepSpan(pieces, table, from < 0 ? 0 : from)
+    const axis: WalkAxis | undefined = !axisSpan
       ? undefined
       : from < 0
-        ? { contig, start: spans[0]!.start, reversed: false }
+        ? { contig, start: axisSpan.start, reversed: false }
         : from < to
-          ? { contig, start: spans[from]!.end, reversed: false }
-          : { contig, start: spans[from]!.start, reversed: true }
+          ? { contig, start: axisSpan.end, reversed: false }
+          : { contig, start: axisSpan.start, reversed: true }
+    const { lengths, onReference, referenceStart, referenceEnd } = table
     const runs: WalkRun[] = []
+    let last: WalkRun | undefined
     let bp = 0
     let offReferenceBp = 0
     let gapBp = 0
     // which way the last run steps through the reference, 0 while it holds
     // one node
     let step = 0
-    for (const id of ids) {
-      if (typeof id === 'number') {
-        runs.push({ start: bp, bp: id, onReference: false, gap: true })
-        bp += id
-        gapBp += id
+    for (const node of ids) {
+      if (node < 0) {
+        last = { start: bp, bp: -node, onReference: false, gap: true }
+        runs.push(last)
+        bp -= node
+        gapBp -= node
         step = 0
         continue
       }
-      const len = lengthOf.get(id) ?? 0
-      const s = span.get(id)
-      const last = runs.at(-1)
+      const len = lengths[node]!
+      const on = onReference[node] === 1
       const at = last?.referenceStart
       const forward =
-        s && at !== undefined && step >= 0 && at + last!.bp === s.start
-      const backward = s && at !== undefined && step <= 0 && s.end === at
-      if (!s && last && !last.onReference && !last.gap) {
+        on &&
+        at !== undefined &&
+        step >= 0 &&
+        at + last!.bp === referenceStart[node]
+      const backward =
+        on && at !== undefined && step <= 0 && referenceEnd[node] === at
+      if (!on && last && !last.onReference && !last.gap) {
         last.bp += len
       } else if (forward || backward) {
         last!.bp += len
         if (!forward) {
-          last!.referenceStart = s.start
+          last!.referenceStart = referenceStart[node]
           last!.reversed = true
         }
         step = forward ? 1 : -1
       } else {
-        runs.push({
+        last = {
           start: bp,
           bp: len,
-          onReference: s !== undefined,
-          referenceStart: s?.start,
-        })
+          onReference: on,
+          referenceStart: on ? referenceStart[node] : undefined,
+        }
+        runs.push(last)
         step = 0
       }
       bp += len
-      if (!s) {
+      if (!on) {
         offReferenceBp += len
       }
     }
@@ -353,9 +425,9 @@ export function walkRows(
   return {
     origin,
     unit,
-    reference: rowOf(referencePieces),
+    reference: rowOf(referencePieces, referenceNodes),
     rows: [...walks.values()]
-      .map(rowOf)
+      .map(paths => rowOf(paths))
       .sort(
         (a, b) =>
           Number(b.complete) - Number(a.complete) ||
