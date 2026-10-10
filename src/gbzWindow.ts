@@ -231,6 +231,46 @@ export async function cutWindowTables(
   return (text && gfaTables(text)) || text
 }
 
+// A GBWT handle's index into `names`, which a handle to a node the cut does
+// not hold is added to. A cut's node ids are a dense run, so they index a
+// table rather than a map: a lookup per step of every haplotype's walk.
+function segmentIndex(ids: Int32Array, names: string[]) {
+  let low = Infinity
+  let high = -Infinity
+  for (const id of ids) {
+    low = Math.min(low, id)
+    high = Math.max(high, id)
+  }
+  const span = high - low + 1
+  const table =
+    ids.length > 0 && span <= 16 * ids.length
+      ? new Int32Array(span).fill(-1)
+      : undefined
+  const extra = new Map<number, number>()
+  ids.forEach((id, i) => {
+    if (table) {
+      table[id - low] = i
+    } else {
+      extra.set(id, i)
+    }
+  })
+  return (handle: number) => {
+    const id = nodeId(handle)
+    const tabled = table !== undefined && id >= low && id <= high
+    const i = tabled ? table[id - low]! : (extra.get(id) ?? -1)
+    if (i >= 0) {
+      return i
+    }
+    if (tabled) {
+      table[id - low] = names.length
+    } else {
+      extra.set(id, names.length)
+    }
+    names.push(String(id))
+    return names.length - 1
+  }
+}
+
 // `sample#haplotype#contig[start-end]`, the name gbz-base gives a cut's walk
 const WALK_NAME = /^(.*)\[(\d+)-(\d+)\]$/
 
@@ -240,18 +280,7 @@ const WALK_NAME = /^(.*)\[(\d+)-(\d+)\]$/
  */
 export function compactTables(cut: CompactSubgraph): GraphTables {
   const names = Array.from(cut.nodeIds, String)
-  const index = new Map<number, number>()
-  cut.nodeIds.forEach((id, i) => index.set(id, i))
-  const indexOf = (handle: number) => {
-    const id = nodeId(handle)
-    let i = index.get(id)
-    if (i === undefined) {
-      i = names.length
-      index.set(id, i)
-      names.push(String(id))
-    }
-    return i
-  }
+  const indexOf = segmentIndex(cut.nodeIds, names)
   const declared = cut.nodeIds.length
   const linkCount = cut.edges.length / 2
   const from = new Int32Array(linkCount)
