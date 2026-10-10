@@ -1,3 +1,12 @@
+## [10.0.1](https://github.com/GMOD/bandage-core/compare/v10.0.0...v10.0.1) (2026-10-10)
+
+### Other Changes
+
+- The stress engine comes from @jbrowse/graph-stress-layout ([0157cd9](https://github.com/GMOD/bandage-core/commit/0157cd9ce81a584409a6167a0969bcee66a561be))
+- README's see-also lists the graph repos and pangenome tutorials ([0a7e4b3](https://github.com/GMOD/bandage-core/commit/0a7e4b35cc277a13157d17791c3763fd3c60c5a7))
+- See also links only where the other repo links back ([edeea45](https://github.com/GMOD/bandage-core/commit/edeea45f73d3d0fb7dbf81e8e0f0629413260c16))
+- WalkRows reads nodes by index, not by id ([fccc151](https://github.com/GMOD/bandage-core/commit/fccc151924a85558e4c79da9a64c19d02cba3f7d))
+
 ## [10.0.0](https://github.com/GMOD/bandage-core/compare/v9.10.0...v10.0.0) (2026-10-10)
 
 ### Other Changes
