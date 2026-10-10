@@ -1,8 +1,19 @@
+import { isReverse, nodeId } from '@gmod/gbz-base'
+
 import { joinCuts } from './gbzJoin.ts'
+import { gfaTables } from './gfa/gfaTables.ts'
 import { panSNMatchesPrefix, panSNSample } from './pansn.ts'
 import { wellKnownSample } from './reference.ts'
 
-import type { GBZBase, PathName, PathQuery, SnarlOutput } from '@gmod/gbz-base'
+import type { GraphTables } from './gfa/graphTables.ts'
+import type {
+  CompactSubgraph,
+  GBZBase,
+  PathName,
+  PathQuery,
+  SnarlOutput,
+  Subgraph,
+} from '@gmod/gbz-base'
 
 // A window of a gbz-base graph cut to GFA, with no host in it: the adapter
 // and a standalone page open the database their own way and share this.
@@ -151,24 +162,21 @@ export const GBZ_CUT_DEFAULTS = {
   limit: 100_000,
 } as const satisfies Pick<GbzWindowOptions, 'context' | 'snarls' | 'limit'>
 
-// The reference walk, the snarls in the window, and one W line per haplotype
-// walk (the reference walk first), PanSN-named when the database carries the
-// haplotype index. Empty when the query names no indexed path.
-export async function cutWindowGFA(
+async function windowCuts(
   db: GBZBase,
-  query: PathQuery | undefined,
+  query: PathQuery,
   start: number,
   end: number,
   opts: GbzWindowOptions,
 ) {
-  if (!query) {
-    return ''
-  }
-  const subgraphs = await db
+  return db
     .getSubgraphs({ ...opts, path: query, start, end, haplotypes: 'all' })
     .catch((error: unknown) => {
       throw nodeLimitError(error, opts.limit, end - start) ?? error
     })
+}
+
+async function joinedGFA(db: GBZBase, subgraphs: Subgraph[]) {
   const paths = await db.paths()
   return joinCuts(
     await Promise.all(subgraphs.map(subgraph => subgraph.toGFA())),
@@ -181,4 +189,118 @@ export async function cutWindowGFA(
           name.fragment === at,
       ),
   )
+}
+
+// The reference walk, the snarls in the window, and one W line per haplotype
+// walk (the reference walk first), PanSN-named when the database carries the
+// haplotype index. Empty when the query names no indexed path.
+export async function cutWindowGFA(
+  db: GBZBase,
+  query: PathQuery | undefined,
+  start: number,
+  end: number,
+  opts: GbzWindowOptions,
+) {
+  return query
+    ? joinedGFA(db, await windowCuts(db, query, start, end, opts))
+    : ''
+}
+
+/**
+ * The cut `cutWindowGFA` writes, as the tables `gfaTables` would read from
+ * it. A window on one reference fragment is one cut, whose typed arrays
+ * become the tables with no GFA written or read: writing an every-haplotype
+ * KIV-2 cut out and parsing it back was 2 s. A window over several
+ * fragments joins their GFA as text. Empty text for no indexed path.
+ */
+export async function cutWindowTables(
+  db: GBZBase,
+  query: PathQuery | undefined,
+  start: number,
+  end: number,
+  opts: GbzWindowOptions,
+): Promise<GraphTables | string> {
+  if (!query) {
+    return ''
+  }
+  const subgraphs = await windowCuts(db, query, start, end, opts)
+  if (subgraphs.length === 1) {
+    return compactTables(subgraphs[0]!.toCompactSubgraph())
+  }
+  const text = await joinedGFA(db, subgraphs)
+  return (text && gfaTables(text)) || text
+}
+
+// `sample#haplotype#contig[start-end]`, the name gbz-base gives a cut's walk
+const WALK_NAME = /^(.*)\[(\d+)-(\d+)\]$/
+
+/**
+ * A gbz-base cut's typed arrays as the tables of the GFA `toGFA` writes for
+ * it: its segments, its links, and its walks in order, steps by GBWT handle
+ */
+export function compactTables(cut: CompactSubgraph): GraphTables {
+  const names = Array.from(cut.nodeIds, String)
+  const index = new Map<number, number>()
+  cut.nodeIds.forEach((id, i) => index.set(id, i))
+  const indexOf = (handle: number) => {
+    const id = nodeId(handle)
+    let i = index.get(id)
+    if (i === undefined) {
+      i = names.length
+      index.set(id, i)
+      names.push(String(id))
+    }
+    return i
+  }
+  const declared = cut.nodeIds.length
+  const linkCount = cut.edges.length / 2
+  const from = new Int32Array(linkCount)
+  const to = new Int32Array(linkCount)
+  const strands = new Uint8Array(linkCount)
+  for (let k = 0; k < linkCount; k++) {
+    const a = cut.edges[2 * k]!
+    const b = cut.edges[2 * k + 1]!
+    from[k] = indexOf(a)
+    to[k] = indexOf(b)
+    strands[k] = (isReverse(a) ? 1 : 0) | (isReverse(b) ? 2 : 0)
+  }
+  const walks = cut.paths.filter(path => path.steps.length > 0)
+  const offsets = new Int32Array(walks.length + 1)
+  walks.forEach((walk, p) => {
+    offsets[p + 1] = offsets[p]! + walk.steps.length
+  })
+  const steps = new Int32Array(offsets[walks.length]!)
+  const reversed = new Uint8Array(steps.length)
+  const starts = new Float64Array(walks.length)
+  const ends = new Float64Array(walks.length)
+  const walkNames = walks.map((walk, p) => {
+    const named = WALK_NAME.exec(walk.name)
+    starts[p] = named ? +named[2]! : 0
+    ends[p] = named ? +named[3]! : -1
+    let at = offsets[p]!
+    for (const handle of walk.steps) {
+      steps[at] = indexOf(handle)
+      reversed[at++] = isReverse(handle) ? 1 : 0
+    }
+    return named ? named[1]! : walk.name
+  })
+  return {
+    nodes: {
+      names,
+      lengths: Int32Array.from(cut.nodeSequences, s => s.length),
+      refs: new Int32Array(declared).fill(-1),
+      starts: new Float64Array(declared),
+      ranks: new Int32Array(declared),
+      refNames: [],
+    },
+    links: { from, to, strands },
+    walks: {
+      names: walkNames,
+      starts,
+      ends,
+      offsets,
+      steps,
+      reversed,
+    },
+  }
 }

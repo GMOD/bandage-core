@@ -269,7 +269,9 @@ export type {
 } from './types'
 
 export {
+  compactTables,
   cutWindowGFA,
+  cutWindowTables,
   haplotypeWanted,
   referencePathQuery,
   referenceSamplesOf,
