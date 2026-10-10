@@ -264,7 +264,10 @@ export function superbubblesFromGraph(
     (f, i) => !covers[i] && placed(f) && !nested(f, i),
   )
   const byId = new Map(nodes.map(n => [n.id, n]))
-  const walkIndex = walkIndexOf(graph)
+  const walkIndex = walkIndexOf(
+    graph,
+    outermost.flatMap(f => [nodes[f.source >> 1]!.id, nodes[f.sink >> 1]!.id]),
+  )
   // Siblings off the reference share a span and sort by name. BubbleGun's
   // chains (connect_bubbles.py) would order them along their arm, but nothing
   // reads the order: halos key by source>sink, chips sort by size.

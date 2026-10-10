@@ -111,27 +111,11 @@ export function bubbleHalos(
     // fewest other routes share, the point farthest from the bubble's ends.
     // Routes through a repeat array share most of their copies, and the far
     // point of a shared copy would put every chip on one loop.
-    const sharing = new Map<string, number>()
-    for (const route of bubble.routes ?? []) {
-      for (const id of new Set(route.steps)) {
-        sharing.set(id, (sharing.get(id) ?? 0) + 1)
-      }
-    }
     const routes: RouteLabel[] = []
-    for (const route of bubble.routes ?? []) {
-      if (bubble.longestAlleleLength < MIN_CHIPPED_BP) {
-        break
-      }
-      if (route.steps.length === 0) {
-        continue
-      }
-      const rarest = Math.min(...route.steps.map(id => sharing.get(id)!))
+    for (const [route, own] of ownStretches(bubble)) {
       let at: NodeSegment | undefined
       let far = -1
-      for (const id of route.steps) {
-        if (sharing.get(id) !== rarest) {
-          continue
-        }
+      for (const id of own) {
         for (const p of positions[id] ?? []) {
           const d = Math.hypot(p.x - anchor.x, p.y - anchor.y)
           if (d > far) {
@@ -165,6 +149,46 @@ export function bubbleHalos(
     })
   }
   return halos
+}
+
+// Each chipped route's steps that the fewest other routes share. It reads the
+// routes alone, so a bubble keeps it while its nodes move: KIV-2 cut with every
+// haplotype has 465 routes of thousands of steps, half a second per drag frame
+// when this was rebuilt with the halos.
+const stretches = new WeakMap<MinigraphBubble, Map<BubbleRoute, string[]>>()
+
+function ownStretches(bubble: MinigraphBubble) {
+  const cached = stretches.get(bubble)
+  if (cached) {
+    return cached
+  }
+  const chipped =
+    bubble.longestAlleleLength < MIN_CHIPPED_BP ? [] : (bubble.routes ?? [])
+  const sharing = new Map<string, number>()
+  chipped.forEach((route, r) => {
+    const counted = new Map<string, number>()
+    for (const id of route.steps) {
+      if (counted.get(id) !== r) {
+        counted.set(id, r)
+        sharing.set(id, (sharing.get(id) ?? 0) + 1)
+      }
+    }
+  })
+  const own = new Map<BubbleRoute, string[]>()
+  for (const route of chipped) {
+    let rarest = Infinity
+    for (const id of route.steps) {
+      rarest = Math.min(rarest, sharing.get(id)!)
+    }
+    // each node once: a route round a repeat array passes the same copy's
+    // nodes again on every lap, and each pass looked up its positions anew
+    const steps = new Set(route.steps.filter(id => sharing.get(id) === rarest))
+    if (steps.size > 0) {
+      own.set(route, [...steps])
+    }
+  }
+  stretches.set(bubble, own)
+  return own
 }
 
 function routeText(route: BubbleRoute, walkLabel: (name: string) => string) {

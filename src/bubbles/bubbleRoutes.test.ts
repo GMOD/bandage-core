@@ -64,6 +64,22 @@ test('every route with steps is labelled for its carriers at its far point', () 
     ['HG1, HG2 · 6.0 kb', { x: 15, y: 20 }],
     ['HG3 · 1 bp', { x: 15, y: -8 }],
   ])
+
+  // the same bubbles over moved nodes, as a drag redraws them: each chip
+  // follows its stretch
+  const moved = Object.fromEntries(
+    Object.entries(positions).map(([id, line]) => [
+      id,
+      line.map(p => ({ x: p.x + 100, y: p.y })),
+    ]),
+  )
+  const [again] = bubbleHalos(
+    graph,
+    [halo!.bubble],
+    moved,
+    name => name.split('#')[0]!,
+  )
+  expect(again!.routes.map(r => r.at.x)).toEqual([110, 115, 115])
 })
 
 // Two routes share a3, and each has a node of its own; the chip goes on the

@@ -71,7 +71,10 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
     .map(node => [node, indexOf.get(node.id)!] as const)
     .filter(([node, i]) => ends.has(node.id) || reach[i] === 0)
     .sort(([a, ia], [b, ib]) => ia - ib || a.stable.start - b.stable.start)
-  const walkIndex = walkIndexOf(graph)
+  const walkIndex = walkIndexOf(
+    graph,
+    boundaries.map(([node]) => node.id),
+  )
 
   const bubbles: MinigraphBubble[] = []
   for (let i = 0; i + 1 < boundaries.length; i++) {
@@ -149,17 +152,33 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
   return bubbles
 }
 
-// Where each walk first visits each node
-export function walkIndexOf(graph: Graph) {
-  return graph.paths?.map(p => {
-    const at = new Map<string, number>()
-    p.nodeIds.forEach((id, i) => {
-      if (!at.has(id)) {
-        at.set(id, i)
+// Where each walk first visits each of `ids`, -1 where it never does. Only
+// the nodes asked about: a map per walk of every node it visits was 6.1M
+// entries for KIV-2 cut with all 465 haplotypes, and a second of the pass.
+export type WalkIndex = Map<string, Int32Array>
+
+export function walkIndexOf(
+  graph: Graph,
+  ids: Iterable<string>,
+): WalkIndex | undefined {
+  const paths = graph.paths
+  if (!paths) {
+    return undefined
+  }
+  const index: WalkIndex = new Map()
+  for (const id of ids) {
+    index.set(id, new Int32Array(paths.length).fill(-1))
+  }
+  paths.forEach((p, k) => {
+    const steps = p.nodeIds
+    for (let i = 0; i < steps.length; i++) {
+      const at = index.get(steps[i]!)
+      if (at?.[k] === -1) {
+        at[k] = i
       }
-    })
-    return at
+    }
   })
+  return index
 }
 
 // For every walk that passes both boundary nodes, the bp between them and the
@@ -172,41 +191,52 @@ export function walkIndexOf(graph: Graph) {
 export function walkRoutes(
   graph: Graph,
   byId: Map<string, GraphNode>,
-  walkIndex: Map<string, number>[],
+  walkIndex: WalkIndex,
   startId: string,
   endId: string,
 ): (Routes & { left: number; routes: BubbleRoute[] }) | undefined {
-  const seen = new Map<string, BubbleRoute>()
+  const routes: BubbleRoute[] = []
   let min = Infinity
   let max = -Infinity
   let left = 0
+  const at0 = walkIndex.get(startId)!
+  const at1 = walkIndex.get(endId)!
   graph.paths!.forEach((p, k) => {
-    const i0 = walkIndex[k]!.get(startId)
-    const i1 = walkIndex[k]!.get(endId)
-    if (i0 === undefined || i1 === undefined) {
-      if (i0 !== undefined || i1 !== undefined) {
+    const i0 = at0[k]!
+    const i1 = at1[k]!
+    if (i0 < 0 || i1 < 0) {
+      if (i0 >= 0 || i1 >= 0) {
         left++
       }
       return
     }
     // Start to end, whichever way the walk crosses: a contig on the reverse
     // strand takes the same route, and read end-first it keyed as a second one.
-    const steps = p.nodeIds.slice(Math.min(i0, i1) + 1, Math.max(i0, i1))
-    if (i1 < i0) {
-      steps.reverse()
+    const ids = p.nodeIds
+    const lo = Math.min(i0, i1) + 1
+    const hi = Math.max(i0, i1)
+    const step =
+      i1 < i0 ? (j: number) => ids[hi - 1 - j]! : (j: number) => ids[lo + j]!
+    // copied and measured only for a route not seen yet: hundreds of walks
+    // take most routes
+    let route = routes.find(
+      r =>
+        r.steps.length === hi - lo && r.steps.every((id, j) => id === step(j)),
+    )
+    if (!route) {
+      const steps = Array.from({ length: hi - lo }, (_, j) => step(j))
+      let bp = 0
+      for (const id of steps) {
+        bp += byId.get(id)?.length ?? 0
+      }
+      route = { steps, bp, walks: [] }
+      routes.push(route)
     }
-    let bp = 0
-    for (const id of steps) {
-      bp += byId.get(id)?.length ?? 0
-    }
-    const key = steps.join(',')
-    const route = seen.get(key) ?? { steps, bp, walks: [] }
     route.walks.push(p.name)
-    seen.set(key, route)
-    min = Math.min(min, bp)
-    max = Math.max(max, bp)
+    min = Math.min(min, route.bp)
+    max = Math.max(max, route.bp)
   })
-  return seen.size || left
-    ? { min, max, n: seen.size, left, routes: [...seen.values()] }
+  return routes.length || left
+    ? { min, max, n: routes.length, left, routes }
     : undefined
 }
