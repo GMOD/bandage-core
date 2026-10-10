@@ -12,7 +12,7 @@ export const LAYOUT_ENGINES = [
   },
   {
     value: 'stress',
-    label: 'Stress (experimental)',
+    label: 'Stress',
     description:
       'Stress layout by stochastic gradient descent in plain JS: distances along the graph become distances on the page, so the reference reads straight and a repeat loop reads as a ring.',
   },
