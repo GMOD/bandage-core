@@ -123,6 +123,7 @@ function anchorNode(
   node: GraphNode,
   visits: PathVisit[] | undefined,
   reference: string,
+  samplesOf: (visits: PathVisit[]) => string[],
 ): GraphNode {
   let anchored = node
   if (visits && visits.length > 0) {
@@ -135,10 +136,35 @@ function anchorNode(
         rank: anchor.path === reference ? REFERENCE_RANK : OFF_REFERENCE_RANK,
         strand: anchor.strand,
       },
-      samples: [...new Set(visits.map(v => v.sample))].sort(),
+      samples: samplesOf(visits),
     }
   }
   return anchored
+}
+
+// A node's samples, sorted, by their place in the graph's samples sorted once:
+// sorting each node's own was 40 M string comparisons on KIV-2 cut with every
+// haplotype, whose 22 k nodes are each walked by most of its 233 samples
+function sampleSorter(paths: PathOrigin[]) {
+  const sorted = [...new Set(paths.map(p => p.sample))].sort()
+  const rank = new Map(sorted.map((sample, i) => [sample, i]))
+  const seen = new Uint8Array(sorted.length)
+  return (visits: PathVisit[]) => {
+    const ranks: number[] = []
+    for (const { sample } of visits) {
+      const r = rank.get(sample)
+      if (r === undefined) {
+        ranks.forEach(r => (seen[r] = 0))
+        return [...new Set(visits.map(v => v.sample))].sort()
+      }
+      if (seen[r] === 0) {
+        seen[r] = 1
+        ranks.push(r)
+      }
+    }
+    ranks.forEach(r => (seen[r] = 0))
+    return Array.from(Int32Array.from(ranks).sort(), r => sorted[r]!)
+  }
 }
 
 // Re-runnable against a different reference path at no parsing cost, which is
@@ -150,16 +176,18 @@ export function anchorFromPaths(graph: Graph, preferred: string | undefined) {
     anchorPaths && pathVisits
       ? chooseReferencePath(anchorPaths, preferred)
       : undefined
-  return reference && pathVisits
-    ? ({
-        ...graph,
-        nodes: graph.nodes.map(node =>
-          anchorNode(node, pathVisits.get(node.name), reference.name),
-        ),
-        anchoredBy: 'paths',
-        referencePath: reference.name,
-      } satisfies Graph)
-    : graph
+  if (!reference || !anchorPaths || !pathVisits) {
+    return graph
+  }
+  const samplesOf = sampleSorter(anchorPaths)
+  return {
+    ...graph,
+    nodes: graph.nodes.map(node =>
+      anchorNode(node, pathVisits.get(node.name), reference.name, samplesOf),
+    ),
+    anchoredBy: 'paths',
+    referencePath: reference.name,
+  } satisfies Graph
 }
 
 // rGFA states coordinates on every segment, so only a graph that states none
