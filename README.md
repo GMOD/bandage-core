@@ -65,9 +65,10 @@ publishes to npm with trusted publishing.
   and gbz-base graphs
 - [@jbrowse/graph-stress-layout](https://github.com/GMOD/graph-stress-layout) -
   stress layout that keeps the reference straight
+- [@gmod/gbz-base](https://github.com/GMOD/gbz-base-js) - range-request reader
+  for `.gbz.db` databases
 - [ggbandage](https://github.com/GMOD/ggbandage) - Bandage-style graph figures
   as ggplot2 layers
-- [ggtubemap](https://github.com/GMOD/ggtubemap) - tube maps as ggplot2 layers
 - [@jbrowse/tubemap-core](https://github.com/GMOD/tubemap-core) -
   sequenceTubeMap's layout, without the DOM
 
