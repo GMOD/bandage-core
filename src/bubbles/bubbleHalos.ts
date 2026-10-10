@@ -26,6 +26,9 @@ export interface BubbleHalo {
   // the bubble is the whole drawing, as a popped bubble's own row is: its
   // label still names it, but a halo around everything marks nothing
   whole: boolean
+  // a small variant, drawn as a tick with no chip: its halo is a blob, and a
+  // window of them buries the structural variants' names
+  tick: boolean
   // each route the walks take through the bubble, the reference's own
   // included, named for the haplotypes that take it; a route with no steps, a
   // deletion, has nowhere to carry a chip
@@ -46,6 +49,8 @@ export function coversGraph(members: number, nodes: number) {
   return members + 2 >= nodes || members >= WHOLE_FRACTION * nodes
 }
 
+// the usual line between a small variant and a structural one
+export const SMALL_VARIANT_BP = 50
 const NAMED_WALKS = 2
 // a SNP's routes are a dot each; chips are for loops a reader can see
 const MIN_CHIPPED_BP = 1000
@@ -147,6 +152,7 @@ export function bubbleHalos(
       members: nodeIds.length,
       nodeIds,
       whole: coversGraph(nodeIds.length, graph.nodes.length),
+      tick: bubble.longestAlleleLength < SMALL_VARIANT_BP,
       routes,
     })
   }

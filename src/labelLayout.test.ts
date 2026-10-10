@@ -19,7 +19,11 @@ const bubble = {
   longestAllele: undefined,
 }
 
-function halo(labelAt: NodeSegment, routeAt?: NodeSegment): BubbleHalo {
+function halo(
+  labelAt: NodeSegment,
+  routeAt?: NodeSegment,
+  tick = false,
+): BubbleHalo {
   return {
     bubble,
     kind: 'substitution',
@@ -29,6 +33,7 @@ function halo(labelAt: NodeSegment, routeAt?: NodeSegment): BubbleHalo {
     members: 3,
     nodeIds: ['s2'],
     whole: false,
+    tick,
     routes: routeAt
       ? [
           {
@@ -264,4 +269,18 @@ test("a gene's name never covers a node the gene does not lie on", () => {
     }),
   )
   expect(own.genes.map(l => l.y)).toEqual([pinY])
+})
+
+test('a small variant stands as a tick above its nodes, with no chip', () => {
+  const { bubbles, ticks } = layoutLabels(
+    source({
+      bubbleHalos: [
+        halo({ x: 300, y: 200 }),
+        halo({ x: 500, y: 200 }, undefined, true),
+        halo({ x: 900, y: 200 }, undefined, true),
+      ],
+    }),
+  )
+  expect(bubbles.map(b => b.item.labelAt.x)).toEqual([300])
+  expect(ticks.map(t => [t.x, t.y])).toEqual([[500, 200 - (6 * 3.4) / 2 - 2]])
 })

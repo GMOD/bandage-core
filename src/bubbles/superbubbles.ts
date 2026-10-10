@@ -17,10 +17,6 @@ import type { Graph, GraphNode } from '../types'
 // the search. Unlike bubblesFromGraph this needs no reference, so it opens a
 // bubble whose own interior the reach rule cannot split.
 
-// The largest, by segment count: KIV-2's array holds 1,219 outermost
-// superbubbles, and past the 50th they are SNPs and small indels
-export const MAX_SUPERBUBBLES = 50
-
 // A node side is a slot, node * 2 for its start and node * 2 + 1 for its end
 interface Found {
   // the slot the source faces into the bubble with
@@ -234,10 +230,9 @@ function routesThrough(
   return best.get(sink) ?? { min: 0, max: 0, n: 0 }
 }
 
-// The outermost superbubbles that are not the whole graph, the largest
-// MAX_SUPERBUBBLES of them. One with both ends on the reference is placed
-// between them; any other takes `span`, the bubble it was found in, and is
-// dropped without one.
+// The outermost superbubbles that are not the whole graph. One with both ends
+// on the reference is placed between them; any other takes `span`, the bubble
+// it was found in, and is dropped without one.
 export function superbubblesFromGraph(
   graph: Graph,
   span?: MinigraphBubble,
@@ -265,46 +260,49 @@ export function superbubblesFromGraph(
   const placed = (f: Found) =>
     span !== undefined ||
     onReference(nodes[f.source >> 1]!, nodes[f.sink >> 1]!)
-  const outermost = found
-    .filter((f, i) => !covers[i] && placed(f) && !nested(f, i))
-    .sort((a, b) => b.inside.length - a.inside.length)
-    .slice(0, MAX_SUPERBUBBLES)
-
+  const outermost = found.filter(
+    (f, i) => !covers[i] && placed(f) && !nested(f, i),
+  )
   const byId = new Map(nodes.map(n => [n.id, n]))
   const walkIndex = walkIndexOf(graph)
-  return outermost
-    .map(f => {
-      const source = nodes[f.source >> 1]!
-      const sink = nodes[f.sink >> 1]!
-      const walked =
-        walkIndex && walkRoutes(graph, byId, walkIndex, source.id, sink.id)
-      const crossed = walked?.n ? walked : undefined
-      const routes = crossed ?? routesThrough(nodes, offset, next, f)
-      const placedOn = onReference(source, sink)
-      return {
-        refName: placedOn ? source.stable!.refName : span!.refName,
-        start: placedOn ? source.stable!.start + source.length : span!.start,
-        end: placedOn ? sink.stable!.start : span!.end,
-        segmentCount: f.inside.length + 2,
-        pathCount: routes.n,
-        inversion: false,
-        shortestAlleleLength: routes.min,
-        longestAlleleLength: routes.max,
-        segments: nodesOf(f)
-          .map(v => nodes[v]!.name)
-          .join(','),
-        shortestAllele: undefined,
-        longestAllele: undefined,
-        partial: walked !== undefined && walked.left > 0,
-        routes: crossed?.routes,
-        key: `${source.name}>${sink.name}`,
-        ...(placedOn ? {} : { offReference: true as const }),
-      }
-    })
-    .sort(
-      (a, b) =>
-        a.start - b.start || a.end - b.end || collator.compare(a.key, b.key),
-    )
+  return (
+    outermost
+      .map(f => {
+        const source = nodes[f.source >> 1]!
+        const sink = nodes[f.sink >> 1]!
+        const walked =
+          walkIndex && walkRoutes(graph, byId, walkIndex, source.id, sink.id)
+        const crossed = walked?.n ? walked : undefined
+        const routes = crossed ?? routesThrough(nodes, offset, next, f)
+        const placedOn = onReference(source, sink)
+        return {
+          refName: placedOn ? source.stable!.refName : span!.refName,
+          start: placedOn ? source.stable!.start + source.length : span!.start,
+          end: placedOn ? sink.stable!.start : span!.end,
+          segmentCount: f.inside.length + 2,
+          pathCount: routes.n,
+          inversion: false,
+          shortestAlleleLength: routes.min,
+          longestAlleleLength: routes.max,
+          segments: nodesOf(f)
+            .map(v => nodes[v]!.name)
+            .join(','),
+          shortestAllele: undefined,
+          longestAllele: undefined,
+          partial: walked !== undefined && walked.left > 0,
+          routes: crossed?.routes,
+          key: `${source.name}>${sink.name}`,
+          ...(placedOn ? {} : { offReference: true as const }),
+        }
+      })
+      // Siblings off the reference share a span and sort by name. BubbleGun's
+      // chains (connect_bubbles.py) would order them along their arm, but
+      // nothing reads the order: halos key by source>sink, chips sort by size.
+      .sort(
+        (a, b) =>
+          a.start - b.start || a.end - b.end || collator.compare(a.key, b.key),
+      )
+  )
 }
 
 // The bubbles a drawing marks: the reach rule's, with any that is the whole

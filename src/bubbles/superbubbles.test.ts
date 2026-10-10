@@ -6,11 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { bubbleKey, sameBubble } from './bubbleLine'
 import { bubbleSegmentIds, classifyBubble } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
-import {
-  MAX_SUPERBUBBLES,
-  graphBubbles,
-  superbubblesFromGraph,
-} from './superbubbles'
+import { graphBubbles, superbubblesFromGraph } from './superbubbles'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 
@@ -271,8 +267,8 @@ describe('superbubblesFromGraph', () => {
     expect(superbubblesFromGraph(g)).toEqual([])
   })
 
-  it(`keeps the ${MAX_SUPERBUBBLES} largest`, () => {
-    const count = MAX_SUPERBUBBLES + 10
+  it('keeps every outermost superbubble however many there are', () => {
+    const count = 60
     const nodes = [node('src', 1), node('snk', 1)]
     const links: string[] = []
     for (let i = 0; i < count; i++) {
@@ -285,7 +281,7 @@ describe('superbubblesFromGraph', () => {
       }
     }
     const kept = superbubblesFromGraph(graphOf(nodes, links), span)
-    expect(kept).toHaveLength(MAX_SUPERBUBBLES)
+    expect(kept).toHaveLength(count)
     expect(kept.filter(b => b.segmentCount === 5)).toHaveLength(10)
   })
 
@@ -312,7 +308,7 @@ describe('superbubblesFromGraph', () => {
     links.push(`${prev}+snk+`)
     const g = graphOf(nodes, links)
     const t = performance.now()
-    expect(superbubblesFromGraph(g, span)).toHaveLength(MAX_SUPERBUBBLES)
+    expect(superbubblesFromGraph(g, span)).toHaveLength(3750)
     expect(performance.now() - t).toBeLessThan(1000)
   })
 })

@@ -59,8 +59,16 @@ export interface LabelLayoutSource {
   positionsVersion: number
 }
 
+// where a small variant's tick stands, its foot just above its nodes
+export interface BubbleTick {
+  item: BubbleHalo
+  x: number
+  y: number
+}
+
 export interface LabelLayout {
   bubbles: PlacedLabel<BubbleHalo>[]
+  ticks: BubbleTick[]
   genes: PlacedLabel<GenePin>[]
   routes: PlacedLabel<{ halo: BubbleHalo; route: RouteLabel }>[]
   sizes: GraphLabel[]
@@ -164,24 +172,27 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     ? Math.min(...m.drawnRowLabels.map(r => r.y))
     : Infinity
   const halo = m.contigThickness * HALO_FACTOR
-  const byBubble = byExtent(m.bubbleHalos, h => h.members)
+  const above = (h: BubbleHalo, gap: number) => {
+    const { x, y } = screen({
+      x: h.labelAt.x,
+      y: Math.min(h.labelAt.y, rowsTop),
+    })
+    const baseline = y - halo / 2 - gap
+    return { x, y: onRows ? Math.max(baseline, TOPMOST_BASELINE) : baseline }
+  }
+  const byBubble = byExtent(
+    m.bubbleHalos.filter(h => !h.tick),
+    h => h.members,
+  )
   const bubbles = placeLabels(
-    byBubble.map(h => {
-      const { x, y } = screen({
-        x: h.labelAt.x,
-        y: Math.min(h.labelAt.y, rowsTop),
-      })
-      const baseline = y - halo / 2 - 6
-      return {
-        item: h,
-        x,
-        y: onRows ? Math.max(baseline, TOPMOST_BASELINE) : baseline,
-        text: h.label,
-      }
-    }),
+    byBubble.map(h => ({ item: h, ...above(h, 6), text: h.label })),
     frame,
     take,
   )
+  const ticks = m.bubbleHalos
+    .filter(h => h.tick && !h.whole)
+    .map(h => ({ item: h, ...above(h, 2) }))
+    .filter(t => t.x >= 0 && t.x <= width && t.y >= 0 && t.y <= height)
 
   const genes = placeLabels(
     geneLabelCandidates(
@@ -238,6 +249,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   )
   return {
     bubbles,
+    ticks,
     genes,
     routes,
     sizes: [...deletionLabels, ...nodeLabels],

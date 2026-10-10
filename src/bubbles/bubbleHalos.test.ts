@@ -82,3 +82,9 @@ test('one rule says a bubble is the whole drawing', () => {
   expect([18, 17].map(m => coversGraph(m, 20))).toEqual([true, false])
   expect([90, 89].map(m => coversGraph(m, 100))).toEqual([true, false])
 })
+
+test('a variant under 50 bp is a tick, and one of 50 bp or more a halo', () => {
+  const ticked = (longestAlleleLength: number) =>
+    bubbleHalos(graph, [{ ...bubble, longestAlleleLength }], positions)[0]?.tick
+  expect([ticked(2), ticked(49), ticked(50)]).toEqual([true, true, false])
+})
