@@ -1,9 +1,8 @@
 # A coarse tier for whole-chromosome views
 
 `bandage-fold` writes a graph with every variant under `--below` bp folded into
-the reference. Indexed by
-[gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix), it is the coarse tier a
-graph track draws once zoomed out past the fine index.
+the reference. Indexed by [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix),
+it is the coarse tier a graph track draws once zoomed out past the fine index.
 
 ```console
 npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 \
@@ -21,9 +20,9 @@ replaces reaches `--below`, and the shortest way from each one's ends back to
 the backbone. The reference between kept alleles becomes one segment.
 
 The graph track folds each cut it draws the same way, at ten of the linear
-view's pixels (`FOLD_PX` in jbrowse-plugin-graphgenomeviewer), and folding a fold
-again at a larger size folds the original at that size. So a tier folded at N
-and handed over at N / 10 bp per pixel draws what the fine cut drew just below
+view's pixels (`FOLD_PX` in jbrowse-plugin-graphgenomeviewer), and folding a
+fold again at a larger size folds the original at that size. So a tier folded at
+N and handed over at N / 10 bp per pixel draws what the fine cut drew just below
 the handover, and zooming across it changes nothing on screen. In the track's
 config, `coarse: { uri: "graph.fold10000", aboveBpPerPx: 1000 }` is that
 handover.
