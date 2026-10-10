@@ -23,7 +23,7 @@ export interface Knot {
 // The most screen a boundary claims. The tube map spaces its columns to keep
 // the lane changes shallow, which with many haplotypes is hundreds of px a
 // gap; on the reference axis the curves steepen instead.
-const MAX_GAP_PX = 24
+export const MAX_GAP_PX = 24
 const MAX_GAP_SHARE = 0.5
 
 const isReal = (c: TubeMapColumn) => c.bp1 > c.bp0

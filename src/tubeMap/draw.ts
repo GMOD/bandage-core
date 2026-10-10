@@ -2,6 +2,7 @@ import { curvePaths, nodeOutlinePath } from '@jbrowse/tubemap-core'
 
 import { tubeMapMismatches } from './mismatches'
 import { readColor } from './reads'
+import { MAX_GAP_PX } from './warp'
 import { pathOrigin } from '../pathAnchoring'
 
 import type { TubeMapTransform } from './frame'
@@ -148,6 +149,7 @@ function layerOf(
   type: TrackType,
   colors: ReadonlyMap<number, string>,
   referenceIds: ReadonlySet<number>,
+  gapWidth: number | undefined,
 ): Layer {
   const { shapes } = layout
   const haplotype = type === 'haplotype'
@@ -165,7 +167,7 @@ function layerOf(
       y0: r.yStart,
       y1: r.yEnd + 1,
     }))
-  const curves = curvePaths(shapes.curves, type).map(c =>
+  const curves = curvePaths(shapes.curves, type, { gapWidth }).map(c =>
     shapeOf(c.path!, colorOf(c), c.id, haplotype, isReference(c)),
   )
   const corners = shapes.corners
@@ -190,10 +192,13 @@ export function tubeMapPicture({
   layout,
   pathColors,
   graph,
+  columns,
 }: Pick<TubeMapDrawing, 'layout' | 'pathColors'> &
-  Partial<Pick<TubeMapDrawing, 'graph'>>): TubeMapPicture {
+  Partial<Pick<TubeMapDrawing, 'graph' | 'columns'>>): TubeMapPicture {
   const colors = trackColors(layout, pathColors)
   const referenceIds = referenceTrackIds(graph)
+  // the reference axis draws a gap at most this wide (warp.ts)
+  const gapWidth = columns ? MAX_GAP_PX : undefined
   const nodes: TubeMapPicture['nodes'] = []
   layout.nodes.forEach(node => {
     if (node.order >= 0) {
@@ -204,8 +209,8 @@ export function tubeMapPicture({
   return {
     bounds: layout.bounds,
     layers: [
-      layerOf(layout, 'haplotype', colors, referenceIds),
-      layerOf(layout, 'read', colors, referenceIds),
+      layerOf(layout, 'haplotype', colors, referenceIds, gapWidth),
+      layerOf(layout, 'read', colors, referenceIds, gapWidth),
     ],
     nodes,
     mismatches: tubeMapMismatches(layout).filter(
@@ -448,9 +453,67 @@ function drawMismatches(
   }
 }
 
-// The track whose straight run of tube is under a screen point, reads before
-// haplotypes since they draw over them. The curves between columns are left
-// out: tubes cross there, so a curve's bounds would name the wrong one.
+// A path's outline as screen points, its beziers flattened
+function outline(
+  commands: Command[],
+  x: (tx: number) => number,
+  y: (ty: number) => number,
+) {
+  const points: [number, number][] = []
+  let cx = 0
+  let cy = 0
+  const STEPS = 12
+  for (const c of commands) {
+    if (c.op === 'C' || c.op === 'Q') {
+      for (let i = 1; i <= STEPS; i++) {
+        const t = i / STEPS
+        const u = 1 - t
+        const [px, py] =
+          c.op === 'C'
+            ? [
+                u * u * u * cx +
+                  3 * u * u * t * c.x1 +
+                  3 * u * t * t * c.x2 +
+                  t * t * t * c.x,
+                u * u * u * cy +
+                  3 * u * u * t * c.y1 +
+                  3 * u * t * t * c.y2 +
+                  t * t * t * c.y,
+              ]
+            : [
+                u * u * cx + 2 * u * t * c.x1 + t * t * c.x,
+                u * u * cy + 2 * u * t * c.y1 + t * t * c.y,
+              ]
+        points.push([x(px), y(py)])
+      }
+    }
+    if (c.op !== 'Z') {
+      cx = 'x' in c ? c.x : cx
+      cy = 'y' in c ? c.y : cy
+      if (c.op !== 'C' && c.op !== 'Q') {
+        points.push([x(cx), y(cy)])
+      }
+    }
+  }
+  return points
+}
+
+function inside(points: [number, number][], sx: number, sy: number) {
+  let hit = false
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [xi, yi] = points[i]!
+    const [xj, yj] = points[j]!
+    if (yi > sy !== yj > sy && sx < ((xj - xi) * (sy - yi)) / (yj - yi) + xi) {
+      hit = !hit
+    }
+  }
+  return hit
+}
+
+// The track whose tube is under a screen point, reads before haplotypes and
+// the reference before other tubes, in the order they draw over each other.
+// A curve is tested against its outline, not its bounds, since tubes cross
+// between columns.
 export function tubeMapTrackAt(
   picture: TubeMapPicture,
   { x, y }: TubeMapTransform,
@@ -458,9 +521,28 @@ export function tubeMapTrackAt(
   sy: number,
 ) {
   for (let l = picture.layers.length - 1; l >= 0; l--) {
-    for (const r of picture.layers[l]!.rects) {
-      if (x(r.x0) <= sx && sx <= x(r.x1) && y(r.y0) <= sy && sy <= y(r.y1)) {
-        return r.id
+    const { rects, shapes } = picture.layers[l]!
+    for (const reference of [true, false]) {
+      for (const r of rects) {
+        if (
+          r.reference === reference &&
+          x(r.x0) <= sx &&
+          sx <= x(r.x1) &&
+          y(r.y0) <= sy &&
+          sy <= y(r.y1)
+        ) {
+          return r.id
+        }
+      }
+      for (const s of shapes) {
+        if (
+          s.reference === reference &&
+          x(s.x0) <= sx &&
+          sx <= x(s.x1) &&
+          inside(outline(s.commands, x, y), sx, sy)
+        ) {
+          return s.id
+        }
       }
     }
   }

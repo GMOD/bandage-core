@@ -16,6 +16,8 @@ import { parseGFA } from '../gfa-core/index'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
 
+import type { parsePath } from './draw'
+
 const dir = path.join(__dirname, '../../test_data/cactus')
 const GFA = fs.readFileSync(path.join(dir, 'cactus_240_280.gfa'), 'utf8')
 const GAF = fs.readFileSync(path.join(dir, 'cactus_240_280.gaf'), 'utf8')
@@ -161,4 +163,57 @@ test('the reference fills last, over any tube that crosses it', () => {
   const first = tubes.indexOf(reference)
   expect(first).toBeGreaterThan(0)
   expect(tubes.slice(first).every(f => f === reference)).toBe(true)
+})
+
+interface Cubic {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  x: number
+  y: number
+}
+
+const cubicMiddle = (x0: number, y0: number, c: Cubic) => [
+  (x0 + 3 * c.x1 + 3 * c.x2 + c.x) / 8,
+  (y0 + 3 * c.y1 + 3 * c.y2 + c.y) / 8,
+]
+
+// A ribbon is M, its top edge, V down its far end, its bottom edge back, Z;
+// this is halfway between its edges' midpoints
+function ribbonMiddle(commands: ReturnType<typeof parsePath>) {
+  const [start, top, down, bottom] = commands as [
+    { x: number; y: number },
+    Cubic,
+    { y: number },
+    Cubic,
+  ]
+  const [tx, ty] = cubicMiddle(start.x, start.y, top)
+  const [bx, by] = cubicMiddle(top.x, down.y, bottom)
+  return [(tx! + bx!) / 2, (ty! + by!) / 2] as const
+}
+
+test('the pointer names the tube on a lane change, the reference over the rest', () => {
+  const picture = tubeMapPicture(drawing())
+  const [haplotypes] = picture.layers
+  const curves = haplotypes!.shapes.filter(
+    s => s.commands.length === 5 && s.commands[1]!.op === 'C',
+  )
+  expect(curves.length).toBeGreaterThan(0)
+  let named = 0
+  for (const curve of curves) {
+    const [mx, my] = ribbonMiddle(curve.commands)
+    const onRun = haplotypes!.rects.some(
+      r => r.x0 <= mx && mx <= r.x1 && r.y0 <= my && my <= r.y1,
+    )
+    const hit = tubeMapTrackAt(picture, identity, mx, my)
+    if (!onRun && hit !== undefined) {
+      named++
+    }
+    if (curve.reference) {
+      expect(hit).toBe(curve.id)
+    }
+  }
+  expect(named).toBeGreaterThan(0)
+  expect(tubeMapTrackAt(picture, identity, -1e6, -1e6)).toBeUndefined()
 })
