@@ -1,3 +1,12 @@
+## [10.0.0](https://github.com/GMOD/bandage-core/compare/v9.10.0...v10.0.0) (2026-10-10)
+
+### Other Changes
+
+- Path visits as columns, not an object per step ([d46fa14](https://github.com/GMOD/bandage-core/commit/d46fa147d7a08949f4ae217a5f744d20d74b71be))
+- A gbz-base cut as tables, with no GFA written or read ([8c5b271](https://github.com/GMOD/bandage-core/commit/8c5b271fd54d12a08028f33f320b6d3a4c34b1be))
+- CompactTables indexes a cut's dense node ids by table, not a map ([64e43fc](https://github.com/GMOD/bandage-core/commit/64e43fcfc8bf353b64652ca7e33bcf6d333deaf6))
+- GbzWindow imports the graph tables extensionless, as build.mjs resolves ([2b91fd9](https://github.com/GMOD/bandage-core/commit/2b91fd9d56662734daff84940fb8c2bd900a082c))
+
 ## [9.10.0](https://github.com/GMOD/bandage-core/compare/v9.9.2...v9.10.0) (2026-10-10)
 
 ### Other Changes
