@@ -25,6 +25,9 @@ npm install @jbrowse/bandage-core
   and the `bandage-figure` CLI makes one from a JSON spec with no browser:
   `npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg`. See
   [docs/figures.md](docs/figures.md)
+- Coarse tier: the `bandage-fold` CLI folds every variant under a size into the
+  reference, so a graph track draws a whole chromosome. See
+  [docs/coarse-tier.md](docs/coarse-tier.md)
 - Figure data: `figureData` returns what `figureSvg` would paint as columnar
   tables, for another graphics system to draw;
   [ggbandage](https://github.com/GMOD/ggbandage) draws them in ggplot2
