@@ -4,12 +4,13 @@ import type { TubeMapColumn } from '../layout/tubeMapLayout'
 // of the reference bp its backbone node covers, which puts the tubes under the
 // linear view's other tracks. But the tube map changes lanes BETWEEN columns,
 // and adjacent reference nodes abut in bp, so the curves would have no width
-// at all. At each boundary the gap the tube map drew (its curves, and any
-// columns of inserted sequence, which cover no reference) gets its tube px
-// back, up to MAX_GAP_PX, where there is room: first from reference no
-// column covers, then from up to half of each neighbouring column. Zoomed in that is a
-// few px off a wide node; zoomed out the columns are thin, the gap gets what
-// they can spare and the curves steepen.
+// at all. Each boundary gets back the gap the tube map drew (its curves, and
+// any columns of inserted sequence, which cover no reference), up to
+// MAX_GAP_PX, and the column edges move as little as they can to make room.
+// A run of columns only a few bp wide has no room of its own, so it slides
+// apart into the wide columns either side; otherwise every curve in it would
+// be a vertical cliff. Zoomed out the gaps share at most half the screen and
+// the curves steepen.
 //
 // Piecewise linear, so a curve's bezier, which lies inside one gap, maps
 // exactly by mapping its control points.
@@ -23,6 +24,7 @@ export interface Knot {
 // the lane changes shallow, which with many haplotypes is hundreds of px a
 // gap; on the reference axis the curves steepen instead.
 const MAX_GAP_PX = 24
+const MAX_GAP_SHARE = 0.5
 
 const isReal = (c: TubeMapColumn) => c.bp1 > c.bp0
 
@@ -35,36 +37,47 @@ export function referenceKnots(
     const first = columns[0]
     return first ? [{ tx: first.x0, sx: bpToScreen(first.bp0) }] : []
   }
-  const screen = real.map(c => ({
-    c,
-    s0: bpToScreen(c.bp0),
-    s1: bpToScreen(c.bp1),
-    trimLeft: 0,
-    trimRight: 0,
-  }))
-  for (let i = 0; i + 1 < screen.length; i++) {
-    const left = screen[i]!
-    const right = screen[i + 1]!
-    const demand = Math.min(right.c.x0 - left.c.x1, MAX_GAP_PX)
-    const short = demand - (right.s0 - left.s1)
-    if (short > 0) {
-      const capLeft = (left.s1 - left.s0) / 2
-      const capRight = (right.s1 - right.s0) / 2
-      let fromLeft = Math.min(short / 2, capLeft)
-      const fromRight = Math.min(short - fromLeft, capRight)
-      fromLeft = Math.min(short - fromRight, capLeft)
-      left.trimRight = fromLeft
-      right.trimLeft = fromRight
+  const tx: number[] = []
+  const target: number[] = []
+  // gap[k]: the least screen between knot k-1 and knot k
+  const gap: number[] = []
+  real.forEach((c, i) => {
+    tx.push(c.x0, c.x1)
+    target.push(bpToScreen(c.bp0), bpToScreen(c.bp1))
+    gap.push(i === 0 ? 0 : Math.min(c.x0 - real[i - 1]!.x1, MAX_GAP_PX), 0)
+  })
+  const span = target.at(-1)! - target[0]!
+  const demand = gap.reduce((a, b) => a + b, 0)
+  const scale = demand > 0 ? Math.min(1, (MAX_GAP_SHARE * span) / demand) : 1
+  return spread(target, gap, scale).map((sx, k) => ({ tx: tx[k]!, sx }))
+}
+
+// The positions nearest `target`, least squares, that keep each `gap` (times
+// `scale`) between neighbours. Less the running sum of the gaps the constraint
+// is only that positions never decrease, so this is isotonic regression: pool
+// adjacent violators.
+function spread(target: number[], gap: number[], scale: number) {
+  const offset: number[] = []
+  let sum = 0
+  for (const g of gap) {
+    sum += g * scale
+    offset.push(sum)
+  }
+  const blocks: { mean: number; n: number }[] = []
+  target.forEach((t, k) => {
+    let block = { mean: t - offset[k]!, n: 1 }
+    let last = blocks.at(-1)
+    while (last && last.mean >= block.mean) {
+      blocks.pop()
+      const n = last.n + block.n
+      block = { mean: (last.mean * last.n + block.mean * block.n) / n, n }
+      last = blocks.at(-1)
     }
-  }
-  const knots: Knot[] = []
-  for (const { c, s0, s1, trimLeft, trimRight } of screen) {
-    knots.push(
-      { tx: c.x0, sx: s0 + trimLeft },
-      { tx: c.x1, sx: s1 - trimRight },
-    )
-  }
-  return knots
+    blocks.push(block)
+  })
+  return blocks
+    .flatMap(b => Array<number>(b.n).fill(b.mean))
+    .map((q, k) => q + offset[k]!)
 }
 
 // Beyond the first and last knot the drawing continues at one screen px per

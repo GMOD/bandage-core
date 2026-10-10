@@ -33,12 +33,32 @@ test('zoomed in, a column keeps its bp and gives up a gap at each boundary', () 
   expect(warpX(knots, 150) - warpX(knots, 80)).toBe(24)
 })
 
-test('zoomed out, a gap takes at most half of each neighbouring column', () => {
+test('zoomed out, the gaps share half the screen', () => {
   const knots = referenceKnots(COLUMNS, at(10))
   monotone(knots)
-  expect(warpX(knots, 20)).toBe(5)
-  expect(warpX(knots, 60)).toBe(15)
   expect(warpX(knots, 0)).toBe(0)
+  expect(warpX(knots, 170)).toBe(30)
+  expect(warpX(knots, 60) - warpX(knots, 20)).toBe(7.5)
+  expect(warpX(knots, 150) - warpX(knots, 80)).toBe(7.5)
+})
+
+test('a run of columns a few bp wide slides apart into the wide columns either side', () => {
+  // C4's two reference nodes of 6 and 23 bp between two of thousands
+  const thin: TubeMapColumn[] = [
+    { order: 0, x0: 0, x1: 20, bp0: 0, bp1: 20000 },
+    { order: 1, x0: 60, x1: 80, bp0: 20000, bp1: 20006 },
+    { order: 2, x0: 120, x1: 140, bp0: 20006, bp1: 20029 },
+    { order: 3, x0: 180, x1: 200, bp0: 20029, bp1: 26000 },
+  ]
+  const knots = referenceKnots(thin, at(50))
+  monotone(knots)
+  for (const [left, right] of [
+    [20, 60],
+    [80, 120],
+    [140, 180],
+  ] as const) {
+    expect(warpX(knots, right) - warpX(knots, left)).toBeCloseTo(24)
+  }
 })
 
 test('reference no column covers is room for the gap first', () => {
