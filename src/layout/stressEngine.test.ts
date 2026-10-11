@@ -59,12 +59,29 @@ test('every node gets the chain of points FMMM would, near its drawn length', ()
   }
 })
 
-test('the same request lays out the same way twice, and differently seeded', () => {
-  const a = stressLayout(request)
-  const b = stressLayout(request)
-  expect(a).toEqual(b)
-  const c = stressLayout(request, { seed: 7 })
-  expect(c).not.toEqual(a)
+test('the same request lays out the same way twice', () => {
+  expect(stressLayout(request)).toEqual(stressLayout(request))
+})
+
+test('a graph with no reference lays out from a random start, so its seed changes the drawing', () => {
+  const loose: EngineRequest = {
+    graph: {
+      nodes: [
+        { id: 'a+', name: 'a', length: 300, depth: 1 },
+        { id: 'b+', name: 'b', length: 300, depth: 1 },
+        { id: 'c+', name: 'c', length: 300, depth: 1 },
+      ],
+      edges: [
+        { from: 'a+', to: 'b+' },
+        { from: 'b+', to: 'c+' },
+        { from: 'c+', to: 'a+' },
+      ],
+    },
+    options: request.options,
+  }
+  const a = stressLayout(loose)
+  expect(stressLayout(loose)).toEqual(a)
+  expect(stressLayout(loose, { seed: 7 })).not.toEqual(a)
 })
 
 test('a seeded backbone keeps its reference order along x', () => {
