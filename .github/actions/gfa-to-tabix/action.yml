@@ -1,19 +1,14 @@
 name: gfa-to-tabix
 description:
-  Puts on PATH the gfa-to-tabix release src/foldParity.test.ts holds
+  Puts on PATH the gfa-to-tabix commit src/foldParity.test.ts holds
   foldVariants to
 runs:
   using: composite
   steps:
     - name: Install gfa-to-tabix
       shell: bash
-      working-directory: ${{ runner.temp }}
       env:
-        VERSION: v0.10.0
-        SHA256: 7a0f4616da6d6d0e312f18e9038feb34d29ef35e11bdb52e1ade4e8d258d3829
+        REV: 1e77ad6c0d3f642c581f1bc9e60d0e656d15df7e
       run: |
-        asset=gfa-to-tabix-x86_64-unknown-linux-musl
-        curl -fsSLO "https://github.com/GMOD/gfa-to-tabix/releases/download/$VERSION/$asset.tar.gz"
-        echo "$SHA256  $asset.tar.gz" | sha256sum -c
-        tar -xzf "$asset.tar.gz"
-        echo "$RUNNER_TEMP/$asset" >> "$GITHUB_PATH"
+        cargo install --locked --git https://github.com/GMOD/gfa-to-tabix --rev "$REV" --root "$RUNNER_TEMP/gfa-to-tabix"
+        echo "$RUNNER_TEMP/gfa-to-tabix/bin" >> "$GITHUB_PATH"
