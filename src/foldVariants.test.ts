@@ -4,6 +4,7 @@ import { foldVariants } from './foldVariants'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { writeRgfa } from './gfa/writeRgfa'
 import { parseGFA } from './gfa-core/index'
+import { loadGraph } from './pipeline'
 
 import type { Graph } from './types'
 
@@ -163,34 +164,221 @@ test('a graph with walks, or with no backbone, is left as it is', () => {
   expect(foldVariants(unanchored, 10_000)).toBe(unanchored)
 })
 
-// A path GFA's reference reads some segments reversed, and an index keeps no
-// strand: n1, n2 and n3 abut on the reference, joined by `- -` links, with a
-// 20 kb insertion between n1 and n2
-test('a reference read reversed still merges, its links on the right ends', () => {
-  const folded = foldVariants(
-    rgfa([
-      seg('n1', 'ref#chr', 0, 1000, 0),
-      seg('n2', 'ref#chr', 1000, 1000, 0),
-      seg('n3', 'ref#chr', 2000, 1000, 0),
-      link('n1', 'n2', '-', '-'),
-      link('n2', 'n3', '-', '-'),
-      seg('ins', 'b#chr', 0, 20_000, 1),
-      link('n1', 'ins', '-', '+'),
-      link('ins', 'n2', '+', '-'),
-    ]),
-    10_000,
+// The fold as bandage-fold writes it, and the same graph re-read from that
+const written = (graph: Graph, below: number) =>
+  writeRgfa(foldVariants(graph, below))
+const reread = (text: string) => convertGFAToGraph(parseGFA(text))
+
+function pathGfa(lines: string[]) {
+  const graph = loadGraph(lines.join('\n'), 'paths.gfa')
+  return { ...graph, paths: undefined }
+}
+
+const rgfaOut = (segments: string[], links: string[]) =>
+  ['H\tVN:Z:1.0', ...segments, ...links, ''].join('\n')
+
+// a, b and c abut on the reference; the inversion reads b reversed
+const INVERSION = [
+  seg('a', 'ref#chr', 0, 1000, 0),
+  seg('b', 'ref#chr', 1000, 140, 0),
+  seg('c', 'ref#chr', 1140, 1000, 0),
+  link('a', 'b'),
+  link('b', 'c'),
+  link('a', 'b', '+', '-'),
+  link('b', 'c', '-', '+'),
+]
+
+test('a 140 bp inversion folds at 100 kb and stays at 100 bp', () => {
+  expect(written(rgfa(INVERSION), 100_000)).toBe(
+    rgfaOut([seg('a', 'ref#chr', 0, 2140, 0)], []),
   )
-  expect(folded.nodes.map(n => [n.name, n.stable?.start, n.length])).toEqual([
-    ['n1', 0, 1000],
-    ['n2', 1000, 2000],
-    ['ins', 0, 20_000],
-  ])
-  // n1's forward start lies at its reference end, and meets the merged
-  // segment's start
-  const name = (id: string) => id.slice(0, -1)
-  expect(
-    folded.edges
-      .map(e => `${name(e.from)}${e.fromStrand} ${name(e.to)}${e.toStrand}`)
-      .sort(),
-  ).toEqual(['ins+ n2+', 'n1- ins+', 'n1- n2+'])
+  expect(written(rgfa(INVERSION), 100)).toBe(
+    rgfaOut(INVERSION.slice(0, 3), INVERSION.slice(3)),
+  )
+})
+
+// b1, b2 and b3 read reversed between a and c; the breakpoints each span
+// all 170 bp, though a's end lies 70 bp from b3's start
+const UNEVEN = [
+  seg('a', 'ref#chr', 0, 1000, 0),
+  seg('b1', 'ref#chr', 1000, 30, 0),
+  seg('b2', 'ref#chr', 1030, 40, 0),
+  seg('b3', 'ref#chr', 1070, 100, 0),
+  seg('c', 'ref#chr', 1170, 1000, 0),
+  link('a', 'b1'),
+  link('b1', 'b2'),
+  link('b2', 'b3'),
+  link('b3', 'c'),
+  link('a', 'b3', '+', '-'),
+  link('b1', 'c', '-', '+'),
+]
+
+test('an uneven inversion keeps both breakpoints at 100 bp and folds both at 1 kb', () => {
+  expect(written(rgfa(UNEVEN), 100)).toBe(
+    rgfaOut(
+      [
+        seg('a', 'ref#chr', 0, 1000, 0),
+        seg('b1', 'ref#chr', 1000, 170, 0),
+        seg('c', 'ref#chr', 1170, 1000, 0),
+      ],
+      [
+        link('a', 'b1'),
+        link('b1', 'c'),
+        link('a', 'b1', '+', '-'),
+        link('b1', 'c', '-', '+'),
+      ],
+    ),
+  )
+  expect(written(rgfa(UNEVEN), 1000)).toBe(
+    rgfaOut([seg('a', 'ref#chr', 0, 2170, 0)], []),
+  )
+})
+
+test('an uneven inversion folded at 50 bp and then 1 kb folds as at 1 kb', () => {
+  const graph = rgfa(UNEVEN)
+  expect(written(foldVariants(graph, 50), 1000)).toBe(written(graph, 1000))
+})
+
+test('a 140 bp tandem duplication folds at 1 kb and stays at 100 bp', () => {
+  const graph = rgfa([...INVERSION.slice(0, 5), link('b', 'b')])
+  expect(written(graph, 1000)).toBe(
+    rgfaOut([seg('a', 'ref#chr', 0, 2140, 0)], []),
+  )
+  expect(written(graph, 100)).toBe(
+    rgfaOut(INVERSION.slice(0, 3), [
+      link('a', 'b'),
+      link('b', 'c'),
+      link('b', 'b'),
+    ]),
+  )
+})
+
+// r3 links back to r1's start, 3 kb behind its end. A 600 bp insertion keeps
+// r3 apart at 500 bp, while r1 and r2 merge into a segment r3 abuts.
+const BACK_LINK = [
+  seg('r1', 'ref#chr', 0, 1000, 0),
+  seg('r2', 'ref#chr', 1000, 1000, 0),
+  seg('r3', 'ref#chr', 2000, 1000, 0),
+  link('r1', 'r2'),
+  link('r2', 'r3'),
+  link('r3', 'r1'),
+  seg('ins', 'a#chr', 0, 600, 1),
+  link('r2', 'ins'),
+  link('ins', 'r3'),
+]
+
+test('a link back to a segment that abuts after a merge does not continue it', () => {
+  const graph = rgfa(BACK_LINK)
+  const once = foldVariants(graph, 500)
+  expect(writeRgfa(once)).toBe(
+    rgfaOut(
+      [
+        seg('r1', 'ref#chr', 0, 2000, 0),
+        seg('r3', 'ref#chr', 2000, 1000, 0),
+        seg('ins', 'a#chr', 0, 600, 1),
+      ],
+      [
+        link('r1', 'r3'),
+        link('r3', 'r1'),
+        link('r1', 'ins'),
+        link('ins', 'r3'),
+      ],
+    ),
+  )
+  const direct = rgfaOut([seg('r1', 'ref#chr', 0, 3000, 0)], [link('r1', 'r1')])
+  expect(written(graph, 1000)).toBe(direct)
+  expect(written(once, 1000)).toBe(direct)
+})
+
+// x leaves r1's end and comes back onto r3's end, 2 kb along the reference,
+// carrying 100 bp of its own. r2 and r3 merge at 50 bp, which moves r3's start
+// but not the end x lands on.
+const FAR_SIDE = [
+  seg('r1', 'ref#chr', 0, 1000, 0),
+  seg('r2', 'ref#chr', 1000, 1000, 0),
+  seg('r3', 'ref#chr', 2000, 1000, 0),
+  link('r1', 'r2'),
+  link('r2', 'r3'),
+  seg('x', 'a#chr', 0, 100, 1),
+  link('r1', 'x'),
+  link('x', 'r3', '+', '-'),
+]
+
+test('an allele on a neighbour’s far side keeps its size when the backbone beside it merges', () => {
+  const graph = rgfa(FAR_SIDE)
+  const kept = rgfaOut(
+    [
+      seg('r1', 'ref#chr', 0, 1000, 0),
+      seg('r2', 'ref#chr', 1000, 2000, 0),
+      seg('x', 'a#chr', 0, 100, 1),
+    ],
+    [link('r1', 'r2'), link('r1', 'x'), link('x', 'r2', '+', '-')],
+  )
+  expect(written(graph, 1500)).toBe(kept)
+  expect(written(foldVariants(graph, 50), 1500)).toBe(kept)
+  expect(written(graph, 2500)).toBe(
+    rgfaOut([seg('r1', 'ref#chr', 0, 3000, 0)], []),
+  )
+})
+
+// The reference path reads b reversed; another path detours through a 5 kb x
+const REVERSED_ON_REFERENCE = [
+  'S\ta\t*\tLN:i:1000',
+  'S\tb\t*\tLN:i:100',
+  'S\tc\t*\tLN:i:1000',
+  'S\tx\t*\tLN:i:5000',
+  link('a', 'b', '+', '-'),
+  link('b', 'c', '-', '+'),
+  link('a', 'x'),
+  link('x', 'c'),
+  'P\tref\ta+,b-,c+\t*',
+  'P\talt\ta+,x+,c+\t*',
+]
+
+test('a segment the reference path reads reversed stays on the reference', () => {
+  const graph = pathGfa(REVERSED_ON_REFERENCE)
+  const folded = rgfaOut(
+    [
+      `${seg('a', 'ref', 0, 1000, 0)}\tSM:Z:alt,ref`,
+      `${seg('b', 'ref', 1000, 100, 0)}\tSM:Z:ref`,
+      `${seg('c', 'ref', 1100, 1000, 0)}\tSM:Z:alt,ref`,
+      `${seg('x', 'alt', 1000, 5000, 1)}\tSM:Z:alt`,
+    ],
+    [link('a', 'b'), link('b', 'c'), link('a', 'x'), link('x', 'c')],
+  )
+  expect(written(graph, 1000)).toBe(folded)
+  expect(written(reread(folded), 1000)).toBe(folded)
+  expect(written(reread(written(graph, 50)), 1000)).toBe(folded)
+})
+
+// alt reads a 300 bp y and a 300 bp x reversed, in place of 2 kb of reference
+const REVERSED_OFF_REFERENCE = [
+  'S\ta\t*\tLN:i:1000',
+  'S\tb\t*\tLN:i:2000',
+  'S\tc\t*\tLN:i:1000',
+  'S\tx\t*\tLN:i:300',
+  'S\ty\t*\tLN:i:300',
+  link('a', 'b'),
+  link('b', 'c'),
+  link('a', 'y', '+', '-'),
+  link('y', 'x', '-', '-'),
+  link('x', 'c', '-', '+'),
+  'P\tref\ta+,b+,c+\t*',
+  'P\talt\ta+,y-,x-,c+\t*',
+]
+
+test('an allele its path reads reversed stays whole', () => {
+  const graph = pathGfa(REVERSED_OFF_REFERENCE)
+  const folded = rgfaOut(
+    [
+      `${seg('a', 'ref', 0, 1000, 0)}\tSM:Z:alt,ref`,
+      `${seg('b', 'ref', 1000, 2000, 0)}\tSM:Z:ref`,
+      `${seg('c', 'ref', 3000, 1000, 0)}\tSM:Z:alt,ref`,
+      `${seg('y', 'alt', 1000, 600, 1)}\tSM:Z:alt`,
+    ],
+    [link('a', 'b'), link('b', 'c'), link('a', 'y'), link('y', 'c')],
+  )
+  expect(written(graph, 1000)).toBe(folded)
+  expect(written(reread(folded), 1000)).toBe(folded)
+  expect(written(reread(written(graph, 50)), 1000)).toBe(folded)
 })

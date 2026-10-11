@@ -32,7 +32,7 @@ export function foldVariants(graph: Graph, belowBp: number): Graph {
   ) {
     return graph
   }
-  const { nodes, edges } = graph
+  const { nodes, edges } = readForward(graph)
   const index = new Map(nodes.map((node, i) => [node.id, i]))
   const sides = edges.map(forwardSides)
   const links = linksAt(nodes.length, edges, sides, index)
@@ -72,15 +72,55 @@ export function foldVariants(graph: Graph, belowBp: number): Graph {
     const skip = skipped(nodes[a]!, sides[k]!.from, nodes[b]!, sides[k]!.to)
     return kept[a] && kept[b] && !(skip > 0 && skip < belowBp)
   })
-  return mergeAlleleRuns({ ...graph, edges: keptEdges }, kept, allele)
+  return mergeAlleleRuns({ ...graph, nodes, edges: keptEdges }, kept, allele)
 }
 
 type Side = 's' | 'e'
+type Strand = '+' | '-'
+
+// The graph with every segment read the way its stable sequence reads it. A
+// path GFA's reference may read a segment reversed (`P ref a+,b-,c+`); this
+// flips such a segment and complements the link ends on it, so `L a + b -`
+// becomes `L a + b +` and the fold sees no strands. An rGFA segment is forward
+// on its sequence already.
+function readForward({ nodes, edges }: Graph) {
+  const reversed = new Set(
+    nodes.filter(node => node.stable?.strand === '-').map(node => node.id),
+  )
+  if (reversed.size === 0) {
+    return { nodes, edges }
+  }
+  const read = (id: string, strand: Strand | undefined): Strand => {
+    const own = strand ?? ownStrand(id)
+    return reversed.has(id) ? complement(own) : own
+  }
+  return {
+    nodes: nodes.map(node =>
+      reversed.has(node.id)
+        ? { ...node, stable: { ...node.stable!, strand: '+' as const } }
+        : node,
+    ),
+    edges: edges.map(edge =>
+      reversed.has(edge.from) || reversed.has(edge.to)
+        ? {
+            ...edge,
+            fromStrand: read(edge.from, edge.fromStrand),
+            toStrand: read(edge.to, edge.toStrand),
+          }
+        : edge,
+    ),
+  }
+}
+
+function complement(strand: Strand): Strand {
+  return strand === '+' ? '-' : '+'
+}
 
 interface Link {
   other: number
-  // the side of this node the link attaches to
+  // the sides of this node and of the other the link attaches to
   side: Side
+  otherSide: Side
 }
 
 // The ends a link joins, on each segment's own forward strand: `L a + b +`
@@ -103,8 +143,9 @@ function linksAt(
     const a = index.get(edge.from)
     const b = index.get(edge.to)
     if (a !== undefined && b !== undefined) {
-      links[a]!.push({ other: b, side: sides[k]!.from })
-      links[b]!.push({ other: a, side: sides[k]!.to })
+      const { from, to } = sides[k]!
+      links[a]!.push({ other: b, side: from, otherSide: to })
+      links[b]!.push({ other: a, side: to, otherSide: from })
     }
   })
   return links
@@ -119,17 +160,19 @@ function onOneSequence(a: GraphNode, b: GraphNode) {
     : undefined
 }
 
-// Whether a link reads one stable sequence straight on: it joins opposite
-// ends of two segments that abut there. Either way round, since a path GFA's
-// reference reads some segments reversed (`L a - b -`) and an index keeps no
-// strand to say which.
+// Whether a link reads one stable sequence straight on: it joins the end of
+// one segment to the start of the next one there. A link back from the later
+// segment to the earlier is not one, though they abut.
 function continues(a: GraphNode, aSide: Side, b: GraphNode, bSide: Side) {
   const pair = onOneSequence(a, b)
-  if (!pair || aSide === bSide) {
+  if (!pair) {
     return false
   }
   const [sa, sb] = pair
-  return sa.start + a.length === sb.start || sb.start + b.length === sa.start
+  return (
+    (aSide === 'e' && bSide === 's' && sa.start + a.length === sb.start) ||
+    (bSide === 'e' && aSide === 's' && sb.start + b.length === sa.start)
+  )
 }
 
 // Reference bp a link jumps between two segments of one stable sequence at
@@ -140,9 +183,12 @@ function skipped(a: GraphNode, aSide: Side, b: GraphNode, bSide: Side) {
     return 0
   }
   const [sa, sb] = pair
-  const at = (s: typeof sa, n: GraphNode, side: Side) =>
-    side === 's' ? s.start : s.start + n.length
-  return Math.abs(at(sb, b, bSide) - at(sa, a, aSide))
+  return Math.abs(position(sb, b, bSide) - position(sa, a, aSide))
+}
+
+// Where a side of a segment lies on its stable sequence
+function position({ start }: { start: number }, node: GraphNode, side: Side) {
+  return side === 's' ? start : start + node.length
 }
 
 function alleleOf(
@@ -186,9 +232,9 @@ function groupBy(allele: number[]) {
   return groups
 }
 
-// An allele's own length, or the reference between the backbone it hangs
-// from where that is longer: a 93 bp segment standing in for 7 kb of
-// reference is a 7 kb deletion. The backbone is never folded.
+// An allele's own length, or the reference between the backbone positions
+// its links land on where that is longer: a 93 bp segment standing in for
+// 7 kb of reference is a 7 kb deletion. The backbone is never folded.
 function alleleContent(
   group: number[],
   nodes: GraphNode[],
@@ -205,13 +251,14 @@ function alleleContent(
   let oneSequence = true
   for (const i of group) {
     length += nodes[i]!.length
-    for (const { other } of links[i]!) {
+    for (const { other, otherSide } of links[i]!) {
       const node = nodes[other]!
       if (allele[other] !== allele[i] && isBackbone(node)) {
         refName ??= node.stable.refName
         oneSequence &&= node.stable.refName === refName
-        lo = Math.min(lo, node.stable.start + node.length)
-        hi = Math.max(hi, node.stable.start)
+        const at = position(node.stable, node, otherSide)
+        lo = Math.min(lo, at)
+        hi = Math.max(hi, at)
       }
     }
   }
