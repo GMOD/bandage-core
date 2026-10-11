@@ -1,7 +1,7 @@
 name: gfa-to-tabix
 description:
-  Puts on PATH the gfa-to-tabix commit src/foldParity.test.ts holds
-  foldVariants to
+  Puts on PATH the gfa-to-tabix commit src/foldParity.test.ts holds foldVariants
+  to
 runs:
   using: composite
   steps:
