@@ -1,3 +1,18 @@
+## [10.1.0](https://github.com/GMOD/bandage-core/compare/v10.0.1...v10.1.0) (2026-10-11)
+
+### Documentation
+
+- The coarse tier, from jbrowse-components' build_fold_tier.sh ([8674d41](https://github.com/GMOD/bandage-core/commit/8674d4122301748ac96fb924a4d2b1ab96d1d197))
+- Format the coarse tier page ([c0aa3da](https://github.com/GMOD/bandage-core/commit/c0aa3da2ec13a69b1432fcbbeb9cb29beeb2a4a6))
+- Coarse tier via gfa-to-tabix fold ([76ab5e6](https://github.com/GMOD/bandage-core/commit/76ab5e6dd66b08e7b29380c82346fad4491148ca))
+
+### Other Changes
+
+- Walk row readouts state a sub-kilobase change in bp ([43a5d80](https://github.com/GMOD/bandage-core/commit/43a5d804267b0de881807a8b95525bdb59415adb))
+- Read vg's fragment[subrange] path names as positions ([5a97d73](https://github.com/GMOD/bandage-core/commit/5a97d734d37a36ed14e82906cd6e45b8f631c351))
+- Hold foldVariants to a pinned gfa-to-tabix fold in CI ([baec56a](https://github.com/GMOD/bandage-core/commit/baec56abee22c6e22602b80f8d6b5dad2b79a635))
+- FoldVariants breaks ties on the segment name, not its drawn id ([9bf0eae](https://github.com/GMOD/bandage-core/commit/9bf0eae5ce92f84796a130da7420a9216634ec8f))
+
 ## [10.0.1](https://github.com/GMOD/bandage-core/compare/v10.0.0...v10.0.1) (2026-10-10)
 
 ### Other Changes
