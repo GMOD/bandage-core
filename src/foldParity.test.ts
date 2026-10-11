@@ -394,11 +394,6 @@ test(`${GRAPHS} random rGFA graphs folded twice fold as once at the larger size`
       }
     })
   }
-  console.log(
-    'FAILS',
-    failures.length,
-    failures.map(f => f.split('\n')[0]).join('; '),
-  )
   expect(failures.slice(0, 3).join('\n\n')).toBe('')
 })
 
