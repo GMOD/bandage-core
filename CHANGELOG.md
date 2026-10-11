@@ -1,3 +1,16 @@
+## [10.2.0](https://github.com/GMOD/bandage-core/compare/v10.1.0...v10.2.0) (2026-10-11)
+
+### Other Changes
+
+- Describe the stress engine as placement first; single-level FMMM is tested ([1627d90](https://github.com/GMOD/bandage-core/commit/1627d90ce8287f84322ad108972a1e7029898d77))
+- FoldVariants sizes a link by the reference positions it touches ([29f6893](https://github.com/GMOD/bandage-core/commit/29f6893f61a86e94b144b0fa6344312f262b390f))
+- FoldVariants reads continuations one way, sizes alleles by the sides they land on, and flips reversed segments ([895450a](https://github.com/GMOD/bandage-core/commit/895450aac4e3bcc89a3ab6f51d96ab78cf166b3d))
+- Fold tests: random inversions, back links, self-links and far-side alleles, fold-of-fold, path GFA goldens ([17add97](https://github.com/GMOD/bandage-core/commit/17add970fa8a71823f34804fac3ace0eefb5a1a0))
+- Fold docs say fold-of-fold matches closely; publish runs the fold and parity tests ([a7d06ee](https://github.com/GMOD/bandage-core/commit/a7d06ee08d9a15d99beca8d77521dd86665e3944))
+- Drop a debugging log from the fold-of-fold test ([d5ccc0c](https://github.com/GMOD/bandage-core/commit/d5ccc0c82c2d0a39d49b73ec48b4d108249714e6))
+- CI builds gfa-to-tabix from the commit with the matching fold until it is released ([39464c7](https://github.com/GMOD/bandage-core/commit/39464c7a9288b886da1e8ab195f394ddbfc5ddde))
+- Format the gfa-to-tabix action ([b38e430](https://github.com/GMOD/bandage-core/commit/b38e430bc82372f1dbf4378697af75344ecd2514))
+
 ## [10.1.0](https://github.com/GMOD/bandage-core/compare/v10.0.1...v10.1.0) (2026-10-11)
 
 ### Documentation
