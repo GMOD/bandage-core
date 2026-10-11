@@ -15,7 +15,7 @@ export const LAYOUT_ENGINES = [
     value: 'stress',
     label: 'Stress',
     description:
-      'Stress layout by stochastic gradient descent in plain JS: distances along the graph become distances on the page, so the reference reads straight and a repeat loop reads as a ring.',
+      'Plain JS: the reference drawn straight and each variant placed against it, an allele as a lens, a repeat loop as a ring, a deletion as an arch; stress by stochastic gradient descent for components with no reference.',
   },
 ] as const
 

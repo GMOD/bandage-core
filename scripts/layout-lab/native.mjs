@@ -45,8 +45,10 @@ export function runNative(graph, mode, opts = {}, { seeds, drawn } = {}) {
 // create_initial_placement there and re-derives finer levels from the coarse
 // solar system with jitter), so on any graph over minGraphSize (50 OGDF nodes)
 // what survives is the coarse shape of the backbone, not the allele offsets.
-// That is why the seeded drawings wave, and why `singleLevel` would honour
-// every seed exactly (untested here).
+// That is why the seeded drawings wave. `setSingleLevel(true)` honours every
+// seed, and repulsion then buckles the straight backbone into waves at MHC
+// class II and KIV-2 (2026-10-11); seeding from the stress placement instead
+// of the backbone alone changes nothing under the multilevel.
 export function referenceSeeds(
   graph,
   scale,
