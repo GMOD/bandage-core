@@ -199,7 +199,7 @@ test('the key says the colours are the graph’s alignment', () => {
     "on GRCh38#0's path",
     "off GRCh38#0's path",
     'walked outside the cut',
-    "genes, each row's own annotation",
+    'gene',
     'no gene track for 2 rows',
   ])
 })

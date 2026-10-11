@@ -161,7 +161,7 @@ test('walk rows in a strip sit under the drawing, labelled and keyed', () => {
   expect(svg.match(/data-testid="graph-walk-row"/g)).toHaveLength(2)
   expect(svg).toContain('<title>ALTGENE</title>')
   expect(svg).toMatch(/font-weight="600">alt#1<\/text>/)
-  expect(svg).toContain("genes, each row's own annotation")
+  expect(svg).toMatch(/>gene<\/text>/)
 })
 
 test('the SVG names the version that drew it and the spec it drew', () => {

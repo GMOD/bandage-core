@@ -343,7 +343,7 @@ export function walkRowsKey(
   } else if (o.genes) {
     entries.push({
       swatch: { kind: 'gene' },
-      label: "genes, each row's own annotation",
+      label: 'gene',
     })
     if (o.genes.untracked) {
       entries.push({
