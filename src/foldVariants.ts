@@ -140,10 +140,9 @@ function skipped(a: GraphNode, aSide: Side, b: GraphNode, bSide: Side) {
     return 0
   }
   const [sa, sb] = pair
-  return Math.max(
-    sb.start - (sa.start + a.length),
-    sa.start - (sb.start + b.length),
-  )
+  const at = (s: typeof sa, n: GraphNode, side: Side) =>
+    side === 's' ? s.start : s.start + n.length
+  return Math.abs(at(sb, b, bSide) - at(sa, a, aSide))
 }
 
 function alleleOf(
