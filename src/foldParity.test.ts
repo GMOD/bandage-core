@@ -41,11 +41,13 @@ interface Segment {
   rank: number
 }
 
-// Rank 0 backbones with deletions across them, and alleles of a few segments
-// each on other sequences and ranks, hung between backbone or allele segments
-// either way round, some beside a twin of equal lengths so that ties come up,
-// with every link written in either of its two spellings
-function randomRgfa(seed: number, tag = '') {
+// Rank 0 backbones with deletions, inversions, back links and self-links
+// across them, and alleles of a few segments each on other sequences and
+// ranks, hung between backbone or allele segments either way round or onto a
+// neighbour's far side, some beside a twin of equal lengths so that ties come
+// up, with every link written in either of its two spellings. Untangled, every
+// allele hangs off a backbone and no stray link joins two alleles.
+function randomRgfa(seed: number, tag = '', tangled = true) {
   const rand = mulberry32(seed)
   const int = (lo: number, hi: number) =>
     lo + Math.floor(rand() * (hi - lo + 1))
@@ -102,15 +104,40 @@ function randomRgfa(seed: number, tag = '') {
       const j = int(i + 2, backbone.length - 1)
       link(backbone[i]!, '+', backbone[j]!, chance(0.85) ? '+' : '-')
     }
+    for (let n = int(0, 3); n > 0; n--) {
+      const i = int(1, backbone.length - 2)
+      const j = Math.min(backbone.length - 2, i + int(0, 2))
+      const [prev, first, last, next] = [i - 1, i, j, j + 1].map(
+        k => backbone[k]!,
+      )
+      switch (int(0, 3)) {
+        case 0:
+          link(prev!, '+', last!, '-')
+          link(first!, '-', next!, '+')
+          break
+        case 1:
+          link(last!, '+', first!, '+')
+          break
+        case 2:
+          link(first!, '+', first!, chance(0.5) ? '+' : '-')
+          break
+        default: {
+          const allele = chain(`asm${int(1, 4)}#chr`, int(1, 3), lengths(2))
+          link(prev!, '+', allele[0]!, '+')
+          link(allele[1]!, '+', next!, '-')
+        }
+      }
+    }
   }
 
   for (let n = int(2, 9); n > 0; n--) {
-    const host = chance(0.6) ? pick(backbones) : pick(chains)
+    const host = !tangled || chance(0.6) ? pick(backbones) : pick(chains)
     const i = int(0, host.length - 1)
     const left = host[i]!
-    const right = chance(0.1)
-      ? pick(segments)
-      : host[Math.min(host.length - 1, i + int(0, 3))]!
+    const right =
+      tangled && chance(0.1)
+        ? pick(segments)
+        : host[Math.min(host.length - 1, i + int(0, 3))]!
     const reversed = chance(0.3)
     const sizes = lengths(int(1, 4))
     for (let copies = chance(0.3) ? 2 : 1; copies > 0; copies--) {
@@ -122,13 +149,13 @@ function randomRgfa(seed: number, tag = '') {
       if (!chance(0.08)) {
         link(reversed ? first : last, reversed ? '-' : '+', right, '+')
       }
-      if (allele.length > 2 && chance(0.2)) {
+      if (tangled && allele.length > 2 && chance(0.2)) {
         link(allele[1]!, '+', pick(segments), chance(0.5) ? '+' : '-')
       }
     }
   }
 
-  for (let n = int(0, 2); n > 0; n--) {
+  for (let n = tangled ? int(0, 2) : 0; n > 0; n--) {
     const a = pick(segments)
     link(a, chance(0.5) ? '+' : '-', chance(0.1) ? a : pick(segments), '+')
   }
@@ -281,13 +308,41 @@ const GOLDEN = {
     link('s9', '+', 'r2', '+'),
     link('s10', '+', 'r2', '+'),
   ]),
+  // a path GFA whose reference reads b reversed: b reads forward after the
+  // flip, joined to a and c, and the 5 kb detour through x stays
+  'a reference step read reversed': gfa([
+    'S\ta\t*\tLN:i:1000',
+    'S\tb\t*\tLN:i:100',
+    'S\tc\t*\tLN:i:1000',
+    'S\tx\t*\tLN:i:5000',
+    link('a', '+', 'b', '-'),
+    link('b', '-', 'c', '+'),
+    link('a', '+', 'x', '+'),
+    link('x', '+', 'c', '+'),
+    'P\tref\ta+,b-,c+\t*',
+    'P\talt\ta+,x+,c+\t*',
+  ]),
+  // a path GFA whose other path reads its allele reversed, in place of 2 kb
+  // of reference: y and x merge into one 600 bp allele
+  'an allele step read reversed': gfa([
+    'S\ta\t*\tLN:i:1000',
+    'S\tb\t*\tLN:i:2000',
+    'S\tc\t*\tLN:i:1000',
+    'S\tx\t*\tLN:i:300',
+    'S\ty\t*\tLN:i:300',
+    link('a', '+', 'b', '+'),
+    link('b', '+', 'c', '+'),
+    link('a', '+', 'y', '-'),
+    link('y', '-', 'x', '-'),
+    link('x', '-', 'c', '+'),
+    'P\tref\ta+,b+,c+\t*',
+    'P\talt\ta+,y-,x-,c+\t*',
+  ]),
 }
 
-// Known divergence. foldVariants breaks ties by node id, the segment name with
-// the strand of the first link naming it appended, so whether `p` or `p,1` is
-// the lower turns on how the big-p link is spelled. gfa-to-tabix compares
-// names, keeping `p` either way, as foldVariants' "does not depend on the
-// order nodes arrived in" promises. Flip these to plain tests once it does.
+// A node's id carries the strand of the first link naming its segment, so a
+// tie broken on ids would keep `p` or `p,1` by how the big-p link is spelled.
+// Both folds break it on the name and keep `p` either way.
 const tieBySpelling = (bigToP: string) =>
   gfa([
     segment('r1', 'ref#chr', 0, 1000, 0),
@@ -319,11 +374,41 @@ describe('golden folds', () => {
   })
 })
 
+// Untangled, since where a way back to the backbone runs through other alleles
+// the second fold can keep a different part of a small one, a known gap
+test(`${GRAPHS} random rGFA graphs folded twice fold as once at the larger size`, () => {
+  const failures: string[] = []
+  for (let seed = 0; seed < GRAPHS; seed++) {
+    const text = gfa(randomRgfa(seed, '', false))
+    const graph = { ...loadGraph(text, 'twice.gfa'), paths: undefined }
+    THRESHOLDS.forEach((small, k) => {
+      for (const large of THRESHOLDS.slice(k + 1)) {
+        const once = writeRgfa(foldVariants(graph, large))
+        const twice = writeRgfa(foldVariants(foldVariants(graph, small), large))
+        if (twice !== once) {
+          failures.push(
+            `randomRgfa(${seed}) folded at ${small} then ${large} bp\n${text}\n${lineDiff(once, twice)}`,
+          )
+        }
+      }
+    })
+  }
+  console.log(
+    'FAILS',
+    failures.length,
+    failures.map(f => f.split('\n')[0]).join('; '),
+  )
+  expect(failures.slice(0, 3).join('\n\n')).toBe('')
+})
+
 const where = 'GFA_TO_TABIX or PATH'
 
-test.runIf(process.env.CI)(`CI has a gfa-to-tabix on ${where}`, () => {
-  expect(VERSION).toBeDefined()
-})
+test.runIf(process.env.CI || process.env.GFA_TO_TABIX)(
+  `a gfa-to-tabix runs from ${where} under CI or a set GFA_TO_TABIX`,
+  () => {
+    expect(VERSION).toBeDefined()
+  },
+)
 
 describe.skipIf(!VERSION)(
   VERSION
@@ -359,11 +444,17 @@ describe.skipIf(!VERSION)(
       const failures = await Promise.all(
         THRESHOLDS.map(async below => {
           const batch = await bothFolds(all, below, dir, `all-${below}`).catch(
-            () => undefined,
+            (e: unknown) => String(e),
           )
-          return batch && sameRows(batch)
-            ? []
-            : await failingSeeds(seeds, below, dir)
+          if (typeof batch !== 'string' && sameRows(batch)) {
+            return []
+          }
+          const failures = await failingSeeds(seeds, below, dir)
+          return failures.length > 0
+            ? failures
+            : [
+                `all ${GRAPHS} graphs in one file folded at ${below} bp, though each alone matches\n${typeof batch === 'string' ? batch : rowDiff(batch).split('\n').slice(0, 20).join('\n')}`,
+              ]
         }),
       )
       expect(failures.flat().slice(0, 3).join('\n\n')).toBe('')
@@ -401,5 +492,14 @@ function rowDiff({ js, rs }: { js: string[]; rs: string[] }) {
     ...b
       .filter(row => !a.includes(row))
       .map(row => `gfa-to-tabix fold only: ${row}`),
+  ].join('\n')
+}
+
+function lineDiff(once: string, twice: string) {
+  const a = once.split('\n')
+  const b = twice.split('\n')
+  return [
+    ...a.filter(row => !b.includes(row)).map(row => `once only: ${row}`),
+    ...b.filter(row => !a.includes(row)).map(row => `twice only: ${row}`),
   ].join('\n')
 }

@@ -1,5 +1,31 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`golden folds > a reference step read reversed 1`] = `
+"H	VN:Z:1.0
+S	a	*	LN:i:1000	SN:Z:ref	SO:i:0	SR:i:0	SM:Z:alt,ref
+S	b	*	LN:i:100	SN:Z:ref	SO:i:1000	SR:i:0	SM:Z:ref
+S	c	*	LN:i:1000	SN:Z:ref	SO:i:1100	SR:i:0	SM:Z:alt,ref
+S	x	*	LN:i:5000	SN:Z:alt	SO:i:1000	SR:i:1	SM:Z:alt
+L	a	+	b	+	0M
+L	b	+	c	+	0M
+L	a	+	x	+	0M
+L	x	+	c	+	0M
+"
+`;
+
+exports[`golden folds > an allele step read reversed 1`] = `
+"H	VN:Z:1.0
+S	a	*	LN:i:1000	SN:Z:ref	SO:i:0	SR:i:0	SM:Z:alt,ref
+S	b	*	LN:i:2000	SN:Z:ref	SO:i:1000	SR:i:0	SM:Z:ref
+S	c	*	LN:i:1000	SN:Z:ref	SO:i:3000	SR:i:0	SM:Z:alt,ref
+S	y	*	LN:i:600	SN:Z:alt	SO:i:1000	SR:i:1	SM:Z:alt
+L	a	+	b	+	0M
+L	b	+	c	+	0M
+L	a	+	y	+	0M
+L	y	+	c	+	0M
+"
+`;
+
 exports[`golden folds > reverse-strand links 1`] = `
 "H	VN:Z:1.0
 S	r1	*	LN:i:2000	SN:Z:ref#chr	SO:i:0	SR:i:0
