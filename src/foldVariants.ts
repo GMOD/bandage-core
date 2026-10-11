@@ -18,9 +18,11 @@ import type { Graph, GraphEdge, GraphNode } from './types'
 //
 // Kept segments keep their ids. A run of one allele's segments that no kept
 // link branches off merges into its first segment, so the result is itself an
-// rGFA graph and folding it again at a larger threshold folds the original at
-// that one. That is what lets a coarse tier built by this fold and the same
-// fold run on a fine cut draw the same picture.
+// rGFA graph, and folding it again at a larger threshold closely matches
+// folding the original at that one. That is what lets a coarse tier built by
+// this fold and the same fold run on a fine cut draw nearly the same picture.
+// They can differ where the way back from a big allele runs through a small
+// one, as one fold may keep part of the small allele and the other none of it.
 //
 // A graph with walks is returned as it is, since a folded detour would need
 // every walk rerouted along what is kept, and so is a graph with no backbone.

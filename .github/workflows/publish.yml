@@ -23,6 +23,10 @@ jobs:
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
       - run: pnpm install --frozen-lockfile
+      # the fold a coarse tier is built with, held to gfa-to-tabix's port
+      - uses: ./.github/actions/gfa-to-tabix
+      - run:
+          pnpm exec vitest run src/foldVariants.test.ts src/foldParity.test.ts
       - run: pnpm build
       - run: ./scripts/publish-once.sh --access public
 

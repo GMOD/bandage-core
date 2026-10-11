@@ -11,7 +11,8 @@ import { loadGraph } from './pipeline'
 
 // gfa-to-tabix's `fold` ports foldVariants, and its CI holds the port to a
 // pinned bandage-core. These hold foldVariants to the gfa-to-tabix release
-// push.yml pins, so a change to one fold the other lacks fails here.
+// .github/actions/gfa-to-tabix pins, so a change to one fold the other lacks
+// fails here.
 
 const BINARY = process.env.GFA_TO_TABIX ?? 'gfa-to-tabix'
 const probe = spawnSync(BINARY, ['--version'], { encoding: 'utf8' })

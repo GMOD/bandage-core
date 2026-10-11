@@ -16,7 +16,7 @@ fold a whole human pangenome.
 
 gfa-to-tabix's CI holds its port to a pinned bandage-core, and
 `src/foldParity.test.ts` holds `foldVariants` to the gfa-to-tabix release pinned
-in `.github/workflows/push.yml`, failing when a few hundred random rGFA graphs
+in `.github/actions/gfa-to-tabix`, failing when a few hundred random rGFA graphs
 fold differently. Locally it runs against the `gfa-to-tabix` on PATH or named by
 `GFA_TO_TABIX`, and skips without one.
 
@@ -36,12 +36,15 @@ Both take the same options:
 
 The fold keeps the backbone, every allele whose own length or the reference it
 replaces reaches `--below`, and the shortest way from each one's ends back to
-the backbone. The reference between kept alleles becomes one segment.
+the backbone. The reference between kept alleles becomes one segment. A segment
+that a plain GFA's path reads reversed is written forward, its links flipped to
+match, so the output re-reads as the graph that was folded.
 
 The graph track folds each cut it draws the same way, at ten of the linear
 view's pixels (`FOLD_PX` in jbrowse-plugin-graphgenomeviewer), and folding a
-fold again at a larger size folds the original at that size. So a tier folded at
-N and handed over at N / 10 bp per pixel draws what the fine cut drew just below
-the handover, and zooming across it changes nothing on screen. In the track's
-config, `coarse: { uri: "graph.fold10000", aboveBpPerPx: 1000 }` is that
-handover.
+fold again at a larger size closely matches folding the original at that size.
+So a tier folded at N and handed over at N / 10 bp per pixel draws nearly what
+the fine cut drew just below the handover. The two can differ where the way back
+from a big allele to the reference runs through a small allele: one fold can
+keep part of it that the other drops. In the track's config,
+`coarse: { uri: "graph.fold10000", aboveBpPerPx: 1000 }` is that handover.

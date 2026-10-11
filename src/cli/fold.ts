@@ -14,8 +14,10 @@ import { loadGraph } from '../pipeline'
 //
 //   bandage-fold graph.gfa.gz --below 10000 | gfa-to-tabix - -o graph.tier10000
 //
-// A path GFA folds on the coordinates its reference path gives each segment,
-// and its walks are dropped: a tier carries none.
+// A path GFA folds on the coordinates its paths give each segment, and its
+// walks are dropped: a tier carries none. A segment the path placing it reads
+// reversed is written forward with its links flipped, so the output re-reads
+// as the graph that was folded.
 
 const USAGE =
   'usage: bandage-fold <graph.gfa[.gz] | -> --below <bp> [-o out.gfa]'
