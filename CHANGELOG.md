@@ -1,3 +1,11 @@
+## [10.2.1](https://github.com/GMOD/bandage-core/compare/v10.2.0...v10.2.1) (2026-10-11)
+
+### Other Changes
+
+- Test the seed on a graph with no reference ([fd03564](https://github.com/GMOD/bandage-core/commit/fd0356459779109a770e79671442e441d2c96abd))
+- CI pins the gfa-to-tabix 0.12.0 release ([7c50a7e](https://github.com/GMOD/bandage-core/commit/7c50a7e053bbe94cde9dbccacf4d8108a407bd13))
+- 1.0.0 releases ([ab0d041](https://github.com/GMOD/bandage-core/commit/ab0d041cd89647291dabc3056282eb9b8cf026bc))
+
 ## [10.2.0](https://github.com/GMOD/bandage-core/compare/v10.1.0...v10.2.0) (2026-10-11)
 
 ### Other Changes
