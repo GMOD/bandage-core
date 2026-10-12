@@ -65,6 +65,8 @@ publishes to npm with trusted publishing.
   JBrowse 2 plugin that browses these graphs by locus
 - [BandageJS](https://github.com/cmdcolin/BandageJS) - standalone page for GFA
   and gbz-base graphs
+- [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout) -
+  Bandage's FMMM layout as wasm
 - [@jbrowse/graph-stress-layout](https://github.com/GMOD/graph-stress-layout) -
   stress layout that keeps the reference straight
 - [@gmod/gbz-base](https://github.com/GMOD/gbz-base-js) - range-request reader
