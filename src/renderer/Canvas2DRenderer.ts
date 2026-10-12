@@ -21,10 +21,6 @@ import type {
 // same 15k-node graph took 414 ms a frame as one fill per mesh triangle and 11
 // ms as batched strokes (agent-docs/GRAPH_SCALE_AND_LOD.md). Highlighted things
 // are drawn last, in their own paths, so they sit on top of what they brighten.
-//
-// `setErrorHandler` is a no-op that a host's rendering-backend lifecycle can
-// call: Canvas2D allocates no GPU resources, so there is no OOM channel to
-// forward.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
@@ -43,8 +39,6 @@ export class Canvas2DRenderer implements Renderer {
     this.canvas = canvas
     this.ctx = ctx
   }
-
-  setErrorHandler(_handler: (error: Error) => void) {}
 
   releaseOffscreenTargets() {}
 

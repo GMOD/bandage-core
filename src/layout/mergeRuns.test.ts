@@ -97,6 +97,7 @@ test('a run splits its polyline among its members by weight, abutting', () => {
   ])
   expect(split['v5+']).toEqual([{ x: 20, y: 0 }])
   expect(split['a1+']).toBe(positions['a1+'])
+  expect(splitRuns(positions, runs, () => 0)['v4+']).toEqual(split['v4+'])
 })
 
 // The node is c-, the strand the first link names, so `L d + c +` joins its

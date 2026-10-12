@@ -170,7 +170,7 @@ export function splitRuns(
     const arc = arcPrefix(line)
     const total = arc.at(-1)!
     const weights = members.map(m => Math.max(weightOf(m), 0))
-    const weightSum = weights.reduce((a, b) => a + b, 0) || members.length
+    const weightSum = weights.reduce((a, b) => a + b, 0)
     let from = 0
     members.forEach((member, k) => {
       const share = weightSum

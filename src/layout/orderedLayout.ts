@@ -244,17 +244,15 @@ function orderKeys(graph: Graph) {
   return key
 }
 
-export interface LayeredGraph {
+interface LayeredGraph {
   layers: string[][]
   layerOf: Map<string, number>
   // predecessors in layer order, for the y sweep
   preds: Map<string, string[]>
 }
 
-// The layered DAG the ordered layout draws and the bubble decomposition reads
-// (bubbles/bubblesFromGraph.ts), from one function so the two cannot disagree
-// about which nodes share a layer.
-export function layerGraph(graph: Graph): LayeredGraph {
+// The layered DAG the ordered layout draws
+function layerGraph(graph: Graph): LayeredGraph {
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const order = referenceOrder(graph)
   const key = new Map(order.map((id, i) => [id, i]))

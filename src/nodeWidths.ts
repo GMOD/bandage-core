@@ -23,8 +23,6 @@ export const NODE_WIDTHS = [
 
 export type NodeWidth = (typeof NODE_WIDTHS)[number]['value']
 
-export const NODE_WIDTH_VALUES = NODE_WIDTHS.map(w => w.value)
-
 const MIN_FACTOR = 0.3
 const MAX_FACTOR = 3
 
