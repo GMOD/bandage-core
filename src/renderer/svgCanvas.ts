@@ -124,6 +124,10 @@ export function svgCanvas(width: number, height: number) {
         out.push(`<path d="${d}" ${paintAttrs('fill', ctx.fillStyle)}/>`)
       }
     },
+    // the renderer only ever clears the whole canvas
+    clearRect() {
+      out.length = 0
+    },
     fillRect(x: number, y: number, w: number, h: number) {
       out.push(
         `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" ${paintAttrs('fill', ctx.fillStyle)}/>`,

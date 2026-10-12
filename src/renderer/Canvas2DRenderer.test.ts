@@ -9,7 +9,7 @@ const iso = (scale = 1) => ({ scaleX: scale, scaleY: scale })
 
 function makeRenderer() {
   const { canvas, ...recorded } = recordingCanvas()
-  return { renderer: new Canvas2DRenderer(canvas), ...recorded }
+  return { renderer: new Canvas2DRenderer(canvas), canvas, ...recorded }
 }
 
 const TRANSFORM: TransformUniform = {
@@ -221,6 +221,25 @@ describe('a thickness is css pixels, whatever the device ratio', () => {
     expect(drawn(1).edgeWidth).toBeCloseTo(4, 5)
     expect(drawn(2).edgeWidth).toBeCloseTo(8, 5)
   })
+})
+
+test('a canvas past the backing-store limit draws the same picture, coarser', () => {
+  vi.stubGlobal('devicePixelRatio', 2)
+  try {
+    const { renderer, canvas, points, lineWidths } = makeRenderer()
+    renderer.resize(5000, 100)
+    expect(canvas.width).toBe(8192)
+    expect(canvas.height).toBe(164)
+    renderer.uploadGeometry(batchOf2Edges())
+    renderer.updateTransform({ ...TRANSFORM, scaleX: 2, scaleY: 2, dpr: 2 })
+    renderer.render([1, 1, 1, 1])
+    const xs = points.map(p => p.x)
+    const fit = 8192 / 10000
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(180 * fit, 5)
+    expect(lineWidths[1]).toBeCloseTo(20 * fit, 5)
+  } finally {
+    vi.unstubAllGlobals()
+  }
 })
 
 describe('arrowheadOutline', () => {

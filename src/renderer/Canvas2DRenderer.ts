@@ -1,4 +1,4 @@
-import { syncCanvasSize } from './canvas'
+import { getDpr, syncCanvasSize } from './canvas'
 import {
   abgrToCssRgba,
   brightenAbgr,
@@ -33,6 +33,7 @@ export class Canvas2DRenderer implements Renderer {
   private nodeHighlights: ReadonlyMap<string, number> = new Map()
   private highlightedEdge: number | null = null
   private highlightFactor = 1
+  private fit = 1
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d')
@@ -47,12 +48,11 @@ export class Canvas2DRenderer implements Renderer {
 
   releaseOffscreenTargets() {}
 
-  // Not a local `width * devicePixelRatio`: syncCanvasSize clamps the backing
-  // store at MAX_CANVAS_DIM_PX, reads the ratio through `getDpr()` so this
-  // agrees with the transform the model builds, and writes the css size
-  // independently of the backing size.
+  // A host builds its transform at `getDpr()`. Where syncCanvasSize had to
+  // shrink the ratio to stay under MAX_CANVAS_DIM_PX, `fit` shrinks the
+  // transform to match, so the picture still fills the css box.
   resize(width: number, height: number) {
-    syncCanvasSize(this.canvas, width, height)
+    this.fit = syncCanvasSize(this.canvas, width, height) / getDpr()
   }
 
   uploadGeometry(batch: RenderBatch) {
@@ -72,7 +72,18 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   updateTransform(transform: TransformUniform) {
-    this.transform = transform
+    const k = this.fit
+    this.transform =
+      k === 1
+        ? transform
+        : {
+            ...transform,
+            scaleX: transform.scaleX * k,
+            scaleY: transform.scaleY * k,
+            translateX: transform.translateX * k,
+            translateY: transform.translateY * k,
+            dpr: transform.dpr * k,
+          }
   }
 
   render(clearColor: [number, number, number, number]) {

@@ -1,3 +1,4 @@
+import { Canvas2DRenderer } from './Canvas2DRenderer'
 import { svgCanvas } from './svgCanvas'
 
 function strokeOf(
@@ -43,4 +44,21 @@ test('a move with nothing drawn from it writes nothing as a dot', () => {
       ctx.lineTo(40, 10)
     }),
   ).toBe('M10 10L40 10')
+})
+
+test('a transparent clear drops what was drawn rather than throwing', () => {
+  const { canvas, markup } = svgCanvas(100, 100)
+  const renderer = new Canvas2DRenderer(canvas)
+  renderer.updateTransform({
+    scaleX: 1,
+    scaleY: 1,
+    translateX: 0,
+    translateY: 0,
+    dpr: 1,
+  })
+  renderer.render([1, 1, 1, 1])
+  renderer.render([1, 1, 1, 0])
+  expect(markup().match(/<rect/g)).toHaveLength(1)
+  renderer.renderHighlights()
+  expect(markup()).toBe('')
 })
