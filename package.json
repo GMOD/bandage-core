@@ -55,7 +55,7 @@
   "dependencies": {
     "@gmod/gbz-base": "^7.4.0",
     "@gmod/tabix": "^3.10.1",
-    "@jbrowse/graph-fmmm-layout": "^1.0.0",
+    "@jbrowse/graph-fmmm-layout": "^1.0.2",
     "@jbrowse/graph-stress-layout": "^1.0.0",
     "@jbrowse/tubemap-core": "^1.1.0"
   },
