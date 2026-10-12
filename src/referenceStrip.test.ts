@@ -69,14 +69,15 @@ test('under lifted walks a block is a row per walk in its lane, pale where the w
     ['rgba(10,20,30,1)', pale],
     ['rgba(10,20,30,1)', 'rgba(40,50,60,1)'],
   ])
+  expect(blocks.map(b => b.faded)).toEqual([false, true, false])
 })
 
 test('blocks fill whole pixels, none shared, so neighbours leave no seam', () => {
   const blocks = [
-    { node: 'a', bp0: 0, bp1: 10.3, colors: ['a'] },
-    { node: 's', bp0: 10.3, bp1: 10.4, colors: ['s'] },
-    { node: 't', bp0: 10.4, bp1: 10.5, colors: ['t'] },
-    { node: 'b', bp0: 10.5, bp1: 20, colors: ['b'] },
+    { node: 'a', bp0: 0, bp1: 10.3, colors: ['a'], faded: false },
+    { node: 's', bp0: 10.3, bp1: 10.4, colors: ['s'], faded: true },
+    { node: 't', bp0: 10.4, bp1: 10.5, colors: ['t'], faded: true },
+    { node: 'b', bp0: 10.5, bp1: 20, colors: ['b'], faded: false },
   ]
   const px = stripPixels(blocks, { scale: 1, translateX: 0 }, 100, 1)
   // s takes its pixel from b, and t, sharing it, is not drawn
@@ -100,10 +101,10 @@ test('blocks fill whole pixels, none shared, so neighbours leave no seam', () =>
 
 test('blocks wide enough to read one by one alternate tiers where they touch', () => {
   const blocks = [
-    { node: 'a', bp0: 0, bp1: 20, colors: ['a'] },
-    { node: 'b', bp0: 20, bp1: 40, colors: ['b'] },
-    { node: 'c', bp0: 40, bp1: 60, colors: ['c'] },
-    { node: 'd', bp0: 70, bp1: 90, colors: ['d'] },
+    { node: 'a', bp0: 0, bp1: 20, colors: ['a'], faded: false },
+    { node: 'b', bp0: 20, bp1: 40, colors: ['b'], faded: false },
+    { node: 'c', bp0: 40, bp1: 60, colors: ['c'], faded: false },
+    { node: 'd', bp0: 70, bp1: 90, colors: ['d'], faded: false },
   ]
   expect(
     stripPixels(blocks, { scale: 1, translateX: 0 }, 100, 1).map(p => p.tier),

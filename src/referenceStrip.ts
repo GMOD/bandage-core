@@ -39,6 +39,8 @@ export interface StripBlock {
   bp1: number
   // top to bottom: a row per lifted walk, else the node's own colour
   colors: string[]
+  // pale on some row
+  faded: boolean
 }
 
 export function referenceStripBlocks(
@@ -69,6 +71,7 @@ export function referenceStripBlocks(
         bp0: node.stable.start,
         bp1: node.stable.start + node.length,
         colors,
+        faded: colors.includes(LIFT_BACKDROP_CSS),
       })
     }
   })

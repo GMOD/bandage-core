@@ -40,6 +40,8 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx = ctx
   }
 
+  setErrorHandler(_handler: (error: Error) => void) {}
+
   releaseOffscreenTargets() {}
 
   // A host builds its transform at `getDpr()`. Where syncCanvasSize had to
