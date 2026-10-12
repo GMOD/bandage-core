@@ -151,7 +151,7 @@ describe('curveMidpoint', () => {
       { x: 0, y: 0 },
       { x: 200, y: 0 },
     ]
-    const curves = computeEdgeCurves(from, to, false, 0, 0, iso(), bypassed)
+    const curves = computeEdgeCurves(from, to, false, iso(), bypassed)
     const mid = curveMidpoint(curves)!
     expect(curves).toHaveLength(1)
     const onCurve = curvePointAt(curves[0]!, 0.5)
@@ -197,7 +197,7 @@ describe('computeEdgeCurves', () => {
       { x: 20, y: 0 },
       { x: 30, y: 0 },
     ]
-    const curves = computeEdgeCurves(from, to, false, 0, 0, iso())
+    const curves = computeEdgeCurves(from, to, false, iso())
 
     expect(curves).toHaveLength(1)
     expect(curves[0]!.x0).toBeCloseTo(10)
@@ -211,7 +211,7 @@ describe('computeEdgeCurves', () => {
       { x: 0, y: 0 },
       { x: 10, y: 0 },
     ]
-    const curves = computeEdgeCurves(segments, segments, true, 0, 0, iso())
+    const curves = computeEdgeCurves(segments, segments, true, iso())
 
     expect(curves).toHaveLength(2)
     expect(curves[0]!.x1).toBeCloseTo(curves[1]!.x0)
@@ -224,7 +224,7 @@ describe('computeEdgeCurves', () => {
       { x: 0, y: 0 },
       { x: length, y: 0 },
     ]
-    const [first] = computeEdgeCurves(segments, segments, true, 0, 0, {
+    const [first] = computeEdgeCurves(segments, segments, true, {
       scaleX: scale,
       scaleY: scale,
     })
@@ -273,110 +273,16 @@ describe('computeEdgeCurves', () => {
       { x: 0, y: 0 },
       { x: 10, y: 0 },
     ]
-    const atEnd = computeEdgeCurves(segments, segments, 'end', 0, 0, iso(2))
+    const atEnd = computeEdgeCurves(segments, segments, 'end', iso(2))
     expect(atEnd).toHaveLength(2)
     expect(atEnd[0]).toMatchObject({ x0: 10, y0: 0 })
     expect(atEnd[1]).toMatchObject({ x1: 10, y1: 0 })
     expect(atEnd[0]!.x1).toBeGreaterThan(10)
 
-    const atStart = computeEdgeCurves(segments, segments, 'start', 0, 0, iso(2))
+    const atStart = computeEdgeCurves(segments, segments, 'start', iso(2))
     expect(atStart[0]).toMatchObject({ x0: 0, y0: 0 })
     expect(atStart[0]!.x1).toBeLessThan(0)
   })
-
-  test('applies offset to curve endpoints', () => {
-    const from = [
-      { x: 0, y: 0 },
-      { x: 10, y: 0 },
-    ]
-    const to = [
-      { x: 20, y: 0 },
-      { x: 30, y: 0 },
-    ]
-    const curves = computeEdgeCurves(from, to, false, 0, 5, iso())
-
-    expect(curves[0]!.y0).toBeCloseTo(5)
-    expect(curves[0]!.y1).toBeCloseTo(5)
-  })
-})
-
-describe('translateCurves matches computeEdgeCurves offset', () => {
-  // Hit detection caches base curves (offset 0) and applies path offsets via
-  // translateCurves; this must stay numerically equivalent to calling
-  // computeEdgeCurves with offsets directly.
-  const cases: [
-    string,
-    { x: number; y: number }[],
-    { x: number; y: number }[],
-    boolean,
-  ][] = [
-    [
-      'straight edge',
-      [
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-      ],
-      [
-        { x: 20, y: 0 },
-        { x: 30, y: 0 },
-      ],
-      false,
-    ],
-    [
-      'diagonal edge',
-      [
-        { x: 0, y: 0 },
-        { x: 10, y: 5 },
-      ],
-      [
-        { x: 25, y: 18 },
-        { x: 40, y: 30 },
-      ],
-      false,
-    ],
-    [
-      'self-loop',
-      [
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-      ],
-      [
-        { x: 0, y: 0 },
-        { x: 10, y: 0 },
-      ],
-      true,
-    ],
-  ]
-
-  const offsets = [
-    [3, 0],
-    [0, -7],
-    [2.5, 2.5],
-  ]
-
-  test.each(cases)(
-    '%s: translation equals offset compute',
-    (_name, from, to, selfLoop) => {
-      const base = computeEdgeCurves(from, to, selfLoop, 0, 0, iso())
-      for (const [dx, dy] of offsets) {
-        const translated = translateCurves(base, dx!, dy!)
-        const direct = computeEdgeCurves(from, to, selfLoop, dx!, dy!, iso())
-        expect(translated).toHaveLength(direct.length)
-        for (let i = 0; i < direct.length; i++) {
-          const t = translated[i]!
-          const d = direct[i]!
-          expect(t.x0).toBeCloseTo(d.x0)
-          expect(t.y0).toBeCloseTo(d.y0)
-          expect(t.cx0).toBeCloseTo(d.cx0)
-          expect(t.cy0).toBeCloseTo(d.cy0)
-          expect(t.cx1).toBeCloseTo(d.cx1)
-          expect(t.cy1).toBeCloseTo(d.cy1)
-          expect(t.x1).toBeCloseTo(d.x1)
-          expect(t.y1).toBeCloseTo(d.y1)
-        }
-      }
-    },
-  )
 })
 
 // A row layout hands this function two axes in different units — x in reference
@@ -406,20 +312,11 @@ describe('anisotropic axes', () => {
   }
 
   test('a curve is the same drawing whichever unit y arrived in', () => {
-    const flat = computeEdgeCurves(
-      inXUnits.from,
-      inXUnits.to,
-      false,
-      0,
-      0,
-      iso(),
-    )
+    const flat = computeEdgeCurves(inXUnits.from, inXUnits.to, false, iso())
     const rows = computeEdgeCurves(
       asRows.from,
       asRows.to,
       false,
-      0,
-      0,
       { scaleX: 1, scaleY: yToX },
       [],
     )
@@ -463,7 +360,7 @@ describe('anisotropic axes', () => {
       Math.abs(curvePointAt(curves[0]!, 0.5).y * k)
 
     const bowFlat = apexOf(
-      computeEdgeCurves(flat.from, flat.to, false, 0, 0, iso(), flat.bypassed),
+      computeEdgeCurves(flat.from, flat.to, false, iso(), flat.bypassed),
       1,
     )
     const bowRows = apexOf(
@@ -471,8 +368,6 @@ describe('anisotropic axes', () => {
         flat.from,
         flat.to,
         false,
-        0,
-        0,
         { scaleX: 1, scaleY: yToX },
         flat.bypassed,
       ),
@@ -520,8 +415,6 @@ describe('anisotropic axes', () => {
             backbone.from,
             backbone.to,
             false,
-            0,
-            0,
             axis,
             backbone.bypassed,
           )[0]!,
@@ -563,8 +456,6 @@ describe('anisotropic axes', () => {
         short.from,
         short.to,
         false,
-        0,
-        0,
         { scaleX: 1, scaleY: 1, pixelRows },
         short.bypassed,
       )
@@ -575,9 +466,16 @@ describe('anisotropic axes', () => {
   // than merely close: every committed force-directed figure is that path.
   test('yToX of 1 is byte-identical to no conversion at all', () => {
     expect(
-      computeEdgeCurves(inXUnits.from, inXUnits.to, false, 3, 7, iso(), []),
-    ).toEqual(computeEdgeCurves(inXUnits.from, inXUnits.to, false, 3, 7, iso()))
+      computeEdgeCurves(inXUnits.from, inXUnits.to, false, iso(), []),
+    ).toEqual(computeEdgeCurves(inXUnits.from, inXUnits.to, false, iso()))
   })
+})
+
+test('translateCurves moves every point of every curve', () => {
+  const curve = { x0: 0, y0: 0, cx0: 1, cy0: 2, cx1: 3, cy1: 4, x1: 5, y1: 6 }
+  expect(translateCurves([curve], 10, -1)).toEqual([
+    { x0: 10, y0: -1, cx0: 11, cy0: 1, cx1: 13, cy1: 3, x1: 15, y1: 5 },
+  ])
 })
 
 test('path ribbons fan the same screen px apart at any zoom', () => {

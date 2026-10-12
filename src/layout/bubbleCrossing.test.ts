@@ -92,7 +92,7 @@ function crossingBubbles(
     const f = positions[edge.from]
     const t = positions[edge.to]
     return f && t
-      ? computeEdgeCurves(f, t, edge.from === edge.to, 0, 0, iso())
+      ? computeEdgeCurves(f, t, edge.from === edge.to, iso())
       : undefined
   }
   const crossing: string[] = []

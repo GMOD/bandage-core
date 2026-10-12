@@ -573,8 +573,6 @@ export function edgeJoinOf(edge: GraphEdge, stranded = false): EdgeJoin {
 function hairpinCurves(
   attach: { at: NodeSegment; inward: NodeSegment | undefined },
   reach: number,
-  offsetX: number,
-  offsetY: number,
 ): BezierCurve[] {
   const { at, inward } = attach
   const dx = inward ? at.x - inward.x : 1
@@ -582,8 +580,8 @@ function hairpinCurves(
   const len = Math.hypot(dx, dy) || 1
   const ux = dx / len
   const uy = dy / len
-  const px = at.x + offsetX
-  const py = at.y + offsetY
+  const px = at.x
+  const py = at.y
   const nearX = px + (ux * reach) / 3
   const nearY = py + (uy * reach) / 3
   const apexX = px + ux * reach
@@ -618,8 +616,6 @@ export function computeEdgeCurves(
   fromSegments: NodeSegment[],
   toSegments: NodeSegment[],
   join: EdgeJoin,
-  offsetX: number,
-  offsetY: number,
   axis: AxisScale,
   // The nodes this edge bypasses, for a deletion; empty for every other edge.
   // Given them, the curve bows around them.
@@ -665,8 +661,6 @@ export function computeEdgeCurves(
         scaleYOf(fromSegments, yToX),
         scaleYOf(toSegments, yToX),
         join,
-        offsetX,
-        offsetY * yToX,
         { scaleX: scale, scaleY: scale },
         scaleYOf(bypassed, yToX),
         // the cap is a y measure and the body works in x units, so it converts
@@ -680,8 +674,6 @@ export function computeEdgeCurves(
     return hairpinCurves(
       attachment(fromSegments, join),
       selfLoopReach(fromSegments, scale),
-      offsetX,
-      offsetY,
     )
   }
   const loop = join === true
@@ -691,10 +683,10 @@ export function computeEdgeCurves(
   const fromEnd = fromAttach.at
   const toStart = toAttach.at
 
-  const p1x = fromEnd.x + offsetX
-  const p1y = fromEnd.y + offsetY
-  const p2x = toStart.x + offsetX
-  const p2y = toStart.y + offsetY
+  const p1x = fromEnd.x
+  const p1y = fromEnd.y
+  const p2x = toStart.x
+  const p2y = toStart.y
 
   if (loop) {
     let segDirX = 1
@@ -712,8 +704,8 @@ export function computeEdgeCurves(
     const ext = selfLoopReach(fromSegments, scale)
     const perpX = -segDirY
     const perpY = segDirX
-    const midX = (fromEnd.x + toStart.x) / 2 + offsetX + perpX * ext
-    const midY = (fromEnd.y + toStart.y) / 2 + offsetY + perpY * ext
+    const midX = (fromEnd.x + toStart.x) / 2 + perpX * ext
+    const midY = (fromEnd.y + toStart.y) / 2 + perpY * ext
     const cp1x = p1x + segDirX * ext
     const cp1y = p1y + segDirY * ext
     const cp2x = p2x - segDirX * ext
@@ -824,10 +816,10 @@ export function computeEdgeCurves(
       {
         x0: p1x,
         y0: p1y,
-        cx0: cx1 + offsetX + bulgeX - spreadX,
-        cy0: cy1 + offsetY + bulgeY - spreadY,
-        cx1: cx2 + offsetX + bulgeX + spreadX,
-        cy1: cy2 + offsetY + bulgeY + spreadY,
+        cx0: cx1 + bulgeX - spreadX,
+        cy0: cy1 + bulgeY - spreadY,
+        cx1: cx2 + bulgeX + spreadX,
+        cy1: cy2 + bulgeY + spreadY,
         x1: p2x,
         y1: p2y,
       },

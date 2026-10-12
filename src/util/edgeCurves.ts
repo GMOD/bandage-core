@@ -96,8 +96,6 @@ export function baseEdgeCurves(
               from,
               to,
               edgeJoinOf(edge, stranded),
-              0,
-              0,
               axis,
               bypassed ? bypassedPoints(nodePositions, bypassed) : [],
             ),

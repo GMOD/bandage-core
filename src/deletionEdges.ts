@@ -106,8 +106,6 @@ export function deletionArcCurves(
         from,
         to,
         edgeJoinOf(deletion, stranded),
-        0,
-        0,
         axis,
         bypassedPoints(nodePositions, deletion.bypassed),
       )

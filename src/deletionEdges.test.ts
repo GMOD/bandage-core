@@ -144,8 +144,8 @@ test('a bulge moves the curve off the chord but not its endpoints', () => {
     { x: 105, y: -60 },
     { x: 105, y: -160 },
   ]
-  const flat = computeEdgeCurves(from, to, false, 0, 0, iso())[0]!
-  const bowed = computeEdgeCurves(from, to, false, 0, 0, iso(), bypassed)[0]!
+  const flat = computeEdgeCurves(from, to, false, iso())[0]!
+  const bowed = computeEdgeCurves(from, to, false, iso(), bypassed)[0]!
   expect([bowed.x0, bowed.y0, bowed.x1, bowed.y1]).toEqual([
     flat.x0,
     flat.y0,
@@ -170,7 +170,7 @@ test('the arc bows to the side the bypassed reference is on', () => {
     { x: 210, y: 0 },
   ]
   const at = (y: number) =>
-    computeEdgeCurves(from, to, false, 0, 0, iso(), [
+    computeEdgeCurves(from, to, false, iso(), [
       { x: 105, y },
       { x: 145, y },
     ])[0]!
@@ -190,7 +190,7 @@ test('the arc reaches past the reference it bows around', () => {
     { x: 110, y: 0 },
     { x: 210, y: 0 },
   ]
-  const curves = computeEdgeCurves(from, to, false, 0, 0, iso(), [
+  const curves = computeEdgeCurves(from, to, false, iso(), [
     { x: 105, y: 300 },
     { x: 145, y: 300 },
   ])
