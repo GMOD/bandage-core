@@ -1,3 +1,10 @@
+## [10.2.4](https://github.com/GMOD/bandage-core/compare/v10.2.3...v10.2.4) (2026-10-12)
+
+### Other Changes
+
+- Link graph-fmmm-layout; drop the .gitattributes entry for the moved artifact ([2371ddb](https://github.com/GMOD/bandage-core/commit/2371ddb2b2e0be4cd0a6017f4711c7a557927a38))
+- Drop route chips from bubble halos ([ecf3df4](https://github.com/GMOD/bandage-core/commit/ecf3df4d947fc1b21a73249a65474fbb2c252459))
+
 ## [10.2.3](https://github.com/GMOD/bandage-core/compare/v10.2.2...v10.2.3) (2026-10-12)
 
 ### Other Changes
