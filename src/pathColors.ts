@@ -47,7 +47,7 @@ export const PATH_LIGHTNESS = 0.5
 //
 // 16 is where the drawing stops SAYING anything, not where it stops being fast.
 // `pathHueAt` spreads the wheel evenly, so 16 hues are 22 degrees apart and
-// still tellable and 200 are one degree; the ribbon fan is PATH_RIBBON_SPACING
+// still tellable and 200 are one degree; the ribbon fan is PATH_RIBBON_SPACING_PX
 // per path, so 16 of them is a legible fan and 200 is a band wider than the
 // nodes; and a key past about 16 rows is taller than the drawing beside it.
 // Above the cap the honest picture is the plain one — which is exactly what a

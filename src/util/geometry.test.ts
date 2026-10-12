@@ -4,6 +4,7 @@ import {
   curvePointAt,
   dashCurves,
   edgeJoinOf,
+  pathRibbonOffsets,
   projectLine,
   routedEdgeCurves,
   selfLinkOf,
@@ -577,4 +578,22 @@ describe('anisotropic axes', () => {
       computeEdgeCurves(inXUnits.from, inXUnits.to, false, 3, 7, iso(), []),
     ).toEqual(computeEdgeCurves(inXUnits.from, inXUnits.to, false, 3, 7, iso()))
   })
+})
+
+test('path ribbons fan the same screen px apart at any zoom', () => {
+  const from = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+  ]
+  const to = [
+    { x: 20, y: 0 },
+    { x: 30, y: 0 },
+  ]
+  for (const axis of [
+    { scaleX: 0.01, scaleY: 1 },
+    { scaleX: 10, scaleY: 10 },
+  ]) {
+    const [a, b] = pathRibbonOffsets(from, to, 2, axis)
+    expect((b!.y - a!.y) * axis.scaleY).toBeCloseTo(3, 9)
+  }
 })

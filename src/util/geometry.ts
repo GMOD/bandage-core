@@ -436,8 +436,9 @@ export function yToXOf({ scaleX, scaleY }: AxisScale) {
   return scaleY / scaleX
 }
 
-// How far apart two adjacent path ribbons run, in world x units.
-export const PATH_RIBBON_SPACING = 3
+// How far apart two adjacent path ribbons run, in screen px, so the fan
+// neither collapses nor spreads with zoom
+export const PATH_RIBBON_SPACING_PX = 3
 
 // A polyline's overall direction in DRAWN space, or undefined when it has none.
 function drawnDirection(
@@ -477,9 +478,9 @@ export function pathRibbonOffsets(
   toSegments: NodeSegment[],
   count: number,
   axis: AxisScale,
-  spacing = PATH_RIBBON_SPACING,
 ) {
   const yToX = yToXOf(axis)
+  const spacing = PATH_RIBBON_SPACING_PX / Math.max(axis.scaleX, 1e-6)
   const dir = drawnDirection(
     fromSegments[fromSegments.length - 1]!,
     toSegments[0]!,
