@@ -18,8 +18,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@jbrowse/tubemap-core':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.1.0
+        version: 1.1.0
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -365,8 +365,8 @@ packages:
     resolution: {integrity: sha512-zToC0THd94TGr4cWMp9eOCRB8eeN004ncajZzVOoM8WEWV90YMTX5SX9zY6Nk1hhY7ASKWnfOmguXt7SoXaLzw==}
     engines: {node: '>=22'}
 
-  '@jbrowse/tubemap-core@1.0.0':
-    resolution: {integrity: sha512-6mkKyeq2onugbvptWeq49gCy26cYjLki8YRGXgBVSdg/uFUdL7+qoiu1vMWTa+9YOOBhs21QBG+9oan+iQJvtw==}
+  '@jbrowse/tubemap-core@1.1.0':
+    resolution: {integrity: sha512-7x08COgIJJaSbThSJ2kq5khv92snriLbpvCigyVYRIGt8CK0n9fmtF2tKtWoCHnkkjL7KuMwpjvHqxvJ4pV/XQ==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1702,7 +1702,7 @@ snapshots:
 
   '@jbrowse/quick-lru@8.0.0': {}
 
-  '@jbrowse/tubemap-core@1.0.0': {}
+  '@jbrowse/tubemap-core@1.1.0': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
