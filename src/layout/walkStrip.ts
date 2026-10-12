@@ -119,7 +119,14 @@ function spansOf(graph: Graph, name: string) {
     return byName.get(name)
   }
   const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
-  const pieces = (graph.paths ?? []).filter(p => p.name === name)
+  // walkRows gathers the reference's fragments by the name their ranges are
+  // stripped to, and every other walk's pieces by their own name
+  const origin = pathOrigin(name).name
+  const pieces = (graph.paths ?? []).filter(p =>
+    origin === graph.referencePath
+      ? pathOrigin(p.name).name === origin
+      : p.name === name,
+  )
   let spans: Spans | undefined
   if (pieces.every(p => p.start !== undefined)) {
     spans = { ids: [], starts: [], ends: [] }

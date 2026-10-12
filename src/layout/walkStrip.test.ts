@@ -64,6 +64,22 @@ test('the node under a point on a bar, forward, reversed and past a gap', () => 
   expect(segmentAt(graph, row('HG3#1#ctg3'), 15, 10)).toBeUndefined()
 })
 
+// odgi leaves each fragment's range on its P record's name
+test('the node under a point on a reference cut in suffixed fragments', () => {
+  const graph = loadGraph(
+    [
+      ...['a', 'b', 'c', 'd', 'e'].map(id => `S\t${id}\tAAAAAAAAAA`),
+      'P\tGRCh38#0#chr1:1000-1020\ta+,b+\t*',
+      'P\tGRCh38#0#chr1:1030-1050\td+,e+\t*',
+      'P\tHG1#1#ctg1:500-550\ta+,b+,c+,d+,e+\t*',
+    ].join('\n'),
+    'test',
+  )
+  const { reference } = walkRows(graph)!
+  const d = graph.nodes.find(n => n.name === 'd')!
+  expect(segmentAt(graph, reference, 35, 10)).toBe(d.id)
+})
+
 test('at a coarse scale the longest node within a pixel wins', () => {
   const { graph, node, row } = setup()
   expect(segmentAt(graph, row('HG1#1#ctg1'), 4, 0.1)).toBe(node('c').id)
