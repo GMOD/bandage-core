@@ -172,6 +172,81 @@ if (gap(c[0], a[0]) >= gap(c.at(-1), a[0])) {
   throw new Error("a link read `c -` did not leave from c's start")
 }
 
+// nodePositions lists nodes in input order, which sets the drawing's z-order
+// and label tie-breaks. Keying the result by node pointer once made the order
+// follow heap addresses, so it changed between calls on one module.
+const orderEngine = await createModule()
+const shuffled = ['c', 'a', 'e', 'b', 'd', 'f'].map(id => ({
+  id: `${id}+`,
+  name: `${id}+`,
+  length: 500,
+  depth: 1,
+}))
+const shuffledGraph = {
+  nodes: shuffled,
+  edges: [
+    { from: 'a+', to: 'b+' },
+    { from: 'b+', to: 'c+' },
+    { from: 'c+', to: 'd+' },
+  ],
+}
+const inputOrder = JSON.stringify(shuffled.map(n => n.id))
+const keyOrder = () =>
+  JSON.stringify(
+    Object.keys(
+      orderEngine.computeLayout(shuffledGraph, options).nodePositions,
+    ),
+  )
+const firstOrder = keyOrder()
+orderEngine.computeLayout({ nodes, edges }, options)
+orderEngine.computeLayout(
+  { nodes: named, edges: namedEdges },
+  { quality: 1, linearLayout: true },
+)
+const secondOrder = keyOrder()
+if (firstOrder !== inputOrder || secondOrder !== inputOrder) {
+  throw new Error(
+    `nodePositions order ${firstOrder}, then ${secondOrder}; input ${inputOrder}`,
+  )
+}
+
+// The linear layout puts numbered segments in numeric order even beside a
+// deletion's route node, whose name is not a number. Packing may turn an
+// unanchored chain end for end, so the check holds rotation off.
+const numericEngine = await createModule()
+const numbered = [7, 12, 3, 1, 10, 5, 9, 2, 11, 4, 8, 6]
+const route = '\0deletion:0'
+const numericLinear = numericEngine.computeLayout(
+  {
+    nodes: [
+      ...numbered.map(n => ({
+        id: `${n}+`,
+        name: `${n}+`,
+        length: 1000,
+        depth: 1,
+      })),
+      { id: route, name: route, length: 0, depth: 0 },
+    ],
+    edges: [
+      ...numbered
+        .filter(n => n < 12)
+        .map(n => ({ from: `${n}+`, to: `${n + 1}+` })),
+      { from: '2+', to: route },
+      { from: route, to: '4+' },
+    ],
+  },
+  { quality: 1, linearLayout: true, rotateComponents: false },
+).nodePositions
+const startXs = Array.from(
+  { length: 12 },
+  (_, i) => numericLinear[`${i + 1}+`][0].x,
+)
+if (startXs.some((x, i) => i > 0 && x <= startXs[i - 1])) {
+  throw new Error(
+    `linear layout did not order segments 1..12 by x: ${startXs.map(x => x.toFixed(1)).join(', ')}`,
+  )
+}
+
 console.log(
-  `ok: ${laidOut.length} nodes, ${points.length} points, spread ${spread.toFixed(1)}, deterministic; linear layout of named segments ok; link strands ok`,
+  `ok: ${laidOut.length} nodes, ${points.length} points, spread ${spread.toFixed(1)}, deterministic; linear layout of named segments ok; link strands ok; input node order ok; numeric linear order ok`,
 )

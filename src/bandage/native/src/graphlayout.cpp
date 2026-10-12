@@ -21,6 +21,8 @@
 #include <cmath>
 #include <algorithm>
 #include <set>
+#include <tuple>
+#include <unordered_map>
 
 using namespace ogdf;
 using namespace ogdf::energybased;
@@ -165,44 +167,26 @@ static void determineLinearNodePositions(Graph& ogdfGraph,
                                         OGDFGraphLayout& layoutMap,
                                         const AssemblyGraph& graph,
                                         const LayoutSettings& settings) {
-    std::vector<DeBruijnNode*> sortedDrawnNodes;
-
-    // Try numeric sorting first. A pggb or odgi graph numbers its segments, so
-    // `10` sorts after `9` rather than before it; anything else — minigraph's
-    // `s1`, a named contig — falls through to the alphabetical pass below.
-    std::vector<std::pair<int, DeBruijnNode*>> numericallySortedNodes;
-    bool successfulIntConversion = true;
-
-    for (const auto& pair : graph.nodes) {
-        DeBruijnNode* node = pair.second;
-        std::optional<int> nodeInt = parseWholeInt(node->getNameWithoutSign());
-        if (!nodeInt) {
-            successfulIntConversion = false;
-            break;
-        }
-        numericallySortedNodes.push_back({*nodeInt, node});
+    // Numeric names first, in numeric order, so a pggb or odgi graph puts `10`
+    // after `9`; then the rest alphabetically: minigraph's `s1`, a named
+    // contig, a deletion's route node.
+    using SortKey = std::tuple<bool, int, std::string>;
+    std::vector<std::pair<SortKey, DeBruijnNode*>> keyed;
+    for (auto* node : graph.nodes) {
+        std::string name = node->getNameWithoutSign();
+        std::optional<int> number = parseWholeInt(name);
+        keyed.push_back({number ? SortKey(false, *number, "")
+                                : SortKey(true, 0, name),
+                         node});
     }
-
-    if (successfulIntConversion) {
-        std::sort(numericallySortedNodes.begin(), numericallySortedNodes.end(),
-                 [](const auto& a, const auto& b) { return a.first < b.first; });
-        for (const auto& entry : numericallySortedNodes)
-            sortedDrawnNodes.push_back(entry.second);
-    } else {
-        // Alphabetical sorting
-        for (const auto& pair : graph.nodes)
-            sortedDrawnNodes.push_back(pair.second);
-        std::sort(sortedDrawnNodes.begin(), sortedDrawnNodes.end(),
-                 [](const DeBruijnNode* a, const DeBruijnNode* b) {
-                     return a->getNameWithoutSign() < b->getNameWithoutSign();
-                 });
-    }
+    std::stable_sort(keyed.begin(), keyed.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
 
     // Add nodes with initial positions
     std::set<std::pair<long long, long long>> usedStartPositions;
     double lastXPos = 0.0;
 
-    for (auto* node : sortedDrawnNodes) {
+    for (const auto& [key, node] : keyed) {
         std::vector<DeBruijnNode*> upstreamNodes = node->getUpstreamNodes();
         for (size_t j = 0; j < upstreamNodes.size(); ++j) {
             DeBruijnNode* upstreamNode = upstreamNodes[j];
@@ -245,8 +229,8 @@ static void buildGraph(Graph& ogdfGraph,
         determineLinearNodePositions(ogdfGraph, ogdfGraphAttributes, ogdfEdgeLengths,
                                     layoutMap, graph, settings);
     } else {
-        for (const auto& pair : graph.nodes)
-            addToOgdfGraph(pair.second, ogdfGraph, ogdfGraphAttributes, ogdfEdgeLengths,
+        for (auto* node : graph.nodes)
+            addToOgdfGraph(node, ogdfGraph, ogdfGraphAttributes, ogdfEdgeLengths,
                           layoutMap, settings, 0.0, 0.0, false);
     }
 
@@ -460,13 +444,8 @@ GraphLayout layoutGraph(const AssemblyGraph& graph, const LayoutSettings& settin
     for (auto v : G.nodes)
         nodesInCC[componentNumber[v]].pushBack(v);
 
-    bool anySeed = false;
-    for (const auto& pair : graph.nodes) {
-        if (pair.second->hasSeed()) {
-            anySeed = true;
-            break;
-        }
-    }
+    bool anySeed = std::any_of(graph.nodes.begin(), graph.nodes.end(),
+                               [](const DeBruijnNode* node) { return node->hasSeed(); });
     bool keepPositions = settings.useLinearLayout || anySeed;
 
     for (int i = 0; i < numberOfComponents; i++) {
@@ -506,10 +485,14 @@ GraphLayout layoutGraph(const AssemblyGraph& graph, const LayoutSettings& settin
                        nodesInCC, settings.rotateComponents);
 
     GraphLayout result;
-    for (const auto& entry : ogdfLayout) {
-        for (ogdf::node node : entry.second) {
-            result[entry.first].push_back(Point(GA.x(node), GA.y(node)));
-        }
+    for (auto* node : graph.nodes) {
+        auto it = ogdfLayout.find(node);
+        if (it == ogdfLayout.end())
+            continue;
+        std::vector<Point> points;
+        for (ogdf::node v : it->second)
+            points.push_back(Point(GA.x(v), GA.y(v)));
+        result.emplace_back(node, std::move(points));
     }
     return result;
 }

@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -77,7 +78,8 @@ public:
 
 class AssemblyGraph {
 public:
-    std::unordered_map<std::string, DeBruijnNode*> nodes;
+    std::vector<DeBruijnNode*> nodes;
+    std::unordered_map<std::string, DeBruijnNode*> nodesByName;
     std::vector<DeBruijnEdge*> edges;
 
     AssemblyGraph() = default;
@@ -88,25 +90,33 @@ public:
     AssemblyGraph& operator=(const AssemblyGraph&) = delete;
 
     ~AssemblyGraph() {
-        for (auto& pair : nodes) {
-            delete pair.second;
+        for (auto* node : nodes) {
+            delete node;
         }
         for (auto* edge : edges) {
             delete edge;
         }
     }
 
+    // A repeated name replaces the earlier node in its place.
     DeBruijnNode* addNode(const std::string& name, unsigned length) {
         auto* node = new DeBruijnNode(name, length);
-        nodes[name] = node;
+        auto [it, inserted] = nodesByName.try_emplace(name, node);
+        if (inserted) {
+            nodes.push_back(node);
+        } else {
+            *std::find(nodes.begin(), nodes.end(), it->second) = node;
+            delete it->second;
+            it->second = node;
+        }
         return node;
     }
 
     DeBruijnEdge* addEdge(const std::string& fromName, const std::string& toName) {
-        auto fromIt = nodes.find(fromName);
-        auto toIt = nodes.find(toName);
+        auto fromIt = nodesByName.find(fromName);
+        auto toIt = nodesByName.find(toName);
 
-        if (fromIt == nodes.end() || toIt == nodes.end()) {
+        if (fromIt == nodesByName.end() || toIt == nodesByName.end()) {
             return nullptr;
         }
 

@@ -13,10 +13,10 @@
 #include "types.h"
 #include "graph.h"
 #include "settings.h"
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
-using GraphLayout = std::unordered_map<DeBruijnNode*, std::vector<Point>>;
+using GraphLayout = std::vector<std::pair<const DeBruijnNode*, std::vector<Point>>>;
 
 namespace layout {
     GraphLayout layoutGraph(const AssemblyGraph& graph, const LayoutSettings& settings);

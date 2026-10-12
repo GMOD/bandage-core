@@ -71,9 +71,8 @@ val layoutToJS(const GraphLayout& layout) {
     val result = val::object();
     val nodePositions = val::object();
 
-    for (const auto& entry : layout) {
-        std::string nodeName = entry.first->getName();
-        const auto& segments = entry.second;
+    for (const auto& [node, segments] : layout) {
+        std::string nodeName = node->getName();
 
         val jsSegments = val::array();
         for (size_t i = 0; i < segments.size(); ++i) {
