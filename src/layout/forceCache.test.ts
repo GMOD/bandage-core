@@ -83,6 +83,22 @@ test('a run that throws leaves nothing behind', async () => {
   expect(engine.calls()).toBe(1)
 })
 
+test('an evicted run that throws late keeps the run that replaced it', async () => {
+  const cache = createForceLayoutCache(1)
+  let fail!: (e: Error) => void
+  const slow = () =>
+    new Promise((_, reject) => {
+      fail = reject
+    })
+  const stale = cache.layout(GRAPH, SETTINGS, slow as unknown as LayoutEngine)
+  const engine = countingEngine()
+  await cache.layout(GRAPH, { ...SETTINGS, quality: 4 }, engine)
+  const { result } = await cache.layout(GRAPH, SETTINGS, engine)
+  fail(new Error('late'))
+  await expect(stale).rejects.toThrow('late')
+  expect(cache.ready(GRAPH, SETTINGS)).toBe(result)
+})
+
 test('a re-anchored graph keeps the layouts of the graph it came from', async () => {
   const cache = createForceLayoutCache()
   const engine = countingEngine()

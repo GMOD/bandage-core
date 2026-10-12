@@ -73,7 +73,11 @@ export function createForceLayoutCache(size = DEFAULT_SIZE): ForceLayoutCache {
           return { ...r, duration: r.duration || performance.now() - started }
         }),
       }
-      entry.run.catch(() => cache.delete(key))
+      entry.run.catch(() => {
+        if (cache.get(key) === entry) {
+          cache.delete(key)
+        }
+      })
       cache.set(key, entry)
       return entry.run
     },
