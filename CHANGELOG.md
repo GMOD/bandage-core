@@ -1,3 +1,10 @@
+## [10.2.2](https://github.com/GMOD/bandage-core/compare/v10.2.1...v10.2.2) (2026-10-12)
+
+### Other Changes
+
+- Walk rows key: 'gene', like the graph's 'exon' ([ee3ccda](https://github.com/GMOD/bandage-core/commit/ee3ccda807f8d587bc011c785fdc8812f3e33222))
+- Require @jbrowse/tubemap-core 1.1.0 ([6c13827](https://github.com/GMOD/bandage-core/commit/6c13827a7d0a842613f3870b9bbf27bf6ffa4929))
+
 ## [10.2.1](https://github.com/GMOD/bandage-core/compare/v10.2.0...v10.2.1) (2026-10-11)
 
 ### Other Changes
