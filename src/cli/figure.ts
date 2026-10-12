@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util'
 import { TabixIndexedFile } from '@gmod/tabix'
 
 import { figureSvg } from '../figure'
+import { laidOutGraph, walkLayers } from '../figureData'
 import {
   HPRC_GBZ,
   cutGbzRegion,
@@ -17,26 +18,18 @@ import {
 import { genesFromText } from '../genes/geneFiles'
 import { genesOnRow, placeRowGenes } from '../layout/walkRowDraw'
 import { filterSamples, walkRows } from '../layout/walkRows'
-import {
-  LAYOUT_ENGINE_VALUES,
-  isLayoutEngineKind,
-  layoutEngine,
-} from '../layoutEngines'
-import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
-import { engineSettingsOf, forceLayout, loadGraph } from '../pipeline'
+import { LAYOUT_ENGINE_VALUES, isLayoutEngineKind } from '../layoutEngines'
+import { LAYOUT_MODES } from '../layoutModes'
 import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
 import { decodeText } from './decodeText'
 
-import type { BubbleSpread } from '../bubbleSpreads'
 import type { FigureOptions } from '../figure'
+import type { GfaFigureSpec } from '../figureData'
 import type { GbzSource } from '../gbzCut'
 import type { GeneFormat } from '../genes/geneFiles'
 import type { GeneModel } from '../genes/genePins'
-import type { LayoutEngineKind } from '../layoutEngines'
-import type { LayoutModeValue } from '../layoutModes'
 import type { BackboneContig } from '../reference'
 import type { Graph } from '../types'
-import type { WalkLayer } from '../walkEncoding'
 import type { ByteSource } from '@gmod/gbz-base'
 
 // bandage-figure: a pangenome graph figure from a spec, as SVG, with no browser.
@@ -47,24 +40,13 @@ import type { ByteSource } from '@gmod/gbz-base'
 //
 //   bandage-figure mapt.json -o mapt.svg
 
-export interface FigureSpec extends Omit<
-  FigureOptions,
-  'walks' | 'region' | 'genes' | 'spec' | 'walkStrip'
-> {
+export interface FigureSpec
+  extends
+    GfaFigureSpec,
+    Omit<FigureOptions, 'walks' | 'region' | 'genes' | 'spec' | 'walkStrip'> {
   gfa?: string
   // `db` is a gbz-base database, or `hprc` for the HPRC release 2 graph
   gbz?: GbzSource
-  // the reference window a GFA was cut for
-  region?: string
-  referencePath?: string
-  layout?: LayoutModeValue
-  quality?: number
-  bubbleSpread?: BubbleSpread
-  // which force engine, Bandage's FMMM when absent
-  engine?: LayoutEngineKind
-  spacing?: number
-  componentSeparation?: number
-  walks?: (string | WalkLayer)[]
   // walk rows in a strip under a layout that draws nodes
   walkStrip?: boolean
   // the samples the strip keeps, in the order it draws them
@@ -262,12 +244,12 @@ async function renderSpec(spec: FigureSpec, base: string) {
   } else {
     throw new Error('a spec names its graph as `gfa` or `gbz`')
   }
-  const graph = loadGraph(source.text, source.name, {
-    referencePath: spec.referencePath,
-  })
-  const layout =
-    layoutModeByValue(spec.layout ?? 'force').run(graph, source.region) ??
-    (await forceLayout(graph, engineSettingsOf(spec), layoutEngine)).result
+  const { graph, layout } = await laidOutGraph(
+    source.text,
+    source.name,
+    source.region,
+    spec,
+  )
   const bars = spec.walkStrip ? walkRows(graph, source.region) : undefined
   const stripRows = bars && {
     ...bars,
@@ -295,7 +277,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
         unread: 0,
       },
     },
-    walks: spec.walks?.map(w => (typeof w === 'string' ? { walk: w } : w)),
+    walks: walkLayers(spec.walks),
     region: source.region,
     genes,
     spec,

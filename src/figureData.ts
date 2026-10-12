@@ -297,15 +297,36 @@ export interface GfaFigureSpec extends Omit<
   FigureDataOptions,
   'region' | 'walks'
 > {
+  // the reference window the GFA was cut for
   region?: string
   walks?: (string | WalkLayer)[]
   layout?: LayoutModeValue
   referencePath?: string
   quality?: number
   bubbleSpread?: BubbleSpread
+  // which force engine, Bandage's FMMM when absent
   engine?: LayoutEngineKind
   spacing?: number
   componentSeparation?: number
+}
+
+// A graph laid out as a spec asks: by its layout mode, or by the force engine
+// where the mode leaves the layout to it
+export async function laidOutGraph(
+  text: string,
+  name: string,
+  region: FigureOptions['region'],
+  spec: GfaFigureSpec,
+) {
+  const graph = loadGraph(text, name, { referencePath: spec.referencePath })
+  const layout =
+    layoutModeByValue(spec.layout ?? 'force').run(graph, region) ??
+    (await forceLayout(graph, engineSettingsOf(spec), layoutEngine)).result
+  return { graph, layout }
+}
+
+export function walkLayers(walks: GfaFigureSpec['walks']) {
+  return walks?.map(w => (typeof w === 'string' ? { walk: w } : w))
 }
 
 // GFA text to tables, the whole way, for a host with no file system: the R
@@ -316,13 +337,10 @@ export async function gfaFigureData(
   spec: GfaFigureSpec = {},
 ) {
   const region = spec.region ? parseRegion(spec.region) : undefined
-  const graph = loadGraph(text, name, { referencePath: spec.referencePath })
-  const layout =
-    layoutModeByValue(spec.layout ?? 'force').run(graph, region) ??
-    (await forceLayout(graph, engineSettingsOf(spec), layoutEngine)).result
+  const { graph, layout } = await laidOutGraph(text, name, region, spec)
   return figureData(graph, layout, {
     ...spec,
     region,
-    walks: spec.walks?.map(w => (typeof w === 'string' ? { walk: w } : w)),
+    walks: walkLayers(spec.walks),
   })
 }
