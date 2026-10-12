@@ -163,7 +163,14 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     return id
   }
 
+  // a segment declared twice keeps its first declaration, as links and walks
+  // can only name one node
+  const declared = new Set<string>()
   for (const gfaNode of gfaGraph.nodes) {
+    if (declared.has(gfaNode.id)) {
+      continue
+    }
+    declared.add(gfaNode.id)
     const depth =
       statedDepth(gfaNode) ?? Math.max(traversals.get(gfaNode.id) ?? 1, 1)
     nodes.push(makeNode(gfaNode, canonical.get(gfaNode.id) ?? '+', depth))

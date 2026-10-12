@@ -408,3 +408,8 @@ W\tHG1\t2\tchrM\t0\t20\t>s1>s2`)
 
   expect(pathLegend(graph.paths!).map(e => e.label)).toEqual(['HG1#1', 'HG1#2'])
 })
+
+test('a segment declared twice is one node', () => {
+  const graph = convertGFAToGraph(parseGFA('S\t1\tACGT\nS\t1\tACGT\nS\t2\tAA'))
+  expect(graph.nodes.map(n => n.id)).toEqual(['1+', '2+'])
+})

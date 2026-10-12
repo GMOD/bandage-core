@@ -62,8 +62,8 @@ test('parses segment tags (depth)', () => {
 })
 
 test('handles empty lines and unknown record types', () => {
-  const gfa = parseGFA('S\t1\tACGT\n\nX\tunknown\nS\t2\tGGCC')
-  expect(gfa.nodes).toHaveLength(2)
+  const gfa = parseGFA('S\t1\tACGT\n\nX\tunknown\nSX\tweird\nS\t2\tGGCC')
+  expect(gfa.nodes.map(n => n.id)).toEqual(['1', '2'])
 })
 
 test('parses W-line walks', () => {

@@ -150,10 +150,11 @@ export function parseGFA(file: string) {
   // which would hold a second copy of every line in the file at once.
   for (const rawLine of file.split('\n')) {
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
-    if (line.startsWith('H')) {
+    const type = line.split('\t', 1)[0]
+    if (type === 'H') {
       const [, ...rest] = line.split('\t')
       graph.header.push(parseTags(rest))
-    } else if (line.startsWith('S')) {
+    } else if (type === 'S') {
       const [, name, ...rest] = line.split('\t')
       let len: number
       let seq: string
@@ -184,7 +185,7 @@ export function parseGFA(file: string) {
         len = +tags.LN
       }
       graph.nodes.push({ id: name!, length: len, sequence: seq, tags })
-    } else if (line.startsWith('E')) {
+    } else if (type === 'E') {
       // From here down, a record cut off before the fields that make it a
       // link, walk or path states nothing drawable and is dropped; the file
       // around it still reads. A link missing only its overlap is kept.
@@ -199,7 +200,7 @@ export function parseGFA(file: string) {
           tags: parseTags(rest),
         })
       }
-    } else if (line.startsWith('L')) {
+    } else if (type === 'L') {
       const [, source, strand1, target, strand2, cigar, ...rest] =
         line.split('\t')
       if (source && target && strand2) {
@@ -212,7 +213,7 @@ export function parseGFA(file: string) {
           tags: parseTags(rest),
         })
       }
-    } else if (line.startsWith('W')) {
+    } else if (type === 'W') {
       const [, sample, hap, contig, start, end, body, ...rest] =
         line.split('\t')
       if (sample && hap && contig && start && end && body) {
@@ -226,7 +227,7 @@ export function parseGFA(file: string) {
           tags: parseTags(rest),
         })
       }
-    } else if (line.startsWith('P')) {
+    } else if (type === 'P') {
       const [, name, path, ...rest] = line.split('\t')
       if (name && path) {
         graph.paths.push({ name, path, rest })
