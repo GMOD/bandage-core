@@ -84,14 +84,34 @@ export function bypassedPoints(
 // (`pangenome/hprc_cfhr_deletion`, reviewed 2026-07-31). One function is the fix:
 // a second derivation of the same curve is a second thing to keep in step.
 export function deletionArcCurves(
-  nodePositions: Record<string, { x: number; y: number }[]>,
+  nodePositions: Record<string, NodeSegment[]>,
   deletion: DeletionEdge,
   axis: AxisScale,
   route?: NodeSegment[],
   stranded = false,
 ) {
-  const from = nodePositions[deletion.from]
-  const to = nodePositions[deletion.to]
+  return edgeCurvesOf(
+    nodePositions,
+    deletion,
+    axis,
+    deletion.bypassed,
+    route,
+    stranded,
+  )
+}
+
+// An edge's curve as drawn: along its route where a force layout ran one,
+// else bowed round what it bypasses. Undefined where an end has no position.
+export function edgeCurvesOf(
+  nodePositions: Record<string, NodeSegment[]>,
+  edge: GraphEdge,
+  axis: AxisScale,
+  bypassed: string[] | undefined,
+  route: NodeSegment[] | undefined,
+  stranded: boolean,
+) {
+  const from = nodePositions[edge.from]
+  const to = nodePositions[edge.to]
   if (!from?.length || !to?.length) {
     return undefined
   }
@@ -100,14 +120,14 @@ export function deletionArcCurves(
         from,
         to,
         route,
-        stranded ? strandSides(deletion) : undefined,
+        stranded ? strandSides(edge) : undefined,
       )
     : computeEdgeCurves(
         from,
         to,
-        edgeJoinOf(deletion, stranded),
+        edgeJoinOf(edge, stranded),
         axis,
-        bypassedPoints(nodePositions, deletion.bypassed),
+        bypassed ? bypassedPoints(nodePositions, bypassed) : [],
       )
 }
 

@@ -1,10 +1,4 @@
-import { bypassedPoints } from '../deletionEdges'
-import {
-  computeEdgeCurves,
-  edgeJoinOf,
-  routedEdgeCurves,
-  strandSides,
-} from './geometry'
+import { edgeCurvesOf } from '../deletionEdges'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'
@@ -75,31 +69,19 @@ export function baseEdgeCurves(
   }
   const curves: EdgeCurves = new Map()
   for (let ei = 0; ei < graph.edges.length; ei++) {
-    const edge = graph.edges[ei]!
-    const from = nodePositions[edge.from]
-    const to = nodePositions[edge.to]
+    const bypassed = deletions?.get(ei)
+    const edgeCurves = edgeCurvesOf(
+      nodePositions,
+      graph.edges[ei]!,
+      axis,
+      bypassed,
+      bypassed && routes?.[ei],
+      stranded,
+    )
     // An edge whose endpoints the layout did not place has no curve, and its
     // absence here is the same "skip it" every consumer already applies.
-    if (from?.length && to?.length) {
-      const bypassed = deletions?.get(ei)
-      const route = bypassed && routes?.[ei]
-      curves.set(
-        ei,
-        route
-          ? routedEdgeCurves(
-              from,
-              to,
-              route,
-              stranded ? strandSides(edge) : undefined,
-            )
-          : computeEdgeCurves(
-              from,
-              to,
-              edgeJoinOf(edge, stranded),
-              axis,
-              bypassed ? bypassedPoints(nodePositions, bypassed) : [],
-            ),
-      )
+    if (edgeCurves) {
+      curves.set(ei, edgeCurves)
     }
   }
   cache.set(nodePositions, {
