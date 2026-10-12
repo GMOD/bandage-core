@@ -19,11 +19,7 @@ const bubble = {
   longestAllele: undefined,
 }
 
-function halo(
-  labelAt: NodeSegment,
-  routeAt?: NodeSegment,
-  tick = false,
-): BubbleHalo {
+function halo(labelAt: NodeSegment, tick = false): BubbleHalo {
   return {
     bubble,
     kind: 'substitution',
@@ -34,15 +30,6 @@ function halo(
     nodeIds: ['s2'],
     whole: false,
     tick,
-    routes: routeAt
-      ? [
-          {
-            route: { steps: ['s2'], bp: 1600, walks: ['HG00133#1'] },
-            at: routeAt,
-            text: 'HG00133',
-          },
-        ]
-      : [],
   }
 }
 
@@ -149,20 +136,6 @@ test('a gene name under a bubble name drops a row instead of vanishing', () => {
   expect(layout.bubbles.map(l => l.y)).toEqual([pinY])
   expect(layout.genes.map(l => l.text)).toEqual(['hemA'])
   expect(layout.genes[0]!.y).toBeGreaterThan(pinY)
-})
-
-test('a gene name outranks a route chip on the same spot', () => {
-  const at = { x: 300, y: 200 }
-  const without = layoutLabels(source({ genePins: [pin(at)] }))
-  const pinY = without.genes[0]!.y
-  const layout = layoutLabels(
-    source({
-      genePins: [pin(at)],
-      bubbleHalos: [halo({ x: 300, y: 20 }, { x: 300, y: pinY - 4 })],
-    }),
-  )
-  expect(layout.genes.map(l => l.text)).toEqual(['hemA'])
-  expect(layout.routes.map(l => l.y)).not.toContain(pinY)
 })
 
 // pggb's partial bubbles name only their allele, which an anchored layout
@@ -276,8 +249,8 @@ test('a small variant stands as a tick above its nodes, with no chip', () => {
     source({
       bubbleHalos: [
         halo({ x: 300, y: 200 }),
-        halo({ x: 500, y: 200 }, undefined, true),
-        halo({ x: 900, y: 200 }, undefined, true),
+        halo({ x: 500, y: 200 }, true),
+        halo({ x: 900, y: 200 }, true),
       ],
     }),
   )

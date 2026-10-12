@@ -13,7 +13,7 @@ import {
 } from './overlayLabels'
 import { nodesUnderBox } from './util/hitDetection'
 
-import type { BubbleHalo, RouteLabel } from './bubbles/bubbleHalos'
+import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { DeletionEdge } from './deletionEdges'
 import type { GenePin } from './genes/genePins'
 import type { GraphLabel } from './graphLabels'
@@ -24,8 +24,6 @@ import type { AxisScale } from './util/geometry'
 
 export const HALO_FACTOR = 3.4
 export const LEGEND_INSET_PX = 6
-// routes whose own stretches are drawn on top of each other stack their chips
-const ROUTE_STACK = 8
 const GENE_PIN_DROP_PX = 18
 // a gene's name drops a row or two rather than vanish under a bubble's
 const GENE_STACK = 2
@@ -73,7 +71,6 @@ export interface LabelLayout {
   bubbles: PlacedLabel<BubbleHalo>[]
   ticks: BubbleTick[]
   genes: PlacedLabel<GenePin>[]
-  routes: PlacedLabel<{ halo: BubbleHalo; route: RouteLabel }>[]
   sizes: GraphLabel[]
 }
 
@@ -238,22 +235,6 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
         })
       : { deletions: [], nodes: [] }
   const deletionLabels = placeSizeLabels(sizeCandidates.deletions, take)
-  const routes = placeLabels(
-    byBubble.flatMap(h =>
-      h.routes.map(route => {
-        const { x, y } = screen(route.at)
-        return {
-          item: { halo: h, route },
-          x,
-          y: y + 4,
-          text: route.text,
-          stack: ROUTE_STACK,
-        }
-      }),
-    ),
-    frame,
-    take,
-  )
   const nodeLabels = placeSizeLabels(
     sizeCandidates.nodes,
     take,
@@ -263,7 +244,6 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     bubbles,
     ticks,
     genes,
-    routes,
     sizes: [...deletionLabels, ...nodeLabels],
   }
 }
