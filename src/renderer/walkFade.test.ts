@@ -204,3 +204,26 @@ test("a lifted walk's link fans out across the end it leaves from", () => {
   expect(lane.x0).toBeCloseTo(10)
   expect(lane.y0).not.toBeCloseTo(0)
 })
+
+test('a lifted walk taking a deletion draws it dashed, with its head', () => {
+  const skip = convertGFAToGraph(
+    parseGFA(`${GFA}
+L\tv1\t+\tv3\t+\t0M
+W\tdel\t1\tchr\t0\t7\t>v1>v3`),
+  )
+  const deletion = skip.edges.findIndex(e => e.from === 'v1+' && e.to === 'v3+')
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: positions,
+    graph: skip,
+    nodeById: new Map(skip.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 5,
+    connectorThickness: 2,
+    drawPaths: false,
+    deletions: new Map([[deletion, ['v2+']]]),
+    highlight: walkLift(skip, [{ walk: 'del#1#chr' }]),
+  })
+  expect(batch.edgeCurveRuns.get(deletion)!.count).toBeGreaterThan(1)
+  expect(batch.arrowRuns.get(deletion)?.count).toBe(1)
+})

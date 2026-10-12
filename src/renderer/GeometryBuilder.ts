@@ -51,9 +51,9 @@ const EDGE_PATH_FALLBACK_COLOR = packAbgr(136, 136, 136, 217) // ~0.533, alpha 0
 // position and only that.
 const EDGE_DELETION_COLOR = packAbgr(24, 24, 28, 240)
 const DELETION_THICKNESS_FACTOR = 2.2
-// A lifted walk's links keep their plain ink, since the walk's lanes in the
-// nodes carry it, and the rest fades. The alpha they fade to keeps every colour
-// scheme's hues, only dimmer, on any background.
+// The builder draws a lifted walk's links in its lanes' colours and fades the
+// rest, to an alpha that keeps every colour scheme's hues, only dimmer, on any
+// background.
 export const LIFT_BACKDROP_COLOR = packAbgr(160, 160, 160, 255)
 export const FADED_ALPHA = 0.18
 // The same fade as css, for what paints outside the batch: the strip, the
@@ -952,51 +952,43 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       (toNode
         ? nodeWidthPx(toNode, contigThickness, nodeWidth, depthNorm)
         : contigThickness) / 2
-    const buildSingleEdge = (
-      offsetX: number,
-      offsetY: number,
+    const inView = (curves: BezierCurve[]) =>
+      !viewportBounds || isBezierInBounds(curves, viewportBounds)
+    // A deletion is drawn dashed, and that is the only thing in the drawing
+    // that is. Weight and darkness were carrying it alone, and they could not:
+    // an off-reference node is charcoal rgb(60,65,72) and the arc is near-black
+    // rgb(24,24,28), which is ~25 points a channel apart, so in a figure the
+    // two dark strokes read as the same ink and the arc is the rarer of them
+    // (measured on `pangenome/hprc_lpa_kiv2`: 7,411 px of charcoal node against
+    // ~5,000 px of arc). Hue cannot separate them either, since hue means
+    // reference position and charcoal means having none. A broken line is
+    // available, unused, and says what it draws: sequence that is not there.
+    const stroke = (
+      curves: BezierCurve[],
+      thickness: number,
       color: number,
-      arrowColor: number | undefined,
     ) => {
-      const curves =
-        offsetX === 0 && offsetY === 0
-          ? baseCurves
-          : translateCurves(baseCurves, offsetX, offsetY)
-
-      if (viewportBounds && !isBezierInBounds(curves, viewportBounds)) {
-        return
-      }
-
-      // A deletion is drawn dashed, and that is the only thing in the drawing
-      // that is. Weight and darkness were carrying it alone, and they could not:
-      // an off-reference node is charcoal rgb(60,65,72) and the arc is near-black
-      // rgb(24,24,28), which is ~25 points a channel apart, so in a figure the
-      // two dark strokes read as the same ink and the arc is the rarer of them
-      // (measured on `pangenome/hprc_lpa_kiv2`: 7,411 px of charcoal node against
-      // ~5,000 px of arc). Hue cannot separate them either, since hue means
-      // reference position and charcoal means having none. A broken line is
-      // available, unused, and says what it draws: sequence that is not there.
       if (isDeletion) {
         for (const dash of dashCurves(curves, DELETION_DASH_PX / scale)) {
-          edgeCurves.push({ curves: dash, thickness: edgeThickness, color })
+          edgeCurves.push({ curves: dash, thickness, color })
         }
       } else {
-        edgeCurves.push({ curves, thickness: edgeThickness, color })
+        edgeCurves.push({ curves, thickness, color })
       }
-
-      const head =
-        showArrows && arrowColor !== undefined
-          ? arrowheadFor({
-              curves,
-              edgeHalfWidth: connectorThickness / 2,
-              nodeHalfWidth: intoHalfWidth,
-              scale,
-              yToX,
-              color: arrowColor,
-              fromSegments,
-              toSegments,
-            })
-          : undefined
+    }
+    const arrowOn = (curves: BezierCurve[]) => {
+      const head = showArrows
+        ? arrowheadFor({
+            curves,
+            edgeHalfWidth: connectorThickness / 2,
+            nodeHalfWidth: intoHalfWidth,
+            scale,
+            yToX,
+            color: edgeColor,
+            fromSegments,
+            toSegments,
+          })
+        : undefined
       if (head) {
         arrows.push(head)
       }
@@ -1041,20 +1033,24 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           offset === 0
             ? baseCurves
             : translateCurves(baseCurves, nx * offset, (ny * offset) / yToX)
-        if (viewportBounds && !isBezierInBounds(curves, viewportBounds)) {
-          return
-        }
-        edgeCurves.push({
-          curves,
-          thickness: laneWidth / 2,
-          color:
+        if (inView(curves)) {
+          stroke(
+            curves,
+            laneWidth / 2,
             walk.colors.get(edge.from) ??
-            walk.colors.get(edge.to) ??
-            plainEdgeColor,
-        })
+              walk.colors.get(edge.to) ??
+              plainEdgeColor,
+          )
+        }
       })
+      if (edgeCurves.length > edgeCurveStart) {
+        arrowOn(baseCurves)
+      }
     } else if (!ribbons) {
-      buildSingleEdge(0, 0, edgeColor, edgeColor)
+      if (inView(baseCurves)) {
+        stroke(baseCurves, edgeThickness, edgeColor)
+        arrowOn(baseCurves)
+      }
     } else {
       const offsets = pathRibbonOffsets(
         fromSegments,
@@ -1068,19 +1064,26 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       // rebuild a curve the fan is already centred on.
       const arrowRibbon = Math.floor((numPaths - 1) / 2)
       for (let pathIdx = 0; pathIdx < numPaths; pathIdx++) {
-        const offset = offsets[pathIdx]!
+        const { x, y } = offsets[pathIdx]!
+        const curves =
+          x === 0 && y === 0 ? baseCurves : translateCurves(baseCurves, x, y)
+        if (!inView(curves)) {
+          continue
+        }
         const ribbonColor = pathColorByName(edge.pathIds![pathIdx]!)
-        buildSingleEdge(
-          offset.x,
-          offset.y,
+        stroke(
+          curves,
+          edgeThickness,
           highlight &&
             (highlight.walks.length
               ? !highlight.names.has(edge.pathIds![pathIdx]!)
               : !onWalk)
             ? fadeAbgr(ribbonColor, FADED_ALPHA)
             : ribbonColor,
-          pathIdx === arrowRibbon ? edgeColor : undefined,
         )
+        if (pathIdx === arrowRibbon) {
+          arrowOn(curves)
+        }
       }
     }
 
