@@ -29,6 +29,21 @@ export interface Routes {
   n: number
 }
 
+// Folds the routes reaching `cur`, extended by `add` bp, into those at `to`
+export function relax<K>(
+  best: Map<K, Routes>,
+  to: K,
+  cur: Routes,
+  add: number,
+) {
+  const prev = best.get(to)
+  best.set(to, {
+    min: Math.min(prev?.min ?? Infinity, cur.min + add),
+    max: Math.max(prev?.max ?? -Infinity, cur.max + add),
+    n: Math.min(SATURATED_PATH_COUNT, cur.n + (prev?.n ?? 0)),
+  })
+}
+
 export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
   if (!graph.nodes.some(isBackbone)) {
     return []
@@ -96,13 +111,7 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
         if (ti > i1) {
           continue
         }
-        const add = t === end.id ? 0 : byId.get(t)!.length
-        const prev = best.get(t)
-        best.set(t, {
-          min: Math.min(prev?.min ?? Infinity, cur.min + add),
-          max: Math.max(prev?.max ?? -Infinity, cur.max + add),
-          n: Math.min(SATURATED_PATH_COUNT, cur.n + (prev?.n ?? 0)),
-        })
+        relax(best, t, cur, t === end.id ? 0 : byId.get(t)!.length)
       }
     }
     const walked =

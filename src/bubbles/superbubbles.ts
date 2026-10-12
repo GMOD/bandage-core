@@ -1,6 +1,10 @@
 import { coversGraph } from './bubbleHalos'
-import { SATURATED_PATH_COUNT } from './bubbleLine'
-import { bubblesFromGraph, walkIndexOf, walkRoutes } from './bubblesFromGraph'
+import {
+  bubblesFromGraph,
+  relax,
+  walkIndexOf,
+  walkRoutes,
+} from './bubblesFromGraph'
 import { bubbleSegmentIds } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
 import { isBackbone } from '../anchoredNodes'
@@ -218,13 +222,7 @@ function routesThrough(
     }
     for (let p = offset[k]!; p < offset[k + 1]!; p++) {
       const u = next[p]! >> 1
-      const add = u === sink ? 0 : nodes[u]!.length
-      const prev = best.get(u)
-      best.set(u, {
-        min: Math.min(prev?.min ?? Infinity, cur.min + add),
-        max: Math.max(prev?.max ?? -Infinity, cur.max + add),
-        n: Math.min(SATURATED_PATH_COUNT, cur.n + (prev?.n ?? 0)),
-      })
+      relax(best, u, cur, u === sink ? 0 : nodes[u]!.length)
     }
   }
   return best.get(sink) ?? { min: 0, max: 0, n: 0 }
