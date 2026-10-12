@@ -49,7 +49,11 @@ export function parseRegion(text: string) {
     )
   }
   const n = (s: string) => Number(s.replaceAll(',', ''))
-  return { refName: m[1]!, start: n(m[2]!), end: n(m[3]!) }
+  const region = { refName: m[1]!, start: n(m[2]!), end: n(m[3]!) }
+  if (region.end <= region.start) {
+    throw new Error(`"${text}" ends at or before it starts`)
+  }
+  return region
 }
 
 export async function openGbz(db: ByteSource, index?: ByteSource) {
