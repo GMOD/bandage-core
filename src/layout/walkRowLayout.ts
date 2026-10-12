@@ -16,7 +16,7 @@ import type { Graph, LayoutResult, RowLabel } from '../types'
 // `walkRows`, and this layout only reserves the rows and states how far the
 // bars reach so the fit and the pane height include them.
 // The fit leaves this much past the longest bar for its readout and the legend.
-const READOUT_ROOM = 1.3
+export const READOUT_ROOM = 1.3
 
 // How far the bars reach, so the fit and the pane height include them. The
 // model reads it again for the bars it actually draws, which a repeat pick or
@@ -75,16 +75,9 @@ export function walkRowLayout(
   const nodePositions = backbonePositions(
     overWindow.length > 0 ? overWindow : backbone,
   )
-  const rowLabels: RowLabel[] = [
-    { label: walks.reference.label, y: 0 },
-    ...walks.rows.map((row, i) => ({
-      label: row.label,
-      y: (i + 1) * ROW_HEIGHT_PX,
-    })),
-  ]
   return {
     nodePositions,
-    rowLabels,
+    rowLabels: walkRowLabels(walks),
     referenceAxis: true,
     pixelRows: true,
     extent: walkRowsExtent(walks),

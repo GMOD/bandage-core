@@ -1,4 +1,5 @@
 import { alongRow, boxesGenes, rowPitch } from './walkRowDraw'
+import { READOUT_ROOM } from './walkRowLayout'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
@@ -65,7 +66,6 @@ const PAD_PX = 6
 export const WALK_STRIP_CEILING_PX = 260
 const LABEL_FONT_PX = 11
 const MIN_ROW_PX = 3
-const READOUT_ROOM = 1.3
 const MARK_INK = '#111'
 const TICK_PX = 3
 
