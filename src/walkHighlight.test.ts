@@ -214,6 +214,27 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
   )
 })
 
+// A cut hands a reference back in pieces too, so it is measured over the gap
+// between them, as the walk is
+test('a walk identical to a reference cut in two pieces keys no delta', () => {
+  const cut = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(`S\tv1\tAAAA
+S\tv2\tCC
+S\tv3\tGGG
+L\tv1\t+\tv2\t+\t0M
+W\tref\t0\tchr\t0\t6\t>v1>v2
+W\tref\t0\tchr\t10\t13\t>v3
+W\talt\t1\tchr\t0\t6\t>v1>v2
+W\talt\t1\tchr\t10\t13\t>v3`),
+    ),
+    'ref',
+  )
+  expect(walkHighlight(cut, 'alt#1#chr')!.referenceBp).toBe(13)
+  const [alt] = walkLift(cut, [{ walk: 'alt#1#chr' }])!.walks
+  expect(walkKey(alt!).delta).toBe('')
+})
+
 test("a node's position on a walk is its stretch on the walk's own contig", () => {
   const [alt, inv] = walkLift(walks, [
     { walk: 'alt#1#chr' },

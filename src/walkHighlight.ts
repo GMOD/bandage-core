@@ -78,14 +78,18 @@ export function walkHighlight(
   const bpOf = (path: GraphPath) =>
     path.nodeIds.reduce((sum, id) => sum + lengthOf(id), 0)
   const bp = pieces.reduce((sum, piece) => sum + bpOf(piece), 0)
-  const range =
-    first.start === undefined
-      ? undefined
-      : {
-          contig: first.contig ?? panSNContig(pathOrigin(name).name),
-          start: first.start,
-          end: Math.max(...pieces.map(p => (p.start ?? 0) + bpOf(p))),
-        }
+  // from the first piece's start to the furthest piece's end, gaps included
+  const extentOf = (ps: GraphPath[]) => {
+    const start = Math.min(...ps.map(p => p.start ?? Infinity))
+    return Number.isFinite(start)
+      ? { start, end: Math.max(...ps.map(p => (p.start ?? 0) + bpOf(p))) }
+      : undefined
+  }
+  const extent = extentOf(pieces)
+  const range = extent && {
+    contig: first.contig ?? panSNContig(pathOrigin(name).name),
+    ...extent,
+  }
   // progress runs over the contig where the records place the pieces, so the
   // stretch between two pieces counts though no node draws it
   const span = range ? range.end - range.start : bp
@@ -114,9 +118,19 @@ export function walkHighlight(
     })
   }
   const reference = isReference(graph, name)
-  const referencePieces = reference
-    ? []
-    : (graph.paths ?? []).filter(p => isReference(graph, p.name))
+  // measured as `range` is, so a walk identical to a cut reference reads equal
+  const referenceSpan = () => {
+    const referencePieces = reference
+      ? []
+      : (graph.paths ?? []).filter(p => isReference(graph, p.name))
+    if (referencePieces.length === 0) {
+      return undefined
+    }
+    const e = extentOf(referencePieces)
+    return e
+      ? e.end - e.start
+      : referencePieces.reduce((sum, piece) => sum + bpOf(piece), 0)
+  }
   return {
     name,
     reference,
@@ -126,10 +140,7 @@ export function walkHighlight(
     progress,
     steps: pieces.reduce((sum, piece) => sum + piece.nodeIds.length, 0),
     bp,
-    referenceBp:
-      referencePieces.length > 0
-        ? referencePieces.reduce((sum, piece) => sum + bpOf(piece), 0)
-        : undefined,
+    referenceBp: referenceSpan(),
   }
 }
 
