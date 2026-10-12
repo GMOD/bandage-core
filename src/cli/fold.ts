@@ -20,7 +20,7 @@ import { loadGraph } from '../pipeline'
 // as the graph that was folded.
 
 const USAGE =
-  'usage: bandage-fold <graph.gfa[.gz] | -> --below <bp> [-o out.gfa]'
+  'usage: bandage-fold <graph.gfa[.gz] | -> --below <bp> [--reference <path>] [-o out.gfa]'
 
 async function readInput(location: string) {
   const bytes = await readFile(location === '-' ? '/dev/stdin' : location)
