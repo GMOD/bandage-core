@@ -17,7 +17,7 @@ export type DeletionRoutes = Record<number, NodeSegment[]>
 export function withDeletionRoutes(
   graph: Graph,
   deletions: DeletionEdge[],
-  dropped = new Set<number>(),
+  dropped: ReadonlySet<number> = new Set(),
 ) {
   const routes = new Map(
     deletions.map(d => [d.edgeIndex, `${ROUTE_ID}${d.edgeIndex}`]),

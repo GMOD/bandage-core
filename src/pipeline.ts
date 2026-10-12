@@ -1,6 +1,6 @@
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
-import { closableDeletions, deletionEdges } from './deletionEdges'
+import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
@@ -191,12 +191,11 @@ export async function forceLayout(
   engine: LayoutEngine,
 ) {
   const spread = spreadFor(settings.bubbleSpread)
-  const found = deletionEdges(graph)
-  const dropped =
-    settings.showDeletionEdges === false
-      ? closableDeletions(graph, found)
-      : new Set<number>()
-  const deletions = found.filter(d => !dropped.has(d.edgeIndex))
+  const { shown: deletions, hidden: dropped } = deletionDrawing(
+    graph,
+    deletionEdges(graph),
+    settings.showDeletionEdges !== false,
+  )
   const routed = withDeletionRoutes(graph, deletions, dropped)
   const merged = mergeRuns(routed.graph, routed.ids)
   const runs = {
