@@ -2,11 +2,11 @@
 
 import { readFile, writeFile } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
-import { gunzipSync } from 'node:zlib'
 
 import { foldVariants } from '../foldVariants'
 import { writeRgfa } from '../gfa/writeRgfa'
 import { loadGraph } from '../pipeline'
+import { decodeText } from './decodeText'
 
 // bandage-fold: a graph with every variant under --below bp folded into the
 // reference, as rGFA. Indexed by gfa-to-tabix, the result is a graph track's
@@ -23,9 +23,7 @@ const USAGE =
   'usage: bandage-fold <graph.gfa[.gz] | -> --below <bp> [--reference <path>] [-o out.gfa]'
 
 async function readInput(location: string) {
-  const bytes = await readFile(location === '-' ? '/dev/stdin' : location)
-  const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b
-  return new TextDecoder().decode(gzipped ? gunzipSync(bytes) : bytes)
+  return decodeText(await readFile(location === '-' ? '/dev/stdin' : location))
 }
 
 async function main() {

@@ -3,7 +3,6 @@
 import { access, open, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { gunzipSync } from 'node:zlib'
 
 import { TabixIndexedFile } from '@gmod/tabix'
 
@@ -26,6 +25,7 @@ import {
 import { LAYOUT_MODES, layoutModeByValue } from '../layoutModes'
 import { engineSettingsOf, forceLayout, loadGraph } from '../pipeline'
 import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
+import { decodeText } from './decodeText'
 
 import type { BubbleSpread } from '../bubbleSpreads'
 import type { FigureOptions } from '../figure'
@@ -119,8 +119,7 @@ async function text(location: string) {
   const bytes = isUrl(location)
     ? new Uint8Array(await (await fetchOk(location)).arrayBuffer())
     : await readFile(location)
-  const gzipped = bytes[0] === 0x1f && bytes[1] === 0x8b
-  return new TextDecoder().decode(gzipped ? gunzipSync(bytes) : bytes)
+  return decodeText(bytes)
 }
 
 async function readGenes(
