@@ -22,11 +22,9 @@ static bool flipped(const val& edge, const char* key, const std::string& name) {
            (strand[0] == '+' || strand[0] == '-') && strand[0] != own;
 }
 
-// Helper to create graph from JavaScript object
 std::unique_ptr<AssemblyGraph> createGraphFromJS(const val& jsGraph) {
     auto graph = std::make_unique<AssemblyGraph>();
 
-    // Parse nodes
     val jsNodes = jsGraph["nodes"];
     unsigned length = jsNodes["length"].as<unsigned>();
 
@@ -34,10 +32,8 @@ std::unique_ptr<AssemblyGraph> createGraphFromJS(const val& jsGraph) {
         val node = jsNodes[i];
         std::string id = node["id"].as<std::string>();
         unsigned nodeLength = node["length"].as<unsigned>();
-        float depth = node["depth"].as<float>();
 
-        auto* n = graph->addNode(id, nodeLength, depth);
-        n->setAsDrawn(); // Assume all input nodes should be drawn
+        auto* n = graph->addNode(id, nodeLength);
 
         // Optional seed. A missing property reads as undefined, so isNumber()
         // is the whole presence check; the finite test keeps a NaN from
@@ -53,25 +49,6 @@ std::unique_ptr<AssemblyGraph> createGraphFromJS(const val& jsGraph) {
         }
     }
 
-    // Set up reverse complements (assuming +/- naming convention)
-    for (auto& pair : graph->nodes) {
-        std::string name = pair.first;
-        if (name.empty()) continue;
-
-        char sign = name.back();
-        std::string baseName = name.substr(0, name.length() - 1);
-
-        if (sign == '+') {
-            std::string rcName = baseName + "-";
-            auto it = graph->nodes.find(rcName);
-            if (it != graph->nodes.end()) {
-                pair.second->setReverseComplement(it->second);
-                it->second->setReverseComplement(pair.second);
-            }
-        }
-    }
-
-    // Parse edges
     val jsEdges = jsGraph["edges"];
     length = jsEdges["length"].as<unsigned>();
 
@@ -79,12 +56,9 @@ std::unique_ptr<AssemblyGraph> createGraphFromJS(const val& jsGraph) {
         val edge = jsEdges[i];
         std::string from = edge["from"].as<std::string>();
         std::string to = edge["to"].as<std::string>();
-        int overlap = edge.hasOwnProperty("overlap") ?
-                     edge["overlap"].as<int>() : 0;
 
-        auto* e = graph->addEdge(from, to, overlap, UNKNOWN_OVERLAP);
+        auto* e = graph->addEdge(from, to);
         if (e) {
-            e->setAsDrawn();
             e->leavesStart = flipped(edge, "fromStrand", from);
             e->entersEnd = flipped(edge, "toStrand", to);
         }
@@ -93,7 +67,6 @@ std::unique_ptr<AssemblyGraph> createGraphFromJS(const val& jsGraph) {
     return graph;
 }
 
-// Helper to convert layout to JavaScript object
 val layoutToJS(const GraphLayout& layout) {
     val result = val::object();
     val nodePositions = val::object();
@@ -117,28 +90,22 @@ val layoutToJS(const GraphLayout& layout) {
     return result;
 }
 
-// Main layout computation function exposed to JavaScript
 val computeLayout(val jsGraph, val jsOptions) {
-    // Parse options
-    int quality = jsOptions.hasOwnProperty("quality") ?
-                 jsOptions["quality"].as<int>() : 1;
-    bool linearLayout = jsOptions.hasOwnProperty("linearLayout") ?
-                       jsOptions["linearLayout"].as<bool>() : false;
-    double componentSeparation = jsOptions.hasOwnProperty("componentSeparation") ?
-                                jsOptions["componentSeparation"].as<double>() : 15.0;
-    double aspectRatio = jsOptions.hasOwnProperty("aspectRatio") ?
-                        jsOptions["aspectRatio"].as<double>() : 1.333333;
-
-    // Create settings
     LayoutSettings settings;
-    settings.graphLayoutQuality = quality;
-    settings.useLinearLayout = linearLayout;
-    settings.componentSeparation = componentSeparation;
-    settings.aspectRatio = aspectRatio;
-
+    if (jsOptions.hasOwnProperty("quality")) {
+        settings.graphLayoutQuality = jsOptions["quality"].as<int>();
+    }
+    if (jsOptions.hasOwnProperty("linearLayout")) {
+        settings.useLinearLayout = jsOptions["linearLayout"].as<bool>();
+    }
+    if (jsOptions.hasOwnProperty("componentSeparation")) {
+        settings.componentSeparation = jsOptions["componentSeparation"].as<double>();
+    }
+    if (jsOptions.hasOwnProperty("aspectRatio")) {
+        settings.aspectRatio = jsOptions["aspectRatio"].as<double>();
+    }
     if (jsOptions.hasOwnProperty("nodeLengthPerMegabase")) {
-        settings.autoNodeLengthPerMegabase = jsOptions["nodeLengthPerMegabase"].as<double>();
-        settings.manualNodeLengthPerMegabase = jsOptions["nodeLengthPerMegabase"].as<double>();
+        settings.nodeLengthPerMegabase = jsOptions["nodeLengthPerMegabase"].as<double>();
     }
     if (jsOptions.hasOwnProperty("minimumNodeLength")) {
         settings.minimumNodeLength = jsOptions["minimumNodeLength"].as<double>();
@@ -156,24 +123,9 @@ val computeLayout(val jsGraph, val jsOptions) {
         settings.rotateComponents = jsOptions["rotateComponents"].as<bool>();
     }
 
-    // Owning, and declared BEFORE the layout that borrows it: GraphLayout holds
-    // a `const AssemblyGraph&`, so the graph has to outlive it, and reverse
-    // destruction order is what guarantees that.
-    //
-    // This was a raw `new` with a `delete` after the layout, which leaked the
-    // whole graph on any throw between the two — and there was one. `toInt`
-    // aborted on a non-numeric segment name (types.h), so every linear-layout
-    // call on a minigraph rGFA leaked its graph, and about twenty of them
-    // exhausted the heap and left the cached module unable to lay anything out
-    // at all. The name parse is fixed; this is what stops the next throw from
-    // costing a session.
+    // Declared before the layout, whose keys point into it.
     auto graph = createGraphFromJS(jsGraph);
-
-    GraphLayout layoutResult = layout::layoutGraph(*graph, quality, linearLayout,
-                                                   componentSeparation, aspectRatio,
-                                                   &settings);
-
-    return layoutToJS(layoutResult);
+    return layoutToJS(layout::layoutGraph(*graph, settings));
 }
 
 EMSCRIPTEN_BINDINGS(bandage_layout) {

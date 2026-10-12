@@ -16,10 +16,8 @@
 #include "ogdf/basic/simple_graph_alg.h"
 #include "ogdf/energybased/FMMMLayout.h"
 #include "ogdf/energybased/fmmm/MAARPacking.h"
-#include "ogdf/energybased/FastMultipoleEmbedder.h"
 #include "ogdf/energybased/fmmm/FMMMOptions.h"
 
-#include <ctime>
 #include <cmath>
 #include <algorithm>
 #include <set>
@@ -30,97 +28,64 @@ using namespace ogdf::energybased;
 // OGDF node storage for layout
 using OGDFGraphLayout = std::unordered_map<DeBruijnNode*, std::vector<ogdf::node>>;
 
-// FMM layout implementation
-class FMMGraphLayout {
-public:
-    FMMGraphLayout(int graphLayoutQuality, bool keepPositions,
-                   double graphLayoutComponentSeparation, double aspectRatio,
-                   int randomSeed, bool rotateComponents)
-        : m_graphLayoutQuality(graphLayoutQuality),
-          m_keepPositions(keepPositions),
-          m_graphLayoutComponentSeparation(graphLayoutComponentSeparation),
-          m_aspectRatio(aspectRatio),
-          m_randomSeed(randomSeed),
-          m_rotateComponents(rotateComponents) {
-        init();
+// Seeded rather than clock()-seeded so the same graph always lays out the same
+// way. RandomRandIterNr is the placement mode that draws from randSeed();
+// RandomTime reseeds from time(nullptr) and ignores it, which is what made every
+// force-directed figure jitter 2% between regens (OGDF
+// FMMMLayout::create_initial_placement).
+static void configure(FMMMLayout& fmmm, const LayoutSettings& settings,
+                      bool keepPositions) {
+    fmmm.randSeed(settings.randomSeed);
+    fmmm.useHighLevelOptions(false);
+    fmmm.unitEdgeLength(1.0);
+    fmmm.allowedPositions(ogdf::FMMMOptions::AllowedPositions::All);
+    fmmm.pageRatio(settings.aspectRatio);
+    fmmm.minDistCC(settings.componentSeparation);
+    // FMMM packs even a single component, and the packing may tip it 90
+    // degrees; with seeds that would undo the orientation they stated.
+    fmmm.stepsForRotatingComponents(settings.rotateComponents ? 50 : 0);
+    if (!settings.rotateComponents) {
+        fmmm.tipOverCCs(ogdf::FMMMOptions::TipOver::None);
     }
+    fmmm.initialPlacementForces(keepPositions ?
+                                ogdf::FMMMOptions::InitialPlacementForces::KeepPositions :
+                                ogdf::FMMMOptions::InitialPlacementForces::RandomRandIterNr);
 
-    void init() {
-        // Seeded rather than clock()-seeded so the same graph always lays out
-        // the same way. RandomRandIterNr is the placement mode that draws from
-        // randSeed(); RandomTime reseeds from time(nullptr) and ignores it,
-        // which is what made every force-directed figure jitter 2% between
-        // regens (OGDF FMMMLayout::create_initial_placement).
-        m_layout.randSeed(m_randomSeed);
-        m_layout.useHighLevelOptions(false);
-        m_layout.unitEdgeLength(1.0);
-        m_layout.allowedPositions(ogdf::FMMMOptions::AllowedPositions::All);
-        m_layout.pageRatio(m_aspectRatio);
-        m_layout.minDistCC(m_graphLayoutComponentSeparation);
-        // FMMM packs even a single component, and the packing may tip it 90
-        // degrees; with seeds that would undo the orientation they stated.
-        m_layout.stepsForRotatingComponents(m_rotateComponents ? 50 : 0);
-        if (!m_rotateComponents) {
-            m_layout.tipOverCCs(ogdf::FMMMOptions::TipOver::None);
-        }
-        m_layout.initialPlacementForces(m_keepPositions ?
-                                       ogdf::FMMMOptions::InitialPlacementForces::KeepPositions :
-                                       ogdf::FMMMOptions::InitialPlacementForces::RandomRandIterNr);
-
-        switch (m_graphLayoutQuality) {
-            case 0:
-                m_layout.fixedIterations(3);
-                m_layout.fineTuningIterations(1);
-                m_layout.nmPrecision(2);
-                break;
-            case 1:
-                m_layout.fixedIterations(15);
-                m_layout.fineTuningIterations(10);
-                m_layout.nmPrecision(2);
-                break;
-            case 2:
-                m_layout.fixedIterations(30);
-                m_layout.fineTuningIterations(20);
-                m_layout.nmPrecision(4);
-                break;
-            case 3:
-                m_layout.fixedIterations(60);
-                m_layout.fineTuningIterations(40);
-                m_layout.nmPrecision(6);
-                break;
-            case 4:
-                m_layout.fixedIterations(120);
-                m_layout.fineTuningIterations(60);
-                m_layout.nmPrecision(8);
-                break;
-        }
+    switch (settings.graphLayoutQuality) {
+        case 0:
+            fmmm.fixedIterations(3);
+            fmmm.fineTuningIterations(1);
+            fmmm.nmPrecision(2);
+            break;
+        case 1:
+            fmmm.fixedIterations(15);
+            fmmm.fineTuningIterations(10);
+            fmmm.nmPrecision(2);
+            break;
+        case 2:
+            fmmm.fixedIterations(30);
+            fmmm.fineTuningIterations(20);
+            fmmm.nmPrecision(4);
+            break;
+        case 3:
+            fmmm.fixedIterations(60);
+            fmmm.fineTuningIterations(40);
+            fmmm.nmPrecision(6);
+            break;
+        case 4:
+            fmmm.fixedIterations(120);
+            fmmm.fineTuningIterations(60);
+            fmmm.nmPrecision(8);
+            break;
     }
-
-    void run(GraphAttributes& GA, const EdgeArray<double>& edges) {
-        m_layout.call(GA, edges);
-    }
-
-private:
-    int m_graphLayoutQuality;
-    bool m_keepPositions;
-    double m_graphLayoutComponentSeparation;
-    double m_aspectRatio;
-    int m_randomSeed;
-    bool m_rotateComponents;
-    FMMMLayout m_layout;
-};
+}
 
 static void addToOgdfGraph(DeBruijnNode* node,
                           Graph& ogdfGraph, GraphAttributes& GA,
                           EdgeArray<double>& edgeLengths,
                           OGDFGraphLayout& layout,
-                          const LayoutSettings* settings,
+                          const LayoutSettings& settings,
                           double xPos, double yPos, bool linearLayout) {
-    if (layout.find(node) != layout.end() ||
-        (node->getReverseComplement() &&
-         layout.find(node->getReverseComplement()) != layout.end()))
-        return;
-
     double drawnNodeLength = getDrawnNodeLength(settings, node->getLength());
     int numberOfGraphEdges = getNumberOfOgdfGraphEdges(settings, drawnNodeLength);
     int numberOfGraphNodes = numberOfGraphEdges + 1;
@@ -145,15 +110,15 @@ static void addToOgdfGraph(DeBruijnNode* node,
         if (linearLayout) {
             GA.x(newNode) = xPos;
             GA.y(newNode) = yPos;
-            xPos += settings->nodeSegmentLength;
+            xPos += settings.nodeSegmentLength;
         } else if (seeded) {
             GA.x(newNode) = xPos;
             GA.y(newNode) = yPos;
             xPos += drawnLengthPerEdge;
         }
 
-        GA.width(newNode) = settings->edgeLength;
-        GA.height(newNode) = settings->edgeLength;
+        GA.width(newNode) = settings.edgeLength;
+        GA.height(newNode) = settings.edgeLength;
 
         if (i > 0) {
             ogdf::edge newEdge = ogdfGraph.newEdge(previousNode, newNode);
@@ -167,35 +132,23 @@ static void addToOgdfGraph(DeBruijnNode* node,
 static void addToOgdfGraph(const DeBruijnEdge* edge,
                           Graph& ogdfGraph, EdgeArray<double>& edgeArray,
                           const OGDFGraphLayout& layout,
-                          const LayoutSettings* settings) {
+                          const LayoutSettings& settings) {
     ogdf::node firstEdgeOgdfNode;
     ogdf::node secondEdgeOgdfNode;
 
     const auto* startingNode = edge->getStartingNode();
     auto startIt = layout.find(const_cast<DeBruijnNode*>(startingNode));
-    auto startRcIt = startingNode->getReverseComplement() ?
-                     layout.find(startingNode->getReverseComplement()) : layout.end();
-
-    if (startIt != layout.end())
-        firstEdgeOgdfNode = edge->leavesStart ? startIt->second.front()
-                                              : startIt->second.back();
-    else if (startRcIt != layout.end())
-        firstEdgeOgdfNode = startRcIt->second.front();
-    else
+    if (startIt == layout.end())
         return;
+    firstEdgeOgdfNode = edge->leavesStart ? startIt->second.front()
+                                          : startIt->second.back();
 
     const auto* endingNode = edge->getEndingNode();
     auto endIt = layout.find(const_cast<DeBruijnNode*>(endingNode));
-    auto endRcIt = endingNode->getReverseComplement() ?
-                   layout.find(endingNode->getReverseComplement()) : layout.end();
-
-    if (endIt != layout.end())
-        secondEdgeOgdfNode = edge->entersEnd ? endIt->second.back()
-                                             : endIt->second.front();
-    else if (endRcIt != layout.end())
-        secondEdgeOgdfNode = endRcIt->second.back();
-    else
+    if (endIt == layout.end())
         return;
+    secondEdgeOgdfNode = edge->entersEnd ? endIt->second.back()
+                                         : endIt->second.front();
 
     if (startingNode == endingNode &&
         getNumberOfOgdfGraphEdges(settings,
@@ -203,7 +156,7 @@ static void addToOgdfGraph(const DeBruijnEdge* edge,
         return;
 
     ogdf::edge newEdge = ogdfGraph.newEdge(firstEdgeOgdfNode, secondEdgeOgdfNode);
-    edgeArray[newEdge] = settings->edgeLength;
+    edgeArray[newEdge] = settings.edgeLength;
 }
 
 static void determineLinearNodePositions(Graph& ogdfGraph,
@@ -211,7 +164,7 @@ static void determineLinearNodePositions(Graph& ogdfGraph,
                                         EdgeArray<double>& ogdfEdgeLengths,
                                         OGDFGraphLayout& layoutMap,
                                         const AssemblyGraph& graph,
-                                        const LayoutSettings* settings) {
+                                        const LayoutSettings& settings) {
     std::vector<DeBruijnNode*> sortedDrawnNodes;
 
     // Try numeric sorting first. A pggb or odgi graph numbers its segments, so
@@ -222,9 +175,6 @@ static void determineLinearNodePositions(Graph& ogdfGraph,
 
     for (const auto& pair : graph.nodes) {
         DeBruijnNode* node = pair.second;
-        if (!node->isDrawn())
-            continue;
-
         std::optional<int> nodeInt = parseWholeInt(node->getNameWithoutSign());
         if (!nodeInt) {
             successfulIntConversion = false;
@@ -240,10 +190,8 @@ static void determineLinearNodePositions(Graph& ogdfGraph,
             sortedDrawnNodes.push_back(entry.second);
     } else {
         // Alphabetical sorting
-        for (const auto& pair : graph.nodes) {
-            if (pair.second->isDrawn())
-                sortedDrawnNodes.push_back(pair.second);
-        }
+        for (const auto& pair : graph.nodes)
+            sortedDrawnNodes.push_back(pair.second);
         std::sort(sortedDrawnNodes.begin(), sortedDrawnNodes.end(),
                  [](const DeBruijnNode* a, const DeBruijnNode* b) {
                      return a->getNameWithoutSign() < b->getNameWithoutSign();
@@ -255,11 +203,6 @@ static void determineLinearNodePositions(Graph& ogdfGraph,
     double lastXPos = 0.0;
 
     for (auto* node : sortedDrawnNodes) {
-        if (layoutMap.find(node) != layoutMap.end() ||
-            (node->getReverseComplement() &&
-             layoutMap.find(node->getReverseComplement()) != layoutMap.end()))
-            continue;
-
         std::vector<DeBruijnNode*> upstreamNodes = node->getUpstreamNodes();
         for (size_t j = 0; j < upstreamNodes.size(); ++j) {
             DeBruijnNode* upstreamNode = upstreamNodes[j];
@@ -275,13 +218,13 @@ static void determineLinearNodePositions(Graph& ogdfGraph,
                 lastXPos = std::max(lastXPos, upstreamEndPos);
         }
 
-        double xPos = lastXPos + settings->edgeLength;
+        double xPos = lastXPos + settings.edgeLength;
         double yPos = 0.0;
         long long intXPos = (long long)(xPos * 100.0);
         long long intYPos = (long long)(yPos * 100.0);
 
         while (usedStartPositions.find({intXPos, intYPos}) != usedStartPositions.end()) {
-            yPos += settings->edgeLength;
+            yPos += settings.edgeLength;
             intYPos = (long long)(yPos * 100.0);
         }
 
@@ -297,35 +240,18 @@ static void buildGraph(Graph& ogdfGraph,
                       EdgeArray<double>& ogdfEdgeLengths,
                       OGDFGraphLayout& layoutMap,
                       const AssemblyGraph& graph,
-                      const LayoutSettings* settings,
-                      bool useLinearLayout) {
-    if (useLinearLayout) {
+                      const LayoutSettings& settings) {
+    if (settings.useLinearLayout) {
         determineLinearNodePositions(ogdfGraph, ogdfGraphAttributes, ogdfEdgeLengths,
                                     layoutMap, graph, settings);
     } else {
-        for (const auto& pair : graph.nodes) {
-            DeBruijnNode* node = pair.second;
-            if (!node->isDrawn() ||
-                layoutMap.find(node) != layoutMap.end() ||
-                (node->getReverseComplement() &&
-                 layoutMap.find(node->getReverseComplement()) != layoutMap.end()))
-                continue;
-
-            addToOgdfGraph(node, ogdfGraph, ogdfGraphAttributes, ogdfEdgeLengths,
+        for (const auto& pair : graph.nodes)
+            addToOgdfGraph(pair.second, ogdfGraph, ogdfGraphAttributes, ogdfEdgeLengths,
                           layoutMap, settings, 0.0, 0.0, false);
-        }
     }
 
-    // Add edges
-    for (const DeBruijnEdge* edge : graph.edges) {
-        if (!edge->isDrawn())
-            continue;
-
-        if (edge->getOverlapType() == JUMP || edge->getOverlapType() == EXTRA_LINK)
-            continue;
-
+    for (const DeBruijnEdge* edge : graph.edges)
         addToOgdfGraph(edge, ogdfGraph, ogdfEdgeLengths, layoutMap, settings);
-    }
 }
 
 // Rectangle calculation and packing helpers
@@ -381,8 +307,8 @@ static List<fmmm::Rectangle> rotateComponentsAndCalculateBoundingRectangles(
         GraphAttributes& GA,
         const Array<List<ogdf::node>>& nodesInCC,
         double componentSeparation,
-        double aspectRatio,
-        int stepsForRotatingComponents = 50) {
+        double aspectRatio) {
+    const int stepsForRotatingComponents = 50;
     int numCCs = nodesInCC.size();
     const Graph& G = GA.constGraph();
     List<fmmm::Rectangle> R;
@@ -515,26 +441,20 @@ static void reassembleDrawings(GraphAttributes& GA,
 
 namespace layout {
 
-GraphLayout layoutGraph(const AssemblyGraph& graph,
-                       int graphLayoutQuality,
-                       bool useLinearLayout,
-                       double componentSeparation,
-                       double aspectRatio,
-                       const LayoutSettings* settings) {
+GraphLayout layoutGraph(const AssemblyGraph& graph, const LayoutSettings& settings) {
     Graph G;
     EdgeArray<double> edgeLengths(G);
     GraphAttributes GA(G,
                       GraphAttributes::nodeGraphics | GraphAttributes::edgeGraphics);
     OGDFGraphLayout ogdfLayout;
 
-    buildGraph(G, GA, edgeLengths, ogdfLayout, graph, settings, useLinearLayout);
+    buildGraph(G, GA, edgeLengths, ogdfLayout, graph, settings);
 
-    // Split into connected components
     NodeArray<int> componentNumber(G);
     int numberOfComponents = connectedComponents(G, componentNumber);
 
     if (numberOfComponents == 0)
-        return GraphLayout(graph);
+        return {};
 
     Array<List<ogdf::node>> nodesInCC(numberOfComponents);
     for (auto v : G.nodes)
@@ -542,18 +462,16 @@ GraphLayout layoutGraph(const AssemblyGraph& graph,
 
     bool anySeed = false;
     for (const auto& pair : graph.nodes) {
-        if (pair.second->isDrawn() && pair.second->hasSeed()) {
+        if (pair.second->hasSeed()) {
             anySeed = true;
             break;
         }
     }
-    bool keepPositions = useLinearLayout || anySeed;
+    bool keepPositions = settings.useLinearLayout || anySeed;
 
-    // Layout each component
     for (int i = 0; i < numberOfComponents; i++) {
-        FMMGraphLayout layouter(graphLayoutQuality, keepPositions,
-                               componentSeparation, aspectRatio,
-                               settings->randomSeed, settings->rotateComponents);
+        FMMMLayout fmmm;
+        configure(fmmm, settings, keepPositions);
 
         GraphCopy GC;
         EdgeArray<double> cedgeLengths(GC);
@@ -573,7 +491,7 @@ GraphLayout layoutGraph(const AssemblyGraph& graph,
         for (ogdf::edge e : GC.edges)
             cedgeLengths(e) = edgeLengths(GC.original(e));
 
-        layouter.run(cGA, cedgeLengths);
+        fmmm.call(cGA, cedgeLengths);
 
         for (ogdf::node v : GC.nodes) {
             ogdf::node w = GC.original(v);
@@ -584,40 +502,16 @@ GraphLayout layoutGraph(const AssemblyGraph& graph,
         }
     }
 
-    reassembleDrawings(GA, componentSeparation, aspectRatio, nodesInCC,
-                       settings->rotateComponents);
+    reassembleDrawings(GA, settings.componentSeparation, settings.aspectRatio,
+                       nodesInCC, settings.rotateComponents);
 
-    // Convert to GraphLayout
-    GraphLayout result(graph);
+    GraphLayout result;
     for (const auto& entry : ogdfLayout) {
         for (ogdf::node node : entry.second) {
-            result.add(entry.first, Point(GA.x(node), GA.y(node)));
+            result[entry.first].push_back(Point(GA.x(node), GA.y(node)));
         }
     }
-
-    // Add reverse complement nodes in double mode
-    for (const auto& entry : ogdfLayout) {
-        auto* rcNode = entry.first->getReverseComplement();
-        if (!rcNode || !rcNode->isDrawn())
-            continue;
-
-        auto& segments = entry.second;
-        for (auto it = segments.rbegin(); it != segments.rend(); ++it) {
-            result.add(rcNode, Point(GA.x(*it), GA.y(*it)));
-        }
-    }
-
     return result;
-}
-
-void apply(AssemblyGraph& graph, const GraphLayout& layout) {
-    graph.resetNodes();
-    for (const auto& entry : layout)
-        entry.first->setAsDrawn();
-
-    for (auto* edge : graph.edges)
-        edge->drawn = (edge->getStartingNode()->isDrawn() &&
-                      edge->getEndingNode()->isDrawn());
 }
 
 } // namespace layout

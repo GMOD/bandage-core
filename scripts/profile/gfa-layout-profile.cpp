@@ -103,8 +103,7 @@ int main(int argc, char** argv) {
             }
             if (length == 0) length = 1;
             kept.insert(f[1]);
-            auto* n = graph.addNode(f[1] + "+", length, 1.0f);
-            n->setAsDrawn();
+            graph.addNode(f[1] + "+", length);
             totalLength += length;
             segs++;
         } else if (line[0] == 'L') {
@@ -117,9 +116,7 @@ int main(int argc, char** argv) {
     size_t links = 0;
     for (const auto& p : pairs) {
         if (kept.count(p.first) && kept.count(p.second)) {
-            auto* e = graph.addEdge(p.first + "+", p.second + "+", 0, UNKNOWN_OVERLAP);
-            if (e) {
-                e->setAsDrawn();
+            if (graph.addEdge(p.first + "+", p.second + "+")) {
                 links++;
             }
         }
@@ -130,9 +127,7 @@ int main(int argc, char** argv) {
         std::max(double(segs) * MEAN_NODE_LENGTH, MIN_TOTAL_GRAPH_LENGTH);
 
     LayoutSettings settings;
-    settings.nodeLengthMode = AUTO_NODE_LENGTH;
-    settings.autoNodeLengthPerMegabase = megabases > 0 ? target / megabases : 10000.0;
-    settings.manualNodeLengthPerMegabase = settings.autoNodeLengthPerMegabase;
+    settings.nodeLengthPerMegabase = megabases > 0 ? target / megabases : 10000.0;
     settings.minimumNodeLength = std::max(BANDAGE_MINIMUM_NODE_LENGTH, minNodeLength);
     settings.nodeSegmentLength = 20.0;
     settings.edgeLength = 5.0;
@@ -140,10 +135,10 @@ int main(int argc, char** argv) {
     settings.useLinearLayout = false;
 
     std::fprintf(stderr, "%zu segs, %zu links, q=%d, %.0f units/Mb\n", segs, links,
-                 quality, settings.autoNodeLengthPerMegabase);
+                 quality, settings.nodeLengthPerMegabase);
 
     const auto t0 = std::chrono::steady_clock::now();
-    auto result = layout::layoutGraph(graph, quality, false, 15.0, 1.333333, &settings);
+    auto result = layout::layoutGraph(graph, settings);
     const auto t1 = std::chrono::steady_clock::now();
 
     std::fprintf(
