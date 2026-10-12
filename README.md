@@ -10,8 +10,10 @@ npm install @jbrowse/bandage-core
 
 - GFA and rGFA text in (`loadGraph`), or the same graph as typed arrays a worker
   can transfer (`GraphTables`)
-- Layouts: Bandage's FMMM engine as WASM (`loadBandage`, `forceLayout`),
-  ordered, anchored, sample rows, walk rows, tube map
+- Layouts: Bandage's FMMM engine as WASM from
+  [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout)
+  (`loadBandage`, `forceLayout`), ordered, anchored, sample rows, walk rows,
+  tube map
 - A Canvas2D renderer (`buildGeometry`, `Canvas2DRenderer`), hit testing and
   label placement
 - Bubbles, deletion edges, path colors, gbz-base windows cut to GFA
@@ -42,13 +44,10 @@ the worked example.
 pnpm install
 pnpm test          # unit tests
 pnpm build         # dist/ with declarations
-pnpm test:wasm     # the committed layout engine still loads
 ```
 
-The Bandage layout engine is OGDF's FMMM compiled to WASM and committed at
-`src/bandage/bandage-layout.js`; [src/bandage/README.md](src/bandage/README.md)
-says how to rebuild it from `src/bandage/native` and the vendored `vendor/ogdf`.
-A weekly workflow proves the committed artifact still reproduces.
+The FMMM engine and its wasm build live in
+[graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout).
 
 CI also packs the core and runs
 [BandageJS](https://github.com/cmdcolin/BandageJS) and

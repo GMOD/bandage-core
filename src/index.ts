@@ -294,5 +294,5 @@ export {
   zoomAbout,
 } from './viewport'
 export type { PaneTransform } from './viewport'
-export { default as loadBandage } from './loadBandage'
+export { loadFmmm as loadBandage } from '@jbrowse/graph-fmmm-layout'
 export { panSNContig, panSNHaplotype, panSNSample } from './pansn'

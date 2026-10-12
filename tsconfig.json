@@ -19,10 +19,5 @@
     "noEmit": true
   },
   "include": ["src"],
-  "exclude": [
-    "**/dist/",
-    "src/**/*.test.ts",
-    "src/renderer/recordingCanvas.ts",
-    "src/bandage/bandage-layout.js"
-  ]
+  "exclude": ["**/dist/", "src/**/*.test.ts", "src/renderer/recordingCanvas.ts"]
 }

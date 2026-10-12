@@ -47,18 +47,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "vitest bench --run",
-    "build:wasm": "./scripts/build-wasm.sh",
-    "test:wasm": "node scripts/smoke-wasm.mjs",
-    "bench:layout": "node scripts/bench-layout.mjs",
-    "layout-digest": "node scripts/layout-digest.mjs",
     "prepack": "pnpm build",
-    "preversion": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm test:wasm",
+    "preversion": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "version": "node scripts/version.mjs",
     "postversion": "git push --follow-tags"
   },
   "dependencies": {
     "@gmod/gbz-base": "^7.4.0",
     "@gmod/tabix": "^3.10.1",
+    "@jbrowse/graph-fmmm-layout": "^1.0.0",
     "@jbrowse/graph-stress-layout": "^1.0.0",
     "@jbrowse/tubemap-core": "^1.1.0"
   },

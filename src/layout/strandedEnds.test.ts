@@ -1,8 +1,9 @@
+import { loadFmmm } from '@jbrowse/graph-fmmm-layout'
+
 import { deletionEdges } from '../deletionEdges'
+import { mergeRuns } from './mergeRuns'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
-import loadBandage from '../loadBandage'
-import { mergeRuns } from './mergeRuns'
 import { forceLayout } from '../pipeline'
 import { baseEdgeCurves } from '../util/edgeCurves'
 import { strandSides } from '../util/geometry'
@@ -34,7 +35,7 @@ const RGFA = [
 ].join('\n')
 
 const engine: LayoutEngine = async request => {
-  const bandage = await loadBandage()
+  const bandage = await loadFmmm()
   return {
     result: bandage.computeLayout(request.graph, request.options),
     duration: 0,

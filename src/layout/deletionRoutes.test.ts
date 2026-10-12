@@ -1,9 +1,10 @@
+import { loadFmmm } from '@jbrowse/graph-fmmm-layout'
+
 import { withDeletionRoutes } from './deletionRoutes'
 import { mergeRuns } from './mergeRuns'
 import { closableDeletions, deletionEdges } from '../deletionEdges'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
-import loadBandage from '../loadBandage'
 import { forceLayout } from '../pipeline'
 
 import type { EngineRequest, LayoutEngine } from '../pipeline'
@@ -24,7 +25,7 @@ const RGFA = [
 const graph = convertGFAToGraph(parseGFA(RGFA))
 
 const engine: LayoutEngine = async request => {
-  const bandage = await loadBandage()
+  const bandage = await loadFmmm()
   return {
     result: bandage.computeLayout(request.graph, request.options),
     duration: 0,

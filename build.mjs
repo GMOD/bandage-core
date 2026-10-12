@@ -1,6 +1,5 @@
 import { execFileSync } from 'node:child_process'
 import {
-  cpSync,
   existsSync,
   readFileSync,
   readdirSync,
@@ -16,8 +15,7 @@ rmSync('dist', { recursive: true, force: true })
 const isModule = file =>
   file.endsWith('.ts') &&
   !file.endsWith('.d.ts') &&
-  !/\.(test|bench)\.ts$/.test(file) &&
-  !file.startsWith('bandage/native')
+  !/\.(test|bench)\.ts$/.test(file)
 
 const modules = readdirSync('src', { recursive: true }).filter(isModule)
 
@@ -37,10 +35,6 @@ for (const cli of ['dist/cli/figure.js', 'dist/cli/fold.js']) {
 }
 
 execFileSync('tsc', ['-p', 'tsconfig.build.json'], { stdio: 'inherit' })
-cpSync(
-  'src/bandage/bandage-layout.d.ts',
-  'dist/types/bandage/bandage-layout.d.ts',
-)
 
 // The source imports extensionless, as a bundler resolves them, and tsc copies
 // that into the declarations. A consumer on node16/nodenext resolution cannot

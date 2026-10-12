@@ -1,16 +1,12 @@
-// The committed wasm engine, plus JS-side layout post-processing.
+// The wasm engine from graph-fmmm-layout, plus JS-side layout post-processing.
+import { loadFmmm } from '@jbrowse/graph-fmmm-layout'
 import { createRequire } from 'node:module'
 import { bandageAutoScale, isBackbone } from './gfa.mjs'
 
 const require = createRequire(import.meta.url)
-const enginePath = new URL(
-  '../../src/bandage/bandage-layout.js',
-  import.meta.url,
-).pathname
 let engine
-export async function loadEngine(path = enginePath) {
-  const createModule = (await import(path)).default
-  engine = await createModule()
+export async function loadEngine(path) {
+  engine = path ? await (await import(path)).default() : await loadFmmm()
   return engine
 }
 

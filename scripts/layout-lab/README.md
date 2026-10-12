@@ -5,7 +5,9 @@ It runs layouts on a GFA outside the browser and writes PNGs, so a layout idea
 can be judged on a real HPRC cut in seconds. Nothing here ships in the package.
 
 Needs node, `rsvg-convert` and ImageMagick's `magick` on the path. The native
-variants also need `scripts/profile/build.sh` to have built OGDF once, then:
+variants also need OGDF built natively with `scripts/profile/build.sh` in a
+[graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout) checkout; run the
+command below from there with `driver.cpp` as an absolute path, then:
 
 ```
 g++ -O2 -std=c++17 -fcx-limited-range -Ivendor/ogdf/include -Ivendor/ogdf/build-native/include \

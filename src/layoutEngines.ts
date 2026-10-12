@@ -1,6 +1,5 @@
+import { fmmmLayout } from '@jbrowse/graph-fmmm-layout'
 import { stressLayout } from '@jbrowse/graph-stress-layout'
-
-import loadBandage from './loadBandage'
 
 import type { LayoutEngine } from './pipeline'
 
@@ -27,16 +26,14 @@ export function isLayoutEngineKind(value: unknown): value is LayoutEngineKind {
   return LAYOUT_ENGINE_VALUES.includes(value as LayoutEngineKind)
 }
 
-// Runs whichever engine a request names: the Bandage wasm module, loaded on
-// first use, or the stress layout. What a worker or a CLI hands `forceLayout`.
+// Runs whichever engine a request names: the Bandage wasm module, or the stress layout. What a worker or a CLI hands `forceLayout`.
 export const layoutEngine: LayoutEngine = async request => {
   if (request.options.engine === 'stress') {
     const start = performance.now()
     const result = stressLayout(request)
     return { result, duration: performance.now() - start }
   }
-  const bandage = await loadBandage()
   const start = performance.now()
-  const result = bandage.computeLayout(request.graph, request.options)
+  const result = await fmmmLayout(request)
   return { result, duration: performance.now() - start }
 }
