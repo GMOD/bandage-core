@@ -16,14 +16,12 @@ const engine = await createModule()
 // two paths around a shared middle, so a broken layout shows up as collapsed
 // or NaN coordinates rather than merely as a thrown error
 const segments = ['1', '2', '3', '4', '5', '6']
-const nodes = segments.flatMap(n =>
-  ['+', '-'].map(strand => ({
-    id: n + strand,
-    name: n + strand,
-    length: 100,
-    depth: 1,
-  })),
-)
+const nodes = segments.map(n => ({
+  id: `${n}+`,
+  name: `${n}+`,
+  length: 100,
+  depth: 1,
+}))
 const edges = [
   ['1', '2'],
   ['2', '3'],
@@ -31,7 +29,7 @@ const edges = [
   ['2', '5'],
   ['5', '4'],
   ['4', '6'],
-].map(([from, to]) => ({ from: `${from}+`, to: `${to}+`, overlap: 0 }))
+].map(([from, to]) => ({ from: `${from}+`, to: `${to}+` }))
 
 const options = { quality: 1, linearLayout: false }
 const { nodePositions } = engine.computeLayout({ nodes, edges }, options)
@@ -124,7 +122,7 @@ const namedEdges = [
   ['s2', 's3'],
   ['s1', 's4'],
   ['s4', 's3'],
-].map(([from, to]) => ({ from: `${from}+`, to: `${to}+`, overlap: 0 }))
+].map(([from, to]) => ({ from: `${from}+`, to: `${to}+` }))
 const linear = linearEngine.computeLayout(
   { nodes: named, edges: namedEdges },
   { quality: 1, linearLayout: true },
@@ -159,8 +157,8 @@ const stranded = strandEngine.computeLayout(
   {
     nodes: long,
     edges: [
-      { from: 'a+', to: 'b+', toStrand: '-', overlap: 0 },
-      { from: 'c+', fromStrand: '-', to: 'a+', overlap: 0 },
+      { from: 'a+', to: 'b+', toStrand: '-' },
+      { from: 'c+', fromStrand: '-', to: 'a+' },
     ],
   },
   options,
