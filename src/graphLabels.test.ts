@@ -343,6 +343,16 @@ test('a tethered label slides into the frame, leader following', () => {
   expect(leader!.labelX).toBeGreaterThan(leader!.arcX)
 })
 
+test('an arc panned out of the frame takes no label to its edge', () => {
+  for (const translateX of [-3000, 5000]) {
+    expect(
+      graphLabels({ ...CRAMPED, translateX }).filter(
+        l => l.kind === 'deletion',
+      ),
+    ).toEqual([])
+  }
+})
+
 // Displaced along the bow, so the label lands on the open side the arc was drawn
 // into rather than back across the backbone it leaves.
 test('a tethered label moves the way its arc bows', () => {

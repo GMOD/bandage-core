@@ -471,6 +471,9 @@ export function sizeLabelCandidates({
       const box = boxAt(halfW, 0, 0)
       const arcX = apex.x * scaleX + translateX
       const arcY = apex.y * scaleY + translateY
+      if (arcX < 0 || arcX > width || arcY < 0 || arcY > height) {
+        continue
+      }
       // The node rule, applied to an arc: a label wider than twice what it
       // names is a label with an arc attached. Under it the label stays
       // centred on the curve, which is what every arc big enough to hold its
