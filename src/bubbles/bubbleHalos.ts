@@ -1,4 +1,5 @@
-import { bubbleSegmentIds, classifyBubble, formatBp } from './classifyBubble'
+import { formatBp } from '../graphLabels'
+import { bubbleSegmentIds, classifyBubble } from './classifyBubble'
 import { isBackbone } from '../anchoredNodes'
 import { svgPath } from '../util/geometry'
 

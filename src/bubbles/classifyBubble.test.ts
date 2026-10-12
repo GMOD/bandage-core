@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { bubbleSegmentIds, classifyBubble, formatBp } from './classifyBubble'
+import { bubbleSegmentIds, classifyBubble } from './classifyBubble'
 
 import type { MinigraphBubble } from './bubbleLine'
 
@@ -47,7 +47,7 @@ describe('classifyBubble', () => {
           longestAlleleLength: 2000,
         }),
       ).label,
-    ).toBe('≤2.0 kb ins, 3 alleles')
+    ).toBe('≤2 kb ins, 3 alleles')
   })
 
   it('reads a deletion when the longest route is the reference', () => {
@@ -77,7 +77,7 @@ describe('classifyBubble', () => {
       { start: 160611000, end: 160651000, name: 'KIV-2' },
     ])
     expect(c.kind).toBe('repeat')
-    expect(c.label).toBe('3.0–175 kb repeat array (KIV-2), 129 routes')
+    expect(c.label).toBe('3–175 kb repeat array (KIV-2), 129 routes')
   })
 
   it('does not call a bubble a repeat from its shape alone', () => {
@@ -206,12 +206,6 @@ describe('classifyBubble', () => {
     expect(off(1, 1)).toEqual({ kind: 'snp', label: 'SNP' })
     expect(off(5, 5).label).toBe('5 bp sub')
     expect(off(0, 12)).toEqual({ kind: 'complex', label: '0–12 bp, 4 routes' })
-  })
-
-  it('formats bp the way the node labels do', () => {
-    expect(formatBp(58)).toBe('58 bp')
-    expect(formatBp(1245)).toBe('1.2 kb')
-    expect(formatBp(174966)).toBe('175 kb')
   })
 
   it('splits the segment list', () => {

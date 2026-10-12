@@ -189,10 +189,16 @@ export function groupDigits(n: number) {
 // "12,345 bp" costs twice the width of "12 kb" to say the same thing at the
 // scale a pangenome allele lives at.
 export function formatBp(bp: number) {
-  if (bp >= 1_000_000) {
-    return `${+(bp / 1_000_000).toFixed(1)} Mb`
+  const [value, unit] =
+    bp >= 1_000_000
+      ? [bp / 1_000_000, 'Mb']
+      : bp >= 1000
+        ? [bp / 1000, 'kb']
+        : []
+  if (value === undefined) {
+    return `${bp} bp`
   }
-  return bp >= 1000 ? `${+(bp / 1000).toFixed(1)} kb` : `${bp} bp`
+  return `${+value.toFixed(value >= 100 ? 0 : 1)} ${unit}`
 }
 
 function deletionText(bp: number) {

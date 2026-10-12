@@ -1,3 +1,4 @@
+import { formatBp } from '../graphLabels'
 import { SATURATED_PATH_COUNT } from './bubbleLine'
 
 import type { MinigraphBubble } from './bubbleLine'
@@ -54,16 +55,6 @@ function coveringRepeat(b: MinigraphBubble, repeats: readonly RepeatSpan[]) {
 }
 
 const SUPERBUBBLE_SEGMENTS = 40
-
-export function formatBp(bp: number) {
-  if (bp >= 10_000) {
-    return `${(bp / 1000).toFixed(0)} kb`
-  }
-  if (bp >= 1000) {
-    return `${(bp / 1000).toFixed(1)} kb`
-  }
-  return `${bp} bp`
-}
 
 function formatBpRange(shortest: number, longest: number) {
   const low = formatBp(shortest)

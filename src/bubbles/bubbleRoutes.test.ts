@@ -61,7 +61,7 @@ test('every route with steps is labelled for its carriers at its far point', () 
   )
   expect(halo!.routes.map(r => [r.text, r.at])).toEqual([
     ['ref · 2 bp', { x: 10, y: 0 }],
-    ['HG1, HG2 · 6.0 kb', { x: 15, y: 20 }],
+    ['HG1, HG2 · 6 kb', { x: 15, y: 20 }],
     ['HG3 · 1 bp', { x: 15, y: -8 }],
   ])
 
@@ -121,8 +121,8 @@ test('a chip sits on the stretch a route does not share', () => {
     name => name.split('#')[0]!,
   )
   expect(halo!.routes.map(r => [r.text, r.at])).toEqual([
-    ['HG1 · 4.0 kb', { x: 12, y: 10 }],
-    ['HG2 · 4.0 kb', { x: 12, y: -10 }],
+    ['HG1 · 4 kb', { x: 12, y: 10 }],
+    ['HG2 · 4 kb', { x: 12, y: -10 }],
   ])
 })
 
