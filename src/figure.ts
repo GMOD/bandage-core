@@ -1,4 +1,4 @@
-import { serializeEl } from './el'
+import { escapeAttr, serializeEl } from './el'
 import {
   FACET_GAP_PX,
   FACET_PAD_PX,
@@ -118,14 +118,6 @@ const STRIP_KEY_PX = 22
 const FADED = 'rgb(160,160,160)'
 const GENE_INK = '#1c1c22'
 
-function esc(s: string) {
-  return s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
-
 // A key at (x, y): a swatch or a short bar of its scale, bold `label` and
 // `after` beside it, and `under` on the line below. Returns its markup and
 // about how wide it is.
@@ -156,8 +148,8 @@ function keySvg(
   )
   return {
     width,
-    markup: `${defs}<g transform="translate(${x} ${y})" ${FONT}><rect y="5" width="${bar}" height="8" rx="2" ${fill}/><text x="${bar + 5}" y="13"><tspan font-weight="bold">${esc(label)}</tspan>${esc(after)}</text>${
-      under ? `<text y="28">${esc(under)}</text>` : ''
+    markup: `${defs}<g transform="translate(${x} ${y})" ${FONT}><rect y="5" width="${bar}" height="8" rx="2" ${fill}/><text x="${bar + 5}" y="13"><tspan font-weight="bold">${escapeAttr(label)}</tspan>${escapeAttr(after)}</text>${
+      under ? `<text y="28">${escapeAttr(under)}</text>` : ''
     }</g>`,
   }
 }
@@ -203,7 +195,7 @@ function screenPath(
 }
 
 function chip(x: number, y: number, w: number, name: string, note: string) {
-  return `<rect x="${x - w / 2}" y="${y - LABEL_PX - LABEL_PAD + 2}" width="${w}" height="${LABEL_PX + LABEL_PAD * 2 - 2}" rx="3" fill="#fff" fill-opacity="0.85" stroke="${EXON_COLOR}"/><text x="${x}" y="${y}" font-family="Helvetica, Arial, sans-serif" font-size="${LABEL_PX}" fill="${GENE_INK}" text-anchor="middle"><tspan font-style="italic" font-weight="600">${esc(name)}</tspan>${note ? esc(note) : ''}</text>`
+  return `<rect x="${x - w / 2}" y="${y - LABEL_PX - LABEL_PAD + 2}" width="${w}" height="${LABEL_PX + LABEL_PAD * 2 - 2}" rx="3" fill="#fff" fill-opacity="0.85" stroke="${EXON_COLOR}"/><text x="${x}" y="${y}" font-family="Helvetica, Arial, sans-serif" font-size="${LABEL_PX}" fill="${GENE_INK}" text-anchor="middle"><tspan font-style="italic" font-weight="600">${escapeAttr(name)}</tspan>${note ? escapeAttr(note) : ''}</text>`
 }
 
 export function figureSvg(
@@ -302,7 +294,7 @@ export function figureSvg(
       const sy = y * t.scaleY + t.translateY
       if (sy >= 0 && sy <= h) {
         out.push(
-          `<text x="6" y="${sy + 4}" ${FONT} stroke="#fff" stroke-width="3" paint-order="stroke">${esc(label)}</text>`,
+          `<text x="6" y="${sy + 4}" ${FONT} stroke="#fff" stroke-width="3" paint-order="stroke">${escapeAttr(label)}</text>`,
         )
       }
     }
@@ -474,5 +466,5 @@ export function figureSvg(
     generator: `@jbrowse/bandage-core@${version}`,
     ...(o.spec === undefined ? {} : { spec: o.spec }),
   })
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><metadata>${esc(metadata)}</metadata><rect width="${width}" height="${height}" fill="#fff"/>${parts.join('')}</svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><metadata>${escapeAttr(metadata)}</metadata><rect width="${width}" height="${height}" fill="#fff"/>${parts.join('')}</svg>\n`
 }

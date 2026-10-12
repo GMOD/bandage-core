@@ -30,7 +30,7 @@ function escapeText(s: string) {
     .replaceAll('>', '&gt;')
 }
 
-function escapeAttr(s: string) {
+export function escapeAttr(s: string) {
   return escapeText(s).replaceAll('"', '&quot;')
 }
 
