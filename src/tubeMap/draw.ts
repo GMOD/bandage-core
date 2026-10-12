@@ -1,4 +1,4 @@
-import { curvePaths, nodeOutlinePath } from '@jbrowse/tubemap-core'
+import { curvePaths, flattenPath, nodeOutlinePath } from '@jbrowse/tubemap-core'
 
 import { tubeMapMismatches } from './mismatches'
 import { readColor } from './reads'
@@ -89,6 +89,8 @@ interface Rect extends Filled {
 
 interface Shape extends Filled {
   commands: Command[]
+  // the hit test's polygon, in tube coordinates
+  outline: [number, number][]
 }
 
 interface Layer {
@@ -127,7 +129,15 @@ function shapeOf(
   reference: boolean,
 ) {
   const commands = parsePath(d)
-  return { commands, color, id, haplotype, reference, ...extentOf(commands) }
+  return {
+    commands,
+    outline: flattenPath(d, 12),
+    color,
+    id,
+    haplotype,
+    reference,
+    ...extentOf(commands),
+  }
 }
 
 // Each track's fill by id: a read takes its strand's palette, a haplotype its
@@ -453,51 +463,6 @@ function drawMismatches(
   }
 }
 
-// A path's outline as screen points, its beziers flattened
-function outline(
-  commands: Command[],
-  x: (tx: number) => number,
-  y: (ty: number) => number,
-) {
-  const points: [number, number][] = []
-  let cx = 0
-  let cy = 0
-  const STEPS = 12
-  for (const c of commands) {
-    if (c.op === 'C' || c.op === 'Q') {
-      for (let i = 1; i <= STEPS; i++) {
-        const t = i / STEPS
-        const u = 1 - t
-        const [px, py] =
-          c.op === 'C'
-            ? [
-                u * u * u * cx +
-                  3 * u * u * t * c.x1 +
-                  3 * u * t * t * c.x2 +
-                  t * t * t * c.x,
-                u * u * u * cy +
-                  3 * u * u * t * c.y1 +
-                  3 * u * t * t * c.y2 +
-                  t * t * t * c.y,
-              ]
-            : [
-                u * u * cx + 2 * u * t * c.x1 + t * t * c.x,
-                u * u * cy + 2 * u * t * c.y1 + t * t * c.y,
-              ]
-        points.push([x(px), y(py)])
-      }
-    }
-    if (c.op !== 'Z') {
-      cx = 'x' in c ? c.x : cx
-      cy = 'y' in c ? c.y : cy
-      if (c.op !== 'C' && c.op !== 'Q') {
-        points.push([x(cx), y(cy)])
-      }
-    }
-  }
-  return points
-}
-
 function inside(points: [number, number][], sx: number, sy: number) {
   let hit = false
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -539,7 +504,11 @@ export function tubeMapTrackAt(
           s.reference === reference &&
           x(s.x0) <= sx &&
           sx <= x(s.x1) &&
-          inside(outline(s.commands, x, y), sx, sy)
+          inside(
+            s.outline.map(([px, py]) => [x(px), y(py)]),
+            sx,
+            sy,
+          )
         ) {
           return s.id
         }
