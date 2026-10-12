@@ -1,33 +1,24 @@
 import { isBackbone } from './anchoredNodes'
-import { resolveColorScheme } from './colorSchemes'
-import { deletionDrawing, deletionEdges } from './deletionEdges'
-import { facetCells, facetSettingOf } from './facetGrid'
+import { facetCells } from './facetGrid'
+import { figureScene } from './figureScene'
 import { parseRegion } from './gbzCut'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
-import { pathLegend, walkLabelsOf } from './pathColors'
 import {
-  drawingBounds,
   engineSettingsOf,
   fitTransform,
   forceLayout,
   loadGraph,
 } from './pipeline'
-import { referenceLabel } from './reference'
-import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
-import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
-import { facetLifts, walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
 import type { BubbleSpread } from './bubbleSpreads'
-import type { ColorScheme } from './colorSchemes'
-import type { FacetInput } from './facetGrid'
+import type { FigureOptions } from './figure'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { LayoutModeValue } from './layoutModes'
-import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
 import type { WalkLift } from './walkHighlight'
@@ -38,23 +29,23 @@ import type { WalkLift } from './walkHighlight'
 // Widths are css px, which a host draws at an absolute size, as the canvas
 // does; y grows downward, as on screen.
 
-export interface FigureDataOptions {
-  // the width the figure is fit to, which decides whether strand arrows show
-  width?: number
-  height?: number
-  walks?: WalkLayer[]
-  facet?: FacetInput
-  colorScheme?: ColorScheme
-  nodeWidth?: NodeWidth
-  showDeletionEdges?: boolean
-  linearLayout?: boolean
-  contigThickness?: number
-  connectorThickness?: number
-  region?: { refName: string; start: number; end: number }
-  referenceName?: string
-  colorDomain?: { start: number; end: number }
-  fitToDrawing?: boolean
-}
+export type FigureDataOptions = Pick<
+  FigureOptions,
+  | 'width'
+  | 'height'
+  | 'walks'
+  | 'facet'
+  | 'colorScheme'
+  | 'nodeWidth'
+  | 'showDeletionEdges'
+  | 'linearLayout'
+  | 'contigThickness'
+  | 'connectorThickness'
+  | 'region'
+  | 'referenceName'
+  | 'colorDomain'
+  | 'fitToDrawing'
+>
 
 type Columns<T> = { [K in keyof T]: T[K][] }
 
@@ -128,47 +119,24 @@ export function figureData(
   }
   const width = o.width ?? 1200
   const height = o.height ?? 800
-  const region = o.region
   const pixelRows = layout.pixelRows ?? false
-  const bounds = drawingBounds(layout, {
-    region: o.fitToDrawing ? undefined : region,
-  })
+  const {
+    bounds,
+    colorScheme,
+    drawnDeletions,
+    lift,
+    facet,
+    panels: facetted,
+    labelOf,
+    referenceName,
+    reference,
+    geometry,
+  } = figureScene(graph, layout, o)
   const fit = fitTransform(bounds, width, height, pixelRows)
   if (!fit) {
     throw new Error('the layout drew nothing to fit')
   }
   const axis = axisScaleOf(fit.scale, pixelRows)
-  const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
-  const colorScheme = resolveColorScheme(o.colorScheme ?? 'auto', graph)
-  const rampDomain = o.colorDomain ?? region
-  const referenceRamp =
-    colorScheme === 'reference-position'
-      ? computeReferenceRamp(graph, rampDomain)
-      : undefined
-  const drawnDeletions = deletionDrawing(
-    graph,
-    deletionEdges(graph),
-    o.showDeletionEdges,
-  )
-  const layers = o.walks ?? []
-  const walkRamp = layers.some(l => l.color?.field === 'reference')
-    ? (referenceRamp ?? computeReferenceRamp(graph, rampDomain))
-    : undefined
-  const lift = layers.length > 0 ? walkLift(graph, layers, walkRamp) : undefined
-  const facet = facetSettingOf(o.facet)
-  const facetted =
-    facet.field && lift && lift.walks.length > 1
-      ? facetLifts(graph, lift, layers, walkRamp)
-      : undefined
-  const labels = walkLabelsOf(
-    graph.paths?.length ? pathLegend(graph.paths) : [],
-  )
-  const labelOf = (name: string) => labels.get(name) ?? name
-  const referenceName = o.referenceName ?? referenceLabel(graph, region)
-  const reference = lift?.referenceDomain && {
-    ...lift.referenceDomain,
-    name: referenceName,
-  }
 
   const panels: {
     highlight?: WalkLift
@@ -239,20 +207,7 @@ export function figureData(
   ])
 
   for (const { highlight, name: panel } of panels) {
-    const batch = buildGeometry({
-      ...layoutGeometryInputs(layout, drawnDeletions),
-      graph,
-      nodeById,
-      colorScheme,
-      contigThickness: o.contigThickness ?? 6,
-      connectorThickness: o.connectorThickness ?? 2,
-      drawPaths: false,
-      nodeWidth: o.nodeWidth ?? 'depth',
-      linearLayout: o.linearLayout,
-      highlight,
-      axis,
-      referenceRamp,
-    })
+    const batch = geometry(highlight, axis)
     for (const [node, run] of batch.nodeStrokeRuns) {
       for (let i = run.start; i < run.start + run.count; i++) {
         const s = batch.nodeStrokes[i]!
