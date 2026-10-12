@@ -228,14 +228,25 @@ export function genesFromBed(text: string): GeneModel[] {
   return mergeOverlappingByName(rows)
 }
 
+export type GeneFormat = 'gff3' | 'bed'
+
 // A BED file's second and third columns are numbers; a GFF3 file's second is
 // its source
-export function genesFromText(text: string) {
+function sniffedFormat(text: string): GeneFormat {
   const first = text
     .split('\n', 1000)
     .find(l => l.trim() !== '' && !/^(#|track|browser)/.test(l))
   const cols = first?.split('\t') ?? []
   return /^\d+$/.test(cols[1] ?? '') && /^\d+$/.test(cols[2] ?? '')
+    ? 'bed'
+    : 'gff3'
+}
+
+export function genesFromText(
+  text: string,
+  format: GeneFormat = sniffedFormat(text),
+) {
+  return format === 'bed'
     ? genesFromBed(text)
     : genesFromGff3Lines(text.split(/\r?\n/))
 }

@@ -212,3 +212,9 @@ test('genesFromText tells BED from GFF3 by its columns', () => {
   ).toBe('B')
   expect(genesFromText('')).toEqual([])
 })
+
+test('genesFromText reads the format it is given over the one it sniffs', () => {
+  const bed = `chrom\tstart\tend\tname\n${row('chr1', 0, 10, 'A')}\n`
+  expect(genesFromText(bed)).toEqual([])
+  expect(genesFromText(bed, 'bed').map(g => g.name)).toEqual(['A'])
+})

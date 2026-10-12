@@ -15,11 +15,7 @@ import {
   openGbz,
   parseRegion,
 } from '../gbzCut'
-import {
-  genesFromBed,
-  genesFromGff3Lines,
-  genesFromText,
-} from '../genes/geneFiles'
+import { genesFromText } from '../genes/geneFiles'
 import { genesOnRow, placeRowGenes } from '../layout/walkRowDraw'
 import { filterSamples, walkRows } from '../layout/walkRows'
 import {
@@ -34,6 +30,7 @@ import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
 import type { BubbleSpread } from '../bubbleSpreads'
 import type { FigureOptions } from '../figure'
 import type { GbzSource } from '../gbzCut'
+import type { GeneFormat } from '../genes/geneFiles'
 import type { GeneModel } from '../genes/genePins'
 import type { LayoutEngineKind } from '../layoutEngines'
 import type { LayoutModeValue } from '../layoutModes'
@@ -79,7 +76,7 @@ export interface FigureSpec extends Omit<
   genes?: {
     file: string
     index?: string
-    format?: 'gff3' | 'bed'
+    format?: GeneFormat
     refNames?: Record<string, string>
   }
 }
@@ -139,17 +136,15 @@ async function readGenes(
     backbone.contigs.map(c => c.refName),
     genes.refNames,
   )
-  const format =
-    genes.format ?? (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3')
   const { names, features } = genes.index
     ? await indexedGenes(
         resolve(genes.file),
         resolve(genes.index),
-        format,
+        genes.format ?? (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3'),
         backbone.contigs,
         bind,
       )
-    : namedBy(genesFromText(await text(resolve(genes.file))))
+    : namedBy(genesFromText(await text(resolve(genes.file)), genes.format))
   if (!names.some(name => bind(name) !== undefined)) {
     const shown = names.slice(0, 4).join(', ')
     console.warn(
@@ -171,7 +166,7 @@ function namedBy(features: GeneModel[]) {
 async function indexedGenes(
   file: string,
   index: string,
-  format: 'gff3' | 'bed',
+  format: GeneFormat,
   contigs: BackboneContig[],
   bind: (name: string) => string | undefined,
 ) {
@@ -193,10 +188,7 @@ async function indexedGenes(
   }
   return {
     names,
-    features:
-      format === 'gff3'
-        ? genesFromGff3Lines(lines)
-        : genesFromBed(lines.join('\n')),
+    features: genesFromText(lines.join('\n'), format),
   }
 }
 
