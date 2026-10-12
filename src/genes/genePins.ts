@@ -126,12 +126,8 @@ export function genePins(
       const distance = Math.abs(pinBp - mid)
       if (distance < atDistance) {
         atDistance = distance
-        const [p] = polylineSlice(
-          line,
-          (pinBp - nodeStart) / node.length,
-          (pinBp - nodeStart) / node.length,
-        )
-        at = p
+        const along = node.length ? (pinBp - nodeStart) / node.length : 0
+        at = polylineSlice(line, along, along)[0]
       }
     }
     if (at) {
