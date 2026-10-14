@@ -1,9 +1,4 @@
-import {
-  nodeLabelBudget,
-  placeSizeLabels,
-  rowLabelBox,
-  sizeLabelCandidates,
-} from './graphLabels'
+import { graphLabels, rowLabelBox } from './graphLabels'
 import {
   LABEL_CHAR_PX,
   LABEL_PAD,
@@ -217,9 +212,9 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     frame,
     take,
   )
-  const sizeCandidates =
+  const sizes =
     m.nodePositions && m.labelsNodeSizes
-      ? sizeLabelCandidates({
+      ? graphLabels({
           nodePositions: m.nodePositions,
           nodeLengths: m.nodeLengths,
           deletions: m.deletions,
@@ -232,18 +227,13 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
           width,
           height,
           version: m.positionsVersion,
+          take,
         })
-      : { deletions: [], nodes: [] }
-  const deletionLabels = placeSizeLabels(sizeCandidates.deletions, take)
-  const nodeLabels = placeSizeLabels(
-    sizeCandidates.nodes,
-    take,
-    nodeLabelBudget(width, height),
-  )
+      : []
   return {
     bubbles,
     ticks,
     genes,
-    sizes: [...deletionLabels, ...nodeLabels],
+    sizes,
   }
 }

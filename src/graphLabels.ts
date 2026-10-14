@@ -616,11 +616,14 @@ export function placeSizeLabels(
   return labels
 }
 
+// Deletion labels, then node labels, each placed where `take` finds room. By
+// default `take` finds it on the pane outside the `reserved` boxes.
 export function graphLabels({
   reserved,
+  take,
   ...args
-}: SizeLabelArgs & { reserved?: Box[] }): GraphLabel[] {
-  const take = occupancy(args, reserved)
+}: SizeLabelArgs & { reserved?: Box[]; take?: TakeBox }): GraphLabel[] {
+  take ??= occupancy(args, reserved)
   const { deletions, nodes } = sizeLabelCandidates(args)
   return [
     ...placeSizeLabels(deletions, take),
