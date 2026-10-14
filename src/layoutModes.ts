@@ -151,7 +151,7 @@ export const LAYOUT_MODES = [
   {
     value: 'force',
     label: FORCE_LAYOUT_LABEL,
-    description: 'OGDF FMMM, via the external Bandage engine.',
+    description: 'OGDF FMMM (wasm) or stress, whichever engine is chosen.',
     run: () => undefined,
     cutMargins: false,
     wholeWalks: false,
