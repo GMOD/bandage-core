@@ -144,6 +144,22 @@ test('a piece inside another is dropped, and pieces apart stay apart', () => {
   ])
 })
 
+test('a segment with no sequence or LN tag is 0 bp', () => {
+  const cut = (end: number, body: string) =>
+    gfa(
+      ...segments(1, 3),
+      'S\t2\t*',
+      walk('GRCh38#0#chr6', 100, [1]),
+      `W\tHG002\t1\tchr6\t500\t${end}\t${body}`,
+    )
+  expect(
+    walks(joinCuts([cut(510, '>2>1'), cut(520, '>2>1>3')], noPathStarts)),
+  ).toEqual([
+    walk('GRCh38#0#chr6', 100, [1]),
+    'W\tHG002\t1\tchr6\t500\t520\t>2>1>3',
+  ])
+})
+
 test("each cut's unnamed walks are numbered on from the cut before's", () => {
   const unnamed = (ref: number, ids: number[]) =>
     gfa(

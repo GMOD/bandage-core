@@ -31,7 +31,11 @@ function segmentLengths(lines: string[]) {
       const ln = tags.find(tag => tag.startsWith('LN:i:'))
       lengths.set(
         id!,
-        sequence === '*' && ln ? +ln.slice('LN:i:'.length) : sequence!.length,
+        sequence !== '*'
+          ? sequence!.length
+          : ln
+            ? +ln.slice('LN:i:'.length)
+            : 0,
       )
     }
   }
