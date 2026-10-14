@@ -65,7 +65,10 @@ export async function referenceSamplesOf(db: GBZBase) {
     .filter(sample => sample !== '')
 }
 
-function aliasedSample(anchorSample: string, referenceSamples: string[]) {
+export function aliasedSample(
+  anchorSample: string,
+  referenceSamples: string[],
+) {
   const lower = anchorSample.toLowerCase()
   const alias = wellKnownSample(anchorSample)?.toLowerCase()
   return (

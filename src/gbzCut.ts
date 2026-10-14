@@ -2,12 +2,14 @@ import { GBZBase } from '@gmod/gbz-base'
 
 import {
   GBZ_CUT_DEFAULTS,
+  NoReferenceSampleError,
+  aliasedSample,
   cutWindowGFA,
   haplotypeWanted,
   referencePathQuery,
   referenceSamplesOf,
-  resolveReferenceSample,
 } from './gbzWindow'
+import { panSNSample } from './pansn'
 
 import type { ByteSource, SnarlOutput } from '@gmod/gbz-base'
 
@@ -65,18 +67,14 @@ export async function openGbz(db: ByteSource, index?: ByteSource) {
 // GRCh38, hs1 is CHM13), else as the sample it names, such as gbz-base's
 // `_gbwt_ref` for a graph with no named reference
 function referenceSample(ref: string | undefined, samples: string[]) {
-  try {
-    return resolveReferenceSample({
-      configured: '',
-      anchorPrefix: ref ?? samples[0] ?? '',
-      referenceSamples: samples,
-    })
-  } catch (e) {
-    if (ref) {
-      return ref
-    }
-    throw e
+  if (ref) {
+    return aliasedSample(panSNSample(ref), samples) ?? ref
   }
+  const first = samples[0]
+  if (first === undefined) {
+    throw new NoReferenceSampleError('', samples)
+  }
+  return first
 }
 
 export async function cutGbzRegion(
