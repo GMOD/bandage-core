@@ -510,6 +510,22 @@ function unscaleYOf(curves: BezierCurve[], yToX: number) {
   return curves
 }
 
+// A polyline's length on screen, through the transform, since on a row layout
+// the two axes are in different units
+export function polylinePx(
+  points: { x: number; y: number }[],
+  scaleX: number,
+  scaleY: number,
+) {
+  let total = 0
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!
+    const b = points[i]!
+    total += Math.hypot((b.x - a.x) * scaleX, (b.y - a.y) * scaleY)
+  }
+  return total
+}
+
 // How far a self-loop or hairpin reaches off its node, in layout units: half
 // the node's drawn length, held between two screen sizes. Bandage uses a fixed
 // `edgeLength` in scene units, which fits one layout's units and no other's: a
@@ -520,14 +536,7 @@ const SELF_LOOP_MIN_PX = 12
 const SELF_LOOP_MAX_PX = 40
 
 function selfLoopReach(segments: NodeSegment[], scale: number) {
-  let length = 0
-  for (let i = 1; i < segments.length; i++) {
-    length += Math.hypot(
-      segments[i]!.x - segments[i - 1]!.x,
-      segments[i]!.y - segments[i - 1]!.y,
-    )
-  }
-  const nodePx = length * scale
+  const nodePx = polylinePx(segments, scale, scale)
   const reachPx = Math.min(
     SELF_LOOP_MAX_PX,
     Math.max(SELF_LOOP_MIN_PX, nodePx / 2),

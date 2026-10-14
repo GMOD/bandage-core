@@ -11,6 +11,7 @@ import { baseEdgeCurves } from '../util/edgeCurves'
 import {
   dashCurves,
   pathRibbonOffsets,
+  polylinePx,
   strandSides,
   translateCurves,
   yToXOf,
@@ -221,7 +222,7 @@ function arrowheadFor({
   const abutting = lengthPx < ABUTTING_PX
   const inset = Math.min(nodeHalfWidth, lengthPx)
   const fit = abutting
-    ? Math.min(1, polylinePx(fromSegments, scale, yToX) / length)
+    ? Math.min(1, polylinePx(fromSegments, scale, scale * yToX) / length)
     : 1
   if (abutting ? fit < MIN_ARROW_FIT : lengthPx < MIN_LINK_HEADS * length) {
     return undefined
@@ -245,17 +246,6 @@ function arrowheadFor({
       fit,
     color,
   }
-}
-
-function polylinePx(segments: NodeSegment[], scale: number, yToX: number) {
-  let length = 0
-  for (let i = 1; i < segments.length; i++) {
-    length += Math.hypot(
-      segments[i]!.x - segments[i - 1]!.x,
-      (segments[i]!.y - segments[i - 1]!.y) * yToX,
-    )
-  }
-  return length * scale
 }
 
 // Whether a link leaves its from-node's start: as its strands say where the

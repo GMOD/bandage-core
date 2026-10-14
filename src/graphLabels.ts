@@ -1,7 +1,7 @@
 import { deletionArcCurves } from './deletionEdges'
 import { polylineMidpoint } from './layout/mergeRuns'
 import { occupancy } from './overlayLabels'
-import { curveBounds, curveMidpoint } from './util/geometry'
+import { curveBounds, curveMidpoint, polylinePx } from './util/geometry'
 import { weakMemo } from './util/weakMemo'
 
 import type { DeletionEdge } from './deletionEdges'
@@ -259,20 +259,6 @@ function boxRayCrossing(box: Box, dir: { x: number; y: number }) {
     dir.x === 0 ? Infinity : halfW / Math.abs(dir.x),
     dir.y === 0 ? Infinity : halfH / Math.abs(dir.y),
   )
-}
-
-// The node's own extent along its polyline, IN SCREEN PX — what the label has
-// to fit inside. Measured through the transform rather than in layout units and
-// scaled afterwards, because on a row layout the two axes are in different units
-// and there is no single number to scale a mixed length by.
-function drawnLength(segments: NodeSegment[], scaleX: number, scaleY: number) {
-  let total = 0
-  for (let i = 1; i < segments.length; i++) {
-    const a = segments[i - 1]!
-    const b = segments[i]!
-    total += Math.hypot((b.x - a.x) * scaleX, (b.y - a.y) * scaleY)
-  }
-  return total
 }
 
 // The extent of a run's drawn points, in layout units. One pass rather than
@@ -575,7 +561,7 @@ export function sizeLabelCandidates({
     ) {
       continue
     }
-    const drawn = drawnLength(segments, scaleX, scaleY)
+    const drawn = polylinePx(segments, scaleX, scaleY)
     // The same comparison the real fit test makes, against the narrowest box
     // any label can have — so nothing that would have passed is rejected here.
     if (drawn < (MIN_LABEL_HALF_WIDTH * 2) / MAX_LABEL_OVERHANG) {
