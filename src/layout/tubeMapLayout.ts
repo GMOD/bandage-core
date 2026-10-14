@@ -3,6 +3,7 @@ import { forward, isReverse, layoutTubeMap } from '@jbrowse/tubemap-core'
 import { isBackbone } from '../anchoredNodes'
 import { pathOrigin } from '../pathAnchoring'
 import { pathCssColor, pathGreyCssColor } from '../pathColors'
+import { referenceWalkName } from './walkRows'
 import { canonicalStrand, stepName, tubeMapReads } from '../tubeMap/reads'
 import { ownStrand, strandSides } from '../util/geometry'
 
@@ -105,9 +106,8 @@ export function tubeMapTracks(graph: Graph): InputTrack[] {
         ]
       : []
   })
-  const reference = tracks.findIndex(
-    t => pathOrigin(t.name).name === graph.referencePath,
-  )
+  const name = referenceWalkName(graph)
+  const reference = tracks.findIndex(t => pathOrigin(t.name).name === name)
   if (reference > 0) {
     tracks.unshift(...tracks.splice(reference, 1))
   }

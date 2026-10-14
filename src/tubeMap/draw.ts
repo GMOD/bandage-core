@@ -3,6 +3,7 @@ import { curvePaths, flattenPath, nodeOutlinePath } from '@jbrowse/tubemap-core'
 import { tubeMapMismatches } from './mismatches'
 import { readColor } from './reads'
 import { MAX_GAP_PX } from './warp'
+import { referenceWalkName } from '../layout/walkRows'
 import { pathOrigin } from '../pathAnchoring'
 
 import type { TubeMapTransform } from './frame'
@@ -189,8 +190,9 @@ function layerOf(
 // The track ids of the reference's paths: a path's track id is its index
 function referenceTrackIds(graph: TubeMapDrawing['graph'] | undefined) {
   const ids = new Set<number>()
+  const name = graph && referenceWalkName(graph)
   graph?.paths?.forEach((path, i) => {
-    if (pathOrigin(path.name).name === graph.referencePath) {
+    if (pathOrigin(path.name).name === name) {
       ids.add(i)
     }
   })

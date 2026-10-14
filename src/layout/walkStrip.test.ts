@@ -80,6 +80,33 @@ test('the node under a point on a reference cut in suffixed fragments', () => {
   expect(segmentAt(graph, reference, 35, 10)).toBe(d.id)
 })
 
+test('the node under a point on a tag-anchored reference past its first piece', () => {
+  const nodes = ['a', 'b', 'c', 'd'].map((id, i) => ({
+    id,
+    name: id,
+    length: 100,
+    depth: 1,
+    stable: {
+      refName: 'REF#1#chr',
+      start: i < 2 ? i * 100 : i * 100 + 100,
+      rank: 0,
+    },
+  }))
+  const graph = {
+    name: 'tagged',
+    nodes,
+    edges: [],
+    paths: [
+      { name: 'REF#1#chr:0-200', nodeIds: ['a', 'b'], start: 0 },
+      { name: 'REF#1#chr:300-500', nodeIds: ['c', 'd'], start: 300 },
+      { name: 'S#1#chr', nodeIds: ['a', 'b', 'c', 'd'], start: 0 },
+    ],
+  }
+  const { reference } = walkRows(graph)!
+  expect(segmentAt(graph, reference, 350, 1)).toBe('c')
+  expect(segmentAt(graph, reference, 450, 1)).toBe('d')
+})
+
 test('at a coarse scale the longest node within a pixel wins', () => {
   const { graph, node, row } = setup()
   expect(segmentAt(graph, row('HG1#1#ctg1'), 4, 0.1)).toBe(node('c').id)

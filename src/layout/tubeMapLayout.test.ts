@@ -110,6 +110,26 @@ test("a walk's pieces each read their own strand of a segment they share", () =>
   ])
 })
 
+test('a tag-anchored graph straightens the walk its rank 0 segments name', () => {
+  const nodes = ['1', '2'].map((id, i) => ({
+    id,
+    name: id,
+    length: 4,
+    depth: 1,
+    stable: { refName: 'ref#1#chr', start: i * 4, rank: 0 },
+  }))
+  const graph: Graph = {
+    name: 'tagged',
+    nodes,
+    edges: [],
+    paths: [
+      { name: 'alt#1#chr', nodeIds: ['1', '2'] },
+      { name: 'ref#1#chr:0-8', nodeIds: ['1', '2'] },
+    ],
+  }
+  expect(tubeMapTracks(graph)[0]!.name).toBe('ref#1#chr:0-8')
+})
+
 const SEGMENTS = `S\t1\tACGTACGTAC
 S\t2\tGGGGGGGGGG
 S\t3\tTTTTTTTTTT

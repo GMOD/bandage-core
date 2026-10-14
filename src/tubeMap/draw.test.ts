@@ -165,6 +165,34 @@ test('the reference fills last, over any tube that crosses it', () => {
   expect(tubes.slice(first).every(f => f === reference)).toBe(true)
 })
 
+test('a tag-anchored graph draws the walk its rank 0 segments name as the reference', () => {
+  const nodes = ['1', '2', '3'].map((id, i) => ({
+    id,
+    name: id,
+    length: 4,
+    depth: 1,
+    stable: { refName: 'ref#1#chr', start: i * 4, rank: i === 1 ? 1 : 0 },
+  }))
+  const tubeMap = tubeMapLayout({
+    name: 'tagged',
+    nodes,
+    edges: [],
+    paths: [
+      { name: 'alt#1#chr', nodeIds: ['1', '2', '3'] },
+      { name: 'ref#1#chr:0-12', nodeIds: ['1', '3'] },
+    ],
+  })!.tubeMap!
+  const [haplotypes] = tubeMapPicture(tubeMap).layers
+  const ids = (reference: boolean) =>
+    new Set(
+      [...haplotypes!.rects, ...haplotypes!.shapes]
+        .filter(s => s.reference === reference)
+        .map(s => s.id),
+    )
+  expect(ids(true)).toEqual(new Set([1]))
+  expect(ids(false)).toEqual(new Set([0]))
+})
+
 interface Cubic {
   x1: number
   y1: number

@@ -273,27 +273,35 @@ export function filterSamples<R extends { sample: string; label: string }>(
     : rows
 }
 
+// The reference walk's name, stripped of the range suffix odgi leaves on a P
+// record's name: `referencePath`, else the walk a rank 0 segment's tag names,
+// else the first walk, where gbz-base and walk-file cuts write it
+export function referenceWalkName(
+  graph: Pick<Graph, 'nodes' | 'paths' | 'referencePath'>,
+) {
+  const names = (graph.paths ?? []).map(p => pathOrigin(p.name).name)
+  if (
+    graph.referencePath !== undefined &&
+    names.includes(graph.referencePath)
+  ) {
+    return graph.referencePath
+  }
+  const rankZero = new Set(
+    graph.nodes.flatMap(n => (n.stable?.rank === 0 ? [n.stable.refName] : [])),
+  )
+  return names.find(n => rankZero.has(n)) ?? names[0]
+}
+
 export function walkRows(
   graph: Graph,
   region?: { start: number; end: number },
   unit?: number,
 ): WalkRows | undefined {
   const paths = graph.paths ?? []
-  // The reference is `referencePath`, the anchor name, which pathOrigin has
-  // already stripped of the range suffix odgi leaves on a P record's name. A
-  // tag-anchored graph names none, but its rank 0 segments name the reference
-  // sequence. Else it is the first path, where gbz-base and walk-file cuts
-  // write it. A cut over several fragments of the reference holds one record
-  // per fragment.
+  // a cut over several fragments of the reference holds one record per
+  // fragment
   const nameOf = (p: GraphPath) => pathOrigin(p.name).name
-  const rankZero = new Set(
-    graph.nodes.flatMap(n => (n.stable?.rank === 0 ? [n.stable.refName] : [])),
-  )
-  const names = paths.map(nameOf)
-  const referenceName =
-    graph.referencePath !== undefined && names.includes(graph.referencePath)
-      ? graph.referencePath
-      : (names.find(n => rankZero.has(n)) ?? names[0])
+  const referenceName = referenceWalkName(graph)
   const referencePieces = paths
     .filter(p => nameOf(p) === referenceName)
     .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
