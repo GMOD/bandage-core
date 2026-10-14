@@ -1,4 +1,4 @@
-import { deletionArcCurves } from './deletionEdges'
+import { edgeCurvesOf } from './deletionEdges'
 import { polylineMidpoint } from './layout/mergeRuns'
 import { labelWidth, occupancy } from './overlayLabels'
 import { curveBounds, curveMidpoint, polylinePx } from './util/geometry'
@@ -335,10 +335,11 @@ function arcPlacements(
     () => {
       const arcs: ArcPlacement[] = []
       for (const deletion of [...deletions].sort((a, b) => b.bp - a.bp)) {
-        const curves = deletionArcCurves(
+        const curves = edgeCurvesOf(
           nodePositions,
           deletion,
           axis,
+          deletion.bypassed,
           routes?.[deletion.edgeIndex],
           stranded,
         )

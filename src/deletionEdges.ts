@@ -45,7 +45,7 @@ export interface DeletionEdge {
   // index into graph.edges, which is what the renderer keys its curve ranges by
   edgeIndex: number
   // the edge's own endpoints, so anything that needs the arc as it is DRAWN can
-  // rebuild it (deletionArcCurves) instead of approximating it from `bypassed`
+  // rebuild it (edgeCurvesOf) instead of approximating it from `bypassed`
   from: string
   to: string
   fromStrand?: '+' | '-'
@@ -70,34 +70,6 @@ export function bypassedPoints(
   bypassed: string[],
 ) {
   return bypassed.flatMap(id => nodePositions[id] ?? [])
-}
-
-// The deletion's arc exactly as the renderer draws it, for anything that has to
-// agree with the drawing: the label that rides it, and hit detection.
-//
-// This exists because the label used to be placed at an apex derived from the
-// BYPASSED nodes while the curve was drawn between the EDGE's endpoints. In an
-// anchored layout the bypassed run lies between the endpoints, so the two agreed
-// and the divergence was invisible; under FMMM the endpoints are wherever the
-// simulation left them and the bypassed run is elsewhere, so the words and the
-// arc they named came out in different corners of the drawing
-// (`pangenome/hprc_cfhr_deletion`, reviewed 2026-07-31). One function is the fix:
-// a second derivation of the same curve is a second thing to keep in step.
-export function deletionArcCurves(
-  nodePositions: Record<string, NodeSegment[]>,
-  deletion: DeletionEdge,
-  axis: AxisScale,
-  route?: NodeSegment[],
-  stranded = false,
-) {
-  return edgeCurvesOf(
-    nodePositions,
-    deletion,
-    axis,
-    deletion.bypassed,
-    route,
-    stranded,
-  )
 }
 
 // An edge's curve as drawn: along its route where a force layout ran one,
