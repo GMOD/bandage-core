@@ -175,7 +175,7 @@ export class PathVisits {
 }
 
 // Growable typed columns
-class Column<T extends Int32Array | Float64Array | Uint8Array> {
+export class Column<T extends Int32Array | Float64Array | Uint8Array> {
   length = 0
   constructor(public data: T) {}
 

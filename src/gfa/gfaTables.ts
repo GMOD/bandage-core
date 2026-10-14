@@ -1,3 +1,5 @@
+import { Column } from '../pathVisits'
+
 import type { GraphTables } from './graphTables'
 
 const GT = 62 // '>'
@@ -11,23 +13,11 @@ const UNTABLED_RECORD = /^[PEOUFG]\t/
 const trimCR = (line: string) =>
   line.endsWith('\r') ? line.slice(0, -1) : line
 
-// Growable step columns: a cut's step count is unknown until its last W line
-class Steps {
-  nodes = new Int32Array(1 << 16)
-  reversed = new Uint8Array(1 << 16)
-  length = 0
-
-  push(node: number, reversed: number) {
-    if (this.length === this.nodes.length) {
-      const nodes = new Int32Array(this.length * 2)
-      nodes.set(this.nodes)
-      this.nodes = nodes
-      const rev = new Uint8Array(this.length * 2)
-      rev.set(this.reversed)
-      this.reversed = rev
-    }
-    this.nodes[this.length] = node
-    this.reversed[this.length++] = reversed
+// a cut's step count is unknown until its last W line
+function stepColumns() {
+  return {
+    nodes: new Column(new Int32Array(1 << 16)),
+    reversed: new Column(new Uint8Array(1 << 16)),
   }
 }
 
@@ -101,7 +91,7 @@ function readWalkBody(
   line: string,
   from: number,
   segments: SegmentIndex,
-  steps: Steps,
+  steps: ReturnType<typeof stepColumns>,
 ) {
   let reversed = 0
   let start = -1
@@ -115,7 +105,8 @@ function readWalkBody(
         (end - start === 1 || line.charCodeAt(start) !== ZERO)
           ? segments.ofNumber(value)
           : undefined
-      steps.push(node ?? segments.of(line.slice(start, end)), reversed)
+      steps.nodes.push(node ?? segments.of(line.slice(start, end)))
+      steps.reversed.push(reversed)
     }
   }
   let i = from
@@ -207,7 +198,7 @@ export function gfaTables(text: string): GraphTables | undefined {
   const walkStarts: number[] = []
   const walkEnds: number[] = []
   const offsets = [0]
-  const steps = new Steps()
+  const steps = stepColumns()
   for (const raw of lines) {
     if (raw.startsWith('L\t')) {
       const [, source, strand1, target, strand2] = trimCR(raw).split('\t')
@@ -225,10 +216,10 @@ export function gfaTables(text: string): GraphTables | undefined {
         walkEnds.push(w.end === '*' ? -1 : +w.end)
         readWalkBody(line, w.body, segments, steps)
         // a stepless walk is still a path to the text route, and no row here
-        if (steps.length === offsets.at(-1)) {
+        if (steps.nodes.length === offsets.at(-1)) {
           return undefined
         }
-        offsets.push(steps.length)
+        offsets.push(steps.nodes.length)
       }
     }
   }
@@ -252,8 +243,8 @@ export function gfaTables(text: string): GraphTables | undefined {
       starts: Float64Array.from(walkStarts),
       ends: Float64Array.from(walkEnds),
       offsets: Int32Array.from(offsets),
-      steps: steps.nodes.slice(0, steps.length),
-      reversed: steps.reversed.slice(0, steps.length),
+      steps: steps.nodes.data.slice(0, steps.nodes.length),
+      reversed: steps.reversed.data.slice(0, steps.reversed.length),
     },
   }
 }
