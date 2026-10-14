@@ -1,16 +1,27 @@
-import { REFERENCE_RAMP_MAX_HUE } from './renderer/GeometryBuilder'
-
-// The reference-position ramp in CSS, from the same three numbers
-// `getNodeColor` paints with (hue 0 to REFERENCE_RAMP_MAX_HUE at 70%/50%), so
-// a key or an overlay cannot come to describe a ramp the canvas stopped using.
+// The reference-position ramp runs from hue 0 to REFERENCE_RAMP_MAX_HUE at a
+// fixed saturation and lightness. `getNodeColor`, the walk schemes and the CSS
+// below all read these numbers, so a key or an overlay matches the canvas.
+//
+// A linear track can reproduce the ramp exactly from two stated numbers and a
+// node's reference midpoint:
+// `hsl(min(300,max(0,(mid-start)/span*300)),70%,50%)` in a track's `color`
+// slot paints a segment the colour the graph paints its node. The ramp stops at
+// 300 rather than wrapping to 360, so the window's ends are red and magenta.
+export const REFERENCE_RAMP_MAX_HUE = 300
+export const REFERENCE_RAMP_SATURATION = 0.7
+export const REFERENCE_RAMP_LIGHTNESS = 0.5
 
 export function rampHueCss(hue: number) {
-  return `hsl(${hue}, 70%, 50%)`
+  return `hsl(${hue}, ${REFERENCE_RAMP_SATURATION * 100}%, ${REFERENCE_RAMP_LIGHTNESS * 100}%)`
+}
+
+// the hue at `frac` of the way along the ramp, clamped to its ends
+export function rampHueAt(frac: number) {
+  return Math.max(0, Math.min(1, frac)) * REFERENCE_RAMP_MAX_HUE
 }
 
 export function rampHue(bp: number, domain: { start: number; end: number }) {
-  const frac = (bp - domain.start) / (domain.end - domain.start)
-  return Math.max(0, Math.min(1, frac)) * REFERENCE_RAMP_MAX_HUE
+  return rampHueAt((bp - domain.start) / (domain.end - domain.start))
 }
 
 // hue degrees one gradient stop spans, since SVG interpolates stops in RGB

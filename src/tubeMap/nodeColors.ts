@@ -19,7 +19,7 @@ export function tubeMapNodeColors(
   if (colorScheme === 'uniform' || colorScheme === 'grey') {
     return undefined
   }
-  const range = { ...computeColorSchemeRange(graph), referenceRamp }
+  const range = computeColorSchemeRange(graph, referenceRamp)
   return new Map(
     graph.nodes.map((node, index) => [
       node.id,

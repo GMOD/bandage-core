@@ -1,8 +1,9 @@
 import {
-  REFERENCE_RAMP_ALT_COLOR,
-  REFERENCE_RAMP_MAX_HUE,
-  hslToRgb,
-} from './renderer/GeometryBuilder'
+  REFERENCE_RAMP_LIGHTNESS,
+  REFERENCE_RAMP_SATURATION,
+  rampHueAt,
+} from './referenceRampCss'
+import { REFERENCE_RAMP_ALT_COLOR, hslToRgb } from './renderer/GeometryBuilder'
 import { packAbgr } from './renderer/colorBits'
 
 // How a lifted walk colours its lane, stated the way a grammar of graphics
@@ -124,7 +125,11 @@ export function schemeRgb(scheme: WalkScheme, t: number) {
   const x = Math.max(0, Math.min(1, t))
   const family = WALK_SCHEMES.find(s => s.value === scheme)
   if (!family || !('ends' in family)) {
-    return hslToRgb(x * REFERENCE_RAMP_MAX_HUE, 0.7, 0.5).map(c => c * 255)
+    return hslToRgb(
+      rampHueAt(x),
+      REFERENCE_RAMP_SATURATION,
+      REFERENCE_RAMP_LIGHTNESS,
+    ).map(c => c * 255)
   }
   const from = oklab(family.ends[0])
   const to = oklab(family.ends[1])

@@ -56,7 +56,7 @@ export function referenceStripBlocks(
     walks?: readonly { colors: ReadonlyMap<string, number> }[]
   },
 ) {
-  const range = { ...computeColorSchemeRange(graph), referenceRamp }
+  const range = computeColorSchemeRange(graph, referenceRamp)
   const out: StripBlock[] = []
   graph.nodes.forEach((node, index) => {
     if (isBackbone(node)) {

@@ -6,6 +6,11 @@ import {
   nameHue,
   pathHueAt,
 } from '../pathColors'
+import {
+  REFERENCE_RAMP_LIGHTNESS,
+  REFERENCE_RAMP_SATURATION,
+  rampHueAt,
+} from '../referenceRampCss'
 import { referenceMidpoints } from '../referenceSpan'
 import { baseEdgeCurves } from '../util/edgeCurves'
 import {
@@ -332,15 +337,6 @@ function offsetPolyline(
   }))
 }
 
-function packNorm(r: number, g: number, b: number, a: number) {
-  return packAbgr(
-    Math.round(r * 255),
-    Math.round(g * 255),
-    Math.round(b * 255),
-    Math.round(a * 255),
-  )
-}
-
 export interface BuildOptions {
   nodePositions: Record<string, NodeSegment[]>
   graph: Graph
@@ -423,6 +419,16 @@ export function hslToRgb(
   return [r + m, g + m, b + m]
 }
 
+function packHsl(h: number, s: number, l: number, a = 1) {
+  const [r, g, b] = hslToRgb(h, s, l)
+  return packAbgr(
+    Math.round(r * 255),
+    Math.round(g * 255),
+    Math.round(b * 255),
+    Math.round(a * 255),
+  )
+}
+
 // Evenly-spaced RGB gradient stops (0-255 per channel).
 const DEPTH_GRADIENT = [
   [68, 1, 84],
@@ -464,19 +470,11 @@ function sampleGradient(
 // Deterministic color from a string (djb2-style hash → HSL hue), for the
 // `random` node scheme. The path ribbons do NOT use this — see pathHueAt.
 function hashColor(str: string, alpha: number) {
-  const [r, g, b] = hslToRgb(nameHue(str), PATH_SATURATION, PATH_LIGHTNESS)
-  return packNorm(r, g, b, alpha)
+  return packHsl(nameHue(str), PATH_SATURATION, PATH_LIGHTNESS, alpha)
 }
 
-// A hue ramp over reference coordinates, which is the one colouring a linear
-// track can reproduce exactly: it is a function of two stated numbers and a
-// node's reference midpoint, so `hsl(min(300,max(0,(mid-start)/span*300)),70%,50%)`
-// in a track's `color` slot paints a segment the colour the graph paints its
-// node. Stops at 300 rather than wrapping to 360, so the two ends of the window
-// are red and magenta rather than both red.
-export const REFERENCE_RAMP_MAX_HUE = 300
-const REFERENCE_RAMP_SATURATION = 0.7
-const REFERENCE_RAMP_LIGHTNESS = 0.5
+export { REFERENCE_RAMP_MAX_HUE } from '../referenceRampCss'
+
 // Off-reference segments come off the ramp entirely and paint one flat charcoal.
 //
 // They used to keep the hue of the reference they replace, paler and softer, on
@@ -542,7 +540,10 @@ export function computeReferenceRamp(
   }
 }
 
-export function computeColorSchemeRange(graph: Graph) {
+export function computeColorSchemeRange(
+  graph: Graph,
+  referenceRamp?: ReferenceRamp,
+) {
   let minDepth = Infinity
   let maxDepth = -Infinity
   let minLength = Infinity
@@ -572,6 +573,7 @@ export function computeColorSchemeRange(graph: Graph) {
     maxLength,
     maxRank,
     nodeCount: graph.nodes.length,
+    referenceRamp,
   } satisfies ColorSchemeRange
 }
 
@@ -630,13 +632,11 @@ export function getNodeColor(
       if (node.stable !== undefined && node.stable.rank > 0) {
         return REFERENCE_RAMP_ALT_COLOR
       }
-      const frac = Math.max(0, Math.min(1, (mid - ramp.start) / ramp.span))
-      const [r, g, b] = hslToRgb(
-        frac * REFERENCE_RAMP_MAX_HUE,
+      return packHsl(
+        rampHueAt((mid - ramp.start) / ramp.span),
         REFERENCE_RAMP_SATURATION,
         REFERENCE_RAMP_LIGHTNESS,
       )
-      return packNorm(r, g, b, 1)
     }
 
     case 'grey':
@@ -644,8 +644,7 @@ export function getNodeColor(
 
     case 'rainbow': {
       const hue = range.nodeCount > 1 ? (nodeIndex / range.nodeCount) * 360 : 0
-      const [r, g, b] = hslToRgb(hue, 0.75, 0.5)
-      return packNorm(r, g, b, 1)
+      return packHsl(hue, 0.75, 0.5)
     }
 
     default:
@@ -758,12 +757,14 @@ function pathPaletteOf(graph: Graph) {
     const pathIndexByName = new Map<string, number>()
     const paths = graph.paths ?? []
     for (let i = 0; i < paths.length; i++) {
-      const [r, g, b] = hslToRgb(
-        pathHueAt(i, paths.length),
-        PATH_SATURATION,
-        PATH_LIGHTNESS,
+      pathColorByIndex.push(
+        packHsl(
+          pathHueAt(i, paths.length),
+          PATH_SATURATION,
+          PATH_LIGHTNESS,
+          0.85,
+        ),
       )
-      pathColorByIndex.push(packNorm(r, g, b, 0.85))
       if (!pathIndexByName.has(paths[i]!.name)) {
         pathIndexByName.set(paths[i]!.name, i)
       }
@@ -843,7 +844,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const edgeCurves: EdgeCurveBatch[] = []
   const edgeCurveRuns = new Map<number, Run>()
 
-  const colorRange = { ...computeColorSchemeRange(graph), referenceRamp }
+  const colorRange = computeColorSchemeRange(graph, referenceRamp)
 
   const nodeIndexMap = new Map<string, number>()
   if (colorScheme === 'rainbow') {
