@@ -108,3 +108,11 @@ test('fewer than two placed backbone nodes leaves the drawing alone', () => {
   const positions = { 'b0+': segment(3, 4), 'a0+': segment(9, -2) }
   expect(orientToReference(graph, positions)).toBe(positions)
 })
+
+test('a backbone of 0 bp nodes leaves the drawing alone', () => {
+  const empty = {
+    ...graph,
+    nodes: graph.nodes.map(n => ({ ...n, length: 0 })),
+  }
+  expect(orientToReference(empty, oriented)).toBe(oriented)
+})

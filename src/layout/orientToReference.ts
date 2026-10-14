@@ -30,6 +30,9 @@ export function orientToReference(graph: Graph, positions: Positions) {
     }
   })
   const weight = points.reduce((sum, p) => sum + p.w, 0)
+  if (weight === 0) {
+    return positions
+  }
   const cx = points.reduce((sum, p) => sum + p.x * p.w, 0) / weight
   const cy = points.reduce((sum, p) => sum + p.y * p.w, 0) / weight
   const cr = points.reduce((sum, p) => sum + p.r * p.w, 0) / weight
