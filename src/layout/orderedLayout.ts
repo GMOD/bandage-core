@@ -7,7 +7,7 @@ import type { Graph, GraphNode, LayoutResult, NodeSegment } from '../types'
 // Reference-ordered layered layout: x is reference ORDER, not bp. Backbone
 // segments take increasing layers by stable offset, every other node the layer
 // between the anchors it hangs off, and a node is as wide as the log of its bp,
-// so a SNP allele gets the same room as a 10 kb segment and a bubble reads as a
+// so a SNP allele stays visible beside a 10 kb segment and a bubble reads as a
 // lens rather than a bar under a line. y is a lane in screen px with the
 // reference pinned at lane 0 (ADR-042).
 

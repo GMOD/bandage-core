@@ -104,7 +104,7 @@ export const LAYOUT_MODES = [
     value: 'walkrows',
     label: 'Walk rows',
     description:
-      "x is each walk's own bp: one bar per haplotype, blue on the reference's path and purple off it, so a repeat expansion reads as bar length, and each bar boxes its haplotype's own genes where the session has them. Needs W or P lines.",
+      "x is each walk's own bp: one bar per haplotype, blue on the reference's path and purple off it, so a repeat expansion reads as bar length, and each bar boxes its haplotype's own genes where the session has them. Needs a reference and two or more walks.",
     run: walkRowLayout,
     cutMargins: false,
     wholeWalks: true,
