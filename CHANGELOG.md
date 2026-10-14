@@ -1,3 +1,10 @@
+## [10.2.5](https://github.com/GMOD/bandage-core/compare/v10.2.4...v10.2.5) (2026-10-14)
+
+### Other Changes
+
+- Force mode description names both engines ([6f01301](https://github.com/GMOD/bandage-core/commit/6f01301f8748fe18685094fa57979e628971d5ba))
+- Walk rows and ordered descriptions match what the code checks ([bbfbe98](https://github.com/GMOD/bandage-core/commit/bbfbe98296a3230f59e2438b8046eed68c181ec1))
+
 ## [10.2.4](https://github.com/GMOD/bandage-core/compare/v10.2.3...v10.2.4) (2026-10-12)
 
 ### Other Changes
