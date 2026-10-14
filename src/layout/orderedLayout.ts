@@ -1,5 +1,6 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { isBackbone } from '../anchoredNodes'
+import { buildNeighbors } from '../referenceSpan'
 
 import type { AnchoredNode } from '../anchoredNodes'
 import type { Graph, GraphNode, LayoutResult, NodeSegment } from '../types'
@@ -166,6 +167,7 @@ function placeByWalks(graph: Graph, backbone: AnchoredNode[]) {
 function placeBySearch(
   adjacent: Map<string, string[]>,
   key: Map<string, OrderKey>,
+  isNode: Set<string>,
 ) {
   const queue = [...key.entries()]
     .sort(([a, ka], [b, kb]) => compareKeys(ka, kb) || compare(a, b))
@@ -175,7 +177,7 @@ function placeBySearch(
   for (const id of queue) {
     const from = key.get(id)!
     for (const nb of adjacent.get(id) ?? []) {
-      if (!key.has(nb)) {
+      if (isNode.has(nb) && !key.has(nb)) {
         key.set(nb, { at: from.at, side: 1, hops: from.hops + 1 })
         queue.push(nb)
       }
@@ -197,7 +199,10 @@ function placeBySearch(
       let deadEnd = true
       let touchesLeft = false
       for (const nb of adjacent.get(id) ?? []) {
-        const other = key.get(nb)!
+        const other = key.get(nb)
+        if (!other) {
+          continue
+        }
         if (other.at === at && searched.has(nb)) {
           deadEnd &&= other.hops <= hops
           if (!sided.has(nb)) {
@@ -221,15 +226,6 @@ function placeBySearch(
 }
 
 function orderKeys(graph: Graph) {
-  const ids = new Set(graph.nodes.map(n => n.id))
-  const adjacent = new Map<string, string[]>()
-  for (const e of graph.edges) {
-    if (!ids.has(e.from) || !ids.has(e.to)) {
-      continue
-    }
-    ;(adjacent.get(e.from) ?? adjacent.set(e.from, []).get(e.from)!).push(e.to)
-    ;(adjacent.get(e.to) ?? adjacent.set(e.to, []).get(e.to)!).push(e.from)
-  }
   const backbone = graph.nodes
     .filter(isBackbone)
     .sort(
@@ -240,7 +236,7 @@ function orderKeys(graph: Graph) {
   placeByWalks(graph, backbone).forEach((id, rank) => {
     key.set(id, { at: rank, side: 0, hops: 0 })
   })
-  placeBySearch(adjacent, key)
+  placeBySearch(buildNeighbors(graph), key, new Set(graph.nodes.map(n => n.id)))
   return key
 }
 
