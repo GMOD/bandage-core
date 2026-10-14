@@ -1,6 +1,6 @@
 import { resolveColorScheme } from './colorSchemes'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
-import { facetSettingOf } from './facetGrid'
+import { facetCells, facetSettingOf } from './facetGrid'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { walkRowsExtent } from './layout/walkRowLayout'
 import { pathLegend, walkLabelsOf } from './pathColors'
@@ -9,11 +9,12 @@ import { referenceLabel } from './reference'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { facetLifts, walkLift } from './walkHighlight'
+import { walkKey } from './walkKey'
 
 import type { FigureOptions } from './figure'
 import type { Graph, LayoutResult } from './types'
 import type { AxisScale } from './util/geometry'
-import type { WalkLift } from './walkHighlight'
+import type { LiftedWalk, WalkLift } from './walkHighlight'
 
 export type FigureSceneOptions = Pick<
   FigureOptions,
@@ -75,12 +76,27 @@ export function figureScene(
     facet.field && lift && lift.walks.length > 1
       ? facetLifts(graph, lift, layers, walkRamp)
       : undefined
+  const facets =
+    facet.field && panels
+      ? {
+          panels,
+          place: facetCells(
+            panels.map(p => p.walks[0]!.name),
+            facet.field,
+            facet.domain,
+          ),
+        }
+      : undefined
   const labels = walkLabelsOf(
     graph.paths?.length ? pathLegend(graph.paths) : [],
   )
   const referenceName = o.referenceName ?? referenceLabel(graph, region)
   const contigThickness = o.contigThickness ?? FIGURE_DEFAULTS.contigThickness
   const nodeWidth = o.nodeWidth ?? FIGURE_DEFAULTS.nodeWidth
+  const reference = lift?.referenceDomain && {
+    ...lift.referenceDomain,
+    name: referenceName,
+  }
   return {
     bounds,
     nodeById,
@@ -90,12 +106,12 @@ export function figureScene(
     layers,
     lift,
     facet,
-    panels,
+    facets,
     labelOf: (name: string) => labels.get(name) ?? name,
     referenceName,
-    reference: lift?.referenceDomain && {
-      ...lift.referenceDomain,
-      name: referenceName,
+    keyText: (walk: LiftedWalk) => {
+      const key = walkKey(walk, reference)
+      return { note: key.delta + key.outside + key.reversed, scale: key.scale }
     },
     contigThickness,
     nodeWidth,

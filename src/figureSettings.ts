@@ -7,6 +7,8 @@ import type { EngineSettings } from './pipeline'
 // Every setting a figure spec carries that is neither the graph, the layout
 // mode nor the walks: what the engine reads, and what the renderer does.
 export interface FigureSettings extends Partial<EngineSettings> {
+  width?: number
+  height?: number
   colorScheme?: ColorScheme
   nodeWidth?: NodeWidth
   contigThickness?: number
@@ -17,6 +19,8 @@ export interface FigureSettings extends Partial<EngineSettings> {
 
 export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   ...ENGINE_DEFAULTS,
+  width: 1200,
+  height: 800,
   colorScheme: 'auto',
   nodeWidth: 'depth',
   contigThickness: 6,

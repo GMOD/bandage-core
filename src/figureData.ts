@@ -1,6 +1,6 @@
 import { isBackbone } from './anchoredNodes'
-import { facetCells } from './facetGrid'
 import { figureScene } from './figureScene'
+import { FIGURE_DEFAULTS } from './figureSettings'
 import { parseRegion } from './gbzCut'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
@@ -13,7 +13,6 @@ import {
 import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
-import { walkKey } from './walkKey'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
@@ -117,19 +116,18 @@ export function figureData(
   if (layout.tubeMap) {
     throw new Error('figure data has no tables for a tube map yet')
   }
-  const width = o.width ?? 1200
-  const height = o.height ?? 800
+  const width = o.width ?? FIGURE_DEFAULTS.width
+  const height = o.height ?? FIGURE_DEFAULTS.height
   const pixelRows = layout.pixelRows ?? false
   const {
     bounds,
     colorScheme,
     drawnDeletions,
     lift,
-    facet,
-    panels: facetted,
+    facets,
     labelOf,
     referenceName,
-    reference,
+    keyText,
     geometry,
   } = figureScene(graph, layout, o)
   const fit = fitTransform(bounds, width, height, pixelRows)
@@ -144,22 +142,17 @@ export function figureData(
     key: string
     range: string
   }[] = []
-  if (facetted) {
-    const place = facetCells(
-      facetted.map(p => p.walks[0]!.name),
-      facet.field || 'walk',
-      facet.domain,
-    )
-    const ordered = facetted
-      .map((panel, i) => ({ panel, cell: place.cells[i]! }))
+  if (facets) {
+    const ordered = facets.panels
+      .map((panel, i) => ({ panel, cell: facets.place.cells[i]! }))
       .sort((a, b) => a.cell - b.cell)
     for (const { panel } of ordered) {
       const walk = panel.walks[0]!
-      const key = walkKey(walk, reference)
+      const key = keyText(walk)
       panels.push({
         highlight: panel,
         name: labelOf(walk.name),
-        key: key.delta + key.outside + key.reversed,
+        key: key.note,
         range: key.scale ?? '',
       })
     }

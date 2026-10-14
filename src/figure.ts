@@ -3,10 +3,10 @@ import {
   FACET_GAP_PX,
   FACET_PAD_PX,
   FACET_TITLE_PX,
-  facetCells,
   facetGrid,
 } from './facetGrid'
 import { figureScene } from './figureScene'
+import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
 import { geneLabelCandidates } from './labelLayout'
@@ -36,7 +36,7 @@ import { nodesUnderBox } from './util/hitDetection'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
-import { rangeText, walkKey } from './walkKey'
+import { rangeText } from './walkKey'
 
 import type { ColorScheme } from './colorSchemes'
 import type { FacetInput } from './facetGrid'
@@ -168,16 +168,15 @@ function walkKeySvg(
   y: number,
   walk: LiftedWalk,
   label: string,
-  reference: { name?: string; start: number; end: number } | undefined,
+  key: { note: string; scale?: string },
 ) {
-  const key = walkKey(walk, reference)
   return keySvg(
     id,
     x,
     y,
     encodingStops(walk.encoding),
     label,
-    key.delta + key.outside + key.reversed,
+    key.note,
     key.scale,
   )
 }
@@ -203,8 +202,8 @@ export function figureSvg(
   layout: LayoutResult,
   o: FigureOptions = {},
 ) {
-  const width = o.width ?? 1200
-  const room = o.height ?? 800
+  const width = o.width ?? FIGURE_DEFAULTS.width
+  const room = o.height ?? FIGURE_DEFAULTS.height
   const rows = o.walkRows
   const {
     bounds,
@@ -213,10 +212,10 @@ export function figureSvg(
     layers,
     lift,
     facet,
-    panels,
+    facets,
     labelOf,
     referenceName,
-    reference,
+    keyText,
     contigThickness,
     nodeWidth,
     geometry,
@@ -307,7 +306,7 @@ export function figureSvg(
       w,
       h,
       pixelRows,
-      panels
+      facets
         ? {
             padLeft: FACET_PAD_PX,
             padTop: FACET_PAD_PX,
@@ -336,12 +335,8 @@ export function figureSvg(
 
   const parts: string[] = []
   let height: number
-  if (panels) {
-    const place = facetCells(
-      panels.map(p => p.walks[0]!.name),
-      facet.field || 'walk',
-      facet.domain,
-    )
+  if (facets) {
+    const { panels, place } = facets
     const grid = facetGrid({
       count: place.count,
       bounds,
@@ -358,8 +353,14 @@ export function figureSvg(
         (grid.height + FACET_TITLE_PX + FACET_GAP_PX)
       const walk = panel.walks[0]!
       parts.push(
-        walkKeySvg(`key${i}`, x + 6, y + 2, walk, labelOf(walk.name), reference)
-          .markup,
+        walkKeySvg(
+          `key${i}`,
+          x + 6,
+          y + 2,
+          walk,
+          labelOf(walk.name),
+          keyText(walk),
+        ).markup,
         `<svg x="${x}" y="${y + FACET_TITLE_PX}" width="${grid.width}" height="${grid.height}">${drawing(panel, grid.width, grid.height)}</svg>`,
       )
     })
@@ -372,7 +373,9 @@ export function figureSvg(
     }
     if (lift) {
       lift.walks.forEach((walk, i) => {
-        push(walkKeySvg(`key${i}`, x, 2, walk, labelOf(walk.name), reference))
+        push(
+          walkKeySvg(`key${i}`, x, 2, walk, labelOf(walk.name), keyText(walk)),
+        )
       })
       push(
         keySvg(
