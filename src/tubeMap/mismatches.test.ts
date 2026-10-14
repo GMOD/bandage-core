@@ -21,12 +21,7 @@ const tracks: InputTrack[] = [
   { id: 1, name: 'alt', sequence: ['1', '3', '4'], sourceTrackID: 0 },
 ]
 
-function read(
-  id: number,
-  steps: [string, Mismatch[]][],
-  firstNodeOffset = 0,
-  finalNodeCoverLength = 10,
-): InputTrack {
+function read(id: number, steps: [string, Mismatch[]][]): InputTrack {
   return {
     id,
     name: `r${id}`,
@@ -37,8 +32,8 @@ function read(
       nodeName,
       mismatches,
     })),
-    firstNodeOffset,
-    finalNodeCoverLength,
+    firstNodeOffset: 0,
+    finalNodeCoverLength: 10,
   }
 }
 
@@ -93,24 +88,6 @@ test('a deletion spans the bases it skips', () => {
     x0: baseX(layout, '4', 3),
     x1: baseX(layout, '4', 7),
   })
-})
-
-test('an insertion at either end of the read is a soft clip', () => {
-  const layout = lay([
-    read(
-      0,
-      [
-        ['1', [{ type: 'insertion', pos: 1, seq: 'CC' }]],
-        ['3', [{ type: 'insertion', pos: 5, seq: 'A' }]],
-        ['4', [{ type: 'insertion', pos: 6, seq: 'GG' }]],
-      ],
-      1,
-      6,
-    ),
-  ])
-  expect(
-    tubeMapMismatches(layout).map(m => m.kind === 'insertion' && m.softClip),
-  ).toEqual([true, false, true])
 })
 
 test('a mark past its node has no place and is dropped', () => {

@@ -18,14 +18,7 @@ interface MarkBase {
 }
 
 export type TubeMapMismatch =
-  | (MarkBase & {
-      kind: 'insertion'
-      x: number
-      seq?: string
-      // at the read's first or last base, where an aligner clips rather than
-      // inserts; sequenceTubeMap hides these unless soft clips are shown
-      softClip: boolean
-    })
+  | (MarkBase & { kind: 'insertion'; x: number; seq?: string })
   | (MarkBase & { kind: 'deletion'; x0: number; x1: number; length: number })
   | (MarkBase & { kind: 'substitution'; x0: number; x1: number; seq: string })
 
@@ -51,17 +44,7 @@ function readMismatches(read: Track, layout: TubeMapLayout) {
         const x0 = at(mm.pos)
         if (x0 !== null) {
           if (mm.type === 'insertion') {
-            const softClip =
-              (i === 0 && edit.pos === read.firstNodeOffset) ||
-              (i === entries.length - 1 &&
-                edit.pos === read.finalNodeCoverLength)
-            marks.push({
-              ...base,
-              kind: 'insertion',
-              x: x0,
-              seq: mm.seq,
-              softClip,
-            })
+            marks.push({ ...base, kind: 'insertion', x: x0, seq: mm.seq })
           } else if (mm.type === 'deletion' && mm.length !== undefined) {
             const x1 = at(mm.pos + mm.length)
             if (x1 !== null) {

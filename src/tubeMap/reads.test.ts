@@ -77,6 +77,24 @@ test('a deletion starting outside the cut keeps the part inside it', () => {
   ])
 })
 
+test('an insertion at either end of the alignment is a soft clip and is dropped', () => {
+  const record = gaf('>249>250', '127\t10\t120\t100\t101\t60\tcs:Z:+aa:110+cc')
+  const [read] = tubeMapReads(cactus(), [record], 0)
+  expect(read!.sequenceNew!.map(e => e.mismatches)).toEqual([[], []])
+})
+
+test('an insertion where a read enters the cut is drawn', () => {
+  // 999 is the walk's first 50 bp, so the insertion is at 249's start
+  const record = gaf(
+    '>999>249>250',
+    '177\t10\t170\t100\t101\t60\tcs:Z::40+tt:120',
+  )
+  const tubeMap = tubeMapLayout({ ...cactus(), reads: [record] })!.tubeMap!
+  expect(tubeMapPicture(tubeMap).mismatches).toEqual([
+    expect.objectContaining({ kind: 'insertion', seq: 'TT' }),
+  ])
+})
+
 test('a read walking the graph backwards visits its nodes in reverse', () => {
   const record = gaf('<250<249', '127\t2\t120\t100\t101\t60')
   const [read] = tubeMapReads(cactus(), [record], 0)

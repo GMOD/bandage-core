@@ -225,9 +225,7 @@ export function tubeMapPicture({
       layerOf(layout, 'read', colors, referenceIds, gapWidth),
     ],
     nodes,
-    mismatches: tubeMapMismatches(layout).filter(
-      m => m.kind !== 'insertion' || !m.softClip,
-    ),
+    mismatches: tubeMapMismatches(layout),
   }
 }
 

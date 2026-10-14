@@ -53,14 +53,14 @@ function mismatchesByStep(
   // Walk positions only grow, so the steps wholly behind the last one asked
   // about are never looked at again
   let first = 0
-  // the step holding walk position `pos`, or for `atEnd` the one ending there
-  const stepAt = (pos: number, atEnd = false) => {
+  // the step holding walk position `pos`
+  const stepAt = (pos: number) => {
     while (first < known.length && endOf(first) < pos) {
       first++
     }
     for (let k = first; k < known.length && startOf(k) <= pos; k++) {
       const end = endOf(k)
-      if (pos < end || (atEnd && pos === end)) {
+      if (pos < end) {
         return { s: known[k]!, local: pos - startOf(k), room: end - pos }
       }
     }
@@ -99,7 +99,9 @@ function mismatchesByStep(
       }
       pos += 1
     } else if (op.op === 'insertion') {
-      const at = stepAt(pos, pos === record.pathEnd)
+      // an insertion at either end of the alignment is a soft clip
+      const at =
+        pos > record.pathStart && pos < record.pathEnd ? stepAt(pos) : undefined
       if (at) {
         add(at.s, { type: 'insertion', pos: at.local, seq: op.seq })
       }
