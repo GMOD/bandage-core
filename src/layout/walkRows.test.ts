@@ -342,6 +342,62 @@ test('a node the reference revisits keeps the coordinate of its first visit', ()
   expect(row.runs[1]!.referenceStart).toBe(origin)
 })
 
+test('a graph naming no reference takes every piece of its first path as the reference', () => {
+  const nodes = ['0', '1', '2', '3', '4'].map(id => ({
+    id,
+    name: id,
+    length: 1000,
+    depth: 1,
+  }))
+  const path = (name: string, nodeIds: string[], start: number) => ({
+    name,
+    nodeIds,
+    start,
+  })
+  const graph = {
+    name: 'split',
+    nodes,
+    edges: [],
+    paths: [
+      path('GRCh38#0#chr1', ['0', '1'], 0),
+      path('GRCh38#0#chr1', ['3', '4'], 3000),
+      path('A#1#a', ['0', '1', '2', '3', '4'], 0),
+    ],
+  }
+  const region = { start: 2200, end: 2800 }
+  const unnamed = walkRows(graph, region)!
+  expect(unnamed.rows.map(r => r.name)).toEqual(['A#1#a'])
+  expect(unnamed.rows[0]).toMatchObject({ bp: 1000, complete: true })
+  expect(unnamed).toEqual(
+    walkRows({ ...graph, referencePath: 'GRCh38#0#chr1' }, region),
+  )
+})
+
+test("a tag-anchored graph's reference is the sequence its rank 0 segments name", () => {
+  const stable = (refName: string, start: number, rank: number) => ({
+    refName,
+    start,
+    rank,
+  })
+  const graph = {
+    name: 'tagged',
+    nodes: [
+      { id: '0', stable: stable('GRCh38#0#chr1', 0, 0) },
+      { id: '1', stable: stable('A#1#a', 1000, 1) },
+      { id: '2', stable: stable('GRCh38#0#chr1', 1000, 0) },
+    ].map(n => ({ ...n, name: n.id, length: 1000, depth: 1 })),
+    edges: [],
+    anchoredBy: 'tags' as const,
+    paths: [
+      { name: 'A#1#a', nodeIds: ['0', '1', '2'], start: 0 },
+      { name: 'GRCh38#0#chr1', nodeIds: ['0', '2'], start: 0 },
+    ],
+  }
+  const { reference, rows } = walkRows(graph)!
+  expect(reference.name).toBe('GRCh38#0#chr1')
+  expect(rows.map(r => r.name)).toEqual(['A#1#a'])
+})
+
 test('a sample filter keeps the samples it names, in its order', () => {
   const rows = [
     { sample: 'A', label: 'A#2' },
