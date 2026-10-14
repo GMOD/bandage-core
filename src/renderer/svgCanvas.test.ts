@@ -62,3 +62,17 @@ test('a transparent clear drops what was drawn rather than throwing', () => {
   renderer.renderHighlights()
   expect(markup()).toBe('')
 })
+
+test('opacity keeps three decimals, so a faint fill stays visible', () => {
+  const { canvas, markup } = svgCanvas(10, 10)
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = 'rgba(1, 2, 3, 0.851)'
+  ctx.fillRect(0, 0, 1, 1)
+  ctx.strokeStyle = 'rgba(1, 2, 3, 0.04)'
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(5, 5)
+  ctx.stroke()
+  expect(markup()).toContain('fill-opacity="0.851"')
+  expect(markup()).toContain('stroke-opacity="0.04"')
+})

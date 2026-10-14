@@ -3,6 +3,7 @@
 // paints the screen also writes a vector figure, in Node as in a browser.
 
 const n = (v: number) => +v.toFixed(1)
+const alpha = (v: number) => +v.toFixed(3)
 
 // `rgba(r, g, b, a)` as SVG 1.1 paint, which has no alpha channel of its own
 function paint(css: string) {
@@ -18,7 +19,7 @@ function paint(css: string) {
 
 function paintAttrs(kind: 'fill' | 'stroke', css: string) {
   const { color, opacity } = paint(css)
-  return `${kind}="${color}"${opacity < 1 ? ` ${kind}-opacity="${n(opacity)}"` : ''}`
+  return `${kind}="${color}"${opacity < 1 ? ` ${kind}-opacity="${alpha(opacity)}"` : ''}`
 }
 
 // A base-level cut draws thousands of nodes and edges under a pixel long, and
