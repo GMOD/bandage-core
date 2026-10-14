@@ -55,6 +55,11 @@ function walkFields(panSN: string) {
     : undefined
 }
 
+// A P line states a walk's start only as a range on its name
+function pLineName(name: string, start: number, end: number) {
+  return start === 0 ? name : `${name}:${start}-${end}`
+}
+
 // Each list's names, in the order the crossings came, each once
 function namesByList(
   lists: Int32Array,
@@ -239,19 +244,30 @@ export function graphFromTables(
   const visitOrder: number[] = []
   const blocks = [0]
   const pathSamples: string[] = []
+  // a P line's name carries its range, which the visits drop as pathOrigin does
+  const edgeNameIndex = new Map<string, number>()
+  const edgeNames: string[] = []
   for (const p of drawnWalks) {
-    const fields = walkFields(w.names[p]!)
-    const pathName = fields
+    const walkName = w.names[p]!
+    const fields = walkFields(walkName)
+    const start = w.starts[p]!
+    const visitName = fields
       ? `${fields.sample}#${fields.haplotype}#${fields.contig}`
-      : w.names[p]!
-    let named = nameIndex.get(pathName)
+      : walkName
+    const pathName = fields ? visitName : pLineName(walkName, start, w.ends[p]!)
+    let named = nameIndex.get(visitName)
     if (named === undefined) {
       named = pathNames.length
-      nameIndex.set(pathName, named)
-      pathNames.push(pathName)
-      pathSamples.push(panSNSample(pathName))
+      nameIndex.set(visitName, named)
+      pathNames.push(visitName)
+      pathSamples.push(panSNSample(visitName))
     }
-    const start = w.starts[p]!
+    let edgeNamed = edgeNameIndex.get(pathName)
+    if (edgeNamed === undefined) {
+      edgeNamed = edgeNames.length
+      edgeNameIndex.set(pathName, edgeNamed)
+      edgeNames.push(pathName)
+    }
     const visitSample = pathSamples[named]!
     const first = w.offsets[p]!
     const nodeIds = new Array<string>(w.offsets[p + 1]! - first)
@@ -275,14 +291,14 @@ export function graphFromTables(
         if (list >= 0 && lastWalk[list] !== p) {
           lastWalk[list] = p
           crossedList[crossings] = list
-          crossedName[crossings++] = named
+          crossedName[crossings++] = edgeNamed
         }
       }
       prev = node
     }
     paths.push({ name: pathName, nodeIds, start, ...fields })
     anchorPaths.push({
-      name: pathName,
+      name: visitName,
       sample: visitSample,
       start,
       length: pos - start,
@@ -292,7 +308,7 @@ export function graphFromTables(
     crossedList.subarray(0, crossings),
     crossedName,
     lists,
-    pathNames,
+    edgeNames,
   )
   edges.forEach((edge, i) => {
     const names = listNames[edgeLists[i]!]!
@@ -357,7 +373,7 @@ export function graphTablesGFA({ nodes, links, walks }: GraphTables) {
     lines.push(
       fields
         ? `W\t${fields.sample}\t${fields.haplotype}\t${fields.contig}\t${start}\t${end}\t${steps.map(([id, rev]) => (rev ? '<' : '>') + id).join('')}`
-        : `P\t${start === 0 ? name : `${name}:${start}-${end}`}\t${steps.map(([id, rev]) => id + (rev ? '-' : '+')).join(',')}\t*`,
+        : `P\t${pLineName(name, start, end)}\t${steps.map(([id, rev]) => id + (rev ? '-' : '+')).join(',')}\t*`,
     )
   }
   return lines.join('\n')

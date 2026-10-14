@@ -138,10 +138,11 @@ test('a two-part walk name keeps its name and writes a P line', () => {
     'P\tgrch38#chr2:5-105\t3+\t*',
   )
   expect(graphFromTables(twoPart(5), 'cut').paths?.map(p => p.name)).toEqual([
-    'grch38#chr1',
-    'grch38#chr2',
+    'grch38#chr1:5-105',
+    'grch38#chr2:5-105',
   ])
   expectSameGraph(twoPart(0))
+  expectSameGraph(twoPart(5))
 })
 
 test('tables build the graph their GFA converts to', () => {
