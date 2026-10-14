@@ -68,22 +68,26 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   updateTransform(transform: TransformUniform) {
+    this.transform = transform
+  }
+
+  private fitted() {
+    const t = this.transform
     const k = this.fit
-    this.transform =
-      k === 1
-        ? transform
-        : {
-            ...transform,
-            scaleX: transform.scaleX * k,
-            scaleY: transform.scaleY * k,
-            translateX: transform.translateX * k,
-            translateY: transform.translateY * k,
-            dpr: transform.dpr * k,
-          }
+    return !t || k === 1
+      ? t
+      : {
+          ...t,
+          scaleX: t.scaleX * k,
+          scaleY: t.scaleY * k,
+          translateX: t.translateX * k,
+          translateY: t.translateY * k,
+          dpr: t.dpr * k,
+        }
   }
 
   render(clearColor: [number, number, number, number]) {
-    const t = this.transform
+    const t = this.fitted()
     if (!t) {
       return
     }
@@ -113,7 +117,7 @@ export class Canvas2DRenderer implements Renderer {
       weight: e.thickness,
       last: inRun(edgeRun, i),
     }))) {
-      this.strokeCurves(items, color)
+      this.strokeCurves(items, color, t)
     }
     const lifted = this.liftedStrokes(batch)
     for (const { color, items } of groupByPaint(batch.nodeStrokes, (s, i) => {
@@ -124,7 +128,7 @@ export class Canvas2DRenderer implements Renderer {
         last: f !== undefined,
       }
     })) {
-      this.strokeNodes(items, color)
+      this.strokeNodes(items, color, t)
     }
     const arrowRun = this.edgeRun(batch.arrowRuns)
     for (const { color, items } of groupByPaint(batch.arrows, (a, i) => ({
@@ -132,7 +136,7 @@ export class Canvas2DRenderer implements Renderer {
       weight: 0,
       last: inRun(arrowRun, i),
     }))) {
-      this.fillArrows(items, color)
+      this.fillArrows(items, color, t)
     }
   }
 
@@ -143,7 +147,8 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
     const batch = this.batch
-    if (!this.transform || !batch) {
+    const t = this.fitted()
+    if (!t || !batch) {
       return
     }
     ctx.lineCap = 'round'
@@ -155,7 +160,7 @@ export class Canvas2DRenderer implements Renderer {
       weight: e.thickness,
       last: false,
     }))) {
-      this.strokeCurves(items, color)
+      this.strokeCurves(items, color, t)
     }
     const lifted = [...this.liftedStrokes(batch)]
     for (const { color, items } of groupByPaint(lifted, ([i, f]) => ({
@@ -166,6 +171,7 @@ export class Canvas2DRenderer implements Renderer {
       this.strokeNodes(
         items.map(([i]) => batch.nodeStrokes[i]!),
         color,
+        t,
       )
     }
     const arrows = runItems(batch.arrows, this.edgeRun(batch.arrowRuns))
@@ -174,7 +180,7 @@ export class Canvas2DRenderer implements Renderer {
       weight: 0,
       last: false,
     }))) {
-      this.fillArrows(items, color)
+      this.fillArrows(items, color, t)
     }
   }
 
@@ -198,8 +204,11 @@ export class Canvas2DRenderer implements Renderer {
     return lifted
   }
 
-  private strokeCurves(items: EdgeCurveBatch[], color: number) {
-    const t = this.transform!
+  private strokeCurves(
+    items: EdgeCurveBatch[],
+    color: number,
+    t: TransformUniform,
+  ) {
     const ctx = this.ctx
     ctx.strokeStyle = abgrToCssRgba(color)
     // thickness is the half-width in css px, so the stroke is twice it at
@@ -226,8 +235,7 @@ export class Canvas2DRenderer implements Renderer {
     ctx.stroke()
   }
 
-  private strokeNodes(items: NodeStroke[], color: number) {
-    const t = this.transform!
+  private strokeNodes(items: NodeStroke[], color: number, t: TransformUniform) {
     const ctx = this.ctx
     ctx.strokeStyle = abgrToCssRgba(color)
     ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
@@ -243,8 +251,7 @@ export class Canvas2DRenderer implements Renderer {
     ctx.stroke()
   }
 
-  private fillArrows(items: Arrowhead[], color: number) {
-    const t = this.transform!
+  private fillArrows(items: Arrowhead[], color: number, t: TransformUniform) {
     const ctx = this.ctx
     ctx.fillStyle = abgrToCssRgba(color)
     ctx.beginPath()

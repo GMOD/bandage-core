@@ -242,6 +242,24 @@ test('a canvas past the backing-store limit draws the same picture, coarser', ()
   }
 })
 
+test('a resize past the backing-store limit after the transform still fits', () => {
+  vi.stubGlobal('devicePixelRatio', 2)
+  try {
+    const { renderer, points } = makeRenderer()
+    renderer.uploadGeometry(batchOf2Edges())
+    renderer.updateTransform({ ...TRANSFORM, scaleX: 2, scaleY: 2, dpr: 2 })
+    renderer.resize(5000, 100)
+    renderer.render([1, 1, 1, 1])
+    const xs = points.map(p => p.x)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(
+      180 * (8192 / 10000),
+      5,
+    )
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
 describe('arrowheadOutline', () => {
   const head = { x: 50, y: 0, angle: 0, length: 10, halfWidth: 4 }
 
