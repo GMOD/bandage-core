@@ -157,7 +157,6 @@ function getEdgeSpatialIndex(
         graph,
         drawPaths,
         axis,
-        undefined,
         deletions,
         version,
         routes,

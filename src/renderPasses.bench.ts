@@ -160,14 +160,7 @@ for (const backbone of [1000, 5000]) {
 
     test('EdgeSpatialIndex', async ({ bench }) => {
       await bench('EdgeSpatialIndex', () => {
-        new EdgeSpatialIndex(
-          nodePositions,
-          graph,
-          false,
-          AXIS,
-          undefined,
-          bypassed,
-        )
+        new EdgeSpatialIndex(nodePositions, graph, false, AXIS, bypassed)
       }).run()
     })
   })

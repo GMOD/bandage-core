@@ -228,14 +228,9 @@ export class EdgeSpatialIndex {
     // The transform the curves indexed here were drawn under, so hit detection
     // tests the shape on screen. See AxisScale.
     axis: AxisScale,
-    cellSize?: number | CellSize,
-    // Bypassed backbone ids per deletion edge, i.e. what GeometryBuilder is
-    // given. Without it a deletion is indexed and hit-tested on the STRAIGHT
-    // chord between its endpoints while it is drawn as an arc bowed off that
-    // chord, so the shape on screen is not hoverable and the empty space where
-    // the chord runs is — and the tutorial tells the reader to hover it for the
-    // interval and the bp. Bowing is part of the drawn geometry, so it has to be
-    // part of the geometry hit detection uses.
+    // Bypassed backbone ids per deletion edge, as GeometryBuilder is given, so
+    // a deletion is hit-tested on the arc drawn rather than on the straight
+    // chord between its endpoints.
     deletions?: Map<number, string[]>,
     // Bumped when a drag moves the positions in place; see baseEdgeCurves.
     version = 0,
@@ -301,7 +296,7 @@ export class EdgeSpatialIndex {
       }
     }
 
-    this.cellSize = resolveCellSize(cellSize, boxes, extentX, extentY)
+    this.cellSize = cellSizeFrom(boxes, extentX, extentY)
     for (const b of boxes) {
       addToGrid(this.cells, this.cellSize, b.minX, b.minY, b.maxX, b.maxY, b.ei)
     }
