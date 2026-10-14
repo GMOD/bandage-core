@@ -243,6 +243,25 @@ function mergeReference(
   return merged
 }
 
+// The last of `items`, sorted by `key`, whose key is at most `x`; 0 if none
+export function lastAtMost<T>(
+  items: readonly T[],
+  key: (item: T) => number,
+  x: number,
+) {
+  let lo = 0
+  let hi = items.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    if (key(items[mid]!) <= x) {
+      lo = mid
+    } else {
+      hi = mid - 1
+    }
+  }
+  return lo
+}
+
 export function coarsenTubeMap(
   graph: Graph,
   sigma: number,
@@ -259,20 +278,8 @@ export function coarsenTubeMap(
   const cuts = findCuts(walks, sigma, referenceGaps(backbone))
   const sortedCuts = [...cuts.keys()].sort((x, y) => x - y)
   const merged = mergeReference(backbone, cuts)
-  const starts = merged.map(m => m.node.stable!.start)
-  const mergedAt = (bp: number) => {
-    let lo = 0
-    let hi = starts.length - 1
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1
-      if (starts[mid]! <= bp) {
-        lo = mid
-      } else {
-        hi = mid - 1
-      }
-    }
-    return lo
-  }
+  const mergedAt = (bp: number) =>
+    lastAtMost(merged, m => m.node.stable!.start, bp)
 
   const members = new Map<string, string[]>()
   const coarseOf = new Map<string, string>()

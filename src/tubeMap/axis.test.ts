@@ -1,4 +1,4 @@
-import { rulerMarks } from './axis'
+import { boxX, rulerMarks } from './axis'
 
 import type { Box } from './axis'
 
@@ -80,4 +80,11 @@ test('on the reference axis the ruler is one line with ticks at round positions'
   for (const { text } of marks.labels) {
     expect(Number(text.replaceAll(',', '')) % 100).toBe(0)
   }
+})
+
+test('a bp maps into its box linearly, and a 0 bp box maps to its left edge', () => {
+  const box = { bp0: 100, bp1: 200, x0: 10, x1: 30 }
+  expect(boxX(box, 150)).toBe(20)
+  expect(boxX(box, 250)).toBe(30)
+  expect(boxX({ bp0: 100, bp1: 100, x0: 10, x1: 10 }, 100)).toBe(10)
 })

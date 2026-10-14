@@ -71,14 +71,15 @@ export function tubeX(boxes: readonly Box[], bp: number, isEnd = false) {
       hi = mid
     }
   }
-  const box = boxes[lo]!
-  if (bp <= box.bp0) {
-    return box.x0
-  }
+  return boxX(boxes[lo]!, bp)
+}
+
+// `bp`'s x within `box`, clamped to it; a 0 bp box is all at its left edge
+export function boxX(box: Box, bp: number) {
   const span = box.bp1 - box.bp0
-  return span > 0
-    ? box.x0 + ((Math.min(bp, box.bp1) - box.bp0) / span) * (box.x1 - box.x0)
-    : box.x0
+  return bp <= box.bp0 || span <= 0
+    ? box.x0
+    : box.x0 + ((Math.min(bp, box.bp1) - box.bp0) / span) * (box.x1 - box.x0)
 }
 
 export function tubeSpan(boxes: readonly Box[], start: number, end: number) {

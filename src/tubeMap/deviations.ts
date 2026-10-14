@@ -1,4 +1,5 @@
-import { referenceBoxes } from './axis'
+import { boxX, referenceBoxes } from './axis'
+import { lastAtMost } from './coarsen'
 import { pathOrigin } from '../pathAnchoring'
 
 import type { ReferenceBox } from './axis'
@@ -24,16 +25,7 @@ function boxAt(
   bp: number,
   visited: Map<number, number>,
 ) {
-  let lo = 0
-  let hi = boxes.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1
-    if (boxes[mid]!.bp0 <= bp) {
-      lo = mid
-    } else {
-      hi = mid - 1
-    }
-  }
+  const lo = lastAtMost(boxes, box => box.bp0, bp)
   return [boxes[lo], boxes[lo - 1]].find(
     box => box && visited.has(box.index) && box.bp0 <= bp && bp <= box.bp1,
   )
@@ -99,13 +91,10 @@ export function deviationMarks(
       for (const d of devs) {
         const box = boxAt(boxes, d.start, visited)
         if (box) {
-          const { bp0, bp1, x0, x1, index } = box
-          const at = (bp: number) =>
-            x0 + ((Math.min(bp, bp1) - bp0) / (bp1 - bp0)) * (x1 - x0)
           marks.push({
-            x0: at(d.start),
-            x1: at(d.end),
-            y: visited.get(index)!,
+            x0: boxX(box, d.start),
+            x1: boxX(box, d.end),
+            y: visited.get(box.index)!,
             height: track.width,
           })
         }
