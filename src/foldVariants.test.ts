@@ -382,3 +382,25 @@ test('an allele its path reads reversed stays whole', () => {
   expect(written(reread(folded), 1000)).toBe(folded)
   expect(written(reread(written(graph, 50)), 1000)).toBe(folded)
 })
+
+test('an allele run that starts with a 0 bp segment keeps its orientation', () => {
+  const folded = foldVariants(
+    rgfa([
+      seg('A', 'ref', 0, 100, 0),
+      seg('B', 'ref', 100, 100, 0),
+      seg('x', 'alt', 500, 0, 1),
+      seg('y', 'alt', 500, 1000, 1),
+      link('A', 'B'),
+      link('A', 'x'),
+      link('x', 'y'),
+      link('y', 'B'),
+    ]),
+    50,
+  )
+  expect(folded.edges).toContainEqual({
+    from: 'A+',
+    to: 'x+',
+    fromStrand: '+',
+    toStrand: '+',
+  })
+})

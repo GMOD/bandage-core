@@ -454,10 +454,7 @@ function mergeAlleleRuns(
       degree.get(sideKey(a!.i, a!.side)) === 1 &&
       degree.get(sideKey(b!.i, b!.side)) === 1
     ) {
-      const [left, right] =
-        nodes[a!.i]!.stable!.start < nodes[b!.i]!.stable!.start
-          ? [a!, b!]
-          : [b!, a!]
+      const [left, right] = a!.side === 'e' ? [a!, b!] : [b!, a!]
       next.set(left.i, { j: right.i, out: left.side, in: right.side })
       hasPrev.add(right.i)
       internal.add(k)
