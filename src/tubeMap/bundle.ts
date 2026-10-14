@@ -17,24 +17,27 @@ export function bundleRoutes(
 ): Graph {
   const paths = graph.paths ?? []
   const steps = pathSteps(graph)
-  const routes = new Map<string, string[]>()
+  const piecesOf = new Map<string, number[]>()
   paths.forEach((path, i) => {
     const walk = pathOrigin(path.name).name
-    const route = steps[i]!.map(s => `${s.node.id}${s.strand}`).join(',')
-    const pieces = routes.get(walk)
+    const pieces = piecesOf.get(walk)
     if (pieces) {
-      pieces.push(route)
+      pieces.push(i)
     } else {
-      routes.set(walk, [route])
+      piecesOf.set(walk, [i])
     }
   })
+  const routeOf = (i: number) =>
+    steps[i]!.map(s => `${s.node.id}${s.strand}`).join(',')
+  const recordsOf = (walk: string) => piecesOf.get(walk)!.map(i => paths[i]!)
   const routeRank = new Map<string, number>()
   const bundles = new Map<
     string,
     { rank: number; group: string; walks: string[] }
   >()
-  for (const [walk, pieces] of routes) {
-    const route = walk === graph.referencePath ? `\0${walk}` : pieces.join('|')
+  for (const [walk, pieces] of piecesOf) {
+    const route =
+      walk === graph.referencePath ? `\0${walk}` : pieces.map(routeOf).join('|')
     const group = groupOf(walk)
     const rank = routeRank.get(route) ?? routeRank.size
     routeRank.set(route, rank)
@@ -46,34 +49,22 @@ export function bundleRoutes(
       bundles.set(key, { rank, group, walks: [walk] })
     }
   }
-  if (merge && bundles.size === routes.size) {
+  if (merge && bundles.size === piecesOf.size) {
     return graph
   }
   const ordered = [...bundles.values()].sort(
     (a, b) => a.rank - b.rank || a.group.localeCompare(b.group),
   )
-  const recordsOf = new Map<string, typeof paths>()
-  for (const path of paths) {
-    const walk = pathOrigin(path.name).name
-    const records = recordsOf.get(walk)
-    if (records) {
-      records.push(path)
-    } else {
-      recordsOf.set(walk, [path])
-    }
-  }
   if (!merge) {
     return {
       ...graph,
-      paths: ordered.flatMap(({ walks }) =>
-        walks.flatMap(walk => recordsOf.get(walk)!),
-      ),
+      paths: ordered.flatMap(({ walks }) => walks.flatMap(recordsOf)),
     }
   }
   const kept = ordered.flatMap(({ walks }) =>
-    recordsOf
-      .get(walks[0]!)!
-      .map(path => (walks.length > 1 ? { ...path, members: walks } : path)),
+    recordsOf(walks[0]!).map(path =>
+      walks.length > 1 ? { ...path, members: walks } : path,
+    ),
   )
   const keptWalks = new Set(ordered.map(b => b.walks[0]!))
   return {
