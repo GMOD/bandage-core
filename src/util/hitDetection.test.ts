@@ -33,14 +33,26 @@ describe('distanceToSegment', () => {
 })
 
 describe('distanceToCubicBezier', () => {
+  // a curve along y = 0 from x 0, through two control points, to `x1`
+  const flat = (cx0: number, cx1: number, x1: number) => ({
+    x0: 0,
+    y0: 0,
+    cx0,
+    cy0: 0,
+    cx1,
+    cy1: 0,
+    x1,
+    y1: 0,
+  })
+
   test('straight-line bezier at midpoint', () => {
     // control points on the line = straight bezier
-    const dist = distanceToCubicBezier(5, 1, 0, 0, 3.3, 0, 6.6, 0, 10, 0)
+    const dist = distanceToCubicBezier(5, 1, flat(3.3, 6.6, 10))
     expect(dist).toBeLessThan(1.5)
   })
 
   test('point far from bezier', () => {
-    const dist = distanceToCubicBezier(100, 100, 0, 0, 3, 0, 7, 0, 10, 0)
+    const dist = distanceToCubicBezier(100, 100, flat(3, 7, 10))
     expect(dist).toBeGreaterThan(100)
   })
 
@@ -49,13 +61,13 @@ describe('distanceToCubicBezier', () => {
   // away, past the hover tolerance, at most positions along it.
   test('a point on a long curve is on it wherever along it the point lies', () => {
     for (let x = 0; x <= 1000; x += 7) {
-      const dist = distanceToCubicBezier(x, 0, 0, 0, 333, 0, 667, 0, 1000, 0)
+      const dist = distanceToCubicBezier(x, 0, flat(333, 667, 1000))
       expect(dist).toBeLessThan(0.001)
     }
   })
 
   test('distance off a long curve is the distance to the curve', () => {
-    const dist = distanceToCubicBezier(525, 4, 0, 0, 333, 0, 667, 0, 1000, 0)
+    const dist = distanceToCubicBezier(525, 4, flat(333, 667, 1000))
     expect(dist).toBeCloseTo(4)
   })
 })

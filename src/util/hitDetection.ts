@@ -25,58 +25,32 @@ export function distanceToSegment(
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
 }
 
-export function distanceToCubicBezier(
-  px: number,
-  py: number,
-  x1: number,
-  y1: number,
-  cx1: number,
-  cy1: number,
-  cx2: number,
-  cy2: number,
-  x2: number,
-  y2: number,
-) {
+export function distanceToCubicBezier(px: number, py: number, c: BezierCurve) {
   // To the chords between samples, not to the samples: on a long curve they
   // are tens of px apart, and a cursor on the curve between two of them
   // measured as far off it as half that gap.
   let minDist = Infinity
   const samples = 20
-  let lastX = x1
-  let lastY = y1
+  let lastX = c.x0
+  let lastY = c.y0
   for (let i = 1; i <= samples; i++) {
     const t = i / samples
     const u = 1 - t
     const bx =
-      u * u * u * x1 +
-      3 * u * u * t * cx1 +
-      3 * u * t * t * cx2 +
-      t * t * t * x2
+      u * u * u * c.x0 +
+      3 * u * u * t * c.cx0 +
+      3 * u * t * t * c.cx1 +
+      t * t * t * c.x1
     const by =
-      u * u * u * y1 +
-      3 * u * u * t * cy1 +
-      3 * u * t * t * cy2 +
-      t * t * t * y2
+      u * u * u * c.y0 +
+      3 * u * u * t * c.cy0 +
+      3 * u * t * t * c.cy1 +
+      t * t * t * c.y1
     minDist = Math.min(minDist, distanceToSegment(px, py, lastX, lastY, bx, by))
     lastX = bx
     lastY = by
   }
   return minDist
-}
-
-function distanceToBezierCurve(px: number, py: number, c: BezierCurve) {
-  return distanceToCubicBezier(
-    px,
-    py,
-    c.x0,
-    c.y0,
-    c.cx0,
-    c.cy0,
-    c.cx1,
-    c.cy1,
-    c.x1,
-    c.y1,
-  )
 }
 
 function distanceToEdgeCurves(
@@ -87,7 +61,7 @@ function distanceToEdgeCurves(
 ) {
   let minDist = Infinity
   for (const c of curves) {
-    const d = distanceToBezierCurve(
+    const d = distanceToCubicBezier(
       px,
       py,
       yToX === 1
