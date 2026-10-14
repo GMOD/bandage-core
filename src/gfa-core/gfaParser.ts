@@ -77,7 +77,7 @@ export interface GFAPath {
 
 export interface GFAWalkSegment {
   id: string
-  strand: string
+  strand: '+' | '-'
 }
 
 export interface GFAWalk {
@@ -103,7 +103,7 @@ const LT = 60 // '<'
 // went from ~55 ms to ~24 ms by slicing instead. `pnpm bench` keeps the number.
 function parseWalkBody(body: string) {
   const segments: GFAWalkSegment[] = []
-  let strand = '+'
+  let strand: '+' | '-' = '+'
   let start = 0
   // An empty run — a leading delimiter, or two in a row — names no segment.
   function push(end: number) {

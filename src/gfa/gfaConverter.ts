@@ -1,12 +1,7 @@
 import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
 
-import type {
-  GFAGraph,
-  GFANode,
-  GFAWalk,
-  GFAWalkSegment,
-} from '../gfa-core/index'
+import type { GFAGraph, GFANode, GFAPath, GFAWalk } from '../gfa-core/index'
 import type { PathSteps } from '../pathAnchoring'
 import type { Graph, GraphEdge, GraphNode, GraphPath } from '../types'
 
@@ -25,7 +20,7 @@ import type { Graph, GraphEdge, GraphNode, GraphPath } from '../types'
 // depth in a dp/RC/FC/KC tag, but a pangenome GFA (odgi, vg) carries none —
 // there the meaningful depth is how many samples go through the segment, i.e.
 // core versus accessory sequence.
-function surveySegments(gfaGraph: GFAGraph) {
+function surveySegments(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
   const canonical = new Map<string, '+' | '-'>()
   const traversals = new Map<string, number>()
   function claim(id: string, strand: '+' | '-') {
@@ -44,14 +39,14 @@ function surveySegments(gfaGraph: GFAGraph) {
     claim(link.source, link.strand1 === '-' ? '-' : '+')
     claim(link.target, link.strand2 === '-' ? '-' : '+')
   }
-  for (const gfaPath of gfaGraph.paths) {
-    for (const segment of gfaPath.path.split(',')) {
-      traverse(segment.slice(0, -1), segment.endsWith('-') ? '-' : '+')
+  for (const { steps } of pathSteps) {
+    for (const step of steps) {
+      traverse(step.id, step.strand)
     }
   }
   for (const walk of gfaGraph.walks) {
-    for (const seg of walk.segments) {
-      traverse(seg.id, seg.strand === '-' ? '-' : '+')
+    for (const step of walk.segments) {
+      traverse(step.id, step.strand)
     }
   }
   return { canonical, traversals }
@@ -62,32 +57,26 @@ function surveySegments(gfaGraph: GFAGraph) {
 // wrong
 const walkStart = (w: GFAWalk) => (w.start === -1 ? 0 : w.start)
 
-// parseGFA writes only these two, so its steps pass through as they are
-const stranded = (s: GFAWalkSegment): s is PathSteps['steps'][number] =>
-  s.strand === '+' || s.strand === '-'
-
-// P and W state the same thing in different shapes: a P body is a comma-joined
-// `<id><strand>` list whose start offset lives in the record's *name*, a W
-// record arrives already split into steps and states its start as a field.
-// Normalized here so the coordinate walk sees one kind of path.
-function anchorablePaths(gfaGraph: GFAGraph): PathSteps[] {
-  return [
-    ...gfaGraph.paths.map(p => ({
-      ...pathOrigin(p.name),
-      steps: p.path.split(',').map(segment => ({
-        id: segment.slice(0, -1),
-        strand: segment.endsWith('-') ? ('-' as const) : ('+' as const),
-      })),
+// A P body is a comma-joined `<id><strand>` list whose start offset lives in
+// the record's name; a W record arrives split into steps with its start as a
+// field
+function stepsOfPath(p: GFAPath): PathSteps {
+  return {
+    ...pathOrigin(p.name),
+    steps: p.path.split(',').map(segment => ({
+      id: segment.slice(0, -1),
+      strand: segment.endsWith('-') ? ('-' as const) : ('+' as const),
     })),
+  }
+}
+
+function anchorablePaths(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
+  return [
+    ...pathSteps,
     ...gfaGraph.walks.map(w => ({
       name: `${w.sample}#${w.haplotype}#${w.contig}`,
       start: walkStart(w),
-      steps: w.segments.every(stranded)
-        ? w.segments
-        : w.segments.map(s => ({
-            id: s.id,
-            strand: s.strand === '-' ? ('-' as const) : ('+' as const),
-          })),
+      steps: w.segments,
     })),
   ]
 }
@@ -150,7 +139,8 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
 
-  const { canonical, traversals } = surveySegments(gfaGraph)
+  const pathSteps = gfaGraph.paths.map(stepsOfPath)
+  const { canonical, traversals } = surveySegments(gfaGraph, pathSteps)
   // segments no link, path, or walk mentions are drawn forward-strand. One
   // string per segment, not per step: a walk of 100k steps built 100k.
   const nodeIds = new Map<string, string>()
@@ -219,19 +209,14 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     }
   }
 
-  for (const gfaPath of gfaGraph.paths) {
-    // path segments arrive as `<id><strand>`; the node they land on is the
-    // segment's canonical orientation, whichever way this path reads it
-    const nodeIds = gfaPath.path
-      .split(',')
-      .map(segment => nodeId(segment.slice(0, -1)))
-    paths.push({
-      name: gfaPath.name,
-      nodeIds,
-      start: pathOrigin(gfaPath.name).start,
-    } satisfies GraphPath)
-    recordPathEdges(nodeIds, gfaPath.name)
-  }
+  gfaGraph.paths.forEach(({ name }, i) => {
+    // a step lands on its segment's canonical orientation, whichever way this
+    // path reads it
+    const { start, steps } = pathSteps[i]!
+    const nodeIds = steps.map(step => nodeId(step.id))
+    paths.push({ name, nodeIds, start } satisfies GraphPath)
+    recordPathEdges(nodeIds, name)
+  })
 
   for (const walk of gfaGraph.walks) {
     const nodeIds = walk.segments.map(seg => nodeId(seg.id))
@@ -269,7 +254,10 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
   // pays nothing for it
   const anchoring =
     gfaGraph.paths.length > 0 || gfaGraph.walks.length > 0
-      ? surveyPaths(anchorablePaths(gfaGraph), id => lengths.get(id) ?? 0)
+      ? surveyPaths(
+          anchorablePaths(gfaGraph, pathSteps),
+          id => lengths.get(id) ?? 0,
+        )
       : undefined
 
   return {
