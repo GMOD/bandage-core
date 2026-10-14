@@ -1,6 +1,6 @@
 import { deletionArcCurves } from './deletionEdges'
 import { polylineMidpoint } from './layout/mergeRuns'
-import { occupancy } from './overlayLabels'
+import { labelWidth, occupancy } from './overlayLabels'
 import { curveBounds, curveMidpoint, polylinePx } from './util/geometry'
 import { weakMemo } from './util/weakMemo'
 
@@ -134,14 +134,12 @@ function boxAt(halfW: number, x: number, y: number): Box {
   }
 }
 
-// The box a row label occupies, from the same metrics RowLabels renders with
-// (11px text, 4px of horizontal padding, a 16px line, centred on its row). Lives
-// here rather than in the component so the two halves of the collision test
-// cannot drift apart.
+// The box a row label occupies, from the metrics RowLabels renders with: 11px
+// text, 4px of horizontal padding and a 16px line centred on its row
 export function rowLabelBox(text: string, screenY: number): Box {
   return {
     x0: 6,
-    x1: 6 + text.length * 6.2 + 8 + LABEL_GAP_PX,
+    x1: 6 + labelWidth(text) + LABEL_GAP_PX,
     y0: screenY - 8 - LABEL_GAP_PX / 2,
     y1: screenY + 8 + LABEL_GAP_PX / 2,
   }
