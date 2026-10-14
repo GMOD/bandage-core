@@ -3,7 +3,7 @@ import { pathOrigin } from './pathAnchoring'
 import { encodedColor, resolveEncoding } from './walkEncoding'
 
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
-import type { Graph, GraphPath } from './types'
+import type { Graph, GraphNode, GraphPath } from './types'
 import type { WalkEncoding, WalkLayer } from './walkEncoding'
 
 // One walk lifted out of the drawing: the nodes it visits and the links it
@@ -60,20 +60,30 @@ function piecesOf(graph: Graph, name: string) {
     .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
 }
 
-export function walkHighlight(
+const nodesById = (graph: Graph) => new Map(graph.nodes.map(n => [n.id, n]))
+
+function graphIndex(graph: Graph) {
+  const edgeAt = new Map<string, number>()
+  graph.edges.forEach((e, i) => {
+    edgeAt.set(`${e.from}>${e.to}`, i)
+  })
+  return { byId: nodesById(graph), edgeAt }
+}
+
+export function walkHighlight(graph: Graph, name: string) {
+  return highlightOf(graph, name, graphIndex(graph))
+}
+
+function highlightOf(
   graph: Graph,
   name: string,
+  { byId, edgeAt }: ReturnType<typeof graphIndex>,
 ): WalkHighlight | undefined {
   const pieces = piecesOf(graph, name)
   const first = pieces[0]
   if (!first) {
     return undefined
   }
-  const byId = new Map(graph.nodes.map(n => [n.id, n]))
-  const edgeAt = new Map<string, number>()
-  graph.edges.forEach((e, i) => {
-    edgeAt.set(`${e.from}>${e.to}`, i)
-  })
   const lengthOf = (id: string) => byId.get(id)?.length ?? 0
   const bpOf = (path: GraphPath) =>
     path.nodeIds.reduce((sum, id) => sum + lengthOf(id), 0)
@@ -146,12 +156,11 @@ export function walkHighlight(
 
 // Each node's value for the walk's field, through its scheme
 function laneColors(
-  graph: Graph,
+  byId: Map<string, GraphNode>,
   walk: WalkHighlight,
   encoding: WalkEncoding,
   ramp: ReferenceRamp | undefined,
 ) {
-  const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const colors = new Map<string, number>()
   for (const [id, progress] of walk.progress) {
     const node = byId.get(id)
@@ -168,7 +177,11 @@ function laneColors(
 }
 
 // The nodes a walk reads on the other strand from the reference walk
-function reversedNodes(graph: Graph, walk: WalkHighlight) {
+function reversedNodes(
+  graph: Graph,
+  byId: Map<string, GraphNode>,
+  walk: WalkHighlight,
+) {
   const reversed = new Set<string>()
   let bp = 0
   const referencePath = graph.referencePath
@@ -181,7 +194,6 @@ function reversedNodes(graph: Graph, walk: WalkHighlight) {
   }
   const own = visits.pathIndex(pathOrigin(walk.name).name)
   const theirs = visits.pathIndex(referencePath)
-  const byId = new Map(graph.nodes.map(n => [n.id, n]))
   for (const id of walk.progress.keys()) {
     const node = byId.get(id)
     const slot: number = node ? visits.slot(node.name) : -1
@@ -200,11 +212,12 @@ export function walkLift(
   layers: readonly WalkLayer[],
   ramp?: ReferenceRamp,
 ): WalkLift | undefined {
+  const index = graphIndex(graph)
   const seen = new Set<string>()
   const lifted = layers
     .filter(layer => !seen.has(layer.walk) && seen.add(layer.walk))
     .flatMap(layer => {
-      const walk = walkHighlight(graph, layer.walk)
+      const walk = highlightOf(graph, layer.walk, index)
       return walk ? [{ walk, layer }] : []
     })
     .sort((a, b) => Number(b.walk.reference) - Number(a.walk.reference))
@@ -219,11 +232,11 @@ export function walkLift(
       walk.reference ? 0 : picked++,
       lifted.length === 1,
     )
-    const { reversed, bp } = reversedNodes(graph, walk)
+    const { reversed, bp } = reversedNodes(graph, index.byId, walk)
     return {
       ...walk,
       encoding,
-      colors: laneColors(graph, walk, encoding, ramp),
+      colors: laneColors(index.byId, walk, encoding, ramp),
       reversed,
       reversedBp: bp,
     }
@@ -242,6 +255,7 @@ export function facetLifts(
   layers: readonly WalkLayer[],
   ramp?: ReferenceRamp,
 ) {
+  const byId = nodesById(graph)
   return lift.walks.map(walk => {
     const stated = layers.find(l => l.walk === walk.name)?.color
     const encoding = resolveEncoding(
@@ -254,7 +268,7 @@ export function facetLifts(
         {
           ...walk,
           encoding,
-          colors: laneColors(graph, walk, encoding, ramp),
+          colors: laneColors(byId, walk, encoding, ramp),
         },
       ],
       ramp,
