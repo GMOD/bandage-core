@@ -98,7 +98,7 @@ export interface DrawnLengthLaw {
 
 export const PROPORTIONAL_LENGTH: DrawnLengthLaw = { power: 1, effect: 1 }
 
-export function isProportional(law: DrawnLengthLaw) {
+function isProportional(law: DrawnLengthLaw) {
   return law.power === 1 && law.effect === 1
 }
 
@@ -149,7 +149,7 @@ export interface NodeLengthSpread {
   minNodeLength: number
 }
 
-export const PROPORTIONAL_SPREAD: NodeLengthSpread = {
+const PROPORTIONAL_SPREAD: NodeLengthSpread = {
   law: PROPORTIONAL_LENGTH,
   minNodeLength: 0,
 }

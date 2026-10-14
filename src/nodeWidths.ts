@@ -38,7 +38,7 @@ export function meanDepth(graph: Graph) {
   return length > 0 ? weighted / length : 0
 }
 
-export function depthWidthFactor(node: GraphNode, mean: number) {
+function depthWidthFactor(node: GraphNode, mean: number) {
   if (!(mean > 0) || !(node.depth > 0)) {
     return 1
   }

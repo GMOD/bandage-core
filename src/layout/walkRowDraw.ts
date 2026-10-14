@@ -31,7 +31,7 @@ const MIN_TILED_BAR_PX = 6
 // a unit separator is dropped when a unit is under this many px
 const MIN_TILE_PX = 3
 
-export function kb(bp: number) {
+function kb(bp: number) {
   return `${(bp / 1000).toFixed(bp < 10_000 ? 1 : 0)} kb`
 }
 

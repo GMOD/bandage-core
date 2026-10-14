@@ -132,7 +132,7 @@ const STACK_PX = 600
 const MIN_TUBE_PX = 3
 const MAX_TUBE_PX = 15
 
-export function tubeWidth(trackCount: number) {
+function tubeWidth(trackCount: number) {
   return Math.max(
     MIN_TUBE_PX,
     Math.min(MAX_TUBE_PX, Math.floor(STACK_PX / Math.max(1, trackCount))),
@@ -168,7 +168,7 @@ export interface MergedRuns {
 // it going against. A run is kept only where its members add up to the box the
 // layout drew, so a merge this misreads leaves the box standing for its first
 // node alone.
-export function mergedRuns(
+function mergedRuns(
   graph: Graph,
   layout: TubeMapLayout,
   walks: readonly InputTrack[],
@@ -213,7 +213,7 @@ const otherStrand = { '+': '-', '-': '+' } as const
 // members together and starting where the first of them on the reference
 // does, the links inside the run gone and the rest moved onto the side of the
 // box they reach
-export function boxGraph(
+function boxGraph(
   graph: Graph,
   { members, flipped }: MergedRuns,
 ): Graph {

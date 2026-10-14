@@ -9,7 +9,7 @@ import type { Graph, GraphNode } from '../types'
 // node's chain (`addToOgdfGraph`, graphlayout.cpp).
 export type LayoutNode = GraphNode & { x?: number; y?: number }
 
-export interface Seed {
+interface Seed {
   x: number
   y: number
 }
