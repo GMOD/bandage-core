@@ -9,8 +9,8 @@ import { TabixIndexedFile } from '@gmod/tabix'
 import { figureSvg } from '../figure'
 import { laidOutGraph, walkLayers } from '../figureData'
 import {
-  HPRC_GBZ,
   cutGbzRegion,
+  gbzLocations,
   haplotypeIndexBeside,
   openGbz,
   parseRegion,
@@ -222,7 +222,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
     region?: ReturnType<typeof parseRegion>
   }
   if (spec.gbz) {
-    const { db, index } = spec.gbz.db === 'hprc' ? HPRC_GBZ : spec.gbz
+    const { db, index } = gbzLocations(spec.gbz)
     const indexLocation = index
       ? resolve(index)
       : await siblingIndex(resolve(db))

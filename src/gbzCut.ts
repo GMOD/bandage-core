@@ -37,6 +37,14 @@ export const HPRC_GBZ = {
     'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38.haplotype-index.f3.db',
 }
 
+// `hprc` as a source's `db` stands for HPRC_GBZ, whose index fills in for one
+// the source leaves out
+export function gbzLocations({ db, index }: Pick<GbzSource, 'db' | 'index'>) {
+  return db === 'hprc'
+    ? { db: HPRC_GBZ.db, index: index ?? HPRC_GBZ.index }
+    : { db, index }
+}
+
 // The haplotype index beside a `.gbz.db`, which names its walks by sample
 export function haplotypeIndexBeside(db: string) {
   const GBZ_DB = /\.gbz\.db$/i

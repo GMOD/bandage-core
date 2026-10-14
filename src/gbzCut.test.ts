@@ -1,4 +1,16 @@
-import { cutGbzRegion, parseRegion } from './gbzCut'
+import { HPRC_GBZ, cutGbzRegion, gbzLocations, parseRegion } from './gbzCut'
+
+test('`hprc` keeps an index the source names', () => {
+  expect(gbzLocations({ db: 'hprc', index: 'mine.db' })).toEqual({
+    db: HPRC_GBZ.db,
+    index: 'mine.db',
+  })
+  expect(gbzLocations({ db: 'hprc' })).toEqual(HPRC_GBZ)
+  expect(gbzLocations({ db: 'a.gbz.db' })).toEqual({
+    db: 'a.gbz.db',
+    index: undefined,
+  })
+})
 
 test('a region reads its bounds, commas and all', () => {
   expect(parseRegion(' chr6:160,614,798-160,647,758 ')).toEqual({
