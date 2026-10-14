@@ -1,3 +1,9 @@
+## [10.2.7](https://github.com/GMOD/bandage-core/compare/v10.2.6...v10.2.7) (2026-10-14)
+
+### Other Changes
+
+- Keep a two-part walk name in graphFromTables and write it as a P line ([2fe678b](https://github.com/GMOD/bandage-core/commit/2fe678b750213cf11f9d0df9261a9fe10aa9f1df))
+
 ## [10.2.6](https://github.com/GMOD/bandage-core/compare/v10.2.5...v10.2.6) (2026-10-14)
 
 ### Other Changes
