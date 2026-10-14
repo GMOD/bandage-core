@@ -1,4 +1,8 @@
-import { forward, getXCoordinateOfBaseWithinNode } from '@jbrowse/tubemap-core'
+import {
+  forward,
+  getXCoordinateOfBaseWithinNode,
+  mirroredMismatch,
+} from '@jbrowse/tubemap-core'
 
 import type { Track, TubeMapLayout } from '@jbrowse/tubemap-core'
 
@@ -35,18 +39,22 @@ function readMismatches(read: Track, layout: TubeMapLayout) {
   entries.forEach((entry, i) => {
     const nodeIndex = layout.nodeMap.get(forward(entry.nodeName))
     const node = nodeIndex === undefined ? undefined : layout.nodes[nodeIndex]
-    const y = visits[i]?.y
-    if (node && y !== undefined) {
-      const base = { readId: read.id, y, height: read.width }
+    const visit = visits[i]
+    if (node && visit?.y !== undefined) {
+      const base = { readId: read.id, y: visit.y, height: read.width }
       // A base past a merged node's end has no x.
       const at = (pos: number) => getXCoordinateOfBaseWithinNode(node, pos)
-      for (const mm of entry.mismatches) {
+      for (const edit of entry.mismatches) {
+        const mm = visit.isForward
+          ? edit
+          : mirroredMismatch(edit, node.sequenceLength)
         const x0 = at(mm.pos)
         if (x0 !== null) {
           if (mm.type === 'insertion') {
             const softClip =
-              (i === 0 && mm.pos === read.firstNodeOffset) ||
-              (i === entries.length - 1 && mm.pos === read.finalNodeCoverLength)
+              (i === 0 && edit.pos === read.firstNodeOffset) ||
+              (i === entries.length - 1 &&
+                edit.pos === read.finalNodeCoverLength)
             marks.push({
               ...base,
               kind: 'insertion',

@@ -140,6 +140,31 @@ test('a reverse read marks the base the layout mirrored it to', () => {
   })
 })
 
+test('a mixed-strand read mirrors the edit on its reverse visit', () => {
+  const layout = layoutTubeMap(
+    nodes,
+    [
+      { id: 0, name: 'ref', sequence: ['1', '2', '4'], sourceTrackID: 0 },
+      { id: 1, name: 'inv', sequence: ['1', '-2', '4'], sourceTrackID: 0 },
+    ],
+    [
+      read(2, [
+        ['1', []],
+        ['-2', [{ type: 'substitution', pos: 2, seq: 'A' }]],
+        ['4', []],
+      ]),
+    ],
+    { mergeNodes: false },
+  )!
+  const [mark] = tubeMapMismatches(layout)
+  expect(mark).toMatchObject({
+    kind: 'substitution',
+    x0: baseX(layout, '2', 7),
+    x1: baseX(layout, '2', 8),
+    seq: 'T',
+  })
+})
+
 test('a read that loops back marks the pass that carries the mismatch', () => {
   // the read skips columns 2 and 3 on its way to 4, so its path holds passes
   // before its first visit to 4, then turns back for a second
