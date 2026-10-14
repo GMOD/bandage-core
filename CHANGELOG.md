@@ -1,3 +1,9 @@
+## [10.2.6](https://github.com/GMOD/bandage-core/compare/v10.2.5...v10.2.6) (2026-10-14)
+
+### Other Changes
+
+- Find a graph's reference walk in walkRows from its tags, and in every piece ([727d544](https://github.com/GMOD/bandage-core/commit/727d54438e3f388751325edf2b793c45f9a77a4e))
+
 ## [10.2.5](https://github.com/GMOD/bandage-core/compare/v10.2.4...v10.2.5) (2026-10-14)
 
 ### Other Changes
