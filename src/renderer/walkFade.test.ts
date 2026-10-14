@@ -227,3 +227,17 @@ W\tdel\t1\tchr\t0\t7\t>v1>v3`),
   expect(batch.edgeCurveRuns.get(deletion)!.count).toBeGreaterThan(1)
   expect(batch.arrowRuns.get(deletion)?.count).toBe(1)
 })
+
+test('a lifted walk leaving a one-point node draws its link', () => {
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: { ...positions, 'v1+': [{ x: 10, y: 0 }] },
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 5,
+    connectorThickness: 2,
+    highlight: lift('alt#1#chr'),
+  })
+  expect(batch.edgeCurveRuns.get(2)).toBeDefined()
+})

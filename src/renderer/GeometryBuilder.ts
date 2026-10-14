@@ -291,68 +291,39 @@ function intoDirection(last: BezierCurve, toSegments: NodeSegment[]) {
     : { from: final, to: toSegments[toSegments.length - 2]! }
 }
 
+interface Point {
+  x: number
+  y: number
+}
+
+function normal(a: Point | undefined, b: Point | undefined) {
+  if (!a || !b) {
+    return undefined
+  }
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len = Math.hypot(dx, dy)
+  return len > 0 ? { nx: -dy / len, ny: dx / len } : undefined
+}
+
 // Per-point unit normals of a polyline, mitred at the interior joints so a
-// stripe slid along them keeps a constant distance from the node's own outline
-// where it bends.
-//
-// `yToX` puts the two axes in comparable units first (see computeEdgeCurves), so
-// the normal is perpendicular to the polyline AS DRAWN rather than to its
-// coordinates. It is 1 on an isotropic layout, where the two are the same thing.
-function pointNormalsOf(rawPoints: { x: number; y: number }[], yToX = 1) {
+// stripe slid along them keeps a constant distance from the node's outline
+// where it bends. `yToX` puts the axes in comparable units first (see
+// computeEdgeCurves), so each normal is perpendicular to the polyline as drawn.
+function pointNormalsOf(rawPoints: Point[], yToX = 1) {
   const points =
     yToX === 1 ? rawPoints : rawPoints.map(p => ({ x: p.x, y: p.y * yToX }))
-  const pointNormals: { nx: number; ny: number }[] = []
-  for (let i = 0; i < points.length; i++) {
-    let nx = 0
-    let ny = 0
-
-    if (i === 0) {
-      const dx = points[1]!.x - points[0]!.x
-      const dy = points[1]!.y - points[0]!.y
-      const len = Math.hypot(dx, dy)
-      if (len > 0) {
-        nx = -dy / len
-        ny = dx / len
-      }
-    } else if (i === points.length - 1) {
-      const dx = points[i]!.x - points[i - 1]!.x
-      const dy = points[i]!.y - points[i - 1]!.y
-      const len = Math.hypot(dx, dy)
-      if (len > 0) {
-        nx = -dy / len
-        ny = dx / len
-      }
-    } else {
-      const dx1 = points[i]!.x - points[i - 1]!.x
-      const dy1 = points[i]!.y - points[i - 1]!.y
-      const len1 = Math.hypot(dx1, dy1)
-      const dx2 = points[i + 1]!.x - points[i]!.x
-      const dy2 = points[i + 1]!.y - points[i]!.y
-      const len2 = Math.hypot(dx2, dy2)
-
-      if (len1 > 0 && len2 > 0) {
-        const nx1 = -dy1 / len1
-        const ny1 = dx1 / len1
-        const nx2 = -dy2 / len2
-        const ny2 = dx2 / len2
-        nx = (nx1 + nx2) / 2
-        ny = (ny1 + ny2) / 2
-        const dot = nx1 * nx + ny1 * ny
-        if (dot > 0.1) {
-          nx /= dot
-          ny /= dot
-        }
-      } else if (len1 > 0) {
-        nx = -dy1 / len1
-        ny = dx1 / len1
-      } else if (len2 > 0) {
-        nx = -dy2 / len2
-        ny = dx2 / len2
-      }
+  return points.map((p, i) => {
+    const before = normal(points[i - 1], p)
+    const after = normal(p, points[i + 1])
+    if (before && after) {
+      const nx = (before.nx + after.nx) / 2
+      const ny = (before.ny + after.ny) / 2
+      const dot = before.nx * nx + before.ny * ny
+      return dot > 0.1 ? { nx: nx / dot, ny: ny / dot } : { nx, ny }
     }
-    pointNormals.push({ nx, ny })
-  }
-  return pointNormals
+    return before ?? after ?? { nx: 0, ny: 0 }
+  })
 }
 
 // The polyline shifted `distance` world units along its own normals, which is
