@@ -313,11 +313,11 @@ export function walkRows(
   // a cut hands a walk back as one record per piece inside its nodes
   const walks = new Map<string, GraphPath[]>()
   for (const path of others) {
-    const pieces = walks.get(path.name)
+    const pieces = walks.get(nameOf(path))
     if (pieces) {
       pieces.push(path)
     } else {
-      walks.set(path.name, [path])
+      walks.set(nameOf(path), [path])
     }
   }
   const table = new NodeTable(graph)

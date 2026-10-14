@@ -398,6 +398,22 @@ test("a tag-anchored graph's reference is the sequence its rank 0 segments name"
   expect(rows.map(r => r.name)).toEqual(['A#1#a'])
 })
 
+test("odgi's range-suffixed pieces of one walk make one row", () => {
+  const gfa = [
+    ...['a', 'b', 'c', 'd', 'x'].map(id => `S\t${id}\tAAAAAAAAAA`),
+    'P\tREF#1#chr:0-20\ta+,b+\t*',
+    'P\tREF#1#chr:20-40\tc+,d+\t*',
+    'P\tS#1#chr:0-20\ta+,x+\t*',
+    'P\tS#1#chr:20-40\tc+,d+\t*',
+  ].join('\n')
+  const graph = anchorGraph(convertGFAToGraph(parseGFA(gfa)), 'REF#1#chr')
+  const { reference, rows } = walkRows(graph)!
+  expect(reference.bp).toBe(40)
+  expect(rows.map(r => [r.label, r.bp, r.offReferenceBp])).toEqual([
+    ['S', 40, 10],
+  ])
+})
+
 test('a sample filter keeps the samples it names, in its order', () => {
   const rows = [
     { sample: 'A', label: 'A#2' },

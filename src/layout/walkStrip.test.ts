@@ -107,6 +107,21 @@ test('the node under a point on a tag-anchored reference past its first piece', 
   expect(segmentAt(graph, reference, 450, 1)).toBe('d')
 })
 
+test('the node under a point past the first suffixed piece of a walk', () => {
+  const graph = loadGraph(
+    [
+      ...['a', 'b', 'c', 'd'].map(id => `S\t${id}\tAAAAAAAAAA`),
+      'P\tGRCh38#0#chr1:1000-1040\ta+,b+,c+,d+\t*',
+      'P\tHG1#1#ctg1:500-520\ta+,b+\t*',
+      'P\tHG1#1#ctg1:520-540\tc+,d+\t*',
+    ].join('\n'),
+    'test',
+  )
+  const [row] = walkRows(graph)!.rows
+  const d = graph.nodes.find(n => n.name === 'd')!
+  expect(segmentAt(graph, row!, 35, 10)).toBe(d.id)
+})
+
 test('at a coarse scale the longest node within a pixel wins', () => {
   const { graph, node, row } = setup()
   expect(segmentAt(graph, row('HG1#1#ctg1'), 4, 0.1)).toBe(node('c').id)
