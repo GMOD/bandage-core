@@ -11,7 +11,7 @@ import type { Graph } from '../types'
 // A folded variant on the tube of the walk that carries it, in tube
 // coordinates. Placed by bp through the box that holds it, since tubemap-core
 // may merge the coarsened nodes again and a box can stand for several.
-export interface DeviationMark {
+interface DeviationMark {
   x0: number
   x1: number
   y: number

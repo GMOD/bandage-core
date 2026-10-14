@@ -136,7 +136,7 @@ function placeLabels(candidates: readonly Label[]) {
   return placed.map(({ text, at }) => ({ text, at }))
 }
 
-export interface RulerMarks {
+interface RulerMarks {
   // each box's span; the gaps between them stay blank, since the lane changes
   // drawn there cover no reference
   spans: { x0: number; x1: number }[]

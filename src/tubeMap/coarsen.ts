@@ -28,7 +28,7 @@ export interface Deviation {
   inverted?: true
 }
 
-export type CutCause =
+type CutCause =
   | 'variant'
   | 'backward'
   | 'inversion'

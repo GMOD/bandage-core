@@ -65,7 +65,7 @@ export interface DeletionEdge {
 // turns them into how far and which way the arc bows; this only has to say which
 // points they are, and is shared so the geometry that draws the arc, the index
 // that hit-tests it and the overlay that labels it all bow around the same run.
-export function bypassedPoints(
+function bypassedPoints(
   nodePositions: Record<string, { x: number; y: number }[]>,
   bypassed: string[],
 ) {

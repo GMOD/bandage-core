@@ -31,7 +31,7 @@ export interface BubbleHalo {
   tick: boolean
 }
 
-export const WHOLE_FRACTION = 0.9
+const WHOLE_FRACTION = 0.9
 
 // Holding every node but its own two ends, as a popped bubble's own row does,
 // or nearly every node, as a repeat array filling its window does
@@ -40,7 +40,7 @@ export function coversGraph(members: number, nodes: number) {
 }
 
 // the usual line between a small variant and a structural one
-export const SMALL_VARIANT_BP = 50
+const SMALL_VARIANT_BP = 50
 
 export function bubbleHalos(
   graph: Graph,

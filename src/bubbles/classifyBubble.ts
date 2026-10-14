@@ -21,7 +21,7 @@ export type BubbleKind =
   | 'superbubble'
   | 'complex'
 
-export interface BubbleClass {
+interface BubbleClass {
   kind: BubbleKind
   label: string
 }

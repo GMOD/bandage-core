@@ -15,7 +15,7 @@ import type { TubeMapColumn } from '../layout/tubeMapLayout'
 // Piecewise linear, so a curve's bezier, which lies inside one gap, maps
 // exactly by mapping its control points.
 
-export interface Knot {
+interface Knot {
   tx: number
   sx: number
 }
