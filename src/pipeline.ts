@@ -142,12 +142,13 @@ export function engineRequest(
   settings: EngineSettings,
 ): EngineRequest {
   const anchored = graph.nodes.some(isBackbone)
+  const s = engineSettingsOf(settings)
   // the seeds lay the backbone out at the spaced link length too
   const spaced = {
     ...scaling,
     opts: {
       ...scaling.opts,
-      edgeLength: scaling.opts.edgeLength * (settings.spacing ?? 1),
+      edgeLength: scaling.opts.edgeLength * s.spacing,
     },
   }
   return {
@@ -156,23 +157,25 @@ export function engineRequest(
       edges: graph.edges,
     },
     options: {
-      quality: settings.quality,
-      linearLayout: settings.linearLayout,
+      quality: s.quality,
+      linearLayout: s.linearLayout,
       ...spaced.opts,
-      componentSeparation:
-        COMPONENT_SEPARATION * (settings.componentSeparation ?? 1),
+      componentSeparation: COMPONENT_SEPARATION * s.componentSeparation,
       ...(anchored ? { rotateComponents: false } : {}),
-      engine: settings.engine ?? 'fmmm',
+      engine: s.engine,
     },
   }
 }
 
-// What a force layout of this graph is a function of, as a cache key: the
-// settings `engineRequest` reads, the engine, whether it seeds, and the
-// reference path the seeds follow.
+// What a force layout of this graph is a function of, as a cache key: every
+// engine setting, whether it seeds, and the reference path the seeds follow.
 export function engineKey(graph: Graph, settings: EngineSettings) {
   const anchored = graph.nodes.some(isBackbone)
-  return `${settings.engine ?? 'fmmm'}|${settings.quality}|${settings.linearLayout}|${settings.bubbleSpread}|${settings.spacing ?? 1}|${settings.componentSeparation ?? 1}|${settings.showDeletionEdges !== false}|${anchored}|${graph.referencePath ?? ''}`
+  return [
+    ...Object.values(engineSettingsOf(settings)),
+    anchored,
+    graph.referencePath ?? '',
+  ].join('|')
 }
 
 // The engine lays out the runs, not the nodes: a base-level cut is thousands
