@@ -31,30 +31,20 @@ function boxAt(
   )
 }
 
-// Piece k of a bundled path gets the variants of piece k of each member walk
+// A bundled path carries the variants of every walk it stands for; boxAt keeps
+// those its own boxes hold
 function deviationsByPath(graph: Graph, deviations: Map<string, Deviation[]>) {
-  const piecesOf = new Map<string, Deviation[][]>()
+  const byWalk = new Map<string, Deviation[]>()
   for (const [name, devs] of deviations) {
     const walk = pathOrigin(name).name
-    const pieces = piecesOf.get(walk)
-    if (pieces) {
-      pieces.push(devs)
-    } else {
-      piecesOf.set(walk, [devs])
-    }
+    byWalk.set(walk, [...(byWalk.get(walk) ?? []), ...devs])
   }
-  const seen = new Map<string, number>()
   const byPath = new Map<string, Deviation[]>()
   for (const path of graph.paths ?? []) {
-    const walk = pathOrigin(path.name).name
-    const piece = seen.get(walk) ?? 0
-    seen.set(walk, piece + 1)
     if (path.members) {
       const union = new Map<string, Deviation>()
-      for (const member of path.members) {
-        for (const d of piecesOf.get(member)?.[piece] ?? []) {
-          union.set(`${d.start}-${d.end}`, d)
-        }
+      for (const d of path.members.flatMap(m => byWalk.get(m) ?? [])) {
+        union.set(`${d.start}-${d.end}`, d)
       }
       byPath.set(path.name, [...union.values()])
     } else {
