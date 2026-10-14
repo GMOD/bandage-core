@@ -109,6 +109,41 @@ test('the tables write the GFA they stand for', () => {
   ])
 })
 
+// pggb names a path `chm13#chr1`, which gfa-to-tabix passes through
+test('a two-part walk name keeps its name and writes a P line', () => {
+  const twoPart = (start: number) =>
+    tables({
+      names: ['1', '2', '3'],
+      links: [
+        [0, 1, 0],
+        [1, 2, 0],
+      ],
+      walks: [
+        {
+          name: 'grch38#chr1',
+          start,
+          steps: [
+            [0, false],
+            [1, true],
+          ],
+        },
+        { name: 'grch38#chr2', start, steps: [[2, false]] },
+      ],
+    })
+  expect(graphTablesGFA(twoPart(0)).split('\n').slice(-2)).toEqual([
+    'P\tgrch38#chr1\t1+,2-\t*',
+    'P\tgrch38#chr2\t3+\t*',
+  ])
+  expect(graphTablesGFA(twoPart(5)).split('\n').at(-1)).toBe(
+    'P\tgrch38#chr2:5-105\t3+\t*',
+  )
+  expect(graphFromTables(twoPart(5), 'cut').paths?.map(p => p.name)).toEqual([
+    'grch38#chr1',
+    'grch38#chr2',
+  ])
+  expectSameGraph(twoPart(0))
+})
+
 test('tables build the graph their GFA converts to', () => {
   expectSameGraph(
     tables({

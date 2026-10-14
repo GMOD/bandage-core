@@ -46,9 +46,13 @@ export interface GraphTables {
   }
 }
 
+// A W line's three fields, or undefined for a name with fewer than three
+// PanSN parts, such as pggb's `chm13#chr1`, which only a P line can carry
 function walkFields(panSN: string) {
   const [sample = '', haplotype = '', ...contig] = panSN.split('#')
-  return { sample, haplotype, contig: contig.join('#') }
+  return contig.length > 0
+    ? { sample, haplotype: +haplotype, contig: contig.join('#') }
+    : undefined
 }
 
 // Each list's names, in the order the crossings came, each once
@@ -236,8 +240,10 @@ export function graphFromTables(
   const blocks = [0]
   const pathSamples: string[] = []
   for (const p of drawnWalks) {
-    const { sample, haplotype, contig } = walkFields(w.names[p]!)
-    const pathName = `${sample}#${+haplotype}#${contig}`
+    const fields = walkFields(w.names[p]!)
+    const pathName = fields
+      ? `${fields.sample}#${fields.haplotype}#${fields.contig}`
+      : w.names[p]!
     let named = nameIndex.get(pathName)
     if (named === undefined) {
       named = pathNames.length
@@ -274,14 +280,7 @@ export function graphFromTables(
       }
       prev = node
     }
-    paths.push({
-      name: pathName,
-      nodeIds,
-      start,
-      sample,
-      haplotype: +haplotype,
-      contig,
-    })
+    paths.push({ name: pathName, nodeIds, start, ...fields })
     anchorPaths.push({
       name: pathName,
       sample: visitSample,
@@ -325,7 +324,9 @@ export function graphFromTables(
 }
 
 /**
- * The tables as GFA text: S lines in table order, then L lines, then W lines
+ * The tables as GFA text: S lines in table order, then L lines, then a W
+ * line per walk, or a P line for a walk whose name has fewer than three PanSN
+ * parts
  */
 export function graphTablesGFA({ nodes, links, walks }: GraphTables) {
   const { names } = nodes
@@ -345,13 +346,18 @@ export function graphTablesGFA({ nodes, links, walks }: GraphTables) {
     )
   }
   for (let p = 0; p < walks.names.length; p++) {
-    const { sample, haplotype, contig } = walkFields(walks.names[p]!)
-    let body = ''
+    const name = walks.names[p]!
+    const fields = walkFields(name)
+    const start = walks.starts[p]!
+    const end = walks.ends[p]!
+    const steps = []
     for (let s = walks.offsets[p]!; s < walks.offsets[p + 1]!; s++) {
-      body += (walks.reversed[s] ? '<' : '>') + names[walks.steps[s]!]
+      steps.push([names[walks.steps[s]!]!, walks.reversed[s]] as const)
     }
     lines.push(
-      `W\t${sample}\t${haplotype}\t${contig}\t${walks.starts[p]}\t${walks.ends[p]}\t${body}`,
+      fields
+        ? `W\t${fields.sample}\t${fields.haplotype}\t${fields.contig}\t${start}\t${end}\t${steps.map(([id, rev]) => (rev ? '<' : '>') + id).join('')}`
+        : `P\t${start === 0 ? name : `${name}:${start}-${end}`}\t${steps.map(([id, rev]) => id + (rev ? '-' : '+')).join(',')}\t*`,
     )
   }
   return lines.join('\n')
