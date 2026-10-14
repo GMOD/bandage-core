@@ -824,6 +824,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   } = options
   const depthNorm = nodeWidth === 'depth' ? meanDepth(graph) : 0
   const scale = axis.scaleX
+  const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
   const yToX = yToXOf(axis)
   // The offset-zero curve of every edge, from the one place that derives it —
   // shared with the hit index, which draws its boxes from the same objects.
@@ -984,7 +985,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         nx: 0,
         ny: 0,
       }
-      const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
       laneWalks.forEach((walk, lane) => {
         if (!walk.edgeIndexes.has(ei)) {
           return
@@ -1105,7 +1105,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     if (drawable && lanes) {
       const laneWidth = Math.max(width / lanes.length, MIN_WALK_LANE_PX)
       const normals = pointNormalsOf(segments, yToX)
-      const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
       lanes.forEach((walk, lane) => {
         const laneColor = walk.colors.get(nodeId)
         if (laneColor === undefined) {
@@ -1124,7 +1123,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       })
     } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
       const normals = pointNormalsOf(segments, yToX)
-      const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
       for (const slot of slots) {
         const offset =
           (slot - (pathCount - 1) / 2) * slotWidth * worldPerScreenPx
