@@ -165,12 +165,12 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
 
   // a segment declared twice keeps its first declaration, as links and walks
   // can only name one node
-  const declared = new Set<string>()
+  const lengths = new Map<string, number>()
   for (const gfaNode of gfaGraph.nodes) {
-    if (declared.has(gfaNode.id)) {
+    if (lengths.has(gfaNode.id)) {
       continue
     }
-    declared.add(gfaNode.id)
+    lengths.set(gfaNode.id, gfaNode.length)
     const depth =
       statedDepth(gfaNode) ?? Math.max(traversals.get(gfaNode.id) ?? 1, 1)
     nodes.push(makeNode(gfaNode, canonical.get(gfaNode.id) ?? '+', depth))
@@ -265,10 +265,8 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     }
   })
 
-  // Only walked when the file has paths to walk, so an rGFA — which has none at
-  // all — pays nothing for it. `lengthOf` reads the segment table rather than
-  // the nodes just built, because a path may name a segment no S line declared.
-  const lengths = new Map(gfaGraph.nodes.map(n => [n.id, n.length]))
+  // Only walked when the file has paths to walk, so an rGFA, which has none,
+  // pays nothing for it
   const anchoring =
     gfaGraph.paths.length > 0 || gfaGraph.walks.length > 0
       ? surveyPaths(anchorablePaths(gfaGraph), id => lengths.get(id) ?? 0)

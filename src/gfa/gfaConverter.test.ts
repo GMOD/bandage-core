@@ -413,3 +413,12 @@ test('a segment declared twice is one node', () => {
   const graph = convertGFAToGraph(parseGFA('S\t1\tACGT\nS\t1\tACGT\nS\t2\tAA'))
   expect(graph.nodes.map(n => n.id)).toEqual(['1+', '2+'])
 })
+
+test('a path measures a segment declared twice by its first declaration', () => {
+  const graph = convertGFAToGraph(
+    parseGFA('S\t1\tAAAA\nS\t1\tAAAAAAAAAA\nS\t2\tCC\nP\tp\t1+,2+\t*'),
+  )
+  expect(graph.nodes[0]!.length).toBe(4)
+  expect(graph.anchorPaths![0]!.length).toBe(6)
+  expect(graph.pathVisits!.get('2')![0]!.start).toBe(4)
+})
