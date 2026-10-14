@@ -114,14 +114,14 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
         relax(best, t, cur, t === end.id ? 0 : byId.get(t)!.length)
       }
     }
-    const walked =
-      walkIndex && walkRoutes(graph, byId, walkIndex, start.id, end.id)
-    const crossed = walked?.n ? walked : undefined
-    const routes = crossed ?? best.get(end.id) ?? { min: 0, max: 0, n: 0 }
-    // A walk that enters the bubble and never reaches its other end left the
-    // cut: a GBZ cut of a repeat array at 1 kb of context splits each
-    // haplotype's walk into pieces, and the routes seen are then a floor.
-    const walksLeave = walked !== undefined && walked.left > 0
+    const walked = walkRoutes(
+      graph,
+      byId,
+      walkIndex,
+      start.id,
+      end.id,
+      () => best.get(end.id) ?? { min: 0, max: 0, n: 0 },
+    )
 
     const refStart = start.stable.start + start.length
     const refEnd = end.stable.start
@@ -135,28 +135,17 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
     const chainBroken = chain.some(
       (id, k) => k > 0 && !linked.has(`${chain[k - 1]}>${id}`),
     )
-    const partial = chainBroken || walksLeave
-    const fallback = chainBroken && !crossed
-    bubbles.push({
-      refName: start.stable.refName,
-      start: refStart,
-      end: refEnd,
-      segmentCount: interior.length + 2,
-      pathCount: routes.n,
-      // a real inversion test needs each walk's direction relative to the
-      // reference; the first visit's strand is just whichever path anchored the
-      // node
-      inversion: false,
-      shortestAlleleLength: fallback ? refEnd - refStart : routes.min,
-      longestAlleleLength: fallback ? refEnd - refStart : routes.max,
-      segments: [start, ...interior.map(id => byId.get(id)!), end]
-        .map(n => n.name)
-        .join(','),
-      shortestAllele: undefined,
-      longestAllele: undefined,
-      partial,
-      routes: crossed?.routes,
-    })
+    const refLength = refEnd - refStart
+    bubbles.push(
+      derivedBubble(
+        { refName: start.stable.refName, start: refStart, end: refEnd },
+        [start, ...interior.map(id => byId.get(id)!), end],
+        chainBroken && !walked.routes
+          ? { ...walked, min: refLength, max: refLength }
+          : walked,
+        chainBroken || walked.walksLeave,
+      ),
+    )
   }
   return bubbles
 }
@@ -190,20 +179,32 @@ export function walkIndexOf(
   return index
 }
 
+export interface WalkedRoutes extends Routes {
+  // set where a walk crosses the bubble
+  routes?: BubbleRoute[]
+  // A walk that enters the bubble and never reaches its other end left the
+  // cut: a GBZ cut of a repeat array at 1 kb of context splits each
+  // haplotype's walk into pieces, and the routes seen are then a floor.
+  walksLeave: boolean
+}
+
 // For every walk that passes both boundary nodes, the bp between them and the
 // step sequence, so routes are distinct sequences and lengths are the true
-// haplotype lengths. `left` counts the walks that pass one boundary and end
-// before the other.
+// haplotype lengths. Where no walk crosses, the counts are `fallback`'s.
 //
 // `byId` is the caller's: this runs once per bubble, and a map of every node
 // built here made the whole pass quadratic, seven seconds at 15k nodes.
 export function walkRoutes(
   graph: Graph,
   byId: Map<string, GraphNode>,
-  walkIndex: WalkIndex,
+  walkIndex: WalkIndex | undefined,
   startId: string,
   endId: string,
-): (Routes & { left: number; routes: BubbleRoute[] }) | undefined {
+  fallback: () => Routes,
+): WalkedRoutes {
+  if (!walkIndex) {
+    return { ...fallback(), walksLeave: false }
+  }
   const routes: BubbleRoute[] = []
   let min = Infinity
   let max = -Infinity
@@ -245,7 +246,32 @@ export function walkRoutes(
     min = Math.min(min, route.bp)
     max = Math.max(max, route.bp)
   })
-  return routes.length || left
-    ? { min, max, n: routes.length, left, routes }
-    : undefined
+  const walksLeave = left > 0
+  return routes.length
+    ? { min, max, n: routes.length, routes, walksLeave }
+    : { ...fallback(), walksLeave }
+}
+
+// A bubble found from the graph's shape, `segments` from boundary to boundary.
+// `inversion` stays false: a real test needs each walk's direction relative to
+// the reference.
+export function derivedBubble(
+  place: Pick<MinigraphBubble, 'refName' | 'start' | 'end'>,
+  segments: readonly GraphNode[],
+  { min, max, n, routes }: WalkedRoutes,
+  partial: boolean,
+): MinigraphBubble {
+  return {
+    ...place,
+    segmentCount: segments.length,
+    pathCount: n,
+    inversion: false,
+    shortestAlleleLength: min,
+    longestAlleleLength: max,
+    segments: segments.map(s => s.name).join(','),
+    shortestAllele: undefined,
+    longestAllele: undefined,
+    partial,
+    routes,
+  }
 }

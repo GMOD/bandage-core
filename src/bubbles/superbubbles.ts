@@ -1,6 +1,7 @@
 import { coversGraph } from './bubbleHalos'
 import {
   bubblesFromGraph,
+  derivedBubble,
   relax,
   walkIndexOf,
   walkRoutes,
@@ -273,27 +274,28 @@ export function superbubblesFromGraph(
     .map(f => {
       const source = nodes[f.source >> 1]!
       const sink = nodes[f.sink >> 1]!
-      const walked =
-        walkIndex && walkRoutes(graph, byId, walkIndex, source.id, sink.id)
-      const crossed = walked?.n ? walked : undefined
-      const routes = crossed ?? routesThrough(nodes, offset, next, f)
+      const walked = walkRoutes(
+        graph,
+        byId,
+        walkIndex,
+        source.id,
+        sink.id,
+        () => routesThrough(nodes, offset, next, f),
+      )
       const placedOn = onReference(source, sink)
       return {
-        refName: placedOn ? source.stable!.refName : span!.refName,
-        start: placedOn ? source.stable!.start + source.length : span!.start,
-        end: placedOn ? sink.stable!.start : span!.end,
-        segmentCount: f.inside.length + 2,
-        pathCount: routes.n,
-        inversion: false,
-        shortestAlleleLength: routes.min,
-        longestAlleleLength: routes.max,
-        segments: nodesOf(f)
-          .map(v => nodes[v]!.name)
-          .join(','),
-        shortestAllele: undefined,
-        longestAllele: undefined,
-        partial: walked !== undefined && walked.left > 0,
-        routes: crossed?.routes,
+        ...derivedBubble(
+          {
+            refName: placedOn ? source.stable!.refName : span!.refName,
+            start: placedOn
+              ? source.stable!.start + source.length
+              : span!.start,
+            end: placedOn ? sink.stable!.start : span!.end,
+          },
+          nodesOf(f).map(v => nodes[v]!),
+          walked,
+          walked.walksLeave,
+        ),
         key: `${source.name}>${sink.name}`,
         ...(placedOn ? {} : { offReference: true as const }),
       }
