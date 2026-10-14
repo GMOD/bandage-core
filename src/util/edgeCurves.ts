@@ -1,45 +1,19 @@
+import { weakMemo } from './weakMemo'
 import { edgeCurvesOf } from '../deletionEdges'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
-// Every edge's curve as it is DRAWN, at offset zero, derived once for a layout
-// at a zoom.
-//
-// `computeEdgeCurves` already says why there must be one derivation of this
-// rather than several: the drawing, the hit index and the label that rides an
-// arc all have to agree on where the curve is, and a second derivation is a
-// second thing to keep in step. That was true of the CODE and not of the WORK —
-// the geometry builder and the edge hit index called it with identical
-// arguments, per edge, and each paid in full. The index's whole build was 14 ms
-// on a 12k-edge cut and most of it was this, redone.
-//
-// So the answer is the same shape as the argument: one function, and everyone
-// who wants the offset-zero curve of edge `ei` asks it. A path ribbon is that
-// curve rebuilt at its own offset, which is the one variant that is not shared.
-//
-// Cached the way hit detection caches its indexes, and for the same reasons: a
-// WeakMap on the positions object so two graph views cannot evict each other and
-// an entry dies with the layout it describes, plus a check of everything the
-// curves actually depend on. `deletions` is in that list because it decides
-// which edges bow and around what; `version` is, because a node drag mutates the
-// positions in place and their identity cannot report it.
+// Every edge's curve as drawn, at offset zero, derived once per layout and
+// zoom. The geometry builder, the edge hit index and the arc labels all read
+// it, so they agree on where each curve is; deriving it twice was most of the
+// hit index's 14 ms build on a 12k-edge cut. A path ribbon rebuilds the curve
+// at its offset. `version` changes when a node drag mutates the positions in
+// place.
 export type EdgeCurves = Map<number, BezierCurve[]>
 
-const cache = new WeakMap<
-  Record<string, NodeSegment[]>,
-  {
-    graph: Graph
-    scaleX: number
-    scaleY: number
-    deletions: Map<number, string[]> | undefined
-    routes: DeletionRoutes | undefined
-    stranded: boolean
-    version: number
-    curves: EdgeCurves
-  }
->()
+const cache = weakMemo<Record<string, NodeSegment[]>, EdgeCurves>()
 
 export function baseEdgeCurves(
   nodePositions: Record<string, NodeSegment[]>,
@@ -54,45 +28,28 @@ export function baseEdgeCurves(
   // LayoutResult.stranded: links join the ends their strands name
   stranded = false,
 ): EdgeCurves {
-  const { scaleX, scaleY } = axis
-  const cached = cache.get(nodePositions)
-  if (
-    cached?.graph === graph &&
-    cached.scaleX === scaleX &&
-    cached.scaleY === scaleY &&
-    cached.deletions === deletions &&
-    cached.routes === routes &&
-    cached.stranded === stranded &&
-    cached.version === version
-  ) {
-    return cached.curves
-  }
-  const curves: EdgeCurves = new Map()
-  for (let ei = 0; ei < graph.edges.length; ei++) {
-    const bypassed = deletions?.get(ei)
-    const edgeCurves = edgeCurvesOf(
-      nodePositions,
-      graph.edges[ei]!,
-      axis,
-      bypassed,
-      bypassed && routes?.[ei],
-      stranded,
-    )
-    // An edge whose endpoints the layout did not place has no curve, and its
-    // absence here is the same "skip it" every consumer already applies.
-    if (edgeCurves) {
-      curves.set(ei, edgeCurves)
-    }
-  }
-  cache.set(nodePositions, {
-    graph,
-    scaleX,
-    scaleY,
-    deletions,
-    routes,
-    stranded,
-    version,
-    curves,
-  })
-  return curves
+  return cache(
+    nodePositions,
+    [graph, axis.scaleX, axis.scaleY, deletions, routes, stranded, version],
+    () => {
+      const curves: EdgeCurves = new Map()
+      for (let ei = 0; ei < graph.edges.length; ei++) {
+        const bypassed = deletions?.get(ei)
+        const edgeCurves = edgeCurvesOf(
+          nodePositions,
+          graph.edges[ei]!,
+          axis,
+          bypassed,
+          bypassed && routes?.[ei],
+          stranded,
+        )
+        // An edge whose endpoints the layout did not place has no curve, and
+        // every consumer skips it.
+        if (edgeCurves) {
+          curves.set(ei, edgeCurves)
+        }
+      }
+      return curves
+    },
+  )
 }

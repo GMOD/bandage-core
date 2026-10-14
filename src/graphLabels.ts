@@ -2,6 +2,7 @@ import { deletionArcCurves } from './deletionEdges'
 import { polylineMidpoint } from './layout/mergeRuns'
 import { occupancy } from './overlayLabels'
 import { curveBounds, curveMidpoint } from './util/geometry'
+import { weakMemo } from './util/weakMemo'
 
 import type { DeletionEdge } from './deletionEdges'
 import type { DeletionRoutes } from './layout/deletionRoutes'
@@ -299,41 +300,27 @@ function runBounds(
   return minX === Infinity ? undefined : { minX, minY, maxX, maxY }
 }
 
-// Both caches below are keyed the way hit detection keys its spatial indexes: a
-// WeakMap on the positions object, so two graph views cannot evict each other
-// and an entry dies with the layout it describes, plus an explicit check of
-// everything the value actually depends on. A node drag mutates the positions
-// in place, so their identity cannot report that they moved — hence `version`,
-// which the model bumps on exactly that (`positionsVersion`).
-//
-// What makes the caching worth having is that this whole pass reruns on every
-// pan: the labels are placed in screen space, so a translate changes where they
-// go, and neither the order they are considered in nor the arcs they ride
-// depends on it.
+// The label pass reruns on every pan, because the labels are placed in screen
+// space, while the order nodes are considered in and the arcs labels ride
+// depend only on the layout and zoom. Both caches key weakly on the positions,
+// and `version` changes when a node drag mutates them in place.
 
-// Node label candidates in the order they are considered — biggest allele
-// first — which is a function of the sequence lengths alone.
-const nodeOrderCache = new WeakMap<
+// Node label candidates in the order they are considered, biggest allele
+// first, which depends on the sequence lengths alone.
+const nodeOrderCache = weakMemo<
   Record<string, NodeSegment[]>,
-  {
-    nodeLengths: Map<string, number>
-    order: [string, NodeSegment[]][]
-  }
+  [string, NodeSegment[]][]
 >()
 
 function labelOrder(
   nodePositions: Record<string, NodeSegment[]>,
   nodeLengths: Map<string, number>,
 ) {
-  const cached = nodeOrderCache.get(nodePositions)
-  if (cached?.nodeLengths === nodeLengths) {
-    return cached.order
-  }
-  const order = Object.entries(nodePositions)
-    .filter(([id, segments]) => segments.length > 0 && nodeLengths.has(id))
-    .sort(([a], [b]) => nodeLengths.get(b)! - nodeLengths.get(a)!)
-  nodeOrderCache.set(nodePositions, { nodeLengths, order })
-  return order
+  return nodeOrderCache(nodePositions, [nodeLengths], () =>
+    Object.entries(nodePositions)
+      .filter(([id, segments]) => segments.length > 0 && nodeLengths.has(id))
+      .sort(([a], [b]) => nodeLengths.get(b)! - nodeLengths.get(a)!),
+  )
 }
 
 // One deletion arc as the renderer draws it, plus the two things placement
@@ -345,18 +332,7 @@ interface ArcPlacement {
   extent: number
 }
 
-const arcCache = new WeakMap<
-  Record<string, NodeSegment[]>,
-  {
-    deletions: DeletionEdge[]
-    routes: DeletionRoutes | undefined
-    stranded: boolean
-    scaleX: number
-    scaleY: number
-    version: number
-    arcs: ArcPlacement[]
-  }
->()
+const arcCache = weakMemo<Record<string, NodeSegment[]>, ArcPlacement[]>()
 
 // Biggest deletion first, so an arc that survives a crowd is the one carrying
 // the most sequence.
@@ -369,48 +345,34 @@ function arcPlacements(
   stranded: boolean,
 ) {
   const { scaleX, scaleY } = axis
-  const cached = arcCache.get(nodePositions)
-  if (
-    cached?.deletions === deletions &&
-    cached.routes === routes &&
-    cached.stranded === stranded &&
-    cached.scaleX === scaleX &&
-    cached.scaleY === scaleY &&
-    cached.version === version
-  ) {
-    return cached.arcs
-  }
-  const arcs: ArcPlacement[] = []
-  for (const deletion of [...deletions].sort((a, b) => b.bp - a.bp)) {
-    const curves = deletionArcCurves(
-      nodePositions,
-      deletion,
-      axis,
-      routes?.[deletion.edgeIndex],
-      stranded,
-    )
-    const apex = curves ? curveMidpoint(curves) : undefined
-    if (curves && apex) {
-      const { minX, minY, maxX, maxY } = curveBounds(curves)
-      arcs.push({
-        deletion,
-        curves,
-        apex,
-        // in screen px, so the two axes' units cannot be added by accident
-        extent: Math.max((maxX - minX) * scaleX, (maxY - minY) * scaleY),
-      })
-    }
-  }
-  arcCache.set(nodePositions, {
-    deletions,
-    routes,
-    stranded,
-    scaleX,
-    scaleY,
-    version,
-    arcs,
-  })
-  return arcs
+  return arcCache(
+    nodePositions,
+    [deletions, routes, stranded, scaleX, scaleY, version],
+    () => {
+      const arcs: ArcPlacement[] = []
+      for (const deletion of [...deletions].sort((a, b) => b.bp - a.bp)) {
+        const curves = deletionArcCurves(
+          nodePositions,
+          deletion,
+          axis,
+          routes?.[deletion.edgeIndex],
+          stranded,
+        )
+        const apex = curves ? curveMidpoint(curves) : undefined
+        if (curves && apex) {
+          const { minX, minY, maxX, maxY } = curveBounds(curves)
+          arcs.push({
+            deletion,
+            curves,
+            apex,
+            // in screen px, so the two axes' units cannot be added by accident
+            extent: Math.max((maxX - minX) * scaleX, (maxY - minY) * scaleY),
+          })
+        }
+      }
+      return arcs
+    },
+  )
 }
 
 interface SizeLabelArgs {

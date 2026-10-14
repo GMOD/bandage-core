@@ -1,5 +1,6 @@
 import { EdgeSpatialIndex, SpatialIndex } from './SpatialIndex'
 import { pathRibbonOffsets, translateCurves, yToXOf } from './geometry'
+import { weakMemo } from './weakMemo'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Box } from '../overlayLabels'
@@ -109,49 +110,24 @@ function distanceToEdgeCurves(
   return minDist
 }
 
-// Indexes are cached against the layout they were built from, in a WeakMap
-// rather than a module-level slot. A single slot meant two graph views in one
-// session evicted each other's index on alternating mousemoves, and held the last
-// graph's positions alive for as long as the tab lived. Keyed this way each view
-// keeps its own, and an entry becomes collectable when its layout is replaced.
-//
-// `version` still has to be compared: a node drag mutates the position objects in
-// place, so the identity of `nodePositions` cannot report that it changed.
-const nodeCache = new WeakMap<
-  Record<string, NodeSegment[]>,
-  { version: number; index: SpatialIndex }
->()
+// Each graph view keeps its indexes, keyed weakly on its positions, so two
+// views cannot evict each other's. `version` changes when a node drag mutates
+// the positions in place, and the axis compares by value because the model
+// rebuilds it on every zoom.
+const nodeCache = weakMemo<Record<string, NodeSegment[]>, SpatialIndex>()
 
 function getSpatialIndex(
   nodePositions: Record<string, NodeSegment[]>,
   version: number,
 ) {
-  const cached = nodeCache.get(nodePositions)
-  if (cached?.version === version) {
-    return cached.index
-  }
-  const index = new SpatialIndex(nodePositions)
-  nodeCache.set(nodePositions, { version, index })
-  return index
+  return nodeCache(
+    nodePositions,
+    [version],
+    () => new SpatialIndex(nodePositions),
+  )
 }
 
-const edgeCache = new WeakMap<
-  Record<string, NodeSegment[]>,
-  {
-    graph: Graph
-    drawPaths: boolean
-    // compared by VALUE, not by the AxisScale's identity: the model rebuilds
-    // that object whenever either scale changes, so identity would miss a cache
-    // hit on every mousemove
-    scaleX: number
-    scaleY: number
-    version: number
-    index: EdgeSpatialIndex
-    deletions?: Map<number, string[]>
-    routes?: DeletionRoutes
-    stranded: boolean
-  }
->()
+const edgeCache = weakMemo<Record<string, NodeSegment[]>, EdgeSpatialIndex>()
 
 function getEdgeSpatialIndex(
   nodePositions: Record<string, NodeSegment[]>,
@@ -163,42 +139,31 @@ function getEdgeSpatialIndex(
   routes?: DeletionRoutes,
   stranded = false,
 ) {
-  const cached = edgeCache.get(nodePositions)
-  if (
-    cached?.graph === graph &&
-    cached.drawPaths === drawPaths &&
-    cached.scaleX === axis.scaleX &&
-    cached.scaleY === axis.scaleY &&
-    cached.version === version &&
-    cached.deletions === deletions &&
-    cached.routes === routes &&
-    cached.stranded === stranded
-  ) {
-    return cached.index
-  }
-  const index = new EdgeSpatialIndex(
+  return edgeCache(
     nodePositions,
-    graph,
-    drawPaths,
-    axis,
-    undefined,
-    deletions,
-    version,
-    routes,
-    stranded,
+    [
+      graph,
+      drawPaths,
+      axis.scaleX,
+      axis.scaleY,
+      version,
+      deletions,
+      routes,
+      stranded,
+    ],
+    () =>
+      new EdgeSpatialIndex(
+        nodePositions,
+        graph,
+        drawPaths,
+        axis,
+        undefined,
+        deletions,
+        version,
+        routes,
+        stranded,
+      ),
   )
-  edgeCache.set(nodePositions, {
-    graph,
-    drawPaths,
-    scaleX: axis.scaleX,
-    scaleY: axis.scaleY,
-    version,
-    index,
-    deletions,
-    routes,
-    stranded,
-  })
-  return index
 }
 
 // Every distance below is measured with y converted into x units by `yToX` (the
