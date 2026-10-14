@@ -154,7 +154,7 @@ function straightened(first: InputTrack | undefined) {
   return flipped
 }
 
-export interface MergedRuns {
+interface BoxRuns {
   // box to the nodes it stands for, in the order the layout draws them
   members: Map<string, string[]>
   // the nodes the layout draws against their own strand
@@ -172,7 +172,7 @@ function mergedRuns(
   graph: Graph,
   layout: TubeMapLayout,
   walks: readonly InputTrack[],
-): MergedRuns {
+): BoxRuns {
   const flipped = straightened(walks[0])
   const before = new Map<string, string>()
   for (const { sequence, is_secondary } of walks) {
@@ -213,10 +213,7 @@ const otherStrand = { '+': '-', '-': '+' } as const
 // members together and starting where the first of them on the reference
 // does, the links inside the run gone and the rest moved onto the side of the
 // box they reach
-function boxGraph(
-  graph: Graph,
-  { members, flipped }: MergedRuns,
-): Graph {
+function boxGraph(graph: Graph, { members, flipped }: BoxRuns): Graph {
   if (members.size === 0) {
     return graph
   }
