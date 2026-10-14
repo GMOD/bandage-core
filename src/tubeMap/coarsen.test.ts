@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
+import { bundleRoutes } from './bundle'
 import { coarsenTubeMap } from './coarsen'
 import { deviationMarks } from './deviations'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
@@ -165,4 +166,29 @@ test("a folded variant marks its walk's tube at its bp through the box", () => {
     expect(marks[i]!.y).toBe(alt.path.find(s => s.node !== null)!.y)
     expect(marks[i]!.height).toBe(alt.width)
   }
+})
+
+test('a bundled tube marks the variants of every walk it stands for, once each', () => {
+  const graph = gfa(
+    {
+      a: 'b0+,xa+,b1+,y+,b2+,z+,b3+',
+      c: 'b0+,x+,b1+,y+,b2+,za+,b3+',
+      d: 'b0+,xa+,b1+,y+,b2+,z+,b3+',
+    },
+    { xa: 1, za: 1 },
+  )
+  const coarse = coarsenTubeMap(graph, 50)!
+  const bundled = bundleRoutes(coarse.graph)
+  expect(bundled.paths!.find(p => p.name === 'a')!.members).toEqual([
+    'a',
+    'c',
+    'd',
+  ])
+  const drawing = tubeMapLayout(bundled)!.tubeMap!
+  const tube = drawing.layout.tracks.find(t => t.name === 'a')!
+  const marks = deviationMarks(drawing, coarse.deviations)
+  expect(marks).toHaveLength(2)
+  expect(
+    marks.every(m => m.y === tube.path.find(s => s.node !== null)!.y),
+  ).toBe(true)
 })

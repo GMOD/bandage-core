@@ -1,9 +1,11 @@
 import { referenceBoxes } from './axis'
+import { pathOrigin } from '../pathAnchoring'
 
 import type { ReferenceBox } from './axis'
 import type { Deviation } from './coarsen'
 import type { TubeMapFrame } from './draw'
 import type { TubeMapDrawing } from '../layout/tubeMapLayout'
+import type { Graph } from '../types'
 
 // A folded variant on the tube of the walk that carries it, in tube
 // coordinates. Placed by bp through the box that holds it, since tubemap-core
@@ -37,17 +39,51 @@ function boxAt(
   )
 }
 
+// Piece k of a bundled path gets the variants of piece k of each member walk
+function deviationsByPath(graph: Graph, deviations: Map<string, Deviation[]>) {
+  const piecesOf = new Map<string, Deviation[][]>()
+  for (const [name, devs] of deviations) {
+    const walk = pathOrigin(name).name
+    const pieces = piecesOf.get(walk)
+    if (pieces) {
+      pieces.push(devs)
+    } else {
+      piecesOf.set(walk, [devs])
+    }
+  }
+  const seen = new Map<string, number>()
+  const byPath = new Map<string, Deviation[]>()
+  for (const path of graph.paths ?? []) {
+    const walk = pathOrigin(path.name).name
+    const piece = seen.get(walk) ?? 0
+    seen.set(walk, piece + 1)
+    if (path.members) {
+      const union = new Map<string, Deviation>()
+      for (const member of path.members) {
+        for (const d of piecesOf.get(member)?.[piece] ?? []) {
+          union.set(`${d.start}-${d.end}`, d)
+        }
+      }
+      byPath.set(path.name, [...union.values()])
+    } else {
+      byPath.set(path.name, deviations.get(path.name) ?? [])
+    }
+  }
+  return byPath
+}
+
 export function deviationMarks(
   drawing: Pick<TubeMapDrawing, 'graph' | 'layout'>,
   deviations: Map<string, Deviation[]>,
 ) {
-  const { layout } = drawing
+  const { graph, layout } = drawing
   const boxes = [...referenceBoxes(drawing).values()]
     .flat()
     .sort((a, b) => a.bp0 - b.bp0)
+  const byPath = deviationsByPath(graph, deviations)
   const marks: DeviationMark[] = []
   for (const track of layout.tracks) {
-    const devs = track.name ? deviations.get(track.name) : undefined
+    const devs = track.name ? byPath.get(track.name) : undefined
     if (devs?.length) {
       // a walk that loops through a box twice marks its first pass
       const visited = new Map<number, number>()
