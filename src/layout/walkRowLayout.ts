@@ -18,6 +18,10 @@ import type { Graph, LayoutResult, RowLabel } from '../types'
 // The fit leaves this much past the longest bar for its readout and the legend.
 export const READOUT_ROOM = 1.3
 
+export function longestBar(walks: WalkRows) {
+  return Math.max(walks.reference.bp, ...walks.rows.map(r => r.bp))
+}
+
 // How far the bars reach, so the fit and the pane height include them. The
 // model reads it again for the bars it actually draws, which a repeat pick or
 // a sample filter can narrow after this layout ran, at the pitch they draw at.
@@ -28,12 +32,9 @@ export function walkRowsExtent(
     readouts: true,
   },
 ) {
-  let longest = walks.reference.bp
-  for (const row of walks.rows) {
-    longest = Math.max(longest, row.bp)
-  }
   return {
-    maxX: walks.origin + longest * (pitch.readouts ? READOUT_ROOM : 1),
+    maxX:
+      walks.origin + longestBar(walks) * (pitch.readouts ? READOUT_ROOM : 1),
     maxY: walks.rows.length * pitch.rowPx,
   }
 }

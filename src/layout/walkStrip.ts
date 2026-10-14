@@ -1,5 +1,5 @@
-import { alongRow, boxesGenes, rowPitch } from './walkRowDraw'
-import { READOUT_ROOM } from './walkRowLayout'
+import { alongRow, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
+import { READOUT_ROOM, longestBar } from './walkRowLayout'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
@@ -157,9 +157,7 @@ export function segmentAt(
   }
   const at = axis.reversed ? axis.start - offset : axis.start + offset
   const tol = 0.5 / pxPerBp
-  const bar = axis.reversed
-    ? { start: axis.start - row.bp, end: axis.start }
-    : { start: axis.start, end: axis.start + row.bp }
+  const bar = rowSpan(axis, row.bp)
   const from = Math.max(at - tol, bar.start)
   const to = Math.min(at + tol, bar.end)
   let lo = 0
@@ -216,7 +214,7 @@ export function walkStripFrame(
     maxHeight - 2 * PAD_PX,
     MIN_ROW_PX,
   )
-  const longest = Math.max(bars.reference.bp, ...bars.rows.map(r => r.bp), 1)
+  const longest = Math.max(longestBar(bars), 1)
   const left = labelled ? labelPx : PAD_PX
   const usable = Math.max(1, o.width - left - PAD_PX)
   const scaleX = usable / (longest * (readouts ? READOUT_ROOM : 1))
