@@ -1,9 +1,10 @@
 import { REFERENCE_RANK } from './anchoredNodes'
 import { panSNSample } from './pansn'
 import { PathVisitsBuilder } from './pathVisits'
+import { groupBy } from './util/groups'
 
 import type { PathVisits } from './pathVisits'
-import type { Graph, GraphNode, GraphPath, PathOrigin } from './types'
+import type { Graph, GraphNode, PathOrigin } from './types'
 
 // Reference coordinates for a GFA that tags none of its segments with one.
 //
@@ -230,11 +231,7 @@ export function trimOrigins(
     }
     return sum
   }
-  const byOrigin = new Map<string, GraphPath[]>()
-  for (const path of graph.paths ?? []) {
-    const origin = pathOrigin(path.name).name
-    byOrigin.set(origin, [...(byOrigin.get(origin) ?? []), path])
-  }
+  const byOrigin = groupBy(graph.paths ?? [], p => pathOrigin(p.name).name)
   return graph.anchorPaths.map(o => {
     const pieces = byOrigin.get(o.name)
     const path = pieces?.length === 1 ? pieces[0]! : undefined

@@ -1,4 +1,5 @@
 import { isBackbone } from './anchoredNodes'
+import { pushTo } from './util/groups'
 
 import type { Graph, GraphNode } from './types'
 
@@ -20,17 +21,9 @@ export interface ReferenceSpan {
 // care which way the L line was written.
 export function buildNeighbors(graph: Graph) {
   const neighbors = new Map<string, string[]>()
-  function add(from: string, to: string) {
-    const list = neighbors.get(from)
-    if (list) {
-      list.push(to)
-    } else {
-      neighbors.set(from, [to])
-    }
-  }
   for (const edge of graph.edges) {
-    add(edge.from, edge.to)
-    add(edge.to, edge.from)
+    pushTo(neighbors, edge.from, edge.to)
+    pushTo(neighbors, edge.to, edge.from)
   }
   return neighbors
 }

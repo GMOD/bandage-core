@@ -5,6 +5,7 @@ import { readColor } from './reads'
 import { MAX_GAP_PX } from './warp'
 import { referenceWalkName } from '../layout/walkRows'
 import { pathOrigin } from '../pathAnchoring'
+import { pushTo } from '../util/groups'
 
 import type { TubeMapTransform } from './frame'
 import type { TubeMapMismatch } from './mismatches'
@@ -297,13 +298,7 @@ function fillByColor<T extends Filled>(
   const byColor = new Map<string, T[]>()
   for (const item of items) {
     if (visible(item)) {
-      const color = colorOf(item)
-      const list = byColor.get(color)
-      if (list) {
-        list.push(item)
-      } else {
-        byColor.set(color, [item])
-      }
+      pushTo(byColor, colorOf(item), item)
     }
   }
   for (const list of byColor.values()) {

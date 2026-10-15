@@ -1,6 +1,7 @@
 import { SATURATED_PATH_COUNT } from './bubbleLine'
 import { isBackbone } from '../anchoredNodes'
 import { referenceOrder } from '../layout/orderedLayout'
+import { addTo } from '../util/groups'
 
 import type { BubbleRoute, MinigraphBubble } from './bubbleLine'
 import type { Graph, GraphNode } from '../types'
@@ -69,7 +70,7 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
     reach[lo + 1]!++
     reach[hi]!--
     const [from, to] = a < b ? [e.from, e.to] : [e.to, e.from]
-    ;(succ.get(from) ?? succ.set(from, new Set()).get(from)!).add(to)
+    addTo(succ, from, to)
   }
   for (let i = 1; i < reach.length; i++) {
     reach[i]! += reach[i - 1]!

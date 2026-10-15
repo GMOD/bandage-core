@@ -1,3 +1,5 @@
+import { groupBy } from './util/groups'
+
 // One GFA from gbz-base cuts of consecutive reference fragments. A haplotype
 // bridging the gap between two fragments comes back from both cuts, each piece
 // the run inside its own cut's nodes, so the two can overlap without matching.
@@ -149,18 +151,13 @@ export function joinCuts(gfas: string[], startsPath: StartsPath) {
     }
     return walks
   })
-  const byName = new Map<string, Walk[]>()
-  for (const walk of [
-    ...walksByCut.flatMap(walks => walks.slice(0, 1)),
-    ...walksByCut.flatMap(walks => walks.slice(1)),
-  ]) {
-    const pieces = byName.get(walk.name)
-    if (pieces) {
-      pieces.push(walk)
-    } else {
-      byName.set(walk.name, [walk])
-    }
-  }
+  const byName = groupBy(
+    [
+      ...walksByCut.flatMap(walks => walks.slice(0, 1)),
+      ...walksByCut.flatMap(walks => walks.slice(1)),
+    ],
+    walk => walk.name,
+  )
   const walks = [...byName.values()].flatMap(pieces =>
     joinPieces(pieces, lengths, startsPath),
   )

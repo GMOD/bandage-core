@@ -1,5 +1,6 @@
 import { isBackbone } from './anchoredNodes'
 import { ownStrand } from './util/geometry'
+import { groupBy } from './util/groups'
 
 import type { Graph, GraphEdge, GraphNode } from './types'
 
@@ -39,7 +40,7 @@ export function foldVariants(graph: Graph, belowBp: number): Graph {
   const sides = edges.map(forwardSides)
   const links = linksAt(nodes.length, edges, sides, index)
   const allele = alleleOf(nodes, edges, sides, index)
-  const members = groupBy(allele)
+  const members = groupBy(allele.keys(), i => allele[i]!)
 
   const kept = new Uint8Array(nodes.length)
   const big: number[][] = []
@@ -219,19 +220,6 @@ function alleleOf(
     }
   })
   return nodes.map((_, i) => find(i))
-}
-
-function groupBy(allele: number[]) {
-  const groups = new Map<number, number[]>()
-  allele.forEach((root, i) => {
-    const group = groups.get(root)
-    if (group) {
-      group.push(i)
-    } else {
-      groups.set(root, [i])
-    }
-  })
-  return groups
 }
 
 // An allele's own length, or the reference between the backbone positions

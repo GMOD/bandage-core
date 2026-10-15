@@ -5,6 +5,7 @@ import {
   routedEdgeCurves,
   strandSides,
 } from './util/geometry'
+import { groupBy } from './util/groups'
 
 import type { AnchoredNode } from './anchoredNodes'
 import type { Graph, GraphEdge, NodeSegment } from './types'
@@ -109,17 +110,10 @@ export function edgeCurvesOf(
 // accepts (20,000) is hundreds of millions of comparisons for a pass that runs
 // once per graph.
 function backboneBySequence(graph: Graph) {
-  const bySequence = new Map<string, AnchoredNode[]>()
-  for (const node of graph.nodes) {
-    if (isBackbone(node)) {
-      const list = bySequence.get(node.stable.refName)
-      if (list) {
-        list.push(node)
-      } else {
-        bySequence.set(node.stable.refName, [node])
-      }
-    }
-  }
+  const bySequence = groupBy(
+    graph.nodes.filter(isBackbone),
+    node => node.stable.refName,
+  )
   for (const list of bySequence.values()) {
     list.sort((a, b) => a.stable.start - b.stable.start)
   }

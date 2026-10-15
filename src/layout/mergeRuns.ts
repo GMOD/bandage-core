@@ -1,5 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { ownStrand, strandSides } from '../util/geometry'
+import { pushTo } from '../util/groups'
 
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 
@@ -35,13 +36,7 @@ export function mergeRuns(
   // node side -> indexes of the edges attached there
   const at = new Map<string, number[]>()
   const attach = (id: string, side: Side, ei: number) => {
-    const key = `${id}|${side}`
-    const list = at.get(key)
-    if (list) {
-      list.push(ei)
-    } else {
-      at.set(key, [ei])
-    }
+    pushTo(at, `${id}|${side}`, ei)
   }
   graph.edges.forEach((edge, ei) => {
     attach(edge.from, sides[ei]!.from, ei)

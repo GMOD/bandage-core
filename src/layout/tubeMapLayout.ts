@@ -6,6 +6,7 @@ import { pathCssColor, pathGreyCssColor } from '../pathColors'
 import { referenceWalkName } from './walkRows'
 import { canonicalStrand, stepName, tubeMapReads } from '../tubeMap/reads'
 import { ownStrand, strandSides } from '../util/geometry'
+import { groupBy } from '../util/groups'
 
 import type { Coarsened } from '../tubeMap/coarsen'
 import type { Graph, GraphNode, LayoutResult, NodeSegment } from '../types'
@@ -390,15 +391,7 @@ export function tubeMapLayout(graph: Graph): LayoutResult | undefined {
 // inversion the reference walks backwards cannot fold the axis over.
 function tubeMapColumns(graph: Graph, layout: TubeMapLayout): TubeMapColumn[] {
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const byOrder = new Map<number, LayoutNode[]>()
-  for (const node of drawnNodes(layout)) {
-    const list = byOrder.get(node.order)
-    if (list) {
-      list.push(node)
-    } else {
-      byOrder.set(node.order, [node])
-    }
-  }
+  const byOrder = groupBy(drawnNodes(layout), node => node.order)
   const columns: TubeMapColumn[] = []
   let end = -Infinity
   for (const order of [...byOrder.keys()].sort((a, b) => a - b)) {

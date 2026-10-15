@@ -21,6 +21,7 @@ import {
   translateCurves,
   yToXOf,
 } from '../util/geometry'
+import { pushTo } from '../util/groups'
 
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
@@ -788,12 +789,7 @@ function pathSlotsOf(graph: Graph): ReadonlyMap<string, number[]> {
     slots = new Map()
     for (const [pathIdx, path] of (graph.paths ?? []).entries()) {
       for (const nodeId of new Set(path.nodeIds)) {
-        const visits = slots.get(nodeId)
-        if (visits) {
-          visits.push(pathIdx)
-        } else {
-          slots.set(nodeId, [pathIdx])
-        }
+        pushTo(slots, nodeId, pathIdx)
       }
     }
     slotsCache.set(graph, slots)

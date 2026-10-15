@@ -5,6 +5,7 @@ import {
   panSNHaplotype,
   panSNSample,
 } from './pansn'
+import { addTo } from './util/groups'
 
 import type { Graph, PathOrigin } from './types'
 
@@ -75,9 +76,7 @@ function graphHaplotypes(graph: Graph) {
   for (const refName of refNames) {
     const sample = sampleOf(refName)
     if (sample !== undefined) {
-      const haplotypes =
-        bySample.get(sample) ?? bySample.set(sample, new Set()).get(sample)!
-      haplotypes.add(haplotypeOf(refName))
+      addTo(bySample, sample, haplotypeOf(refName))
     }
   }
   return bySample

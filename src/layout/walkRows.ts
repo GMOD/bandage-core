@@ -1,5 +1,6 @@
 import { panSNContig, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
+import { groupBy } from '../util/groups'
 
 import type { Graph, GraphPath } from '../types'
 
@@ -311,15 +312,7 @@ export function walkRows(
     return undefined
   }
   // a cut hands a walk back as one record per piece inside its nodes
-  const walks = new Map<string, GraphPath[]>()
-  for (const path of others) {
-    const pieces = walks.get(nameOf(path))
-    if (pieces) {
-      pieces.push(path)
-    } else {
-      walks.set(nameOf(path), [path])
-    }
-  }
+  const walks = groupBy(others, nameOf)
   const table = new NodeTable(graph)
   const referenceStart = first.start ?? 0
 

@@ -1,5 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { formatBp } from '../graphLabels'
+import { pushTo } from '../util/groups'
 
 import type { TubeMapFrame } from './draw'
 import type { TubeMapDrawing } from '../layout/tubeMapLayout'
@@ -35,9 +36,7 @@ export function referenceBoxes({
     const graphNode = nodeById.get(node.name)
     if (node.order >= 0 && graphNode && isBackbone(graphNode)) {
       const { refName, start } = graphNode.stable
-      const boxes =
-        byRefName.get(refName) ?? byRefName.set(refName, []).get(refName)!
-      boxes.push({
+      pushTo(byRefName, refName, {
         name: node.name,
         index,
         bp0: start,

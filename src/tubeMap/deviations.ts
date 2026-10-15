@@ -1,6 +1,7 @@
 import { boxX, referenceBoxes } from './axis'
 import { lastAtMost } from './coarsen'
 import { pathOrigin } from '../pathAnchoring'
+import { pushTo } from '../util/groups'
 
 import type { ReferenceBox } from './axis'
 import type { Deviation } from './coarsen'
@@ -36,8 +37,7 @@ function boxAt(
 function deviationsByPath(graph: Graph, deviations: Map<string, Deviation[]>) {
   const byWalk = new Map<string, Deviation[]>()
   for (const [name, devs] of deviations) {
-    const walk = pathOrigin(name).name
-    byWalk.set(walk, [...(byWalk.get(walk) ?? []), ...devs])
+    pushTo(byWalk, pathOrigin(name).name, ...devs)
   }
   const byPath = new Map<string, Deviation[]>()
   for (const path of graph.paths ?? []) {

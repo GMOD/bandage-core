@@ -10,6 +10,7 @@ import { bubbleSegmentIds } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
 import { isBackbone } from '../anchoredNodes'
 import { strandSides } from '../util/geometry'
+import { pushTo } from '../util/groups'
 
 import type { MinigraphBubble } from './bubbleLine'
 import type { Routes } from './bubblesFromGraph'
@@ -243,7 +244,7 @@ export function superbubblesFromGraph(
   const holders = new Map<number, number[]>()
   members.forEach((vs, i) => {
     for (const v of vs) {
-      ;(holders.get(v) ?? holders.set(v, []).get(v)!).push(i)
+      pushTo(holders, v, i)
     }
   })
   const nested = (f: Found, i: number) =>

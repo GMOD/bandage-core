@@ -1,5 +1,6 @@
 import { pathSteps } from '../layout/tubeMapLayout'
 import { pathOrigin } from '../pathAnchoring'
+import { pushTo } from '../util/groups'
 
 import type { Graph } from '../types'
 
@@ -19,13 +20,7 @@ export function bundleRoutes(
   const steps = pathSteps(graph)
   const piecesOf = new Map<string, number[]>()
   paths.forEach((path, i) => {
-    const walk = pathOrigin(path.name).name
-    const pieces = piecesOf.get(walk)
-    if (pieces) {
-      pieces.push(i)
-    } else {
-      piecesOf.set(walk, [i])
-    }
+    pushTo(piecesOf, pathOrigin(path.name).name, i)
   })
   const routeOf = (i: number) =>
     steps[i]!.map(s => `${s.node.id}${s.strand}`).join(',')
