@@ -3,10 +3,10 @@ import { addTo, groupBy, pushTo } from './groups'
 test('pushTo and addTo start a key with its first value', () => {
   const lists = new Map<string, number[]>()
   pushTo(lists, 'a', 1)
-  pushTo(lists, 'a', 2, 3)
+  pushTo(lists, 'a', 2)
   pushTo(lists, 'b', 4)
   expect([...lists]).toEqual([
-    ['a', [1, 2, 3]],
+    ['a', [1, 2]],
     ['b', [4]],
   ])
   const sets = new Map<string, Set<number>>()

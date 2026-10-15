@@ -37,7 +37,9 @@ function boxAt(
 function deviationsByPath(graph: Graph, deviations: Map<string, Deviation[]>) {
   const byWalk = new Map<string, Deviation[]>()
   for (const [name, devs] of deviations) {
-    pushTo(byWalk, pathOrigin(name).name, ...devs)
+    for (const d of devs) {
+      pushTo(byWalk, pathOrigin(name).name, d)
+    }
   }
   const byPath = new Map<string, Deviation[]>()
   for (const path of graph.paths ?? []) {

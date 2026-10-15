@@ -1,9 +1,9 @@
-export function pushTo<K, V>(map: Map<K, V[]>, key: K, ...values: V[]) {
+export function pushTo<K, V>(map: Map<K, V[]>, key: K, value: V) {
   const list = map.get(key)
   if (list) {
-    list.push(...values)
+    list.push(value)
   } else {
-    map.set(key, values)
+    map.set(key, [value])
   }
 }
 
