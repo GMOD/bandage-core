@@ -2,6 +2,7 @@ import { isBackbone } from '../anchoredNodes'
 import { pathSteps } from '../layout/tubeMapLayout'
 import { pathOrigin } from '../pathAnchoring'
 import { PathVisitsBuilder } from '../pathVisits'
+import { partitionPoint } from '../util/partitionPoint'
 
 import type { AnchoredNode } from '../anchoredNodes'
 import type { PathStep } from '../layout/tubeMapLayout'
@@ -113,17 +114,8 @@ function isSmall(gap: Gap, sigma: number) {
 }
 
 function strictlyInside(cuts: readonly number[], a: number, b: number) {
-  let lo = 0
-  let hi = cuts.length
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (cuts[mid]! <= a) {
-      lo = mid + 1
-    } else {
-      hi = mid
-    }
-  }
-  return lo < cuts.length && cuts[lo]! < b
+  const i = partitionPoint(cuts.length, j => cuts[j]! <= a)
+  return i < cuts.length && cuts[i]! < b
 }
 
 // Both sides of a hole in the reference, which a walk that seems to step over
@@ -249,17 +241,7 @@ export function lastAtMost<T>(
   key: (item: T) => number,
   x: number,
 ) {
-  let lo = 0
-  let hi = items.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1
-    if (key(items[mid]!) <= x) {
-      lo = mid
-    } else {
-      hi = mid - 1
-    }
-  }
-  return lo
+  return Math.max(0, partitionPoint(items.length, i => key(items[i]!) <= x) - 1)
 }
 
 export function coarsenTubeMap(

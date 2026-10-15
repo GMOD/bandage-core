@@ -1,3 +1,5 @@
+import { partitionPoint } from './util/partitionPoint'
+
 import type { StableCoordinate } from './gfa-core/index'
 import type { Graph, GraphNode, NodeSegment } from './types'
 
@@ -60,17 +62,7 @@ export function backbonePositions(backbone: AnchoredNode[]) {
 
 // Index of the first node starting at or after `bp`, in a list sorted by start.
 export function firstNodeAtOrAfter(nodes: AnchoredNode[], bp: number) {
-  let lo = 0
-  let hi = nodes.length
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (nodes[mid]!.stable.start < bp) {
-      lo = mid + 1
-    } else {
-      hi = mid
-    }
-  }
-  return lo
+  return partitionPoint(nodes.length, i => nodes[i]!.stable.start < bp)
 }
 
 // bp the backbone covers in this subgraph. Both anchored layouts scale their row

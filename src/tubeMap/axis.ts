@@ -1,6 +1,7 @@
 import { isBackbone } from '../anchoredNodes'
 import { formatBp } from '../graphLabels'
 import { pushTo } from '../util/groups'
+import { partitionPoint } from '../util/partitionPoint'
 
 import type { TubeMapFrame } from './draw'
 import type { TubeMapDrawing } from '../layout/tubeMapLayout'
@@ -59,18 +60,10 @@ export type ReferenceBoxes = ReturnType<typeof referenceBoxes>
 // to the one before for the end of a span, so a span stays off the curves
 // between.
 export function tubeX(boxes: readonly Box[], bp: number, isEnd = false) {
-  let lo = 0
-  let hi = boxes.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    const bp1 = boxes[mid]!.bp1
-    if (isEnd ? bp1 < bp : bp1 <= bp) {
-      lo = mid + 1
-    } else {
-      hi = mid
-    }
-  }
-  return boxX(boxes[lo]!, bp)
+  const i = partitionPoint(boxes.length - 1, j =>
+    isEnd ? boxes[j]!.bp1 < bp : boxes[j]!.bp1 <= bp,
+  )
+  return boxX(boxes[i]!, bp)
 }
 
 // `bp`'s x within `box`, clamped to it; a 0 bp box is all at its left edge

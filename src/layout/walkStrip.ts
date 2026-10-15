@@ -3,6 +3,7 @@ import { READOUT_ROOM, longestBar } from './walkRowLayout'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
+import { partitionPoint } from '../util/partitionPoint'
 
 import type { GeneGaps, RowGene, WalkRowsFrame } from './walkRowDraw'
 import type { WalkRow, WalkRows } from './walkRows'
@@ -160,16 +161,7 @@ export function segmentAt(
   const bar = rowSpan(axis, row.bp)
   const from = Math.max(at - tol, bar.start)
   const to = Math.min(at + tol, bar.end)
-  let lo = 0
-  let hi = spans.starts.length
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (spans.ends[mid]! <= from) {
-      lo = mid + 1
-    } else {
-      hi = mid
-    }
-  }
+  const lo = partitionPoint(spans.starts.length, i => spans.ends[i]! <= from)
   let best: string | undefined
   let bestLen = -1
   let bestHolds = false

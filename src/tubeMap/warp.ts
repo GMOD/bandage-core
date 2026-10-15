@@ -1,3 +1,5 @@
+import { partitionPoint } from '../util/partitionPoint'
+
 import type { TubeMapColumn } from '../layout/tubeMapLayout'
 
 // Tube x to screen x under the reference axis. A column covers the screen span
@@ -95,17 +97,8 @@ export function warpX(knots: readonly Knot[], tx: number) {
   if (tx >= last.tx) {
     return last.sx + (tx - last.tx)
   }
-  let lo = 0
-  let hi = n - 1
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1
-    if (knots[mid]!.tx <= tx) {
-      lo = mid
-    } else {
-      hi = mid
-    }
-  }
-  const a = knots[lo]!
+  const hi = 1 + partitionPoint(n - 2, i => knots[i + 1]!.tx <= tx)
+  const a = knots[hi - 1]!
   const b = knots[hi]!
   const span = b.tx - a.tx
   return span > 0 ? a.sx + ((tx - a.tx) / span) * (b.sx - a.sx) : a.sx
