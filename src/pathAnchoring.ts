@@ -208,7 +208,21 @@ export function anchorFromPaths(graph: Graph, preferred: string | undefined) {
 // has to derive them. A GFA with neither tags nor paths comes back untouched
 // and falls through to the force layout, which is the honest answer for it.
 export function anchorGraph(graph: Graph, preferred: string | undefined) {
-  return graph.anchoredBy === 'tags' ? graph : anchorFromPaths(graph, preferred)
+  if (graph.anchoredBy !== 'tags') {
+    return anchorFromPaths(graph, preferred)
+  }
+  const referencePath = taggedReferencePath(graph)
+  return referencePath ? { ...graph, referencePath } : graph
+}
+
+// The path an rGFA's rank-0 segments name as their SN, where the graph has it:
+// a gfa-to-tabix walk cut tags the reference walk's segments this way
+function taggedReferencePath(graph: Graph) {
+  const refName = graph.nodes.find(n => n.stable?.rank === 0)?.stable?.refName
+  return refName !== undefined &&
+    graph.anchorPaths?.some(p => p.name === refName)
+    ? refName
+    : undefined
 }
 
 // `graph`'s origins once each walk is cut down to the steps `kept` gives it,

@@ -151,6 +151,23 @@ test('rGFA keeps its own tags', () => {
   expect(anchorGraph(rgfa, 'Sakai')).toBe(rgfa)
 })
 
+test('a tagged graph names the walk its SN tags name as the reference path', () => {
+  const gfa = [
+    'S\t1\t*\tLN:i:10\tSN:Z:GRCh38#0#chr1\tSO:i:100\tSR:i:0',
+    'S\t2\t*\tLN:i:5',
+    'S\t3\t*\tLN:i:10\tSN:Z:GRCh38#0#chr1\tSO:i:110\tSR:i:0',
+    'L\t1\t+\t3\t+\t0M',
+    'L\t1\t+\t2\t+\t0M',
+    'L\t2\t+\t3\t+\t0M',
+    'W\tGRCh38\t0\tchr1\t100\t120\t>1>3',
+    'W\tHG1\t1\tctg\t0\t25\t>1>2>3',
+  ].join('\n')
+  const graph = anchorGraph(convertGFAToGraph(parseGFA(gfa)), undefined)
+  expect(graph.anchoredBy).toBe('tags')
+  expect(graph.referencePath).toBe('GRCh38#0#chr1')
+  expect(nodeNamed(graph, '3').stable).toMatchObject({ start: 110, rank: 0 })
+})
+
 // A GFA with neither tags nor paths has no backbone to find, and saying so is
 // what leaves the layout dropdown honest instead of drawing an invented axis.
 test('a GFA with neither tags nor paths stays unanchored', () => {

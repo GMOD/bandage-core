@@ -244,3 +244,21 @@ test("a node's position on a walk is its stretch on the walk's own contig", () =
   expect(walkPosition(inv!, 'v1+', 4)).toBe('chr:5-9')
   expect(walkPosition(inv!, 'a1+', 6)).toBeUndefined()
 })
+
+test('a walk in a tagged walk cut measures itself against the reference walk', () => {
+  const gfa = [
+    'S\t1\t*\tLN:i:10\tSN:Z:GRCh38#0#chr1\tSO:i:100\tSR:i:0',
+    'S\t2\t*\tLN:i:5',
+    'S\t3\t*\tLN:i:10\tSN:Z:GRCh38#0#chr1\tSO:i:110\tSR:i:0',
+    'L\t1\t+\t3\t+\t0M',
+    'L\t1\t+\t2\t+\t0M',
+    'L\t2\t+\t3\t+\t0M',
+    'W\tGRCh38\t0\tchr1\t100\t120\t>1>3',
+    'W\tHG1\t1\tctg\t0\t25\t>1>2>3',
+  ].join('\n')
+  const graph = anchorGraph(convertGFAToGraph(parseGFA(gfa)), undefined)
+  const name = graph.paths!.find(p => p.name.startsWith('HG1'))!.name
+  const walk = walkHighlight(graph, name)!
+  expect(walk.reference).toBe(false)
+  expect(walk.referenceBp).toBe(20)
+})
