@@ -1,3 +1,9 @@
+## [10.3.1](https://github.com/GMOD/bandage-core/compare/v10.3.0...v10.3.1) (2026-10-15)
+
+### Other Changes
+
+- Name a tagged graph's reference path where its SN tags name one of its walks ([b220432](https://github.com/GMOD/bandage-core/commit/b22043220e1678fd461ad78a5070fb2fbd708520))
+
 ## [10.3.0](https://github.com/GMOD/bandage-core/compare/v10.2.7...v10.3.0) (2026-10-15)
 
 ### Other Changes
