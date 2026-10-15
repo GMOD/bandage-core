@@ -1,4 +1,4 @@
-import { panSNSample } from '../pansn'
+import { panSNFields, panSNSample } from '../pansn'
 import { PathVisits } from '../pathVisits'
 
 import type {
@@ -44,15 +44,6 @@ export interface GraphTables {
     steps: Int32Array
     reversed: Uint8Array
   }
-}
-
-// A W line's three fields, or undefined for a name with fewer than three
-// PanSN parts, such as pggb's `chm13#chr1`, which only a P line can carry
-function walkFields(panSN: string) {
-  const [sample = '', haplotype = '', ...contig] = panSN.split('#')
-  return contig.length > 0
-    ? { sample, haplotype: +haplotype, contig: contig.join('#') }
-    : undefined
 }
 
 // A P line states a walk's start only as a range on its name
@@ -249,7 +240,7 @@ export function graphFromTables(
   const edgeNames: string[] = []
   for (const p of drawnWalks) {
     const walkName = w.names[p]!
-    const fields = walkFields(walkName)
+    const fields = panSNFields(walkName)
     const start = w.starts[p]!
     const visitName = fields
       ? `${fields.sample}#${fields.haplotype}#${fields.contig}`
@@ -363,7 +354,7 @@ export function graphTablesGFA({ nodes, links, walks }: GraphTables) {
   }
   for (let p = 0; p < walks.names.length; p++) {
     const name = walks.names[p]!
-    const fields = walkFields(name)
+    const fields = panSNFields(name)
     const start = walks.starts[p]!
     const end = walks.ends[p]!
     const steps = []

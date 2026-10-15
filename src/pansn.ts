@@ -44,6 +44,26 @@ export function panSNContig(refName: string) {
       : refName
 }
 
+// A name's three PanSN fields, the contig keeping any `#` past the second, or
+// undefined for a name of fewer parts, such as pggb's `chm13#chr1`
+export function panSNFields(name: string) {
+  const [sample = '', haplotype = '', ...contig] = name.split(SEP)
+  return contig.length > 0
+    ? { sample, haplotype: +haplotype, contig: contig.join(SEP) }
+    : undefined
+}
+
+// PanSN is `sample#haplotype#contig`, but minigraph accepts a bare contig name
+// and the E. coli fixture is `K12#1#chr`, so this parses what is there.
+export function parsePanSN(refName: string) {
+  const parts = refName.split(SEP)
+  const haplotype = parts.length >= 2 ? Number(parts[1]) : Number.NaN
+  return {
+    sample: parts[0]!,
+    haplotype: Number.isFinite(haplotype) ? haplotype : undefined,
+  }
+}
+
 // Whether a PanSN name belongs to a prefix at either depth: `grape#1#chr1`
 // matches `grape` and `grape#1`, not `grape#2` or `grapefruit`. An undefined
 // prefix is "no assembly supplied", which nothing belongs to.

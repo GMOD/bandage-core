@@ -1,3 +1,5 @@
+import { panSNFields } from './pansn'
+
 // Panels this far apart, each a title row over a drawing padded this much
 export const FACET_GAP_PX = 8
 export const FACET_TITLE_PX = 34
@@ -158,10 +160,9 @@ export function facetCells(
     return wrap
   }
   const places = names.map(name => {
-    const [sample, haplotype, contig] = name.split('#')
-    const n = Number(haplotype)
-    return contig !== undefined && Number.isInteger(n) && n >= 0
-      ? { sample: sample!, column: Math.max(0, n - 1) }
+    const fields = panSNFields(name)
+    return fields && Number.isInteger(fields.haplotype) && fields.haplotype >= 0
+      ? { sample: fields.sample, column: Math.max(0, fields.haplotype - 1) }
       : undefined
   })
   const rows = domainFirst(

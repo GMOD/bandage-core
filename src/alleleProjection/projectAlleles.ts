@@ -4,6 +4,8 @@ import { buildNeighbors } from '../referenceSpan'
 import type { AnchoredNode } from '../anchoredNodes'
 import type { Graph } from '../types'
 
+export { parsePanSN } from '../pansn'
+
 // An rGFA subgraph's alleles on the reference axis, from the stable
 // coordinates and the L lines alone: an allele is a run of off-reference
 // segments, and the rank-0 segments it detaches from and reattaches to give it
@@ -21,17 +23,6 @@ export interface ProjectedAllele {
   // bp of the longest path through the run, the denominator for nodeOffsets:
   // a bubble's branches are alternatives, so their sum is no assembly's length
   pathLength: number
-}
-
-// PanSN is `sample#haplotype#contig`, but minigraph accepts a bare contig name
-// and the E. coli fixture is `K12#1#chr`, so this parses what is there.
-export function parsePanSN(refName: string) {
-  const parts = refName.split('#')
-  const haplotype = parts.length >= 2 ? Number(parts[1]) : Number.NaN
-  return {
-    sample: parts[0] ?? refName,
-    haplotype: Number.isFinite(haplotype) ? haplotype : undefined,
-  }
 }
 
 // One connected run of off-reference segments and the rank-0 segments on its

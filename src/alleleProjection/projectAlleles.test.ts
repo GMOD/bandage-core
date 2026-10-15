@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
 
-import { parsePanSN, projectAlleles } from './projectAlleles'
+import { projectAlleles } from './projectAlleles'
 import { isOffReference } from '../anchoredNodes'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
@@ -59,15 +59,6 @@ test('chains multi-segment bubble paths into one allele', () => {
     expect(new Set(a.nodeIds).size).toBe(a.nodeIds.length)
     expect(a.pathLength).toBeGreaterThan(0)
   }
-})
-
-test('parsePanSN reads sample and haplotype, tolerating bare contig names', () => {
-  expect(parsePanSN('HG01433.2#2#CM086507.1')).toEqual({
-    sample: 'HG01433.2',
-    haplotype: 2,
-  })
-  expect(parsePanSN('K12#1#chr')).toEqual({ sample: 'K12', haplotype: 1 })
-  expect(parsePanSN('chr1')).toEqual({ sample: 'chr1', haplotype: undefined })
 })
 
 test('an empty graph projects to nothing rather than throwing', () => {

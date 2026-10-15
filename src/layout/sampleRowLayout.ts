@@ -1,12 +1,12 @@
 import { placeOffReference } from './placeOffReference'
 import { ROW_HEIGHT_PX } from './rowSpacing'
-import { parsePanSN } from '../alleleProjection/projectAlleles'
 import {
   backboneNodes,
   backbonePositions,
   isOffReference,
   referenceSpan,
 } from '../anchoredNodes'
+import { panSNSample } from '../pansn'
 
 import type { Graph, LayoutResult, RowLabel } from '../types'
 
@@ -66,7 +66,7 @@ function contributingSamples(graph: Graph, keep: readonly string[]) {
   const carried = new Map<string, number>()
   for (const node of graph.nodes) {
     if (isOffReference(node)) {
-      const { sample } = parsePanSN(node.stable.refName)
+      const sample = panSNSample(node.stable.refName)
       carried.set(sample, (carried.get(sample) ?? 0) + node.length)
     }
   }
@@ -111,9 +111,7 @@ export function sampleRowLayout(
     span,
     rowY: node => {
       const stable = node.stable
-      const row = stable
-        ? rowOf.get(parsePanSN(stable.refName).sample)
-        : undefined
+      const row = stable ? rowOf.get(panSNSample(stable.refName)) : undefined
       return (row ?? spareRow) * ROW_HEIGHT_PX
     },
     positions: nodePositions,
@@ -123,7 +121,7 @@ export function sampleRowLayout(
   // name a row the layout put somewhere else. Row 0 is the backbone, named for
   // the assembly it comes from rather than "reference", because on this layout
   // that name is one of the samples and reads as a peer of the rows below it.
-  const referenceSample = parsePanSN(backbone[0]!.stable.refName).sample
+  const referenceSample = panSNSample(backbone[0]!.stable.refName)
   const rowLabels: RowLabel[] = [
     { label: referenceSample, y: 0 },
     ...samples.map(sample => ({
