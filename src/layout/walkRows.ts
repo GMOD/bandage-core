@@ -2,7 +2,7 @@ import { panSNContig, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
 
-import type { Graph, GraphPath } from '../types'
+import type { Graph, GraphPath, PathStop, StopChunk } from '../types'
 
 // Each haplotype walk on its own bp axis, so what a walk carries through the
 // window is its bar length. Reference-anchored rows cannot state that: a
@@ -30,10 +30,19 @@ export interface WalkRun {
   referenceStart?: number
   // the walk crosses that reference from its end back to its start
   reversed?: true
-  // bases of the walk's contig between two pieces the cut returned: the walk
-  // left the window's nodes and came back, and the cut holds nothing of them
+  // bases of the walk's contig between two pieces the cut returned, which the
+  // cut holds nothing of
   gap?: true
+  // why, where a walk-file cut's stops bounding the gap say: `missing`, the
+  // walk's record ends and the contig's next starts past the gap, so the graph
+  // lacks those bases; `elsewhere`, the walk goes on through nodes filed under
+  // `chunk`, which the cut did not read; `unknown`, the stops do not say, as
+  // at a format 2 file's record ends
+  cause?: GapCause
+  chunk?: StopChunk
 }
+
+export type GapCause = 'missing' | 'elsewhere' | 'unknown'
 
 // Where a row's bar lies on the walk's own contig: the contig position at the
 // bar's left end, and whether positions fall rightward along it
@@ -135,17 +144,48 @@ class NodeTable {
 interface Piece {
   start: number | undefined
   nodes: Int32Array
+  before?: PathStop
+  after?: PathStop
+}
+
+interface Gap {
+  bp: number
+  cause?: GapCause
+  chunk?: StopChunk
+}
+
+// What the stops either side of a gap of `bp` say of it, nothing where
+// neither piece states a stop
+function gapOf(
+  bp: number,
+  after: PathStop | undefined,
+  before: PathStop | undefined,
+): Gap {
+  if (!after && !before) {
+    return { bp }
+  }
+  if ([after, before].some(s => s?.kind === 'break' && s.bp === bp)) {
+    return { bp, cause: 'missing' }
+  }
+  const elsewhere = [after, before].find(s => s?.kind === 'elsewhere')
+  return elsewhere?.kind === 'elsewhere'
+    ? { bp, cause: 'elsewhere', chunk: elsewhere.chunk }
+    : { bp, cause: 'unknown' }
 }
 
 // A walk's steps through the cut, its pieces in contig order: a node index,
-// and between two pieces of it minus the bp of contig the cut does not hold.
-// A piece with no start, or one that overlaps the last, follows it directly.
+// and between two pieces of it -(k + 1) for `gaps[k]`, the contig the cut does
+// not hold. A piece with no start, or one that overlaps the last, follows it
+// directly.
 function stepsOf(pieces: Piece[], table: NodeTable) {
   const out: number[] = []
+  const gaps: Gap[] = []
   let end: number | undefined
+  let previous: Piece | undefined
   for (const piece of pieces) {
     if (end !== undefined && piece.start !== undefined && piece.start > end) {
-      out.push(end - piece.start)
+      gaps.push(gapOf(piece.start - end, previous?.after, piece.before))
+      out.push(-gaps.length)
     }
     let bp = 0
     for (const node of piece.nodes) {
@@ -153,8 +193,9 @@ function stepsOf(pieces: Piece[], table: NodeTable) {
       bp += table.lengths[node]!
     }
     end = piece.start === undefined ? undefined : piece.start + bp
+    previous = piece
   }
-  return Float64Array.from(out)
+  return { steps: Float64Array.from(out), gaps }
 }
 
 // Where step `k` lies on the walk's contig, steps and gaps alike; undefined
@@ -348,10 +389,13 @@ export function walkRows(
       .map((piece, p) => ({
         start: piece.start,
         nodes: nodes?.[p] ?? table.nodesOf(piece),
+        before: piece.before,
+        after: piece.after,
       }))
       .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
+    const { steps, gaps } = stepsOf(pieces, table)
     const { ids, complete, from, to, stop } = sliceBetween(
-      stepsOf(pieces, table),
+      steps,
       table,
       cut,
       flanked,
@@ -376,10 +420,17 @@ export function walkRows(
     let step = 0
     for (const node of ids) {
       if (node < 0) {
-        last = { start: bp, bp: -node, onReference: false, gap: true }
+        const { bp: gapLength, ...why } = gaps[-node - 1]!
+        last = {
+          start: bp,
+          bp: gapLength,
+          onReference: false,
+          gap: true,
+          ...why,
+        }
         runs.push(last)
-        bp -= node
-        gapBp -= node
+        bp += gapLength
+        gapBp += gapLength
         step = 0
         continue
       }

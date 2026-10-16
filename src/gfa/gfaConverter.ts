@@ -1,3 +1,4 @@
+import { walkStopFields } from './walkStops'
 import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
 
@@ -239,6 +240,7 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
       sample: walk.sample,
       haplotype: walk.haplotype,
       contig: walk.contig,
+      ...walkStopFields(walk.tags),
     } satisfies GraphPath)
     recordPathEdges(nodeIds, name)
   }

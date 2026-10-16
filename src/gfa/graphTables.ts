@@ -1,6 +1,8 @@
 import { panSNFields, panSNSample } from '../pansn'
 import { PathVisits } from '../pathVisits'
+import { stopAt, stopFields, walkStopTags } from './walkStops'
 
+import type { WalkStopTable } from './walkStops'
 import type {
   Graph,
   GraphEdge,
@@ -43,6 +45,11 @@ export interface GraphTables {
     offsets: Int32Array
     steps: Int32Array
     reversed: Uint8Array
+    // each fragment's W record start, and why it stops at either end, from a
+    // walk-file cut; W lines write them as tags (gfa/walkStops.ts)
+    fragStarts?: Float64Array
+    before?: WalkStopTable
+    after?: WalkStopTable
   }
 }
 
@@ -287,7 +294,19 @@ export function graphFromTables(
       }
       prev = node
     }
-    paths.push({ name: pathName, nodeIds, start, ...fields })
+    paths.push({
+      name: pathName,
+      nodeIds,
+      start,
+      ...fields,
+      ...(fields
+        ? stopFields(
+            w.fragStarts?.[p],
+            w.before && stopAt(w.before, p),
+            w.after && stopAt(w.after, p),
+          )
+        : {}),
+    })
     anchorPaths.push({
       name: visitName,
       sample: visitSample,
@@ -363,7 +382,7 @@ export function graphTablesGFA({ nodes, links, walks }: GraphTables) {
     }
     lines.push(
       fields
-        ? `W\t${fields.sample}\t${fields.haplotype}\t${fields.contig}\t${start}\t${end}\t${steps.map(([id, rev]) => (rev ? '<' : '>') + id).join('')}`
+        ? `W\t${fields.sample}\t${fields.haplotype}\t${fields.contig}\t${start}\t${end}\t${steps.map(([id, rev]) => (rev ? '<' : '>') + id).join('')}${walkStopTags(walks, p)}`
         : `P\t${pLineName(name, start, end)}\t${steps.map(([id, rev]) => id + (rev ? '-' : '+')).join(',')}\t*`,
     )
   }

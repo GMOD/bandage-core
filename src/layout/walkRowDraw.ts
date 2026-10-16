@@ -1,6 +1,7 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
+import { panSNContig } from '../pansn'
 import {
   RAMP_GRADIENT_CSS,
   RAMP_GRADIENT_STOPS,
@@ -9,7 +10,7 @@ import {
 } from '../referenceRampCss'
 import { REFERENCE_RAMP_ALT_CSS } from '../renderer/GeometryBuilder'
 
-import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
+import type { GapCause, WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
 import type { El } from '../el'
 import type { GeneModel } from '../genes/genePins'
 
@@ -54,11 +55,54 @@ export interface ReadoutCall {
   agrees?: boolean
 }
 
+// What a gap's cause says of its bp, and the key's words for it
+export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
+  missing: 'not in the graph',
+  elsewhere: 'on nodes filed elsewhere',
+  unknown: 'gap, cause unknown',
+}
+
+const near = ({ refName, start }: { refName: string; start: number }) =>
+  `${panSNContig(refName)}:${(start / 1e6).toFixed(1)} Mb`
+
+// What the cut left out of a row, by the cause its gaps state: ` · 19 kb not
+// in the graph`, ` · 34 kb on nodes filed near chr22:20.3 Mb`, or for gaps
+// stating none ` · 19 kb outside the cut`
+function gapsText(gapBp: number, runs: WalkRun[] | undefined) {
+  const gaps = (runs ?? []).filter(r => r.gap)
+  if (gapBp <= 0) {
+    return ''
+  }
+  if (!gaps.some(g => g.cause)) {
+    return ` · ${kb(gapBp)} outside the cut`
+  }
+  const bpOf = (cause: GapCause | undefined) =>
+    gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
+  const places = [
+    ...new Set(gaps.flatMap(g => (g.chunk ? [near(g.chunk)] : []))),
+  ]
+  const parts = [
+    [bpOf('missing'), GAP_CAUSE_TEXT.missing],
+    [
+      bpOf('elsewhere'),
+      `on nodes filed near ${places[0]}${places.length > 1 ? ` and ${places.length - 1} more place${places.length > 2 ? 's' : ''}` : ''}`,
+    ],
+    [bpOf('unknown'), GAP_CAUSE_TEXT.unknown],
+    [bpOf(undefined), 'outside the cut'],
+  ] as const
+  return parts
+    .filter(([bp]) => bp > 0)
+    .map(([bp, text]) => ` · ${kb(bp)} ${text}`)
+    .join('')
+}
+
 // The text at the end of a bar: its length, what it carries against the
-// reference row, and what the cut left out. A walk reaching one flank states
-// a lower bound and why it stops.
+// reference row, and what the cut left out, by cause where its gaps state
+// one. A walk reaching one flank states a lower bound and why it stops.
 export function walkRowReadout(
-  row: Pick<WalkRow, 'bp' | 'gapBp' | 'complete' | 'stop'>,
+  row: Pick<WalkRow, 'bp' | 'gapBp' | 'complete' | 'stop'> & {
+    runs?: WalkRun[]
+  },
   reference: Pick<WalkRow, 'bp'> | undefined,
   unit?: number,
   call?: ReadoutCall,
@@ -67,7 +111,7 @@ export function walkRowReadout(
   if (!reference) {
     return `${kb(bp)}${units(bp, unit)}`
   }
-  const outside = gapBp > 0 ? ` · ${kb(gapBp)} outside the cut` : ''
+  const outside = gapsText(gapBp, row.runs)
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
@@ -328,11 +372,17 @@ export function walkRowsKey(
       label: `off ${bars.reference.label}'s path`,
     },
   ]
-  if ([bars.reference, ...bars.rows].some(row => row.gapBp > 0)) {
-    entries.push({
-      swatch: { kind: 'gap', fill: OUTSIDE_CUT },
-      label: 'walked outside the cut',
-    })
+  const gaps = [bars.reference, ...bars.rows].flatMap(row =>
+    row.runs.filter(run => run.gap),
+  )
+  const causes = new Set(gaps.map(run => run.cause))
+  for (const cause of ['missing', 'elsewhere', 'unknown', undefined] as const) {
+    if (causes.has(cause)) {
+      entries.push({
+        swatch: { kind: 'gap', fill: OUTSIDE_CUT },
+        label: cause ? GAP_CAUSE_TEXT[cause] : 'walked outside the cut',
+      })
+    }
   }
   if (o.genes?.crowded) {
     entries.push({

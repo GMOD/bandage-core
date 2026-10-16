@@ -43,6 +43,36 @@ export interface GraphPath {
   // set on a record bundleRoutes kept for a route several walks take: the
   // walks it stands for, its own first
   members?: string[]
+  // set on a walk-file cut's W records (gfa/walkStops.ts): the start of the
+  // W record this fragment of it comes from, and why the fragment stops at
+  // its start and at its end
+  fragStart?: number
+  before?: PathStop
+  after?: PathStop
+}
+
+// Why a walk-file cut's fragment of a walk stops at one end, as
+// @jbrowse/graph-walks states it:
+// - `window`: the cut trimmed a walk that goes on through nodes it read
+// - `elsewhere`: the walk goes on through nodes filed under `chunk`, which the
+//   cut did not read, and comes back `bp` on when the cut holds where
+// - `break`: the walk's record ends, and the contig's next record starts `bp`
+//   on: the graph lacks those bases
+// - `end`: the contig's last record in the graph ends
+// - `recordEnd`: the record ends, and the walk file does not say whether
+//   another record of the contig goes on
+export type PathStop =
+  | { kind: 'window' }
+  | { kind: 'elsewhere'; chunk: StopChunk; bp?: number }
+  | { kind: 'break'; bp: number; chunk?: StopChunk }
+  | { kind: 'end' }
+  | { kind: 'recordEnd' }
+
+// a walk file's chunk: the reference sequence and the start of the bp range
+// whose rows file a piece of the walk
+export interface StopChunk {
+  refName: string
+  start: number
 }
 
 // One P or W record, named the way a coordinate is named: the range suffix
