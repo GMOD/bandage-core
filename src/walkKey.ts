@@ -1,3 +1,4 @@
+import { GAP_CAUSE_TEXT, OUTSIDE_TEXT } from './gfa/walkStops'
 import { formatBp, groupDigits } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
@@ -14,9 +15,10 @@ export function rangeText(
 }
 
 // A lifted walk's key in words, for a legend row or a facet panel's title: its
-// length against the reference and the bp it runs reversed, and for a lane that
-// shades, the stretch its scale runs over as `contig:start-end (length)`, to
-// write under a short bar of that scale. A flat lane's stretch is `hover`.
+// length against the reference, what its pieces leave out, and the bp it runs
+// reversed, and for a lane that shades, the stretch its scale runs over as
+// `contig:start-end (length)`, to write under a short bar of that scale. A
+// flat lane's stretch is `hover`.
 export function walkKey(
   walk: LiftedWalk,
   reference?: { name?: string; start: number; end: number },
@@ -33,13 +35,21 @@ export function walkKey(
         : undefined
   // what the walk spans on its contig, which its pieces may not all show
   const spanned = walk.range ? walk.range.end - walk.range.start : walk.bp
-  const outside = spanned - walk.bp
+  const outside = spanned - walk.bp - walk.missingBp - walk.unknownBp
+  const gaps = [
+    [walk.missingBp, GAP_CAUSE_TEXT.missing],
+    [walk.unknownBp, GAP_CAUSE_TEXT.unknown],
+    [outside, OUTSIDE_TEXT],
+  ] as const
   return {
     delta:
       walk.referenceBp === undefined || spanned === walk.referenceBp
         ? ''
         : ` ${spanned > walk.referenceBp ? '+' : '−'}${formatBp(Math.abs(spanned - walk.referenceBp))}`,
-    outside: outside > 0 ? `, ${formatBp(outside)} outside the cut` : '',
+    gaps: gaps
+      .filter(([bp]) => bp > 0)
+      .map(([bp, text]) => `, ${formatBp(bp)} ${text}`)
+      .join(''),
     reversed:
       walk.reversedBp > 0 ? `, ${formatBp(walk.reversedBp)} reversed` : '',
     shades: field !== 'walk',

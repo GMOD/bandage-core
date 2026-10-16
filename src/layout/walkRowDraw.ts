@@ -1,5 +1,6 @@
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { el } from '../el'
+import { GAP_CAUSE_TEXT, OUTSIDE_TEXT } from '../gfa/walkStops'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { panSNContig } from '../pansn'
 import {
@@ -10,9 +11,10 @@ import {
 } from '../referenceRampCss'
 import { REFERENCE_RAMP_ALT_CSS } from '../renderer/GeometryBuilder'
 
-import type { GapCause, WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
+import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
 import type { El } from '../el'
 import type { GeneModel } from '../genes/genePins'
+import type { GapCause } from '../gfa/walkStops'
 
 // What walk rows draw, shared by the hosts: walkRowsTree is the drawing as an
 // element tree, which the plugin renders as React elements, BandageJS as DOM
@@ -55,26 +57,19 @@ export interface ReadoutCall {
   agrees?: boolean
 }
 
-// What a gap's cause says of its bp, and the key's words for it
-export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
-  missing: 'not in the graph',
-  elsewhere: 'on nodes filed elsewhere',
-  unknown: 'gap, cause unknown',
-}
-
 const near = ({ refName, start }: { refName: string; start: number }) =>
   `${panSNContig(refName)}:${start < 1e6 ? `${Math.round(start / 1000)} kb` : `${(start / 1e6).toFixed(1)} Mb`}`
 
 // What the cut left out of a row, by the cause its gaps state: ` · 19 kb not
 // in the graph`, ` · 34 kb on nodes filed near chr22:20.3 Mb`, or for gaps
-// stating none ` · 19 kb outside the cut`
+// stating none ` · 19 kb outside the extracted subgraph`
 function gapsText(gapBp: number, runs: WalkRun[] | undefined) {
   const gaps = (runs ?? []).filter(r => r.gap)
   if (gapBp <= 0) {
     return ''
   }
   if (!gaps.some(g => g.cause)) {
-    return ` · ${kb(gapBp)} outside the cut`
+    return ` · ${kb(gapBp)} ${OUTSIDE_TEXT}`
   }
   const bpOf = (cause: GapCause | undefined) =>
     gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
@@ -88,7 +83,7 @@ function gapsText(gapBp: number, runs: WalkRun[] | undefined) {
       `on nodes filed near ${places[0]}${places.length > 1 ? ` and ${places.length - 1} more place${places.length > 2 ? 's' : ''}` : ''}`,
     ],
     [bpOf('unknown'), GAP_CAUSE_TEXT.unknown],
-    [bpOf(undefined), 'outside the cut'],
+    [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
   return parts
     .filter(([bp]) => bp > 0)
@@ -129,7 +124,7 @@ export function walkRowReadout(
     ? 'partial walk'
     : stop.contigEnds
       ? `contig ends inside the ${region}`
-      : 'does not rejoin the reference within the cut'
+      : 'does not rejoin the reference within the extracted subgraph'
   return `≥ ${kb(bp)}${units(bp, unit)} · ${why}${outside}${called}`
 }
 
@@ -380,7 +375,7 @@ export function walkRowsKey(
     if (causes.has(cause)) {
       entries.push({
         swatch: { kind: 'gap', fill: OUTSIDE_CUT },
-        label: cause ? GAP_CAUSE_TEXT[cause] : 'walked outside the cut',
+        label: cause ? GAP_CAUSE_TEXT[cause] : OUTSIDE_TEXT,
       })
     }
   }

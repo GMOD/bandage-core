@@ -169,7 +169,6 @@ export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
 export { filterSamples, walkRows } from './layout/walkRows'
 export type {
-  GapCause,
   WalkAxis,
   WalkRow,
   WalkRows,
@@ -287,13 +286,14 @@ export { graphFromTables, graphTablesGFA } from './gfa/graphTables'
 export type { GraphTables } from './gfa/graphTables'
 export {
   END_STOP_TAG,
-  FRAG_START_TAG,
+  GAP_CAUSE_TEXT,
+  OUTSIDE_TEXT,
   START_STOP_TAG,
-  WALK_STOP_KINDS,
+  gapParts,
   parseStopTag,
   stopTag,
 } from './gfa/walkStops'
-export type { WalkStopTable } from './gfa/walkStops'
+export type { GapCause, GapPart, WalkStopTable } from './gfa/walkStops'
 export { PathVisits, PathVisitsBuilder } from './pathVisits'
 
 export { engineKey } from './pipeline'

@@ -1,7 +1,9 @@
+import { gapParts } from '../gfa/walkStops'
 import { panSNContig, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
 
+import type { GapCause, GapPart } from '../gfa/walkStops'
 import type { Graph, GraphPath, PathStop, StopChunk } from '../types'
 
 // Each haplotype walk on its own bp axis, so what a walk carries through the
@@ -34,15 +36,14 @@ export interface WalkRun {
   // cut holds nothing of
   gap?: true
   // why, where a walk-file cut's stops bounding the gap say: `missing`, the
-  // walk's record ends and the contig's next starts past the gap, so the graph
+  // walk's record ends and the contig's next starts past it, so the graph
   // lacks those bases; `elsewhere`, the walk goes on through nodes filed under
-  // `chunk`, which the cut did not read; `unknown`, the stops do not say, as
-  // at a format 2 file's record ends
+  // `chunk`, which the cut did not read; `unknown`, the stops leave it open,
+  // as between two breaks with records this reference never visits. A gap
+  // with no cause is graph sequence outside the extracted subgraph
   cause?: GapCause
   chunk?: StopChunk
 }
-
-export type GapCause = 'missing' | 'elsewhere' | 'unknown'
 
 // Where a row's bar lies on the walk's own contig: the contig position at the
 // bar's left end, and whether positions fall rightward along it
@@ -148,43 +149,18 @@ interface Piece {
   after?: PathStop
 }
 
-interface Gap {
-  bp: number
-  cause?: GapCause
-  chunk?: StopChunk
-}
-
-// What the stops either side of a gap of `bp` say of it, nothing where
-// neither piece states a stop
-function gapOf(
-  bp: number,
-  after: PathStop | undefined,
-  before: PathStop | undefined,
-): Gap {
-  if (!after && !before) {
-    return { bp }
-  }
-  if ([after, before].some(s => s?.kind === 'break' && s.bp === bp)) {
-    return { bp, cause: 'missing' }
-  }
-  const elsewhere = [after, before].find(s => s?.kind === 'elsewhere')
-  return elsewhere?.kind === 'elsewhere'
-    ? { bp, cause: 'elsewhere', chunk: elsewhere.chunk }
-    : { bp, cause: 'unknown' }
-}
-
 // A walk's steps through the cut, its pieces in contig order: a node index,
-// and between two pieces of it -(k + 1) for `gaps[k]`, the contig the cut does
-// not hold. A piece with no start, or one that overlaps the last, follows it
-// directly.
+// and between two pieces of it -(k + 1) for `gaps[k]`, the parts of the contig
+// the cut does not hold. A piece with no start, or one that overlaps the last,
+// follows it directly.
 function stepsOf(pieces: Piece[], table: NodeTable) {
   const out: number[] = []
-  const gaps: Gap[] = []
+  const gaps: GapPart[][] = []
   let end: number | undefined
   let previous: Piece | undefined
   for (const piece of pieces) {
     if (end !== undefined && piece.start !== undefined && piece.start > end) {
-      gaps.push(gapOf(piece.start - end, previous?.after, piece.before))
+      gaps.push(gapParts(piece.start - end, previous?.after, piece.before))
       out.push(-gaps.length)
     }
     let bp = 0
@@ -418,19 +394,25 @@ export function walkRows(
     // which way the last run steps through the reference, 0 while it holds
     // one node
     let step = 0
+    // a slice taken backwards meets each gap's parts last first
+    const backwards = from >= 0 && from > to
     for (const node of ids) {
       if (node < 0) {
-        const { bp: gapLength, ...why } = gaps[-node - 1]!
-        last = {
-          start: bp,
-          bp: gapLength,
-          onReference: false,
-          gap: true,
-          ...why,
+        const parts = gaps[-node - 1]!
+        for (const { bp: partBp, ...why } of backwards
+          ? [...parts].reverse()
+          : parts) {
+          last = {
+            start: bp,
+            bp: partBp,
+            onReference: false,
+            gap: true,
+            ...why,
+          }
+          runs.push(last)
+          bp += partBp
+          gapBp += partBp
         }
-        runs.push(last)
-        bp += gapLength
-        gapBp += gapLength
         step = 0
         continue
       }

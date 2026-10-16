@@ -45,9 +45,8 @@ export interface GraphTables {
     offsets: Int32Array
     steps: Int32Array
     reversed: Uint8Array
-    // each fragment's W record start, and why it stops at either end, from a
-    // walk-file cut; W lines write them as tags (gfa/walkStops.ts)
-    fragStarts?: Float64Array
+    // what lies past either end of each walk, from a walk-file cut; W lines
+    // write them as tags (gfa/walkStops.ts)
     before?: WalkStopTable
     after?: WalkStopTable
   }
@@ -301,7 +300,6 @@ export function graphFromTables(
       ...fields,
       ...(fields
         ? stopFields(
-            w.fragStarts?.[p],
             w.before && stopAt(w.before, p),
             w.after && stopAt(w.after, p),
           )

@@ -140,7 +140,7 @@ test('the readout states length, change and what the cut left out', () => {
       { bp: 167_867, gapBp: 19_156, complete: true },
       { bp: 240_365 },
     ),
-  ).toBe('168 kb (−72 kb) · 19 kb outside the cut')
+  ).toBe('168 kb (−72 kb) · 19 kb outside the extracted subgraph')
 })
 
 test('a change under a kilobase reads in bp rather than rounding to 0.0 kb', () => {
@@ -179,7 +179,9 @@ test('a partial walk states a lower bound and why it stops', () => {
       reference,
       51,
     ),
-  ).toBe('≥ 1.5 kb ≈ 29 units · does not rejoin the reference within the cut')
+  ).toBe(
+    '≥ 1.5 kb ≈ 29 units · does not rejoin the reference within the extracted subgraph',
+  )
   expect(
     walkRowReadout(
       {
@@ -198,7 +200,7 @@ test('the key says the colours are the graph’s alignment', () => {
   expect(key.map(e => e.label)).toEqual([
     "on GRCh38#0's path",
     "off GRCh38#0's path",
-    'walked outside the cut',
+    'outside the extracted subgraph',
     'gene',
     'no gene track for 2 rows',
   ])

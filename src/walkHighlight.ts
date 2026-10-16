@@ -1,3 +1,4 @@
+import { gapParts } from './gfa/walkStops'
 import { panSNContig } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { encodedColor, resolveEncoding } from './walkEncoding'
@@ -24,6 +25,10 @@ export interface WalkHighlight {
   // where the walk's stretch of the cut sits on its own contig, from its W or
   // P record: its start where it begins and its end where it ends
   range?: { contig: string; start: number; end: number }
+  // bp of the gaps between its pieces that a walk-file cut's stops say the
+  // graph lacks, or leave open (gfa/walkStops.ts gapParts)
+  missingBp: number
+  unknownBp: number
 }
 
 export interface LiftedWalk extends WalkHighlight {
@@ -127,6 +132,22 @@ function highlightOf(
       before += length
     })
   }
+  let missingBp = 0
+  let unknownBp = 0
+  let end: number | undefined
+  pieces.forEach((piece, p) => {
+    if (end !== undefined && piece.start !== undefined && piece.start > end) {
+      for (const part of gapParts(
+        piece.start - end,
+        pieces[p - 1]!.after,
+        piece.before,
+      )) {
+        missingBp += part.cause === 'missing' ? part.bp : 0
+        unknownBp += part.cause === 'unknown' ? part.bp : 0
+      }
+    }
+    end = piece.start === undefined ? undefined : piece.start + bpOf(piece)
+  })
   const reference = isReference(graph, name)
   // measured as `range` is, so a walk identical to a cut reference reads equal
   const referenceSpan = () => {
@@ -151,6 +172,8 @@ function highlightOf(
     steps: pieces.reduce((sum, piece) => sum + piece.nodeIds.length, 0),
     bp,
     referenceBp: referenceSpan(),
+    missingBp,
+    unknownBp,
   }
 }
 

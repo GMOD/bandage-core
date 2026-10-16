@@ -1,6 +1,5 @@
 import {
   END_STOP_TAG,
-  FRAG_START_TAG,
   START_STOP_TAG,
   StopColumns,
   parseStopTag,
@@ -208,7 +207,6 @@ export function gfaTables(text: string): GraphTables | undefined {
   const walkEnds: number[] = []
   const offsets = [0]
   const steps = stepColumns()
-  const fragStarts: number[] = []
   const before = new StopColumns()
   const after = new StopColumns()
   for (const raw of lines) {
@@ -231,9 +229,6 @@ export function gfaTables(text: string): GraphTables | undefined {
         if (tags === undefined) {
           return undefined
         }
-        if (tags.fragStart !== undefined) {
-          fragStarts.push(tags.fragStart)
-        }
         if (tags.before) {
           before.push(tags.before)
         }
@@ -252,7 +247,7 @@ export function gfaTables(text: string): GraphTables | undefined {
   // a column only some W lines state is left to the text route, which keeps
   // each walk's own
   if (
-    [fragStarts.length, before.kinds.length, after.kinds.length].some(
+    [before.kinds.length, after.kinds.length].some(
       n => n > 0 && n < names.length,
     )
   ) {
@@ -279,23 +274,21 @@ export function gfaTables(text: string): GraphTables | undefined {
       offsets: Int32Array.from(offsets),
       steps: steps.nodes.data.slice(0, steps.nodes.length),
       reversed: steps.reversed.data.slice(0, steps.reversed.length),
-      ...stopColumns(names.length, fragStarts, before, after),
+      ...stopColumns(names.length, before, after),
     },
   }
 }
 
-// A W line's fragment tags from `from` on, undefined where a stop tag states
-// a kind this reader does not know; other tags are ignored, as the text
-// route's paths drop them
+// A W line's stop tags from `from` on, undefined where one states a kind this
+// reader does not know; other tags are ignored, as the text route's paths drop
+// them
 function walkTags(line: string, from: number) {
-  const out: { fragStart?: number; before?: PathStop; after?: PathStop } = {}
+  const out: { before?: PathStop; after?: PathStop } = {}
   for (const tag of from < line.length
     ? line.slice(from + 1).split('\t')
     : []) {
     const value = tag.slice(5)
-    if (tag.startsWith(`${FRAG_START_TAG}:i:`)) {
-      out.fragStart = +value
-    } else if (tag.startsWith(`${START_STOP_TAG}:Z:`)) {
+    if (tag.startsWith(`${START_STOP_TAG}:Z:`)) {
       out.before = parseStopTag(value)
       if (!out.before) {
         return undefined
@@ -311,16 +304,8 @@ function walkTags(line: string, from: number) {
 }
 
 // The stop columns every W line states
-function stopColumns(
-  walks: number,
-  fragStarts: number[],
-  before: StopColumns,
-  after: StopColumns,
-) {
+function stopColumns(walks: number, before: StopColumns, after: StopColumns) {
   return {
-    ...(fragStarts.length === walks && walks > 0
-      ? { fragStarts: Float64Array.from(fragStarts) }
-      : {}),
     ...(before.kinds.length === walks && walks > 0
       ? { before: before.table() }
       : {}),

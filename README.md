@@ -10,11 +10,11 @@ npm install @jbrowse/bandage-core
 
 - GFA and rGFA text in (`loadGraph`), or the same graph as typed arrays a worker
   can transfer (`GraphTables`)
-- A walk-file cut's W lines tag each fragment: `fs:i:` its W record's start, and
-  `ws:Z:`/`we:Z:` why it stops at its start and end, such as `break,bp=19021` or
-  `elsewhere,chunk=GRCh38#0#chr22:20316160` (`src/gfa/walkStops.ts`). Walk rows
-  then say why each gap is empty: not in the graph, on nodes filed elsewhere, or
-  cause unknown
+- A walk-file cut's W lines tag what lies past each fragment's start and end as
+  `ws:Z:`/`we:Z:`, such as `break,bp=19021` or
+  `elsewhere,trimmed=400,chunk=GRCh38#0#chr22:20316160`
+  (`src/gfa/walkStops.ts`). Walk rows split each gap by those stops into parts
+  that name their cause
 - Layouts: Bandage's FMMM engine as WASM from
   [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout)
   (`loadBandage`, `forceLayout`), ordered, anchored, sample rows, walk rows,

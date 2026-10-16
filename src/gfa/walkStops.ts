@@ -1,65 +1,121 @@
-import type { PathStop } from '../types'
+import type { PathStop, StopChunk } from '../types'
 
-// W-line tags a walk-file cut writes: the fragment's W record start on the
-// contig, and why the fragment stops at its start and at its end
-export const FRAG_START_TAG = 'fs'
+// W-line tags a walk-file cut writes: what lies past the fragment's start and
+// past its end
 export const START_STOP_TAG = 'ws'
 export const END_STOP_TAG = 'we'
 
-// The kinds a PathStop names, coded by index, as @jbrowse/graph-walks codes
-// its WalkStop
-export const WALK_STOP_KINDS = [
-  'window',
-  'elsewhere',
-  'break',
-  'end',
-  'recordEnd',
-] as const
+const STOP_KINDS = ['elsewhere', 'break', 'end'] as const
 
-// A PathStop per walk: its kind's index in WALK_STOP_KINDS, `bp` NaN where the
-// stop states none, and the chunk as an index into `chunkRefNames`, -1 for none
+// why a walk-row gap is empty (layout/walkRows.ts WalkRun)
+export type GapCause = 'missing' | 'elsewhere' | 'unknown'
+
+// What a gap's cause says of its bp, and the key's words for it
+export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
+  missing: 'not in the graph',
+  elsewhere: 'on nodes filed elsewhere',
+  unknown: 'gap, cause unknown',
+}
+
+// a gap with no cause: graph sequence the cut did not keep
+export const OUTSIDE_TEXT = 'outside the extracted subgraph'
+
+export interface GapPart {
+  bp: number
+  cause?: GapCause
+  chunk?: StopChunk
+}
+
+/**
+ * A gap of `bp` in contig order, split by the stops either side: the bp each
+ * side's cut trimmed, outside the extracted subgraph, then the bp a record
+ * break beside either side says the graph lacks, and the rest between, on
+ * nodes filed elsewhere when either side goes on in a chunk the cut did not
+ * read. A gap neither side states a stop for stays whole, with no cause.
+ */
+export function gapParts(
+  bp: number,
+  after: PathStop | undefined,
+  before: PathStop | undefined,
+): GapPart[] {
+  if (!after && !before) {
+    return [{ bp }]
+  }
+  const left = Math.min(after?.trimmed ?? 0, bp)
+  const right = Math.min(before?.trimmed ?? 0, bp - left)
+  let rest = bp - left - right
+  const lead = after?.kind === 'break' ? Math.min(after.bp, rest) : 0
+  rest -= lead
+  const trail = before?.kind === 'break' ? Math.min(before.bp, rest) : 0
+  rest -= trail
+  const elsewhere = [after, before].find(s => s?.kind === 'elsewhere')
+  const parts: GapPart[] = [
+    { bp: left },
+    { bp: lead, cause: 'missing' },
+    elsewhere?.kind === 'elsewhere'
+      ? { bp: rest, cause: 'elsewhere', chunk: elsewhere.chunk }
+      : { bp: rest, cause: 'unknown' },
+    { bp: trail, cause: 'missing' },
+    { bp: right },
+  ]
+  return parts.filter(part => part.bp > 0)
+}
+
+// A PathStop per walk, as @jbrowse/graph-walks' tables hold it: `kinds`
+// indexes `kindNames`, `bp` is NaN where the stop states none, `trimmed` is 0
+// where it states none, and `chunkRefs` indexes `chunkRefNames`, -1 for none
 export interface WalkStopTable {
   kinds: Uint8Array
+  kindNames: string[]
   bp: Float64Array
+  trimmed: Float64Array
   chunkRefs: Int32Array
   chunkStarts: Float64Array
   chunkRefNames: string[]
 }
 
-export function stopAt(table: WalkStopTable, i: number): PathStop {
-  const kind = WALK_STOP_KINDS[table.kinds[i]!] ?? 'recordEnd'
+export function stopAt(table: WalkStopTable, i: number) {
   const bp = table.bp[i]!
   const ref = table.chunkRefs[i]!
-  const chunk =
+  return stopOf(
+    table.kindNames[table.kinds[i]!],
+    Number.isNaN(bp) ? undefined : bp,
+    table.trimmed[i]!,
     ref < 0
       ? undefined
-      : { refName: table.chunkRefNames[ref]!, start: table.chunkStarts[i]! }
-  return withStopFields(kind, Number.isNaN(bp) ? undefined : bp, chunk)
+      : { refName: table.chunkRefNames[ref]!, start: table.chunkStarts[i]! },
+  )
 }
 
-function withStopFields(
-  kind: PathStop['kind'],
+// undefined for a kind this reader does not know, or one missing its fields
+function stopOf(
+  kind: string | undefined,
   bp: number | undefined,
-  chunk: { refName: string; start: number } | undefined,
-): PathStop {
+  trimmed: number,
+  chunk: StopChunk | undefined,
+): PathStop | undefined {
+  const cut = trimmed > 0 ? { trimmed } : {}
   if (kind === 'elsewhere' && chunk) {
-    return bp === undefined ? { kind, chunk } : { kind, chunk, bp }
+    return { kind, chunk, ...(bp === undefined ? {} : { bp }), ...cut }
   }
   if (kind === 'break' && bp !== undefined) {
-    return chunk ? { kind, bp, chunk } : { kind, bp }
+    return { kind, bp, ...(chunk ? { chunk } : {}), ...cut }
   }
-  return kind === 'window' || kind === 'end' ? { kind } : { kind: 'recordEnd' }
+  return kind === 'end' ? { kind, ...cut } : undefined
 }
 
 /**
- * A stop as a Z tag's value: its kind, then `bp=` and `chunk=refName:start`
- * where it states them, comma-joined: `break,bp=19021`,
- * `elsewhere,bp=34110,chunk=GRCh38#0#chr22:20316160`
+ * A stop as a Z tag's value: its kind, then `bp=`, `trimmed=` and
+ * `chunk=refName:start` where it states them, comma-joined:
+ * `break,bp=19021`, `elsewhere,bp=34110,chunk=GRCh38#0#chr22:20316160`
  */
 export function stopTag(stop: PathStop) {
   const parts: string[] = [stop.kind]
   if ('bp' in stop && stop.bp !== undefined) {
     parts.push(`bp=${stop.bp}`)
+  }
+  if (stop.trimmed) {
+    parts.push(`trimmed=${stop.trimmed}`)
   }
   if ('chunk' in stop && stop.chunk) {
     parts.push(`chunk=${stop.chunk.refName}:${stop.chunk.start}`)
@@ -68,84 +124,77 @@ export function stopTag(stop: PathStop) {
 }
 
 // The stop a Z tag's value states, undefined for one this reader does not know
-export function parseStopTag(value: string): PathStop | undefined {
+export function parseStopTag(value: string) {
   const [kind, ...fields] = value.split(',')
-  if (!WALK_STOP_KINDS.includes(kind as PathStop['kind'])) {
-    return undefined
-  }
   let bp: number | undefined
-  let chunk: { refName: string; start: number } | undefined
+  let trimmed = 0
+  let chunk: StopChunk | undefined
   for (const field of fields) {
     if (field.startsWith('bp=')) {
       bp = +field.slice(3)
+    } else if (field.startsWith('trimmed=')) {
+      trimmed = +field.slice(8)
     } else if (field.startsWith('chunk=')) {
       const at = field.lastIndexOf(':')
       chunk = { refName: field.slice(6, at), start: +field.slice(at + 1) }
     }
   }
-  return withStopFields(kind as PathStop['kind'], bp, chunk)
-}
-
-// The fragment fields a W line's tags state, as GraphPath holds them
-export function walkStopFields(tags: Record<string, string | number>) {
-  const fragStart = tags[FRAG_START_TAG]
-  const before = tags[START_STOP_TAG]
-  const after = tags[END_STOP_TAG]
-  return stopFields(
-    typeof fragStart === 'number' ? fragStart : undefined,
-    typeof before === 'string' ? parseStopTag(before) : undefined,
-    typeof after === 'string' ? parseStopTag(after) : undefined,
-  )
+  return stopOf(kind, bp, trimmed, chunk)
 }
 
 export function stopFields(
-  fragStart: number | undefined,
   before: PathStop | undefined,
   after: PathStop | undefined,
 ) {
   return {
-    ...(fragStart === undefined ? {} : { fragStart }),
     ...(before ? { before } : {}),
     ...(after ? { after } : {}),
   }
 }
 
+// The stops a W line's tags state, as GraphPath holds them
+export function walkStopFields(tags: Record<string, string | number>) {
+  const before = tags[START_STOP_TAG]
+  const after = tags[END_STOP_TAG]
+  return stopFields(
+    typeof before === 'string' ? parseStopTag(before) : undefined,
+    typeof after === 'string' ? parseStopTag(after) : undefined,
+  )
+}
+
 // A walk's W-line tags from the tables' columns, '' when they have none
 export function walkStopTags(
-  walks: {
-    fragStarts?: Float64Array
-    before?: WalkStopTable
-    after?: WalkStopTable
-  },
+  walks: { before?: WalkStopTable; after?: WalkStopTable },
   p: number,
 ) {
   const tags: string[] = []
-  if (walks.fragStarts) {
-    tags.push(`${FRAG_START_TAG}:i:${walks.fragStarts[p]}`)
+  for (const [tag, table] of [
+    [START_STOP_TAG, walks.before],
+    [END_STOP_TAG, walks.after],
+  ] as const) {
+    const stop = table && stopAt(table, p)
+    if (stop) {
+      tags.push(`\t${tag}:Z:${stopTag(stop)}`)
+    }
   }
-  if (walks.before) {
-    tags.push(`${START_STOP_TAG}:Z:${stopTag(stopAt(walks.before, p))}`)
-  }
-  if (walks.after) {
-    tags.push(`${END_STOP_TAG}:Z:${stopTag(stopAt(walks.after, p))}`)
-  }
-  return tags.map(t => `\t${t}`).join('')
+  return tags.join('')
 }
 
 // Columns a reader fills a W line at a time
 export class StopColumns {
   kinds: number[] = []
   bp: number[] = []
+  trimmed: number[] = []
   chunkRefs: number[] = []
   chunkStarts: number[] = []
   chunkRefNames: string[] = []
   private refIndex = new Map<string, number>()
 
-  push(stop: PathStop | undefined) {
-    const kind = stop ? stop.kind : 'recordEnd'
-    this.kinds.push(WALK_STOP_KINDS.indexOf(kind))
-    this.bp.push(stop && 'bp' in stop && stop.bp !== undefined ? stop.bp : NaN)
-    const chunk = stop && 'chunk' in stop ? stop.chunk : undefined
+  push(stop: PathStop) {
+    this.kinds.push(STOP_KINDS.indexOf(stop.kind))
+    this.bp.push('bp' in stop && stop.bp !== undefined ? stop.bp : NaN)
+    this.trimmed.push(stop.trimmed ?? 0)
+    const chunk = 'chunk' in stop ? stop.chunk : undefined
     if (chunk) {
       let ref = this.refIndex.get(chunk.refName)
       if (ref === undefined) {
@@ -164,7 +213,9 @@ export class StopColumns {
   table(): WalkStopTable {
     return {
       kinds: Uint8Array.from(this.kinds),
+      kindNames: [...STOP_KINDS],
       bp: Float64Array.from(this.bp),
+      trimmed: Float64Array.from(this.trimmed),
       chunkRefs: Int32Array.from(this.chunkRefs),
       chunkStarts: Float64Array.from(this.chunkStarts),
       chunkRefNames: this.chunkRefNames,

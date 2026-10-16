@@ -52,9 +52,9 @@ test("a lifted walk's key states what all its pieces carry", () => {
   const lift = walkLift(graph, [{ walk: 'HG002#1#chr1' }])
   const key = walkKey(lift.walks[0]!)
   // the walk spans the reference's 5 kb; the kilobase between its pieces is
-  // walked outside the cut, not deleted
+  // outside the extracted subgraph, not deleted
   expect(key.delta).toBe('')
-  expect(key.outside).toBe(', 1 kb outside the cut')
+  expect(key.gaps).toBe(', 1 kb outside the extracted subgraph')
 })
 
 // GRCh38 chr1 in two fragments joined from two cuts, as gbzJoin writes them:
