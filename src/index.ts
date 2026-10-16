@@ -188,6 +188,7 @@ export {
   alongRow,
   callTickInk,
   coalesceRuns,
+  gapStyle,
   genesOnRow,
   placeRowGenes,
   readoutPlacement,

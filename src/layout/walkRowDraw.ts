@@ -24,9 +24,12 @@ import type { GapCause } from '../gfa/walkStops'
 export const ON_REFERENCE = '#2f8fd6'
 export const OFF_REFERENCE = '#8e3fbf'
 export const OUTSIDE_CUT = '#bdbdbd'
+export const MISSING_INK = '#8a8a8a'
+export const UNKNOWN_GAP = '#e2e2e2'
 export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
+export const MISSING_PX = 1
 // rows thinner than this go unlabelled, their names and readouts on hover
 export const LABELLED_ROW_PX = 12
 // a unit separator over a thinner bar would cut it into dashes
@@ -150,6 +153,17 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
   return ticks
 }
 
+// How a gap draws, and the key's words for it: graph sequence outside the
+// extracted subgraph as a band, bases the graph lacks as a hairline the walk
+// jumps along, and a gap the stops leave open as a pale band
+export function gapStyle(cause: GapCause | undefined) {
+  return cause === 'missing'
+    ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.missing }
+    : cause === 'unknown'
+      ? { fill: UNKNOWN_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.unknown }
+      : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
+}
+
 // A run's paint: a flat colour, or under the reference-position ramp the hues
 // a gradient along a shared run takes, since it covers its reference
 // contiguously
@@ -158,7 +172,7 @@ export function runPaint(
   ramp: { start: number; end: number } | undefined,
 ): { fill: string } | { stops: string[] } {
   if (run.gap) {
-    return { fill: OUTSIDE_CUT }
+    return { fill: gapStyle(run.cause).fill }
   }
   if (!ramp) {
     return { fill: run.onReference ? ON_REFERENCE : OFF_REFERENCE }
@@ -318,7 +332,7 @@ export function rowGeneBoxes(
 export type KeySwatch =
   // `ramp` bars paint the reference-position ramp, which `fill` holds as CSS
   | { kind: 'bar'; fill: string; ramp?: true }
-  | { kind: 'gap'; fill: string }
+  | { kind: 'gap'; fill: string; px: number }
   | { kind: 'gene' }
 
 export interface KeyEntry {
@@ -370,13 +384,11 @@ export function walkRowsKey(
   const gaps = [bars.reference, ...bars.rows].flatMap(row =>
     row.runs.filter(run => run.gap),
   )
-  const causes = new Set(gaps.map(run => run.cause))
-  for (const cause of ['missing', 'elsewhere', 'unknown', undefined] as const) {
-    if (causes.has(cause)) {
-      entries.push({
-        swatch: { kind: 'gap', fill: OUTSIDE_CUT },
-        label: cause ? GAP_CAUSE_TEXT[cause] : OUTSIDE_TEXT,
-      })
+  const labels = new Set(gaps.map(run => gapStyle(run.cause).label))
+  for (const cause of [undefined, 'missing', 'unknown'] as const) {
+    const { fill, px, label } = gapStyle(cause)
+    if (labels.has(label)) {
+      entries.push({ swatch: { kind: 'gap', fill, px }, label })
     }
   }
   if (o.genes?.crowded) {
@@ -470,9 +482,9 @@ export function walkRowsKeyTree(
           })
         : el('rect', {
             x: at,
-            y: e.swatch.kind === 'gap' ? 7 : 5,
+            y: e.swatch.kind === 'gap' ? 9 - e.swatch.px / 2 : 5,
             width: 18,
-            height: e.swatch.kind === 'gap' ? GAP_PX : 8,
+            height: e.swatch.kind === 'gap' ? e.swatch.px : 8,
             rx: 2,
             fill: ramp ? `url(#${rampId})` : e.swatch.fill,
           })
@@ -670,7 +682,7 @@ export function walkRowsTree(
     }
     const runs = coalesceRuns(row.runs, frame.scaleX).flatMap(run => {
       const paint = runPaint(run, o.ramp)
-      const h = run.gap ? Math.min(GAP_PX, barPx) : barPx
+      const h = run.gap ? Math.min(gapStyle(run.cause).px, barPx) : barPx
       const id = `${prefix}-${i}-${run.start}`
       const rect = el('rect', {
         x: along(run.start),

@@ -3,7 +3,14 @@ import { gfaTables } from './gfaTables'
 import { graphFromTables, graphTablesGFA } from './graphTables'
 import { parseStopTag, stopTag } from './walkStops'
 import { parseGFA } from '../gfa-core/index'
-import { walkRowReadout, walkRowsKey } from '../layout/walkRowDraw'
+import {
+  GAP_PX as WALK_GAP_PX,
+  MISSING_INK,
+  MISSING_PX,
+  OUTSIDE_CUT as WALK_OUTSIDE_CUT,
+  walkRowReadout,
+  walkRowsKey,
+} from '../layout/walkRowDraw'
 import { walkRows } from '../layout/walkRows'
 import { loadGraph } from '../pipeline'
 import { walkLift } from '../walkHighlight'
@@ -160,6 +167,23 @@ test('a gap past a trimmed walk splits into what the cut left out and what the g
   ).toEqual([
     [300, undefined],
     [700, 'elsewhere'],
+  ])
+})
+
+test('the key gives one entry to each way a gap draws', () => {
+  const { rows } = gapOf(
+    twoFragments(
+      'elsewhere,chunk=GRCh38#0#chr1:9000,trimmed=200',
+      'break,bp=600',
+    ),
+  )
+  const gaps = walkRowsKey(rows).filter(e => e.swatch.kind === 'gap')
+  expect(gaps.map(e => [e.label, e.swatch])).toEqual([
+    [
+      'outside the extracted subgraph',
+      { kind: 'gap', fill: WALK_OUTSIDE_CUT, px: WALK_GAP_PX },
+    ],
+    ['not in the graph', { kind: 'gap', fill: MISSING_INK, px: MISSING_PX }],
   ])
 })
 
