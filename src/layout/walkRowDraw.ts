@@ -552,6 +552,9 @@ export interface WalkRowsFrame {
   barPx?: number
   // false where rows are too thin to letter, which leaves readouts to hover
   readouts?: boolean
+  // false where a canvas paints the bars under the tree, which then draws the
+  // rest of each row, its readout naming its gaps' causes
+  bars?: boolean
 }
 
 // Runs under a pixel wide merged into one, painted as the bp most of them
@@ -680,7 +683,8 @@ export function walkRowsTree(
     if (y < -barPx || y > frame.height + barPx) {
       return undefined
     }
-    const runs = coalesceRuns(row.runs, frame.scaleX).flatMap(run => {
+    const drawn = frame.bars === false ? [] : row.runs
+    const runs = coalesceRuns(drawn, frame.scaleX).flatMap(run => {
       const paint = runPaint(run, o.ramp)
       const h = run.gap ? Math.min(gapStyle(run.cause).px, barPx) : barPx
       const id = `${prefix}-${i}-${run.start}`

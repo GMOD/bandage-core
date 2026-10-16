@@ -2,6 +2,7 @@ import { convertGFAToGraph } from './gfaConverter'
 import { gfaTables } from './gfaTables'
 import { graphFromTables, graphTablesGFA } from './graphTables'
 import { parseStopTag, stopTag } from './walkStops'
+import { serializeEl } from '../el'
 import { parseGFA } from '../gfa-core/index'
 import {
   GAP_PX as WALK_GAP_PX,
@@ -10,6 +11,7 @@ import {
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,
   walkRowReadout,
   walkRowsKey,
+  walkRowsTree,
 } from '../layout/walkRowDraw'
 import { walkRows } from '../layout/walkRows'
 import { loadGraph } from '../pipeline'
@@ -185,6 +187,22 @@ test('the key gives one entry to each way a gap draws', () => {
     ],
     ['not in the graph', { kind: 'gap', fill: MISSING_INK, px: MISSING_PX }],
   ])
+})
+
+test('a tree drawn over canvas bars still names what its gaps leave out', () => {
+  const { rows } = gapOf(twoFragments('break,bp=1000', 'break,bp=1000'))
+  const frame = {
+    scaleX: 0.1,
+    scaleY: 1,
+    translateX: 0,
+    translateY: 20,
+    width: 800,
+    height: 400,
+  }
+  const svg = serializeEl(walkRowsTree(rows, { ...frame, bars: false }))
+  expect(svg).not.toContain('<rect')
+  expect(svg).toContain('5.0 kb · 1.0 kb not in the graph')
+  expect(serializeEl(walkRowsTree(rows, frame))).toContain('<rect')
 })
 
 test('two breaks with a record between leave the bp between them open', () => {
