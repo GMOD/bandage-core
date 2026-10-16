@@ -1,3 +1,13 @@
+## [11.0.0](https://github.com/GMOD/bandage-core/compare/v10.3.1...v11.0.0) (2026-10-16)
+
+### Other Changes
+
+- Keep walk-file stops through GFA, and say why each walk-row gap is empty ([4b2f65c](https://github.com/GMOD/bandage-core/commit/4b2f65c6964c04a6aee36f9a40904b898bbfc5f7))
+- Name a chunk under 1 Mb in kb ([4b50bff](https://github.com/GMOD/bandage-core/commit/4b50bffb8052dd00b4655ac24198fc84d95a6cbe))
+- Split each walk-row gap into parts by the stops either side ([827c8ab](https://github.com/GMOD/bandage-core/commit/827c8abca0dfa1cc271cabfc05f62933c1fdda48))
+- Draw a gap the graph lacks as a hairline ([ede0dfe](https://github.com/GMOD/bandage-core/commit/ede0dfe62e6b637cdaaf4632248f533403d17d6a))
+- Let a tree drawn over canvas bars keep its rows' runs ([6ffcc42](https://github.com/GMOD/bandage-core/commit/6ffcc4239f2e83b9b430503e1243152e936a9a2c))
+
 ## [10.3.1](https://github.com/GMOD/bandage-core/compare/v10.3.0...v10.3.1) (2026-10-15)
 
 ### Other Changes
