@@ -160,6 +160,15 @@ test('a gap the walk spends on nodes filed elsewhere names where', () => {
   expect(walkRowReadout(row, rows.reference)).toBe(
     '5.0 kb · 1.0 kb on nodes filed near chr1:20.3 Mb',
   )
+  const small = gapOf(
+    twoFragments(
+      'elsewhere,chunk=GRCh38#0#chr1:9000',
+      'elsewhere,chunk=GRCh38#0#chr1:9000',
+    ),
+  )
+  expect(walkRowReadout(small.row, small.rows.reference)).toBe(
+    '5.0 kb · 1.0 kb on nodes filed near chr1:9 kb',
+  )
 })
 
 test('a gap between format 2 records, or a break of other bp, has no known cause', () => {

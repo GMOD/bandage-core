@@ -63,7 +63,7 @@ export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
 }
 
 const near = ({ refName, start }: { refName: string; start: number }) =>
-  `${panSNContig(refName)}:${(start / 1e6).toFixed(1)} Mb`
+  `${panSNContig(refName)}:${start < 1e6 ? `${Math.round(start / 1000)} kb` : `${(start / 1e6).toFixed(1)} Mb`}`
 
 // What the cut left out of a row, by the cause its gaps state: ` · 19 kb not
 // in the graph`, ` · 34 kb on nodes filed near chr22:20.3 Mb`, or for gaps
