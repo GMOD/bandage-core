@@ -61,6 +61,14 @@ export interface WalkStop {
   shortBp: number
 }
 
+// A step of a row's bar through a graph node: its bp offset from the bar's
+// start, and whether the reference walk visits the node anywhere in the cut
+export interface WalkVisit {
+  node: string
+  start: number
+  onReference: boolean
+}
+
 export interface WalkRow {
   name: string
   label: string
@@ -75,6 +83,7 @@ export interface WalkRow {
   complete: boolean
   stop?: WalkStop
   runs: WalkRun[]
+  visits: WalkVisit[]
   // undefined where a piece states no start or overlaps the one before, so
   // bar offsets don't map linearly onto the contig
   axis?: WalkAxis
@@ -105,6 +114,7 @@ function labelOf(path: GraphPath) {
 // An id no node declares is a step of length 0, as in a GFA.
 class NodeTable {
   index = new Map<string, number>()
+  ids: string[] = []
   lengths: number[] = []
   onReference = new Uint8Array(0)
   referenceStart = new Float64Array(0)
@@ -121,6 +131,7 @@ class NodeTable {
     if (i === undefined) {
       i = this.lengths.length
       this.index.set(id, i)
+      this.ids.push(id)
       this.lengths.push(0)
     }
     return i
@@ -385,8 +396,15 @@ export function walkRows(
         : from < to
           ? { contig, start: axisSpan.end, reversed: false }
           : { contig, start: axisSpan.start, reversed: true }
-    const { lengths, onReference, referenceStart, referenceEnd } = table
+    const {
+      ids: nodeIds,
+      lengths,
+      onReference,
+      referenceStart,
+      referenceEnd,
+    } = table
     const runs: WalkRun[] = []
+    const visits: WalkVisit[] = []
     let last: WalkRun | undefined
     let bp = 0
     let offReferenceBp = 0
@@ -418,6 +436,7 @@ export function walkRows(
       }
       const len = lengths[node]!
       const on = onReference[node] === 1
+      visits.push({ node: nodeIds[node]!, start: bp, onReference: on })
       const at = last?.referenceStart
       const forward =
         on &&
@@ -461,6 +480,7 @@ export function walkRows(
       complete,
       stop,
       runs,
+      visits,
       axis,
     }
   }

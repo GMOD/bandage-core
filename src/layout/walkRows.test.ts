@@ -94,6 +94,38 @@ test('a region measures between its flanking reference nodes', () => {
   expect(cut.reference.bp).toBeLessThan(whole.reference.bp)
 })
 
+test("a row's visits step through its bar, each at its bp offset", () => {
+  const graph = pggbGraph()
+  const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const reference = graph.paths!.find(
+    p => pathOrigin(p.name).name === graph.referencePath,
+  )!
+  const start = graph.anchorPaths!.find(
+    p => p.name === graph.referencePath,
+  )!.start
+  const ends = [start]
+  for (const id of reference.nodeIds) {
+    ends.push(ends.at(-1)! + byId.get(id)!)
+  }
+  const n = reference.nodeIds.length
+  const cut = walkRows(graph, { start: ends[2]!, end: ends[n - 2]! })!
+  expect(cut.reference.visits.map(v => v.node)).toEqual(
+    reference.nodeIds.slice(2, n - 2),
+  )
+  for (const row of [cut.reference, ...cut.rows]) {
+    let bp = 0
+    for (const visit of row.visits) {
+      expect(visit.start).toBe(bp)
+      const run = row.runs.find(
+        r => r.start <= visit.start && visit.start < r.start + r.bp,
+      )!
+      expect(visit.onReference).toBe(run.onReference)
+      bp += byId.get(visit.node)!
+    }
+    expect(bp).toBe(row.bp)
+  }
+})
+
 test('a walk that stops inside a flanked region reads partial', () => {
   const graph = pggbGraph()
   const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
