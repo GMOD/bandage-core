@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-import { gfaFigureData } from './figureData'
+import { figureData, gfaFigureData, laidOutGraph } from './figureData'
+import { graphBackbone } from './reference'
 
 const read = (name: string) =>
   readFileSync(join(__dirname, '..', 'test_data', name), 'utf8')
@@ -51,6 +52,58 @@ test('a panel per walk, its walk lifted and the rest faded', async () => {
     new Set(d.nodes.alpha.filter((_, i) => d.nodes.panel[i] === panel))
   expect(Math.min(...alphas('K12'))).toBeLessThan(1)
   expect(Math.max(...alphas('K12'))).toBe(1)
+})
+
+test('each lifted walk is keyed with its colour stops as hex', async () => {
+  const gfa = read('ecoli_pggb_subgraph.gfa')
+  const d = await gfaFigureData(gfa, 'ecoli', {
+    engine: 'stress',
+    walks: [K12, IAI39],
+  })
+  expect(d.keys.walk).toEqual(['K12', 'IAI39'])
+  expect(d.keys.panel).toEqual(['', ''])
+  for (const stops of d.keys.stops) {
+    expect(stops).toMatch(/^#[0-9a-f]{6}(,#[0-9a-f]{6})*$/)
+  }
+  expect(d.walkNames).toEqual(expect.arrayContaining([K12, IAI39]))
+  const faceted = await gfaFigureData(gfa, 'ecoli', {
+    engine: 'stress',
+    walks: [K12, IAI39],
+    facet: 'walk',
+  })
+  expect(faceted.keys.panel).toEqual(faceted.panels.panel)
+})
+
+test('a gene is pinned, its exons polylines along the nodes under them', async () => {
+  const { graph, layout } = await laidOutGraph(
+    read('ecoli_rgfa_slice.gfa'),
+    'ecoli',
+    undefined,
+    { engine: 'stress' },
+  )
+  const { refName, start, end } = graphBackbone(graph)!.contigs[0]!
+  const mid = Math.round((start + end) / 2)
+  const d = figureData(graph, layout, {
+    genes: [
+      {
+        name: 'geneA',
+        refName,
+        start,
+        end: mid,
+        strand: 1,
+        exons: [{ start: start + 10, end: mid - 10 }],
+      },
+    ],
+  })
+  expect(d.pins.gene).toEqual(['geneA'])
+  expect(d.pins.bp).toEqual([mid - start])
+  expect(lengths(d.exons).size).toBe(1)
+  const nodes = new Set(d.nodeInfo.node)
+  expect(d.exons.node.every(n => nodes.has(n))).toBe(true)
+  for (const stretch of new Set(d.exons.stretch)) {
+    expect(d.exons.stretch.filter(s => s === stretch).length).toBeGreaterThan(1)
+  }
+  expect(figureData(graph, layout).pins.gene).toEqual([])
 })
 
 test('colours are css hex', async () => {

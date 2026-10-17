@@ -26,8 +26,9 @@ export interface GenePin {
   gene: GeneModel
   // an SVG path of the exon stretches, in layout units
   exons: string
-  // the same stretches per node, for a drawing sized to each node
-  exonsByNode: { nodeId: string; d: string }[]
+  // the same stretches per node, for a drawing sized to each node, as a path
+  // and as points
+  exonsByNode: { nodeId: string; d: string; stretches: NodeSegment[][] }[]
   // every node the gene lies over, the only ones its name may cover
   nodeIds: ReadonlySet<string>
   // where the name goes: the point at the gene's midpoint, or the nearest
@@ -102,6 +103,7 @@ export function genePins(
       nodeIds.add(node.id)
       covered += Math.min(nodeEnd, gene.end) - Math.max(nodeStart, gene.start)
       const nodeParts: string[] = []
+      const stretches: NodeSegment[][] = []
       for (const exon of gene.exons) {
         const a = Math.max(exon.start, nodeStart)
         const b = Math.min(exon.end, nodeEnd)
@@ -117,10 +119,11 @@ export function genePins(
           stretch.push({ ...stretch[0]! })
         }
         nodeParts.push(svgPath(stretch))
+        stretches.push(stretch)
       }
       if (nodeParts.length > 0) {
         parts.push(...nodeParts)
-        exonsByNode.push({ nodeId: node.id, d: nodeParts.join('') })
+        exonsByNode.push({ nodeId: node.id, d: nodeParts.join(''), stretches })
       }
       const pinBp = Math.min(Math.max(mid, nodeStart), nodeEnd)
       const distance = Math.abs(pinBp - mid)

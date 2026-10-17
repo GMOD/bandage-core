@@ -2,6 +2,7 @@ import { isBackbone } from './anchoredNodes'
 import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { parseRegion } from './gbzCut'
+import { genePins } from './genes/genePins'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
 import {
@@ -13,6 +14,7 @@ import {
 import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
+import { encodingStops } from './walkEncoding'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
@@ -20,7 +22,7 @@ import type { LayoutEngineKind } from './layoutEngines'
 import type { LayoutModeValue } from './layoutModes'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
-import type { WalkLift } from './walkHighlight'
+import type { LiftedWalk, WalkLift } from './walkHighlight'
 
 // A figure as tables rather than ink: what figureSvg would paint, in layout
 // units, for a host with its own graphics system (ggplot2 through V8) to draw.
@@ -44,6 +46,7 @@ export type FigureDataOptions = Pick<
   | 'referenceName'
   | 'colorDomain'
   | 'fitToDrawing'
+  | 'genes'
 >
 
 type Columns<T> = { [K in keyof T]: T[K][] }
@@ -75,6 +78,33 @@ interface EdgeRow {
   alpha: number
   width: number
   deletion: boolean
+}
+
+// a lifted walk's key: its colour stops as hex, and the note and scale its
+// bar is labelled with
+interface KeyRow {
+  panel: string
+  walk: string
+  note: string
+  scale: string
+  stops: string
+}
+
+interface PinRow {
+  gene: string
+  x: number
+  y: number
+  covered: number
+  bp: number
+}
+
+// a point of an exon's stretch of node, one `stretch` per polyline
+interface ExonRow {
+  gene: string
+  node: string
+  stretch: number
+  x: number
+  y: number
 }
 
 interface ArrowRow {
@@ -142,22 +172,64 @@ export function figureData(
     key: string
     range: string
   }[] = []
+  const keys = columns<KeyRow>(['panel', 'walk', 'note', 'scale', 'stops'])
+  const pushKey = (walk: LiftedWalk, panel: string) => {
+    const key = keyText(walk)
+    keys.push({
+      panel,
+      walk: labelOf(walk.name),
+      note: key.note,
+      scale: key.scale ?? '',
+      stops: encodingStops(walk.encoding)
+        .map(s => cssHex(s.abgr))
+        .join(','),
+    })
+    return key
+  }
   if (facets) {
     const ordered = facets.panels
       .map((panel, i) => ({ panel, cell: facets.place.cells[i]! }))
       .sort((a, b) => a.cell - b.cell)
     for (const { panel } of ordered) {
       const walk = panel.walks[0]!
-      const key = keyText(walk)
+      const name = labelOf(walk.name)
+      const key = pushKey(walk, name)
       panels.push({
         highlight: panel,
-        name: labelOf(walk.name),
+        name,
         key: key.note,
         range: key.scale ?? '',
       })
     }
   } else {
+    for (const walk of lift?.walks ?? []) {
+      pushKey(walk, '')
+    }
     panels.push({ highlight: lift, name: '', key: '', range: '' })
+  }
+
+  const pins = columns<PinRow>(['gene', 'x', 'y', 'covered', 'bp'])
+  const exons = columns<ExonRow>(['gene', 'node', 'stretch', 'x', 'y'])
+  let stretch = 0
+  for (const pin of o.genes?.length
+    ? genePins(graph, o.genes, layout.nodePositions)
+    : []) {
+    const gene = pin.gene.name
+    pins.push({
+      gene,
+      x: pin.at.x,
+      y: pin.at.y,
+      covered: pin.covered,
+      bp: pin.gene.end - pin.gene.start,
+    })
+    for (const { nodeId, stretches } of pin.exonsByNode) {
+      for (const points of stretches) {
+        stretch++
+        for (const { x, y } of points) {
+          exons.push({ gene, node: nodeId, stretch, x, y })
+        }
+      }
+    }
   }
 
   const nodes = columns<NodeRow>([
@@ -269,6 +341,10 @@ export function figureData(
       key: panels.map(p => p.key),
       range: panels.map(p => p.range),
     },
+    keys: keys.out,
+    pins: pins.out,
+    exons: exons.out,
+    walkNames: [...new Set((graph.paths ?? []).map(p => p.name))],
     nodes: nodes.out,
     edges: edges.out,
     arrows: arrows.out,
@@ -288,7 +364,7 @@ export function figureData(
 
 export interface GfaFigureSpec extends Omit<
   FigureDataOptions,
-  'region' | 'walks'
+  'region' | 'walks' | 'genes'
 > {
   // the reference window the GFA was cut for
   region?: string

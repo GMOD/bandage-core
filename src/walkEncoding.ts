@@ -160,12 +160,14 @@ export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
 
 // A key's colours: the walk's one colour, or the scheme across the field
 export function encodingStops({ field, scheme }: WalkEncoding) {
+  const stop = (offset: number, t: number) => ({
+    offset,
+    color: schemeCss(scheme, t),
+    abgr: schemeColor(scheme, t),
+  })
   return field === 'walk'
-    ? [{ offset: 0, color: schemeCss(scheme, BASE_T) }]
-    : Array.from({ length: 7 }, (_, i) => ({
-        offset: i / 6,
-        color: schemeCss(scheme, i / 6),
-      }))
+    ? [stop(0, BASE_T)]
+    : Array.from({ length: 7 }, (_, i) => stop(i / 6, i / 6))
 }
 
 // A swatch for the legend: the walk's colour, or the scheme across the field
