@@ -1,3 +1,11 @@
+## [11.1.0](https://github.com/GMOD/bandage-core/compare/v11.0.0...v11.1.0) (2026-10-17)
+
+### Other Changes
+
+- Give each walk row its visits: every node its bar steps through, at its bp offset ([2b6c74a](https://github.com/GMOD/bandage-core/commit/2b6c74a582e73402c0bfc9e7557c1a4528ec1cd1))
+- Return walk keys, gene pins and exon polylines from figureData ([1a51cf8](https://github.com/GMOD/bandage-core/commit/1a51cf872be234cd2c86aa6276c6ddc1fb0718ba))
+- Read a gene file onto a graph's backbone with backboneGenes, for any host ([cedf2f5](https://github.com/GMOD/bandage-core/commit/cedf2f5e409af749a2ef50a5c2fe3be4205e4338))
+
 ## [11.0.0](https://github.com/GMOD/bandage-core/compare/v10.3.1...v11.0.0) (2026-10-16)
 
 ### Other Changes
