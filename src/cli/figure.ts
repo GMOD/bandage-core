@@ -15,12 +15,11 @@ import {
   openGbz,
   parseRegion,
 } from '../gbzCut'
-import { genesFromText } from '../genes/geneFiles'
+import { backboneGenes } from '../genes/backboneGenes'
 import { genesOnRow, placeRowGenes } from '../layout/walkRowDraw'
 import { filterSamples, walkRows } from '../layout/walkRows'
 import { LAYOUT_ENGINE_VALUES, isLayoutEngineKind } from '../layoutEngines'
 import { LAYOUT_MODES } from '../layoutModes'
-import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
 import { decodeText } from './decodeText'
 
 import type { FigureOptions } from '../figure'
@@ -28,7 +27,6 @@ import type { GfaFigureSpec } from '../figureData'
 import type { GbzSource } from '../gbzCut'
 import type { GeneFormat } from '../genes/geneFiles'
 import type { GeneModel } from '../genes/genePins'
-import type { BackboneContig } from '../reference'
 import type { Graph } from '../types'
 import type { ByteSource } from '@gmod/gbz-base'
 
@@ -109,68 +107,39 @@ async function readGenes(
   graph: Graph,
   resolve: (location: string) => string,
 ): Promise<GeneModel[]> {
-  const backbone = graphBackbone(graph)
-  if (!backbone) {
-    return []
-  }
-  const bind = refNameBinding(
-    backbone.contigs.map(c => c.refName),
-    genes.refNames,
-  )
-  const { names, features } = genes.index
-    ? await indexedGenes(
-        resolve(genes.file),
-        resolve(genes.index),
-        genes.format ?? (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3'),
-        backbone.contigs,
-        bind,
-      )
-    : namedBy(genesFromText(await text(resolve(genes.file)), genes.format))
-  if (!names.some(name => bind(name) !== undefined)) {
+  const file = resolve(genes.file)
+  const read = await backboneGenes(graph, {
+    ...(genes.index
+      ? {
+          indexed: tabixFile(file, resolve(genes.index)),
+          format:
+            genes.format ??
+            (/\.bed(\.gz)?$/i.test(genes.file) ? 'bed' : 'gff3'),
+        }
+      : { text: await text(file), format: genes.format }),
+    refNames: genes.refNames,
+  })
+  if (read.unbound) {
+    const { names, contigs } = read.unbound
     const shown = names.slice(0, 4).join(', ')
     console.warn(
-      `bandage-figure: no sequence in ${genes.file} names ${backbone.contigs.map(c => c.contig).join(', ')}` +
+      `bandage-figure: no sequence in ${genes.file} names ${contigs.join(', ')}` +
         (names.length
           ? `; it has ${shown}${names.length > 4 ? ', …' : ''}`
           : '') +
         `. Give the file's name under genes.refNames, as { "chr6": "NC_000006.12" }`,
     )
   }
-  return featuresOnBackbone(features, backbone, genes.refNames)
+  return read.genes
 }
 
-function namedBy(features: GeneModel[]) {
-  return { names: [...new Set(features.map(f => f.refName))], features }
-}
-
-// Each backbone contig read under the name the index binds to it
-async function indexedGenes(
-  file: string,
-  index: string,
-  format: GeneFormat,
-  contigs: BackboneContig[],
-  bind: (name: string) => string | undefined,
-) {
+function tabixFile(file: string, index: string) {
   const csi = index.endsWith('.csi')
-  const tabix = new TabixIndexedFile(
+  return new TabixIndexedFile(
     isUrl(file)
       ? { url: file, ...(csi ? { csiUrl: index } : { tbiUrl: index }) }
       : { path: file, ...(csi ? { csiPath: index } : { tbiPath: index }) },
   )
-  const names = await tabix.getReferenceSequenceNames()
-  const lines: string[] = []
-  for (const contig of contigs) {
-    const name = names.find(n => bind(n) === contig.refName)
-    if (name !== undefined) {
-      await tabix.getLines(name, contig.start, contig.end, {
-        lineCallback: line => lines.push(line),
-      })
-    }
-  }
-  return {
-    names,
-    features: genesFromText(lines.join('\n'), format),
-  }
 }
 
 async function exists(location: string) {

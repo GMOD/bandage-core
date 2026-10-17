@@ -124,6 +124,12 @@ export {
   genesFromText,
   mergeOverlappingByName,
 } from './genes/geneFiles'
+export { backboneGenes } from './genes/backboneGenes'
+export type {
+  BackboneGenes,
+  GeneSource,
+  IndexedGeneFile,
+} from './genes/backboneGenes'
 export { HPRC_GBZ, cutGbzRegion, openGbz, parseRegion } from './gbzCut'
 export type { GbzSource } from './gbzCut'
 export { version } from './version'
@@ -174,6 +180,7 @@ export type {
   WalkRows,
   WalkRun,
   WalkStop,
+  WalkVisit,
 } from './layout/walkRows'
 export {
   BAR_PX as WALK_BAR_PX,
