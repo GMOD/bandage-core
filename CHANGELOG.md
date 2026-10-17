@@ -1,3 +1,9 @@
+## [11.2.0](https://github.com/GMOD/bandage-core/compare/v11.1.0...v11.2.0) (2026-10-17)
+
+### Other Changes
+
+- Build walk-row visits only when a host asks for them ([dd96a11](https://github.com/GMOD/bandage-core/commit/dd96a11e3c41008b8e03b85c4487abb953e1cd02))
+
 ## [11.1.0](https://github.com/GMOD/bandage-core/compare/v11.0.0...v11.1.0) (2026-10-17)
 
 ### Other Changes
