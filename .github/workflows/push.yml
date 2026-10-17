@@ -2,7 +2,10 @@ name: Push
 
 on:
   push:
+    branches: ['**']
   pull_request:
+  # a tag runs these through publish.yml, before it publishes
+  workflow_call:
 
 jobs:
   spellcheck:

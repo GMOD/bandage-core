@@ -6,8 +6,15 @@ on:
       - 'v*'
 
 jobs:
+  checks:
+    name: Checks
+    permissions:
+      contents: read
+    uses: ./.github/workflows/push.yml
+
   publish:
     name: Publish to npm
+    needs: checks
     runs-on: ubuntu-latest
     permissions:
       id-token: write

@@ -61,8 +61,10 @@ against it. An API change lands with the consumer's side on a `core-next` branch
 in that repo, which CI tests in place of `main` until the release.
 
 Release with `pnpm version patch`: it lints, tests, stamps `src/version.ts`,
-writes the changelog with git-cliff and pushes the `v*` tag, and `publish.yml`
-publishes to npm with trusted publishing.
+writes the changelog with git-cliff and pushes the `v*` tag. `publish.yml` then
+runs CI, consumers included, and publishes to npm with trusted publishing only
+if it passes. When a consumer fails, land its side on `core-next` and rerun the
+failed jobs.
 
 ## See also
 
