@@ -108,13 +108,15 @@ test("a row's visits step through its bar, each at its bp offset", () => {
     ends.push(ends.at(-1)! + byId.get(id)!)
   }
   const n = reference.nodeIds.length
-  const cut = walkRows(graph, { start: ends[2]!, end: ends[n - 2]! })!
-  expect(cut.reference.visits.map(v => v.node)).toEqual(
+  const region = { start: ends[2]!, end: ends[n - 2]! }
+  expect(walkRows(graph, region)!.reference.visits).toBeUndefined()
+  const cut = walkRows(graph, region, undefined, { visits: true })!
+  expect(cut.reference.visits!.map(v => v.node)).toEqual(
     reference.nodeIds.slice(2, n - 2),
   )
   for (const row of [cut.reference, ...cut.rows]) {
     let bp = 0
-    for (const visit of row.visits) {
+    for (const visit of row.visits!) {
       expect(visit.start).toBe(bp)
       const run = row.runs.find(
         r => r.start <= visit.start && visit.start < r.start + r.bp,

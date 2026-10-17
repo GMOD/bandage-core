@@ -83,7 +83,9 @@ export interface WalkRow {
   complete: boolean
   stop?: WalkStop
   runs: WalkRun[]
-  visits: WalkVisit[]
+  // walkRows fills it only when asked, since an object per step costs a big
+  // cut far more than its runs
+  visits?: WalkVisit[]
   // undefined where a piece states no start or overlaps the one before, so
   // bar offsets don't map linearly onto the contig
   axis?: WalkAxis
@@ -325,6 +327,7 @@ export function walkRows(
   graph: Graph,
   region?: { start: number; end: number },
   unit?: number,
+  o: { visits?: boolean } = {},
 ): WalkRows | undefined {
   const paths = graph.paths ?? []
   // a cut over several fragments of the reference holds one record per
@@ -404,7 +407,7 @@ export function walkRows(
       referenceEnd,
     } = table
     const runs: WalkRun[] = []
-    const visits: WalkVisit[] = []
+    const visits: WalkVisit[] | undefined = o.visits ? [] : undefined
     let last: WalkRun | undefined
     let bp = 0
     let offReferenceBp = 0
@@ -436,7 +439,7 @@ export function walkRows(
       }
       const len = lengths[node]!
       const on = onReference[node] === 1
-      visits.push({ node: nodeIds[node]!, start: bp, onReference: on })
+      visits?.push({ node: nodeIds[node]!, start: bp, onReference: on })
       const at = last?.referenceStart
       const forward =
         on &&
