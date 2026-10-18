@@ -1,3 +1,9 @@
+## [11.4.0](https://github.com/GMOD/bandage-core/compare/v11.3.0...v11.4.0) (2026-10-18)
+
+### Other Changes
+
+- Paint every node off the backbone charcoal under the reference ramp ([617220b](https://github.com/GMOD/bandage-core/commit/617220bdd6c6a7590c71c96b777ea0f46c9bf1ab))
+
 ## [11.3.0](https://github.com/GMOD/bandage-core/compare/v11.2.0...v11.3.0) (2026-10-18)
 
 ### Other Changes
