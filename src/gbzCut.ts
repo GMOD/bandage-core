@@ -51,11 +51,14 @@ export function haplotypeIndexBeside(db: string) {
   return GBZ_DB.test(db) ? db.replace(GBZ_DB, '.haplotype-index.db') : undefined
 }
 
+// A figure spec's region, 0-based and half-open as in BED: a genome browser's
+// chr6:160,614,798-160,647,758 is chr6:160,614,797-160,647,758 here.
+// parseLocus reads the browser's form.
 export function parseRegion(text: string) {
   const m = /^\s*([^:\s]+):([\d,]+)-([\d,]+)\s*$/.exec(text)
   if (!m) {
     throw new Error(
-      `"${text}" is not a region like chr6:160,614,798-160,647,758`,
+      `"${text}" is not a 0-based region like chr6:160,614,797-160,647,758`,
     )
   }
   const n = (s: string) => Number(s.replaceAll(',', ''))

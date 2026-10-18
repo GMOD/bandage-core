@@ -131,6 +131,7 @@ export type {
   IndexedGeneFile,
 } from './genes/backboneGenes'
 export { HPRC_GBZ, cutGbzRegion, openGbz, parseRegion } from './gbzCut'
+export { formatLocus, parseLocus } from './locus'
 export type { GbzSource } from './gbzCut'
 export { version } from './version'
 export type { FigureOptions } from './figure'
