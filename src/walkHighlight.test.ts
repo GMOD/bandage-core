@@ -212,7 +212,7 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
     gaps: '',
     reversed: ', 9 bp reversed',
     shades: true,
-    scale: 'chr:0-9 (9 bp)',
+    scale: 'chr:1-9 (9 bp)',
     hover: undefined,
   })
   const [alt] = walkLift(walks, [
@@ -222,7 +222,7 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
     delta: ' +4 bp',
     shades: false,
     scale: undefined,
-    hover: 'chr:0-13 (13 bp)',
+    hover: 'chr:1-13 (13 bp)',
   })
   const [onReference] = walkLift(
     walks,
@@ -230,7 +230,7 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
     ramp,
   )!.walks
   expect(walkKey(onReference!, { name: 'chr1', start: 0, end: 9 }).scale).toBe(
-    'chr1:0-9 (9 bp)',
+    'chr1:1-9 (9 bp)',
   )
 })
 
@@ -260,8 +260,8 @@ test("a node's position on a walk is its stretch on the walk's own contig", () =
     { walk: 'alt#1#chr' },
     { walk: 'inv#1#chr' },
   ])!.walks
-  expect(walkPosition(alt!, 'a1+', 6)).toBe('chr:4-10')
-  expect(walkPosition(inv!, 'v1+', 4)).toBe('chr:5-9')
+  expect(walkPosition(alt!, 'a1+', 6)).toBe('chr:5-10')
+  expect(walkPosition(inv!, 'v1+', 4)).toBe('chr:6-9')
   expect(walkPosition(inv!, 'a1+', 6)).toBeUndefined()
 })
 

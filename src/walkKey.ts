@@ -3,7 +3,8 @@ import { formatBp, groupDigits } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
 
-// `contig:start-end (length)`
+// `contig:start-end (length)`, 1-based and closed as `formatLocus` writes it, of
+// a 0-based half-open range
 export function rangeText(
   contig: string | undefined,
   start: number,
@@ -11,7 +12,7 @@ export function rangeText(
 ) {
   const s = Math.round(start)
   const e = Math.round(end)
-  return `${contig ? `${contig}:` : ''}${groupDigits(s)}-${groupDigits(e)} (${formatBp(e - s)})`
+  return `${contig ? `${contig}:` : ''}${groupDigits(s + 1)}-${groupDigits(e)} (${formatBp(e - s)})`
 }
 
 // A lifted walk's key in words, for a legend row or a facet panel's title: its
@@ -69,5 +70,5 @@ export function walkPosition(walk: LiftedWalk, nodeId: string, length: number) {
   const start = Math.round(
     range.start + progress * (range.end - range.start) - length / 2,
   )
-  return `${range.contig}:${groupDigits(start)}-${groupDigits(start + length)}`
+  return `${range.contig}:${groupDigits(start + 1)}-${groupDigits(start + length)}`
 }
