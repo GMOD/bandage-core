@@ -15,7 +15,8 @@ rmSync('dist', { recursive: true, force: true })
 const isModule = file =>
   file.endsWith('.ts') &&
   !file.endsWith('.d.ts') &&
-  !/\.(test|bench)\.ts$/.test(file)
+  !/\.(test|bench)\.ts$/.test(file) &&
+  !file.endsWith('recordingCanvas.ts')
 
 const modules = readdirSync('src', { recursive: true }).filter(isModule)
 

@@ -150,7 +150,8 @@ export function parseGFA(file: string) {
   // which would hold a second copy of every line in the file at once.
   for (const rawLine of file.split('\n')) {
     const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
-    const type = line.split('\t', 1)[0]
+    const tab = line.indexOf('\t')
+    const type = tab === -1 ? line : line.slice(0, tab)
     if (type === 'H') {
       const [, ...rest] = line.split('\t')
       graph.header.push(parseTags(rest))

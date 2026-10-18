@@ -60,7 +60,7 @@ export function loadGraph(
   name: string,
   opts: { referencePath?: string; maxNodes?: number } = {},
 ) {
-  const graph = anchorGraph(graphOf(source, name), opts.referencePath)
+  const graph = graphOf(source, name)
   if (graph.nodes.length === 0) {
     throw new Error(`No graph segments in ${name}`)
   }
@@ -69,7 +69,7 @@ export function loadGraph(
       `Graph too large to draw: ${graph.nodes.length.toLocaleString()} nodes (limit ${opts.maxNodes.toLocaleString()}). Zoom in to a smaller region, or raise maxGraphNodes on this view.`,
     )
   }
-  return graph
+  return anchorGraph(graph, opts.referencePath)
 }
 
 // What the Bandage engine is handed. A node may carry an `x`/`y` seed, which

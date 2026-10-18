@@ -71,6 +71,11 @@ function byteSource(location: string): ByteSource {
         const res = await fetchOk(location, {
           headers: { range: `bytes=${position}-${position + length - 1}` },
         })
+        if (res.status !== 206) {
+          throw new Error(
+            `${location} ignored the Range request (HTTP ${res.status})`,
+          )
+        }
         return new Uint8Array(await res.arrayBuffer())
       },
     }

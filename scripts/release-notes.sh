@@ -9,7 +9,8 @@
 
 set -euo pipefail
 
-VERSION="${1#v}"
+VERSION="${1:-}"
+VERSION="${VERSION#v}"
 
 if [[ -z $VERSION ]]; then
   echo "usage: $0 <version>" >&2

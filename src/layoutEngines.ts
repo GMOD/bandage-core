@@ -28,12 +28,10 @@ export function isLayoutEngineKind(value: unknown): value is LayoutEngineKind {
 
 // Runs whichever engine a request names: the Bandage wasm module, or the stress layout. What a worker or a CLI hands `forceLayout`.
 export const layoutEngine: LayoutEngine = async request => {
-  if (request.options.engine === 'stress') {
-    const start = performance.now()
-    const result = stressLayout(request)
-    return { result, duration: performance.now() - start }
-  }
   const start = performance.now()
-  const result = await fmmmLayout(request)
+  const result =
+    request.options.engine === 'stress'
+      ? stressLayout(request)
+      : await fmmmLayout(request)
   return { result, duration: performance.now() - start }
 }
