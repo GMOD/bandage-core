@@ -58,7 +58,7 @@ test('a transparent clear drops what was drawn rather than throwing', () => {
   })
   renderer.render([1, 1, 1, 1])
   renderer.render([1, 1, 1, 0])
-  expect(markup().match(/<rect/g)).toHaveLength(1)
+  expect(markup().match(/<rect/g)).toBeNull()
   renderer.renderHighlights()
   expect(markup()).toBe('')
 })

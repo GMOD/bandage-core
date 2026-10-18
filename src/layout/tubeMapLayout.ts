@@ -4,7 +4,7 @@ import { isBackbone } from '../anchoredNodes'
 import { pathOrigin } from '../pathAnchoring'
 import { pathCssColor, pathGreyCssColor } from '../pathColors'
 import { referenceWalkName } from './walkRows'
-import { canonicalStrand, stepName, tubeMapReads } from '../tubeMap/reads'
+import { stepName, tubeMapReads } from '../tubeMap/reads'
 import { ownStrand, strandSides } from '../util/geometry'
 import { groupBy } from '../util/groups'
 
@@ -80,7 +80,7 @@ export function pathSteps(graph: Graph): PathStep[][] {
       }
       const at = visits && next ? next(visits.slot(node.name), walk) : -1
       return [
-        { node, strand: at >= 0 ? visits!.strand(at) : canonicalStrand(node) },
+        { node, strand: at >= 0 ? visits!.strand(at) : ownStrand(node.id) },
       ]
     })
   })

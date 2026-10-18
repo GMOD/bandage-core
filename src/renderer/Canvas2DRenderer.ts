@@ -30,6 +30,7 @@ export class Canvas2DRenderer implements Renderer {
   private highlightedEdge: number | null = null
   private highlightFactor = 1
   private fit = 1
+  private painted: PaintedGroups | null = null
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d')
@@ -56,15 +57,18 @@ export class Canvas2DRenderer implements Renderer {
     // A rebuild renumbers the strokes, so the old edge no longer addresses the
     // same run; the model re-applies the current hover against the new batch.
     this.highlightedEdge = null
+    this.painted = null
   }
 
   setNodeHighlights(factors: ReadonlyMap<string, number>) {
     this.nodeHighlights = factors
+    this.painted = null
   }
 
   setEdgeHighlight(edgeIndex: number | null, factor: number) {
     this.highlightedEdge = edgeIndex
     this.highlightFactor = factor
+    this.painted = null
   }
 
   updateTransform(transform: TransformUniform) {
@@ -98,11 +102,13 @@ export class Canvas2DRenderer implements Renderer {
     if (clearColor[3] < 1) {
       ctx.clearRect(0, 0, width, height)
     }
-    ctx.fillStyle = normalizedRgbToCssRgba(
-      [clearColor[0], clearColor[1], clearColor[2]],
-      clearColor[3],
-    )
-    ctx.fillRect(0, 0, width, height)
+    if (clearColor[3] > 0) {
+      ctx.fillStyle = normalizedRgbToCssRgba(
+        [clearColor[0], clearColor[1], clearColor[2]],
+        clearColor[3],
+      )
+      ctx.fillRect(0, 0, width, height)
+    }
 
     const batch = this.batch
     if (!batch) {
@@ -110,34 +116,48 @@ export class Canvas2DRenderer implements Renderer {
     }
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    const factor = this.highlightFactor
-    const edgeRun = this.edgeRun(batch.edgeCurveRuns)
-    for (const { color, items } of groupByPaint(batch.edgeCurves, (e, i) => ({
-      color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
-      weight: e.thickness,
-      last: inRun(edgeRun, i),
-    }))) {
+    const { edges, nodes, arrows } = this.paintedGroups(batch)
+    for (const { color, items } of edges) {
       this.strokeCurves(items, color, t)
     }
-    const lifted = this.liftedStrokes(batch)
-    for (const { color, items } of groupByPaint(batch.nodeStrokes, (s, i) => {
-      const f = lifted.get(i)
-      return {
-        color: f === undefined ? s.color : brightenAbgr(s.color, f),
-        weight: s.thickness,
-        last: f !== undefined,
-      }
-    })) {
+    for (const { color, items } of nodes) {
       this.strokeNodes(items, color, t)
     }
-    const arrowRun = this.edgeRun(batch.arrowRuns)
-    for (const { color, items } of groupByPaint(batch.arrows, (a, i) => ({
-      color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
-      weight: 0,
-      last: inRun(arrowRun, i),
-    }))) {
+    for (const { color, items } of arrows) {
       this.fillArrows(items, color, t)
     }
+  }
+
+  // Grouping depends on the batch and the highlights, not on the transform, so
+  // a pan or zoom redraws from the groups it already has
+  private paintedGroups(batch: RenderBatch) {
+    if (this.painted) {
+      return this.painted
+    }
+    const factor = this.highlightFactor
+    const edgeRun = this.edgeRun(batch.edgeCurveRuns)
+    const arrowRun = this.edgeRun(batch.arrowRuns)
+    const lifted = this.liftedStrokes(batch)
+    return (this.painted = {
+      edges: groupByPaint(batch.edgeCurves, (e, i) => ({
+        color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
+        weight: e.thickness,
+        last: inRun(edgeRun, i),
+      })),
+      nodes: groupByPaint(batch.nodeStrokes, (s, i) => {
+        const f = lifted.get(i)
+        return {
+          color: f === undefined ? s.color : brightenAbgr(s.color, f),
+          weight: s.thickness,
+          last: f !== undefined,
+        }
+      }),
+      arrows: groupByPaint(batch.arrows, (a, i) => ({
+        color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
+        weight: 0,
+        last: inRun(arrowRun, i),
+      })),
+    })
   }
 
   // Only what the highlights lift, over a transparent clear, for a hover layer
@@ -270,6 +290,7 @@ export class Canvas2DRenderer implements Renderer {
     this.batch = null
     this.nodeHighlights = new Map()
     this.highlightedEdge = null
+    this.painted = null
   }
 }
 
@@ -312,14 +333,25 @@ interface Paint {
   last: boolean
 }
 
+interface PaintedGroups {
+  edges: Group<EdgeCurveBatch>[]
+  nodes: Group<NodeStroke>[]
+  arrows: Group<Arrowhead>[]
+}
+
+interface Group<T> {
+  color: number
+  items: T[]
+}
+
 // Items bucketed by what they are painted with, in first-seen order, with the
 // `last` ones after the rest.
 function groupByPaint<T>(
   items: T[],
   paintOf: (item: T, index: number) => Paint,
-) {
-  const groups = new Map<string, { color: number; items: T[] }>()
-  const deferred = new Map<string, { color: number; items: T[] }>()
+): Group<T>[] {
+  const groups = new Map<string, Group<T>>()
+  const deferred = new Map<string, Group<T>>()
   for (let i = 0, l = items.length; i < l; i++) {
     const item = items[i]!
     const { color, weight, last } = paintOf(item, i)

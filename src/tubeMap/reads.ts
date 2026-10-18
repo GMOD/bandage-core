@@ -1,4 +1,5 @@
 import { parseCs } from '../gaf/parseGaf'
+import { ownStrand } from '../util/geometry'
 
 import type { GafRecord } from '../gaf/parseGaf'
 import type { Graph, GraphNode } from '../types'
@@ -9,14 +10,10 @@ import type { InputTrack, Mismatch } from '@jbrowse/tubemap-core'
 // a position in the direction the read walks it, as vg's GAM mappings state
 // theirs.
 
-export function canonicalStrand(node: GraphNode) {
-  return node.id.endsWith('-') ? '-' : '+'
-}
-
 // A visit to a node as tubemap-core names it: `-` where the walk runs against
 // the strand the node is drawn in
 export function stepName(node: GraphNode, strand: '+' | '-') {
-  return strand === canonicalStrand(node) ? node.id : `-${node.id}`
+  return strand === ownStrand(node.id) ? node.id : `-${node.id}`
 }
 
 // Where each step starts on the walk, where that can be known: counted from
