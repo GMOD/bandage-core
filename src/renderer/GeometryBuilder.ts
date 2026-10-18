@@ -933,7 +933,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       color: number,
     ) => {
       if (isDeletion) {
-        for (const dash of dashCurves(curves, DELETION_DASH_PX / scale, yToX)) {
+        for (const dash of dashCurves(
+          curves,
+          DELETION_DASH_PX / scale,
+          yToX,
+          viewportBounds,
+        )) {
           edgeCurves.push({ curves: dash, thickness, color })
         }
       } else {

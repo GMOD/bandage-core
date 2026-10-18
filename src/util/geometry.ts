@@ -118,15 +118,66 @@ function curveTangentAt(c: BezierCurve, t: number) {
 // tessellating these curves does not, and a dash pattern that only exists in one
 // of them is a figure that changes with the renderer.
 //
+export interface Bounds {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+const VISIBLE_SAMPLES = 32
+
+// The stretches of the curves' arc length, on the same control-polygon measure
+// dashCurves lays its pattern along, that come within `bounds`. Each curve is
+// sampled, and a sample's span counts when its box, padded by the span's own
+// length, meets the bounds, so a bow between two samples is not missed.
+function visibleStretches(
+  curves: BezierCurve[],
+  lengths: number[],
+  bounds: Bounds,
+  yToX: number,
+) {
+  const stretches: [number, number][] = []
+  let start = 0
+  curves.forEach((c, k) => {
+    const length = lengths[k]!
+    const pad = length / VISIBLE_SAMPLES
+    let last = curvePointAt(c, 0)
+    for (let i = 1; i <= VISIBLE_SAMPLES; i++) {
+      const next = curvePointAt(c, i / VISIBLE_SAMPLES)
+      if (
+        Math.max(last.x, next.x) + pad >= bounds.minX &&
+        Math.min(last.x, next.x) - pad <= bounds.maxX &&
+        Math.max(last.y, next.y) + pad / yToX >= bounds.minY &&
+        Math.min(last.y, next.y) - pad / yToX <= bounds.maxY
+      ) {
+        const from = start + (length * (i - 1)) / VISIBLE_SAMPLES
+        const to = start + (length * i) / VISIBLE_SAMPLES
+        const prev = stretches.at(-1)
+        if (prev && prev[1] >= from) {
+          prev[1] = to
+        } else {
+          stretches.push([from, to])
+        }
+      }
+      last = next
+    }
+    start += length
+  })
+  return stretches
+}
+
 // `dashWorld` is the period in x units, so a caller passing screen px over the
 // current scale gets dashes of a constant on-screen size. `yToX` puts y in x
 // units first, as in a row layout where x is bp and y is px. The pattern runs
 // over the curves as one line, so an edge drawn as many short pieces still
-// reads as dashed.
+// reads as dashed. With `bounds`, dashes clear of them are left out; the
+// others are the ones an unbounded call would give.
 export function dashCurves(
   curves: BezierCurve[],
   dashWorld: number,
   yToX = 1,
+  bounds?: Bounds,
 ): BezierCurve[][] {
   // Control-polygon length overestimates the arc, which errs toward more
   // dashes rather than toward a curve that reads as solid.
@@ -141,10 +192,25 @@ export function dashCurves(
   // nodes rather than floating between them.
   const periods = Math.round(total / dashWorld)
   const spans = Math.max(3, periods % 2 ? periods : periods + 1)
+  const stretches = bounds
+    ? visibleStretches(curves, lengths, bounds, yToX)
+    : undefined
+  let seen = 0
   const out: BezierCurve[][] = []
   for (let i = 0; i < spans; i += 2) {
     const from = (i / spans) * total
     const to = ((i + 1) / spans) * total
+    if (stretches) {
+      while (seen < stretches.length && stretches[seen]![1] < from) {
+        seen++
+      }
+      if (seen === stretches.length) {
+        break
+      }
+      if (stretches[seen]![0] > to) {
+        continue
+      }
+    }
     const dash: BezierCurve[] = []
     let start = 0
     curves.forEach((c, k) => {

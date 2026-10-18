@@ -61,6 +61,28 @@ describe('dashCurves', () => {
     )
   })
 
+  test('bounds leave out the dashes clear of them and keep the rest as they were', () => {
+    const bounds = { minX: 40, maxX: 60, minY: -10, maxY: 100 }
+    const all = dashCurves([ARC], 2)
+    const near = dashCurves([ARC], 2, 1, bounds)
+    expect(near.length).toBeGreaterThan(0)
+    expect(near.length).toBeLessThan(all.length / 2)
+    for (const dash of all) {
+      const xs = dash.flatMap(c => [c.x0, c.x1])
+      if (xs.some(x => x >= bounds.minX && x <= bounds.maxX)) {
+        expect(near).toContainEqual(dash)
+      }
+    }
+    for (const dash of near) {
+      expect(all).toContainEqual(dash)
+    }
+  })
+
+  test('bounds clear of the whole curve leave no dashes', () => {
+    const away = { minX: 500, maxX: 600, minY: 500, maxY: 600 }
+    expect(dashCurves([ARC], 2, 1, away)).toEqual([])
+  })
+
   test('a shorter period gives more dashes', () => {
     expect(dashCurves([ARC], 6).length).toBeGreaterThan(
       dashCurves([ARC], 30).length,
