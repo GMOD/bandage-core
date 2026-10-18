@@ -180,6 +180,13 @@ export type {
   WalkRowRuns,
   WalkVisitColumns,
 } from './layout/walkRowRuns'
+export {
+  ribbonJoin,
+  sharedRowOrder,
+  walkRowBlocks,
+  walkRowLinks,
+} from './layout/walkRowLinks'
+export type { WalkRowBlock, WalkRowLink } from './layout/walkRowLinks'
 export type {
   WalkAxis,
   WalkRow,
