@@ -63,9 +63,18 @@ export function walkRowLayout(
   graph: Graph,
   region?: { start: number; end: number },
 ): LayoutResult | undefined {
-  const backbone = backboneNodes(graph)
   const walks = walkRows(graph, region)
-  if (backbone.length === 0 || !walks) {
+  return walks && walkRowLayoutOf(graph, walks, region)
+}
+
+// walkRowLayout over rows already made
+export function walkRowLayoutOf(
+  graph: Graph,
+  walks: WalkRows,
+  region?: { start: number; end: number },
+): LayoutResult | undefined {
+  const backbone = backboneNodes(graph)
+  if (backbone.length === 0) {
     return undefined
   }
   // The bars start at the window, so row 0 draws only the backbone over it;

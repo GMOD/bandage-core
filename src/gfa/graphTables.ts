@@ -57,6 +57,27 @@ function pLineName(name: string, start: number, end: number) {
   return start === 0 ? name : `${name}:${start}-${end}`
 }
 
+/** The GraphPath `graphFromTables` builds of walk `p`, less its steps */
+export function tablePath(
+  w: GraphTables['walks'],
+  p: number,
+): Omit<GraphPath, 'nodeIds'> & { start: number } {
+  const walkName = w.names[p]!
+  const fields = panSNFields(walkName)
+  const start = w.starts[p]!
+  return fields
+    ? {
+        name: `${fields.sample}#${fields.haplotype}#${fields.contig}`,
+        start,
+        ...fields,
+        ...stopFields(
+          w.before && stopAt(w.before, p),
+          w.after && stopAt(w.after, p),
+        ),
+      }
+    : { name: pLineName(walkName, start, w.ends[p]!), start }
+}
+
 // Each list's names, in the order the crossings came, each once
 function namesByList(
   lists: Int32Array,
@@ -91,6 +112,31 @@ function namesByList(
 }
 
 /**
+ * Each segment's Graph node id: its name and its one drawn orientation, first
+ * claimed by a link and else by a walk
+ */
+export function tableNodeIds({ nodes: n, links: l, walks: w }: GraphTables) {
+  // 0 unclaimed, 1 forward, 2 reversed
+  const canonical = new Uint8Array(n.names.length)
+  const claim = (node: number, reversed: number) => {
+    if (canonical[node] === 0) {
+      canonical[node] = reversed ? 2 : 1
+    }
+  }
+  for (let i = 0; i < l.from.length; i++) {
+    claim(l.from[i]!, l.strands[i]! & 1)
+    claim(l.to[i]!, l.strands[i]! & 2)
+  }
+  const stepCount = w.offsets[w.names.length] ?? 0
+  for (let s = 0; s < stepCount; s++) {
+    claim(w.steps[s]!, w.reversed[s]!)
+  }
+  return n.names.map(
+    (segment, i) => `${segment}${canonical[i] === 2 ? '-' : '+'}`,
+  )
+}
+
+/**
  * The Graph `convertGFAToGraph` builds from `graphTablesGFA(tables)`, deep
  * equal, built by index: a step costs a few array reads and its visit, where
  * the text costs a string and several map lookups.
@@ -101,18 +147,6 @@ export function graphFromTables(
 ): Graph {
   const count = n.names.length
   const declared = n.lengths.length
-  // a segment's one drawn orientation, first claimed by a link and else by a
-  // walk: 0 unclaimed, 1 forward, 2 reversed
-  const canonical = new Uint8Array(count)
-  const claim = (node: number, reversed: number) => {
-    if (canonical[node] === 0) {
-      canonical[node] = reversed ? 2 : 1
-    }
-  }
-  for (let i = 0; i < l.from.length; i++) {
-    claim(l.from[i]!, l.strands[i]! & 1)
-    claim(l.to[i]!, l.strands[i]! & 2)
-  }
   const drawnWalks: number[] = []
   for (let p = 0; p < w.names.length; p++) {
     if (w.offsets[p + 1]! > w.offsets[p]!) {
@@ -120,18 +154,10 @@ export function graphFromTables(
     }
   }
   const traversals = new Int32Array(count)
-  for (const p of drawnWalks) {
-    for (let s = w.offsets[p]!; s < w.offsets[p + 1]!; s++) {
-      const node = w.steps[s]!
-      if (traversals[node] === 0) {
-        claim(node, w.reversed[s]!)
-      }
-      traversals[node]!++
-    }
+  for (const node of w.steps.subarray(0, w.offsets[w.names.length])) {
+    traversals[node]!++
   }
-  const ids = n.names.map(
-    (segment, i) => `${segment}${canonical[i] === 2 ? '-' : '+'}`,
-  )
+  const ids = tableNodeIds({ nodes: n, links: l, walks: w })
 
   const nodes: GraphNode[] = []
   for (let i = 0; i < declared; i++) {
@@ -245,13 +271,9 @@ export function graphFromTables(
   const edgeNameIndex = new Map<string, number>()
   const edgeNames: string[] = []
   for (const p of drawnWalks) {
-    const walkName = w.names[p]!
-    const fields = panSNFields(walkName)
-    const start = w.starts[p]!
-    const visitName = fields
-      ? `${fields.sample}#${fields.haplotype}#${fields.contig}`
-      : walkName
-    const pathName = fields ? visitName : pLineName(walkName, start, w.ends[p]!)
+    const head = tablePath(w, p)
+    const { start, name: pathName } = head
+    const visitName = head.sample === undefined ? w.names[p]! : pathName
     let named = nameIndex.get(visitName)
     if (named === undefined) {
       named = pathNames.length
@@ -293,18 +315,7 @@ export function graphFromTables(
       }
       prev = node
     }
-    paths.push({
-      name: pathName,
-      nodeIds,
-      start,
-      ...fields,
-      ...(fields
-        ? stopFields(
-            w.before && stopAt(w.before, p),
-            w.after && stopAt(w.after, p),
-          )
-        : {}),
-    })
+    paths.push({ ...head, nodeIds })
     anchorPaths.push({
       name: visitName,
       sample: visitSample,

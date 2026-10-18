@@ -174,6 +174,12 @@ export {
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
 export { filterSamples, walkRows } from './layout/walkRows'
+export { runAt, walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
+export type {
+  WalkRowMeta,
+  WalkRowRuns,
+  WalkVisitColumns,
+} from './layout/walkRowRuns'
 export type {
   WalkAxis,
   WalkRow,
@@ -240,7 +246,11 @@ export {
   rampHueCss,
   rampStops,
 } from './referenceRampCss'
-export { walkRowLabels, walkRowsExtent } from './layout/walkRowLayout'
+export {
+  walkRowLabels,
+  walkRowLayoutOf,
+  walkRowsExtent,
+} from './layout/walkRowLayout'
 export { ROW_HEIGHT_PX } from './layout/rowSpacing'
 
 export {
