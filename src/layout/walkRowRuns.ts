@@ -69,10 +69,10 @@ type PieceHead = Omit<GraphPath, 'nodeIds'>
 // in a GFA.
 interface Pieces {
   heads: PieceHead[]
-  from: ArrayLike<number>
-  to: ArrayLike<number>
-  steps: ArrayLike<number>
-  lengths: ArrayLike<number>
+  from: Int32Array
+  to: Int32Array
+  steps: Int32Array
+  lengths: Int32Array
   names: ArrayLike<string>
   reference: string | undefined
 }
@@ -136,8 +136,8 @@ function graphPieces(graph: Graph): Pieces {
     heads,
     from,
     to,
-    steps,
-    lengths,
+    steps: Int32Array.from(steps),
+    lengths: Int32Array.from(lengths),
     names,
     reference: referenceWalkName(graph),
   }
@@ -165,8 +165,8 @@ function tablePieces(
   }
   return {
     heads,
-    from: kept.map(p => w.offsets[p]!),
-    to: kept.map(p => w.offsets[p + 1]!),
+    from: Int32Array.from(kept, p => w.offsets[p]!),
+    to: Int32Array.from(kept, p => w.offsets[p + 1]!),
     steps: w.steps,
     lengths: n.lengths,
     // a visit names its node as the Graph does, which costs a pass over the
@@ -202,8 +202,15 @@ class Columns {
     return this.values[0]!.length
   }
 
-  push(...row: number[]) {
-    row.forEach((v, i) => this.values[i]!.push(v))
+  push(a: number, b: number, c: number, d: number, e?: number) {
+    const v = this.values
+    v[0]!.push(a)
+    v[1]!.push(b)
+    v[2]!.push(c)
+    v[3]!.push(d)
+    if (e !== undefined) {
+      v[4]!.push(e)
+    }
   }
 
   endRow() {
@@ -212,16 +219,20 @@ class Columns {
 
   // the rows in `order`, column i in the array `make[i]` makes
   reorder(order: number[], make: ((n: number) => NumberArray)[]) {
-    const columns = make.map(m => m(this.length))
     const offsets = new Uint32Array(order.length + 1)
-    let at = 0
     order.forEach((row, i) => {
-      for (let k = this.offsets[row]!; k < this.offsets[row + 1]!; k++, at++) {
-        columns.forEach((column, c) => {
-          column[at] = this.values[c]![k]!
-        })
+      offsets[i + 1] = offsets[i]! + this.offsets[row + 1]! - this.offsets[row]!
+    })
+    const columns = make.map((m, c) => {
+      const from = this.values[c]!
+      const out = m(this.length)
+      let at = 0
+      for (const row of order) {
+        for (let k = this.offsets[row]!; k < this.offsets[row + 1]!; k++) {
+          out[at++] = from[k]!
+        }
       }
-      offsets[i + 1] = at
+      return out
     })
     return { offsets, columns }
   }
@@ -286,7 +297,7 @@ export function walkRowRuns(
   const cut = region && region.end > region.start ? region : undefined
   for (const piece of referencePieces) {
     let pos = startOf(piece) ?? 0
-    for (let s = from[piece]!; s < to[piece]!; s++) {
+    for (let s = from[piece]!, stop = to[piece]!; s < stop; s++) {
       const node = all[s]!
       const len = lengthOf(node)
       if (Number.isNaN(spanStart[node]!)) {
@@ -362,7 +373,7 @@ export function walkRowRuns(
         stepStart[length++] = end
       }
       let pos = start ?? 0
-      for (let s = from[piece]!; s < to[piece]!; s++) {
+      for (let s = from[piece]!, stop = to[piece]!; s < stop; s++) {
         const node = all[s]!
         steps[length] = node
         stepStart[length++] = pos
@@ -435,8 +446,8 @@ export function walkRowRuns(
       let bestEnd = -Infinity
       let bestStart = Infinity
       for (let i = 0; i < length; i++) {
-        if (onReference(i)) {
-          const id = steps[i]!
+        const id = steps[i]!
+        if (id >= 0 && !Number.isNaN(spanStart[id]!)) {
           if (spanEnd[id]! <= cut.start && spanEnd[id]! > bestEnd) {
             bestEnd = spanEnd[id]!
             i0 = i

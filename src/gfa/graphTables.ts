@@ -113,9 +113,13 @@ function namesByList(
 
 /**
  * Each segment's Graph node id: its name and its one drawn orientation, first
- * claimed by a link and else by a walk
+ * claimed by a link and else by a walk. Counts each segment's walk steps into
+ * `traversals` when given one.
  */
-export function tableNodeIds({ nodes: n, links: l, walks: w }: GraphTables) {
+export function tableNodeIds(
+  { nodes: n, links: l, walks: w }: GraphTables,
+  traversals?: Int32Array,
+) {
   // 0 unclaimed, 1 forward, 2 reversed
   const canonical = new Uint8Array(n.names.length)
   const claim = (node: number, reversed: number) => {
@@ -129,7 +133,11 @@ export function tableNodeIds({ nodes: n, links: l, walks: w }: GraphTables) {
   }
   const stepCount = w.offsets[w.names.length] ?? 0
   for (let s = 0; s < stepCount; s++) {
-    claim(w.steps[s]!, w.reversed[s]!)
+    const node = w.steps[s]!
+    claim(node, w.reversed[s]!)
+    if (traversals) {
+      traversals[node]!++
+    }
   }
   return n.names.map(
     (segment, i) => `${segment}${canonical[i] === 2 ? '-' : '+'}`,
@@ -154,10 +162,7 @@ export function graphFromTables(
     }
   }
   const traversals = new Int32Array(count)
-  for (const node of w.steps.subarray(0, w.offsets[w.names.length])) {
-    traversals[node]!++
-  }
-  const ids = tableNodeIds({ nodes: n, links: l, walks: w })
+  const ids = tableNodeIds({ nodes: n, links: l, walks: w }, traversals)
 
   const nodes: GraphNode[] = []
   for (let i = 0; i < declared; i++) {
