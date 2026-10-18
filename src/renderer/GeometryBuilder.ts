@@ -1,6 +1,6 @@
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { isBackbone } from '../anchoredNodes'
-import { meanDepth, nodeWidthPx } from '../nodeWidths'
+import { meanDepth, nodeWidthPx, walkLaneWidthPx } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
   PATH_SATURATION,
@@ -98,9 +98,6 @@ const DELETION_DASH_PX = 11
 // `contigThickness` is itself in screen px, so this bites on the path COUNT
 // rather than on the zoom.
 const MIN_PATH_STRIPE_PX = 1.2
-// A lifted walk's lane is never thinner than this, so a node carrying three
-// lifted walks widens rather than splitting into hairlines
-const MIN_WALK_LANE_PX = 4
 // Guards the screen-px-to-world division below against a degenerate transform.
 const MIN_SCALE_FOR_OFFSET = 1e-6
 
@@ -975,7 +972,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const width = fromNode
         ? nodeWidthPx(fromNode, contigThickness, nodeWidth, depthNorm)
         : contigThickness
-      const laneWidth = Math.max(width / laneWalks.length, MIN_WALK_LANE_PX)
+      const laneWidth = walkLaneWidthPx(width, laneWalks.length)
       const normals = pointNormalsOf(fromSegments, yToX)
       const { nx, ny } = (leavesStart(
         edge,
@@ -1107,7 +1104,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     if (drawable && lanes) {
-      const laneWidth = Math.max(width / lanes.length, MIN_WALK_LANE_PX)
+      const laneWidth = walkLaneWidthPx(width, lanes.length)
       const normals = pointNormalsOf(segments, yToX)
       lanes.forEach((walk, lane) => {
         const laneColor = walk.colors.get(nodeId)

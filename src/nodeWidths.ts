@@ -65,22 +65,38 @@ export function maxNodeWidthPx(contigThickness: number, nodeWidth: NodeWidth) {
   return contigThickness * (nodeWidth === 'depth' ? MAX_FACTOR : 1)
 }
 
+// A lifted walk's lane is never thinner than this, so a node carrying three
+// lifted walks widens rather than splitting into hairlines
+const MIN_WALK_LANE_PX = 4
+
+// One lane's width when a node of `width` carries `lanes` lifted walks
+export function walkLaneWidthPx(width: number, lanes: number) {
+  return Math.max(width / lanes, MIN_WALK_LANE_PX)
+}
+
 // How far each node's ink reaches from its centreline, for the hit test: the
-// widths the geometry draws with, from the same function.
+// widths the geometry draws with, from the same function. With `lanes` lifted
+// walks the node draws as that many side-by-side lanes, which can reach
+// further than the node's own width.
 export function nodeInk(
   graph: Graph | undefined,
   nodeById: ReadonlyMap<string, GraphNode> | undefined,
   contigThickness: number,
   nodeWidth: NodeWidth,
+  lanes = 0,
 ): NodeInk {
   const mean = graph ? meanDepth(graph) : 0
+  const reach = (width: number) =>
+    lanes > 0 ? (walkLaneWidthPx(width, lanes) * lanes) / 2 : width / 2
   return {
-    maxHalfWidthPx: maxNodeWidthPx(contigThickness, nodeWidth) / 2,
+    maxHalfWidthPx: reach(maxNodeWidthPx(contigThickness, nodeWidth)),
     halfWidthPx: id => {
       const node = nodeById?.get(id)
-      return node
-        ? nodeWidthPx(node, contigThickness, nodeWidth, mean) / 2
-        : contigThickness / 2
+      return reach(
+        node
+          ? nodeWidthPx(node, contigThickness, nodeWidth, mean)
+          : contigThickness,
+      )
     },
   }
 }
