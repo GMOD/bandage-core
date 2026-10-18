@@ -7,6 +7,10 @@ test('parsePanSN reads sample and haplotype, tolerating bare contig names', () =
   })
   expect(parsePanSN('K12#1#chr')).toEqual({ sample: 'K12', haplotype: 1 })
   expect(parsePanSN('chr1')).toEqual({ sample: 'chr1', haplotype: undefined })
+  expect(parsePanSN('grape##chr1')).toEqual({
+    sample: 'grape',
+    haplotype: undefined,
+  })
 })
 
 test('panSNFields reads three fields, the contig keeping any # past them', () => {

@@ -55,7 +55,7 @@ export function haplotypeIndexBeside(db: string) {
 // chr6:160,614,798-160,647,758 is chr6:160,614,797-160,647,758 here.
 // parseLocus reads the browser's form.
 export function parseRegion(text: string) {
-  const m = /^\s*([^:\s]+):([\d,]+)-([\d,]+)\s*$/.exec(text)
+  const m = /^\s*(\S+?):([\d,]+)-([\d,]+)\s*$/.exec(text)
   if (!m) {
     throw new Error(
       `"${text}" is not a 0-based region like chr6:160,614,797-160,647,758`,

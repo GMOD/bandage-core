@@ -140,6 +140,17 @@ test('genesFromBed keeps rows named `.` apart', () => {
   ])
 })
 
+test('genesFromBed skips headers but not a contig named like one', () => {
+  const genes = genesFromBed(
+    [
+      'track name=genes',
+      'browser position chr6:1-100',
+      row('track7', 100, 200, 'a'),
+    ].join('\n'),
+  )
+  expect(genes.map(g => [g.refName, g.name])).toEqual([['track7', 'a']])
+})
+
 // CAT annotates each copy of a gene in a haplotype under the gene's name
 test('genesFromBed keeps copies of a name apart down the contig', () => {
   const genes = genesFromBed(

@@ -3,7 +3,7 @@
 // `chr6:160,614,798`. The region it returns is 0-based and half-open, as
 // `parseRegion` reads a figure spec's.
 
-const LOCUS = /^\s*([^:\s]+):\s*([\d,]+)(?:\s*(?:-|\.\.)\s*([\d,]+))?\s*$/
+const LOCUS = /^\s*(\S+?):\s*([\d,]+)(?:\s*(?:-|\.\.)\s*([\d,]+))?\s*$/
 
 export function parseLocus(text: string) {
   const m = LOCUS.exec(text)

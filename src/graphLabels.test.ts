@@ -371,6 +371,11 @@ test('formats bp at the scale a pangenome allele lives at', () => {
   ])
 })
 
+test('rounds up to Mb rather than to 1000 kb', () => {
+  expect(formatBp(999_800)).toBe('1 Mb')
+  expect(formatBp(999_400)).toBe('999 kb')
+})
+
 // The row labels of a row-structured layout paint over the same overlay and are
 // opaque, so a node label under one is gone rather than behind it: a "17 bp"
 // against the left edge of an anchored layout came out as a stray "bp" beside

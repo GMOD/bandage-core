@@ -29,6 +29,13 @@ test('a vg giraffe line: walk, offsets, mapping quality and cs', () => {
   })
 })
 
+test('a CRLF line keeps its last tag', () => {
+  const record = parseGafLine(
+    'r1\t10\t0\t10\t+\t>1\t10\t0\t10\t10\t10\t60\ttp:A:S\r',
+  )!
+  expect(record.secondary).toBe(true)
+})
+
 test('a path naming a stable sequence places the read on no segment', () => {
   expect(parseGafPath('chr1')).toBeUndefined()
   expect(

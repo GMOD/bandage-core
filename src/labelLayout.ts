@@ -77,7 +77,7 @@ export function geneCoverageNote(pin: GenePin) {
     return undefined
   }
   const [per, unit] =
-    length >= 1_000_000
+    length >= 999_500
       ? [1_000_000, 'Mb']
       : length >= 1000
         ? [1000, 'kb']
@@ -194,7 +194,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     take,
   )
   const ticks = m.bubbleHalos
-    .filter(h => h.tick && !h.whole)
+    .filter(h => h.tick)
     .map(h => ({ item: h, ...above(h, 2) }))
     .filter(t => t.x >= 0 && t.x <= width && t.y >= 0 && t.y <= height)
 

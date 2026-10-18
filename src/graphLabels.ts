@@ -189,11 +189,7 @@ export function groupDigits(n: number) {
 // scale a pangenome allele lives at.
 export function formatBp(bp: number) {
   const [value, unit] =
-    bp >= 1_000_000
-      ? [bp / 1_000_000, 'Mb']
-      : bp >= 1000
-        ? [bp / 1000, 'kb']
-        : []
+    bp >= 999_500 ? [bp / 1_000_000, 'Mb'] : bp >= 1000 ? [bp / 1000, 'kb'] : []
   if (value === undefined) {
     return `${bp} bp`
   }

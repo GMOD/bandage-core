@@ -54,6 +54,13 @@ describe('dashCurves', () => {
     }
   })
 
+  test('y counts toward the length in x units, as in a row layout', () => {
+    const tall = { ...ARC, cy0: 6000, cy1: 6000 }
+    expect(dashCurves([tall], 12, 1 / 100).length).toBe(
+      dashCurves([{ ...ARC, cy0: 60, cy1: 60 }], 12).length,
+    )
+  })
+
   test('a shorter period gives more dashes', () => {
     expect(dashCurves([ARC], 6).length).toBeGreaterThan(
       dashCurves([ARC], 30).length,

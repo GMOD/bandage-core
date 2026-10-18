@@ -180,6 +180,8 @@ export function mergeOverlappingByName(genes: GeneModel[]) {
   return out
 }
 
+const BED_HEADER = /^(#|track\s|browser\s)/
+
 // BED3 to BED12 as genes: rows sharing a name and overlapping, the transcripts
 // of one gene, have their blocks merged. A row with no blocks is one exon, its
 // whole span.
@@ -190,7 +192,7 @@ export function genesFromBed(text: string): GeneModel[] {
     const start = Number(cols[1])
     const end = Number(cols[2])
     if (
-      /^(#|track|browser)/.test(line) ||
+      BED_HEADER.test(line) ||
       cols.length < 3 ||
       !Number.isInteger(start) ||
       !(end > start)
@@ -235,7 +237,7 @@ export type GeneFormat = 'gff3' | 'bed'
 function sniffedFormat(text: string): GeneFormat {
   const first = text
     .split('\n', 1000)
-    .find(l => l.trim() !== '' && !/^(#|track|browser)/.test(l))
+    .find(l => l.trim() !== '' && !BED_HEADER.test(l))
   const cols = first?.split('\t') ?? []
   return /^\d+$/.test(cols[1] ?? '') && /^\d+$/.test(cols[2] ?? '')
     ? 'bed'

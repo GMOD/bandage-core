@@ -57,7 +57,8 @@ export function panSNFields(name: string) {
 // and the E. coli fixture is `K12#1#chr`, so this parses what is there.
 export function parsePanSN(refName: string) {
   const parts = refName.split(SEP)
-  const haplotype = parts.length >= 2 ? Number(parts[1]) : Number.NaN
+  const haplotype =
+    parts.length >= 2 && parts[1] !== '' ? Number(parts[1]) : Number.NaN
   return {
     sample: parts[0]!,
     haplotype: Number.isFinite(haplotype) ? haplotype : undefined,

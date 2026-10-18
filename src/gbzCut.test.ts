@@ -20,6 +20,14 @@ test('a region reads its bounds, commas and all', () => {
   })
 })
 
+test('a region may name a contig with colons', () => {
+  expect(parseRegion('HLA:01:5-10')).toEqual({
+    refName: 'HLA:01',
+    start: 5,
+    end: 10,
+  })
+})
+
 test('a region that ends at or before its start is refused', () => {
   expect(() => parseRegion('chr1:100-50')).toThrow('ends at or before')
   expect(() => parseRegion('chr1:100-100')).toThrow('ends at or before')

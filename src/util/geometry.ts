@@ -118,26 +118,29 @@ function curveTangentAt(c: BezierCurve, t: number) {
 // tessellating these curves does not, and a dash pattern that only exists in one
 // of them is a figure that changes with the renderer.
 //
-// `dashWorld` is the period in layout units, so a caller passing screen px over
-// the current scale gets dashes of a constant on-screen size. The pattern runs
+// `dashWorld` is the period in x units, so a caller passing screen px over the
+// current scale gets dashes of a constant on-screen size. `yToX` puts y in x
+// units first, as in a row layout where x is bp and y is px. The pattern runs
 // over the curves as one line, so an edge drawn as many short pieces still
 // reads as dashed.
 export function dashCurves(
   curves: BezierCurve[],
   dashWorld: number,
+  yToX = 1,
 ): BezierCurve[][] {
   // Control-polygon length overestimates the arc, which errs toward more
   // dashes rather than toward a curve that reads as solid.
   const lengths = curves.map(
     c =>
-      Math.hypot(c.cx0 - c.x0, c.cy0 - c.y0) +
-      Math.hypot(c.cx1 - c.cx0, c.cy1 - c.cy0) +
-      Math.hypot(c.x1 - c.cx1, c.y1 - c.cy1),
+      Math.hypot(c.cx0 - c.x0, (c.cy0 - c.y0) * yToX) +
+      Math.hypot(c.cx1 - c.cx0, (c.cy1 - c.cy0) * yToX) +
+      Math.hypot(c.x1 - c.cx1, (c.y1 - c.cy1) * yToX),
   )
   const total = lengths.reduce((a, b) => a + b, 0)
   // Odd, so a dash sits at each end and the line reads as attached to both
   // nodes rather than floating between them.
-  const spans = Math.max(3, Math.round(total / dashWorld) | 1)
+  const periods = Math.round(total / dashWorld)
+  const spans = Math.max(3, periods % 2 ? periods : periods + 1)
   const out: BezierCurve[][] = []
   for (let i = 0; i < spans; i += 2) {
     const from = (i / spans) * total

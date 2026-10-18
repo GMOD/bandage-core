@@ -41,7 +41,8 @@ export function parseGafPath(column: string) {
   return steps
 }
 
-export function parseGafLine(line: string): GafRecord | undefined {
+export function parseGafLine(text: string): GafRecord | undefined {
+  const line = text.trimEnd()
   const columns = line.split('\t')
   if (columns.length < 12 || line.startsWith('#')) {
     return undefined
@@ -81,7 +82,7 @@ export function parseGafLine(line: string): GafRecord | undefined {
 export function parseGaf(text: string) {
   const records: GafRecord[] = []
   for (const line of text.split('\n')) {
-    const record = parseGafLine(line.trimEnd())
+    const record = parseGafLine(line)
     if (record) {
       records.push(record)
     }
