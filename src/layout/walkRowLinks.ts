@@ -267,7 +267,10 @@ export function walkRowBlocks(
       if (setKey.has(id)) {
         const root = find(id)
         total.set(root, (total.get(root) ?? 0) + bp)
-        least.set(root, [least.get(root) ?? id, id].sort()[0]!)
+        const lowest = least.get(root)
+        if (lowest === undefined || id < lowest) {
+          least.set(root, id)
+        }
       }
     }
   }

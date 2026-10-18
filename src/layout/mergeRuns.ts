@@ -209,14 +209,26 @@ function arcPrefix(line: NodeSegment[]) {
   return arc
 }
 
+// The first index whose arc distance reaches `s`; arc is sorted
+function firstReaching(arc: number[], s: number) {
+  let lo = 0
+  let hi = arc.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (arc[mid]! < s) {
+      lo = mid + 1
+    } else {
+      hi = mid
+    }
+  }
+  return lo
+}
+
 function pointAt(line: NodeSegment[], arc: number[], s: number): NodeSegment {
   if (s <= 0) {
     return { ...line[0]! }
   }
-  let i = 1
-  while (i < arc.length && arc[i]! < s) {
-    i++
-  }
+  const i = firstReaching(arc, s)
   if (i >= arc.length) {
     return { ...line.at(-1)! }
   }
@@ -229,8 +241,8 @@ function pointAt(line: NodeSegment[], arc: number[], s: number): NodeSegment {
 
 function slice(line: NodeSegment[], arc: number[], from: number, to: number) {
   const points = [pointAt(line, arc, from)]
-  for (let i = 0; i < line.length; i++) {
-    if (arc[i]! > from && arc[i]! < to) {
+  for (let i = firstReaching(arc, from); i < line.length && arc[i]! < to; i++) {
+    if (arc[i]! > from) {
       points.push({ ...line[i]! })
     }
   }

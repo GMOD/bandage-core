@@ -59,10 +59,12 @@ const isReference = (graph: Graph, name: string) =>
   !!graph.referencePath && pathOrigin(name).name === graph.referencePath
 
 // The records of one walk in the order they lie on its contig: a cut hands a
-// haplotype back as one W line per piece of its walk inside the cut's nodes
+// haplotype back as one W line per piece of its walk inside the cut's nodes,
+// and vg names each piece with its own range
 function piecesOf(graph: Graph, name: string) {
+  const origin = pathOrigin(name).name
   return (graph.paths ?? [])
-    .filter(p => p.name === name)
+    .filter(p => pathOrigin(p.name).name === origin)
     .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
 }
 

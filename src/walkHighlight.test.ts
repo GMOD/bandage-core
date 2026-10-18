@@ -56,6 +56,26 @@ test('a walk is measured against a reference path whose name carries a range', (
   ).toBeUndefined()
 })
 
+// vg names each piece of a cut walk `sample#hap#contig#start[from-to]`, and the
+// walk's row stands for all of them, so lifting it takes every piece
+const FRAGMENTS = `S\tv1\tAAAA
+S\tv2\tCC
+S\tv3\tGGG
+S\ta1\tTTTTTT
+L\tv1\t+\tv2\t+\t0M
+L\tv2\t+\tv3\t+\t0M
+L\tv1\t+\ta1\t+\t0M
+P\tK12#1#chr\tv1+,v2+,v3+\t*
+P\tSakai#1#chr#0[0-4]\tv1+,a1+\t*
+P\tSakai#1#chr#20[20-23]\tv3+\t*`
+
+test('a walk cut into pieces lifts them all under any piece name', () => {
+  const cut = anchorGraph(convertGFAToGraph(parseGFA(FRAGMENTS)), 'K12')
+  const h = walkHighlight(cut, 'Sakai#1#chr#0[0-4]')!
+  expect(h.bp).toBe(13)
+  expect([...h.nodeIds].sort()).toEqual(['a1+', 'v1+', 'v3+'])
+})
+
 // inv crosses v1 v2 v3 backwards
 const WALKS = `S\tv1\tAAAA
 S\tv2\tCC

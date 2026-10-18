@@ -67,10 +67,10 @@ const near = ({ refName, start }: { refName: string; start: number }) =>
 // in the graph`, ` · 34 kb on nodes filed near chr22:20.3 Mb`, or for gaps
 // stating none ` · 19 kb outside the extracted subgraph`
 function gapsText(gapBp: number, runs: WalkRun[] | undefined) {
-  const gaps = (runs ?? []).filter(r => r.gap)
   if (gapBp <= 0) {
     return ''
   }
+  const gaps = (runs ?? []).filter(r => r.gap)
   if (!gaps.some(g => g.cause)) {
     return ` · ${kb(gapBp)} ${OUTSIDE_TEXT}`
   }
@@ -725,14 +725,19 @@ export function walkRowsTree(
           )
         : []
     const { call } = row
-    const text = walkRowReadout(
-      row,
-      i === 0 ? undefined : reference,
-      unit,
-      call,
-    )
-    const at = readoutPlacement(text, along(row.bp), frame.width)
-    const readouts = frame.readouts ?? true
+    const readout =
+      (frame.readouts ?? true)
+        ? {
+            text: walkRowReadout(
+              row,
+              i === 0 ? undefined : reference,
+              unit,
+              call,
+            ),
+          }
+        : undefined
+    const at =
+      readout && readoutPlacement(readout.text, along(row.bp), frame.width)
     return el(
       'g',
       {
@@ -753,7 +758,8 @@ export function walkRowsTree(
           height: barPx + 2 * overhang,
           fill: callTickInk(call),
         }),
-      readouts &&
+      readout &&
+        at &&
         el(
           'text',
           {
@@ -767,7 +773,7 @@ export function walkRowsTree(
             'paint-order': 'stroke',
             'text-anchor': at.anchor,
           },
-          text,
+          readout.text,
         ),
     )
   }

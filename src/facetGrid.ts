@@ -66,6 +66,10 @@ export function facetGrid({
     return tile(Math.max(1, Math.min(count, Math.round(columns))))
   }
   let best = tile(1)
+  if (pixelRows) {
+    // the scale is the panel width's fit, which only shrinks with more columns
+    return best
+  }
   for (let across = 2; across <= count; across++) {
     const grid = tile(across)
     if (grid.scale > best.scale) {
