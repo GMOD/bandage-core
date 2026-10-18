@@ -1,7 +1,7 @@
-import { isBackbone } from './anchoredNodes'
 import { gapParts } from './gfa/walkStops'
 import { panSNContig } from './pansn'
 import { pathOrigin } from './pathAnchoring'
+import { rampFraction } from './renderer/GeometryBuilder'
 import { encodedColor, resolveEncoding } from './walkEncoding'
 
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
@@ -188,12 +188,11 @@ function laneColors(
   const colors = new Map<string, number>()
   for (const [id, progress] of walk.progress) {
     const node = byId.get(id)
-    const mid = ramp?.midpoints.get(id)
     const t =
       encoding.field === 'progress'
         ? progress
-        : ramp && mid !== undefined && node && isBackbone(node)
-          ? (mid - ramp.start) / ramp.span
+        : ramp && node
+          ? rampFraction(node, ramp)
           : undefined
     colors.set(id, encodedColor(encoding, t))
   }

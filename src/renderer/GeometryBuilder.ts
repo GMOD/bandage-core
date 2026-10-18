@@ -502,6 +502,15 @@ export interface ReferenceRamp {
   midpoints: Map<string, number>
 }
 
+// How far along the ramp a node sits, for a backbone node only: everything
+// off the backbone is charcoal, wherever it branches
+export function rampFraction(node: GraphNode, ramp: ReferenceRamp) {
+  const mid = ramp.midpoints.get(node.id)
+  return isBackbone(node) && mid !== undefined
+    ? (mid - ramp.start) / ramp.span
+    : undefined
+}
+
 export interface ColorSchemeRange {
   minDepth: number
   maxDepth: number
@@ -629,15 +638,14 @@ export function getNodeColor(
       if (ramp === undefined) {
         return packAbgr(160, 160, 160, 255)
       }
-      const mid = ramp.midpoints.get(node.id)
-      if (!isBackbone(node) || mid === undefined) {
-        return REFERENCE_RAMP_ALT_COLOR
-      }
-      return packHsl(
-        rampHueAt((mid - ramp.start) / ramp.span),
-        REFERENCE_RAMP_SATURATION,
-        REFERENCE_RAMP_LIGHTNESS,
-      )
+      const t = rampFraction(node, ramp)
+      return t === undefined
+        ? REFERENCE_RAMP_ALT_COLOR
+        : packHsl(
+            rampHueAt(t),
+            REFERENCE_RAMP_SATURATION,
+            REFERENCE_RAMP_LIGHTNESS,
+          )
     }
 
     case 'grey':

@@ -109,9 +109,8 @@ export function nodeReferenceSpan({
 
 // Every node's midpoint on the reference, keyed by id: what a position-based
 // colour scheme ramps over. Alleles come through the same flanking walk hover
-// sync uses, so a bubble takes the colour of the reference interval it branches
-// from instead of dropping out of the ramp — which is the whole point, since an
-// allele is exactly what a linear view cannot draw at a position of its own.
+// sync uses, so a lane or a measured ramp extent can place them, though the
+// node colouring paints them charcoal wherever they branch.
 export function referenceMidpoints(graph: Graph) {
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
   const neighbors = buildNeighbors(graph)
