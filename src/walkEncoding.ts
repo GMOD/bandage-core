@@ -120,19 +120,31 @@ function oklabToRgb([L, a, b]: number[]) {
   ].map(c => toGamma(Math.max(0, Math.min(1, c))) * 255)
 }
 
+const endsCache = new Map<WalkScheme, number[][] | undefined>()
+
+function oklabEnds(scheme: WalkScheme) {
+  if (!endsCache.has(scheme)) {
+    const family = WALK_SCHEMES.find(s => s.value === scheme)
+    endsCache.set(
+      scheme,
+      family && 'ends' in family ? family.ends.map(oklab) : undefined,
+    )
+  }
+  return endsCache.get(scheme)
+}
+
 // A scheme at t in [0, 1] as rgb 0-255
 export function schemeRgb(scheme: WalkScheme, t: number) {
   const x = Math.max(0, Math.min(1, t))
-  const family = WALK_SCHEMES.find(s => s.value === scheme)
-  if (!family || !('ends' in family)) {
+  const ends = oklabEnds(scheme)
+  if (!ends) {
     return hslToRgb(
       rampHueAt(x),
       REFERENCE_RAMP_SATURATION,
       REFERENCE_RAMP_LIGHTNESS,
     ).map(c => c * 255)
   }
-  const from = oklab(family.ends[0])
-  const to = oklab(family.ends[1])
+  const [from, to] = ends as [number[], number[]]
   return oklabToRgb(from.map((v, i) => v + (to[i]! - v) * x))
 }
 
