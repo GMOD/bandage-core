@@ -1,3 +1,4 @@
+import { isBackbone } from './anchoredNodes'
 import { gapParts } from './gfa/walkStops'
 import { panSNContig } from './pansn'
 import { pathOrigin } from './pathAnchoring'
@@ -191,7 +192,7 @@ function laneColors(
     const t =
       encoding.field === 'progress'
         ? progress
-        : ramp && mid !== undefined && !(node?.stable && node.stable.rank > 0)
+        : ramp && mid !== undefined && node && isBackbone(node)
           ? (mid - ramp.start) / ramp.span
           : undefined
     colors.set(id, encodedColor(encoding, t))

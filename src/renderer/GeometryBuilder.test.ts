@@ -584,10 +584,51 @@ describe('the reference-position ramp', () => {
     expect(colors['alt+']).not.toBe(expectedColor(500, 0, 1000))
   })
 
-  test('greys a node with no reference position at all', () => {
+  test('paints a node the reference never visits off the ramp', () => {
     expect(colorsFor({ start: 0, end: 1000 })['loose+']).toBe(
-      packAbgr(160, 160, 160, 255),
+      packAbgr(60, 65, 72, 255),
     )
+  })
+
+  // the flanking walk gives up a few hops in, which must not change the colour
+  test('paints an allele deep in a bubble like one beside the backbone', () => {
+    const chain = Array.from({ length: 8 }, (_, i) => ({
+      id: `deep${i}+`,
+      name: `deep${i}`,
+      length: 10,
+      depth: 1,
+      stable: { refName: 'other', start: i * 10, rank: 1 },
+    }))
+    const deepNodes = [...nodes.slice(0, 2), ...chain]
+    const deepGraph = {
+      name: 'deep',
+      nodes: deepNodes,
+      edges: [
+        { from: 'left+', to: 'deep0+' },
+        ...chain.slice(1).map((n, i) => ({ from: chain[i]!.id, to: n.id })),
+      ],
+    }
+    const batch = buildGeometry({
+      nodePositions: Object.fromEntries(
+        deepNodes.map((n, i) => [
+          n.id,
+          [
+            { x: i * 20, y: 0 },
+            { x: i * 20 + 10, y: 0 },
+          ],
+        ]),
+      ),
+      graph: deepGraph,
+      nodeById: new Map(deepNodes.map(n => [n.id, n])),
+      colorScheme: 'reference-position',
+      referenceRamp: computeReferenceRamp(deepGraph, { start: 0, end: 1000 }),
+      axis: iso(),
+      contigThickness: 5,
+      connectorThickness: 1.5,
+      drawPaths: false,
+    })
+    expect(nodeColor(batch, 'deep7+')).toBe(nodeColor(batch, 'deep0+'))
+    expect(nodeColor(batch, 'deep7+')).toBe(packAbgr(60, 65, 72, 255))
   })
 
   // A whole-file import states no region, so the ramp spans what it drew. The

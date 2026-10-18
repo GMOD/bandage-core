@@ -1,4 +1,5 @@
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
+import { isBackbone } from '../anchoredNodes'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
@@ -488,8 +489,9 @@ export { REFERENCE_RAMP_MAX_HUE } from '../referenceRampCss'
 // position it attaches to, and in the force layout its position states nothing
 // to begin with.
 //
-// Distinct from the light grey a node with no reference coordinates at all gets:
-// this one is anchored and off-reference, that one is unplaceable.
+// Every node off the backbone takes it, however far it sits from the reference,
+// so the colour states one fact a reader can check: the reference path does not
+// visit this node.
 const REFERENCE_RAMP_ALT_RGB = [60, 65, 72] as const
 export const REFERENCE_RAMP_ALT_COLOR = packAbgr(...REFERENCE_RAMP_ALT_RGB, 255)
 export const REFERENCE_RAMP_ALT_CSS = `rgb(${REFERENCE_RAMP_ALT_RGB.join(', ')})`
@@ -621,16 +623,14 @@ export function getNodeColor(
             )
 
     // Position on the reference, the one quantity both panels of a
-    // graph-over-linear figure can state. A node with no reference position at
-    // all — nothing anchored, or an allele whose flanks fell outside the cut —
-    // is grey rather than a hue it has not earned.
+    // graph-over-linear figure can state, so only the backbone takes a hue
     case 'reference-position': {
       const ramp = range.referenceRamp
-      const mid = ramp?.midpoints.get(node.id)
-      if (ramp === undefined || mid === undefined) {
+      if (ramp === undefined) {
         return packAbgr(160, 160, 160, 255)
       }
-      if (node.stable !== undefined && node.stable.rank > 0) {
+      const mid = ramp.midpoints.get(node.id)
+      if (!isBackbone(node) || mid === undefined) {
         return REFERENCE_RAMP_ALT_COLOR
       }
       return packHsl(
@@ -920,7 +920,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // two dark strokes read as the same ink and the arc is the rarer of them
     // (measured on `pangenome/hprc_lpa_kiv2`: 7,411 px of charcoal node against
     // ~5,000 px of arc). Hue cannot separate them either, since hue means
-    // reference position and charcoal means having none. A broken line is
+    // reference position and charcoal means off the reference. A broken line is
     // available, unused, and says what it draws: sequence that is not there.
     const stroke = (
       curves: BezierCurve[],
