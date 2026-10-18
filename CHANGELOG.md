@@ -1,3 +1,11 @@
+## [11.5.0](https://github.com/GMOD/bandage-core/compare/v11.4.0...v11.5.0) (2026-10-18)
+
+### Other Changes
+
+- Share the ramp's backbone-only rule between nodes and lanes as rampFraction ([6581e61](https://github.com/GMOD/bandage-core/commit/6581e61203155fe3bdb01349052e7bfe884ad3b7))
+- Win back the walk-row time 11.3.0 lost, and bench it ([61217b9](https://github.com/GMOD/bandage-core/commit/61217b9dd4b878bff6ce1721ab877c1cc15e39f1))
+- Read a typed locus with parseLocus, and say that a spec's region is 0-based ([548d788](https://github.com/GMOD/bandage-core/commit/548d78865f91eec8a49c4fa9f994ff3ed67f1317))
+
 ## [11.4.0](https://github.com/GMOD/bandage-core/compare/v11.3.0...v11.4.0) (2026-10-18)
 
 ### Other Changes
