@@ -1,3 +1,11 @@
+## [11.3.0](https://github.com/GMOD/bandage-core/compare/v11.2.0...v11.3.0) (2026-10-18)
+
+### Other Changes
+
+- Publish to npm only once CI, consumers included, passes on the tag ([ce41c40](https://github.com/GMOD/bandage-core/commit/ce41c4011ec79762774288305f00440948584665))
+- Build walk rows from a cut's tables in core, as columns, with walkRowRuns ([57e222b](https://github.com/GMOD/bandage-core/commit/57e222b3ccf3eba6e066bdade3a1ae415be3f17c))
+- Join walk rows with ribbons and letter shared blocks, from ggbandage ([4f65603](https://github.com/GMOD/bandage-core/commit/4f65603d01ee2c096a775acb77f331718b1e0c9d))
+
 ## [11.2.0](https://github.com/GMOD/bandage-core/compare/v11.1.0...v11.2.0) (2026-10-17)
 
 ### Other Changes
