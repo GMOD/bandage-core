@@ -1,3 +1,19 @@
+## [11.6.0](https://github.com/GMOD/bandage-core/compare/v11.5.0...v11.6.0) (2026-10-20)
+
+### Other Changes
+
+- Fix dash length in row layouts, colon contigs, CRLF GAF, 1000 kb, BED headers ([5c6073d](https://github.com/GMOD/bandage-core/commit/5c6073d576cdd642398aeef66487ac62f5ca984e))
+- Check Range responses, skip unneeded work, and tidy build and engine code ([55e1e90](https://github.com/GMOD/bandage-core/commit/55e1e904fd46a62115473f6301342e4fb6066b65))
+- Group strokes once per highlight change, not per frame, and drop the transparent background fill ([cf3322d](https://github.com/GMOD/bandage-core/commit/cf3322db979c3aee9b7d5e6cfa50534ad21efe9d))
+- Lift every piece of a cut walk, and trim hot loops in layout ([bd3bf7b](https://github.com/GMOD/bandage-core/commit/bd3bf7b731122c8141997c5b13cb291a02fdb9c9))
+- Convert a walk scheme's ends to OKLab once ([15dcc0c](https://github.com/GMOD/bandage-core/commit/15dcc0c1cbbd44169d73b77066b4df1ecd7222a7))
+- Write a walk's range 1-based and closed, as formatLocus does ([2266607](https://github.com/GMOD/bandage-core/commit/226660774f8dc79a1b4d01aabe3c1dac6645f076))
+- Let nodeInk reach as far as a node's lifted-walk lanes ([abbd9fc](https://github.com/GMOD/bandage-core/commit/abbd9fc1ffbd30a2600dd855f29be59f7e0e0d82))
+- Leave out deletion dashes that lie clear of the view ([1235dd2](https://github.com/GMOD/bandage-core/commit/1235dd23874a68fb4994374e6213f91ec33697f1))
+- Follow each copy of a collapsed repeat to the reference copy it continues ([69967bf](https://github.com/GMOD/bandage-core/commit/69967bfe7bf18883e2e429d34524e555f28860b9))
+- State the position ramp's domain and the deletions drawn in figureData's meta ([e2bd03f](https://github.com/GMOD/bandage-core/commit/e2bd03fc0f9d180810add2f7fc39d39cbd23b00b))
+- Read a link between copies of a collapsed repeat as a copy switch ([262bdce](https://github.com/GMOD/bandage-core/commit/262bdce67881cb593b1309674648c35476023b56))
+
 ## [11.5.0](https://github.com/GMOD/bandage-core/compare/v11.4.0...v11.5.0) (2026-10-18)
 
 ### Other Changes
