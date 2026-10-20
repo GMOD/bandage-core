@@ -1,3 +1,9 @@
+## [11.7.0](https://github.com/GMOD/bandage-core/compare/v11.6.1...v11.7.0) (2026-10-20)
+
+### Other Changes
+
+- Draw an abridged walk's left-out steps as their own gap cause ([ec1f487](https://github.com/GMOD/bandage-core/commit/ec1f487fb7c79eea75aa0a304cf110e6d7539cc2))
+
 ## [11.6.1](https://github.com/GMOD/bandage-core/compare/v11.6.0...v11.6.1) (2026-10-20)
 
 ### Other Changes
