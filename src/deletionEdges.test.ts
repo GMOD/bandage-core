@@ -55,6 +55,26 @@ test("a link a collapsed repeat's second copy walks is no deletion", () => {
   expect(found.map(d => [d.from, d.to, d.bp])).toEqual([['0+', '3+', 65]])
 })
 
+test('a link from one copy of a collapsed repeat to the next is no deletion', () => {
+  // the reference walks 1 and 2 in both copies, 5 and 6 only in the first and 7
+  // and 8 only in the second; a haplotype going from 5 to 8 changes copy where
+  // they differ, 40 bp apart, a copy's length. 1 -> 2 still skips 5 and 6
+  const lengths = [100, 10, 20, 100, 0, 5, 5, 5, 5]
+  const links = ['0 1', '1 5', '5 6', '6 2', '2 1', '1 7', '7 8', '8 2', '2 3']
+  const gfa = [
+    ...lengths.flatMap((n, id) => (n ? [`S\t${id}\t${'A'.repeat(n)}`] : [])),
+    'P\tref#0#chr\t0+,1+,5+,6+,2+,1+,7+,8+,2+,3+\t*',
+    'P\ta#1#c\t0+,1+,5+,8+,2+,1+,7+,8+,2+,3+\t*',
+    'P\tb#1#c\t0+,1+,2+,3+\t*',
+    ...[...links, '5 8', '1 2'].map(pair => {
+      const [from, to] = pair.split(' ')
+      return `L\t${from}\t+\t${to}\t+\t0M`
+    }),
+  ].join('\n')
+  const found = deletionEdges(anchorGraph(graphOf(gfa), 'ref'))
+  expect(found.map(d => [d.from, d.to, d.bp])).toEqual([['1+', '2+', 10]])
+})
+
 test('adjacent backbone segments are not a deletion', () => {
   // 1 -> 2 abut exactly; a zero gap must not light up, or every link on the
   // backbone would draw as an event

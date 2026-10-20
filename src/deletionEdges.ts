@@ -7,6 +7,7 @@ import {
   strandSides,
 } from './util/geometry'
 import { groupBy } from './util/groups'
+import { partitionPoint } from './util/partitionPoint'
 
 import type { AnchoredNode } from './anchoredNodes'
 import type { Graph, GraphEdge, NodeSegment } from './types'
@@ -174,26 +175,86 @@ function skipsBetween(
   return forwards ? leavesRight && arrivesLeft : !leavesRight && !arrivesLeft
 }
 
-// A link between two reference visits measured at the visits nearest each
-// other: a link a collapsed repeat's second copy walks joins its nodes there,
-// and abuts, though their first visits lie a copy apart.
-function nearestVisits(
+// The span a link skips, measured at the reference visits nearest each other
+// whose sides it joins as a deletion would: a link a collapsed repeat's second
+// copy walks joins its nodes there, and abuts, though their first visits lie a
+// copy apart. Undefined where no pair of visits has it skip forwards.
+function skippedSpan(
+  edge: GraphEdge,
   from: AnchoredNode,
   to: AnchoredNode,
   startsOf: (node: AnchoredNode) => number[],
 ) {
-  let best = { from: from.stable.start, to: to.stable.start }
-  let bestGap = Infinity
+  let best: { start: number; end: number } | undefined
   for (const a of startsOf(from)) {
     for (const b of startsOf(to)) {
-      const gap = a <= b ? b - (a + from.length) : a - (b + to.length)
-      if (Math.abs(gap) < bestGap) {
-        best = { from: a, to: b }
-        bestGap = Math.abs(gap)
+      const forwards = a <= b
+      const span = forwards
+        ? { start: a + from.length, end: b }
+        : { start: b + to.length, end: a }
+      if (
+        skipsBetween(edge, from, to, forwards) &&
+        (!best ||
+          Math.abs(span.end - span.start) < Math.abs(best.end - best.start))
+      ) {
+        best = span
       }
     }
   }
   return best
+}
+
+// A skip this close to a collapsed repeat's copy length, as a share of it,
+// steps between copies; the copies of one repeat differ by small indels
+const COPY_SWITCH_SHARE = 0.01
+
+// Where the reference walks a node again on each sequence: every visit but the
+// last, sorted, with the bp to the node's next visit, the length of the copy
+// of a collapsed repeat that visit starts
+function repeatCopies(
+  backbone: Map<string, AnchoredNode[]>,
+  startsOf: (node: AnchoredNode) => number[],
+) {
+  const bySequence = new Map<string, { at: number; copy: number }[]>()
+  for (const [refName, nodes] of backbone) {
+    const copies = nodes.flatMap(node => {
+      const starts = startsOf(node)
+      return starts.slice(1).map((next, i) => ({
+        at: starts[i]!,
+        copy: next - starts[i]!,
+      }))
+    })
+    if (copies.length) {
+      bySequence.set(
+        refName,
+        copies.sort((a, b) => a.at - b.at),
+      )
+    }
+  }
+  return bySequence
+}
+
+// A collapsed repeat's copies share its nodes but for where they differ, and a
+// walk that leaves one copy's own node for the next copy's at the same place
+// links two nodes a copy apart. That link skips nothing: the copy count is
+// which way a walk goes round the repeat's loop.
+function switchesCopy(
+  copies: { at: number; copy: number }[] | undefined,
+  start: number,
+  bp: number,
+) {
+  if (!copies) {
+    return false
+  }
+  const i = partitionPoint(copies.length, k => copies[k]!.at < start)
+  const near = [copies[i - 1], copies[i]]
+    .filter(c => c !== undefined)
+    .sort((a, b) => Math.abs(a.at - start) - Math.abs(b.at - start))[0]
+  return (
+    near !== undefined &&
+    Math.abs(near.at - start) <= near.copy &&
+    Math.abs(bp - near.copy) <= near.copy * COPY_SWITCH_SHARE
+  )
 }
 
 // Every edge that skips reference sequence, in graph.edges order.
@@ -201,6 +262,7 @@ export function deletionEdges(graph: Graph): DeletionEdge[] {
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const backbone = backboneBySequence(graph)
   const startsOf = referenceVisitStarts(graph)
+  const copies = repeatCopies(backbone, startsOf)
   const found: DeletionEdge[] = []
   for (let edgeIndex = 0; edgeIndex < graph.edges.length; edgeIndex++) {
     const edge = graph.edges[edgeIndex]!
@@ -217,13 +279,15 @@ export function deletionEdges(graph: Graph): DeletionEdge[] {
       // may state a link from either strand. Whether it SKIPS what lies
       // between comes from its sides: a deletion leaves the right side of the
       // left node and arrives at the left side of the right one.
-      const at = nearestVisits(from, to, startsOf)
-      const forwards = at.from <= at.to
-      const start = forwards ? at.from + from.length : at.to + to.length
-      const end = forwards ? at.to : at.from
-      const bp = end - start
-      if (bp >= MIN_DELETION_BP && skipsBetween(edge, from, to, forwards)) {
-        const refName = from.stable.refName
+      const span = skippedSpan(edge, from, to, startsOf)
+      const refName = from.stable.refName
+      const bp = span ? span.end - span.start : 0
+      if (
+        span &&
+        bp >= MIN_DELETION_BP &&
+        !switchesCopy(copies.get(refName), span.start, bp)
+      ) {
+        const { start, end } = span
         found.push({
           edgeIndex,
           from: edge.from,
