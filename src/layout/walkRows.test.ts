@@ -361,7 +361,7 @@ test('a walk crossing the reference backwards with no cut keeps its runs whole',
   expect(row.runs.filter(r => r.onReference && r.reversed)).not.toHaveLength(0)
 })
 
-test('a node the reference revisits keeps the coordinate of its first visit', () => {
+test('a reference walking a node again stays one run on its own coordinates', () => {
   const graph = pggbGraph()
   const reference = graph.paths!.find(
     p => pathOrigin(p.name).name === graph.referencePath,
@@ -372,8 +372,67 @@ test('a node the reference revisits keeps the coordinate of its first visit', ()
     ...graph,
     paths: graph.paths!.map(p => (p === reference ? looped : p)),
   })!
-  expect(row.runs).toHaveLength(2)
-  expect(row.runs[1]!.referenceStart).toBe(origin)
+  expect(row.runs).toHaveLength(1)
+  expect(row.runs[0]!.referenceStart).toBe(origin)
+})
+
+// GRCh38's C4A and C4B collapsed onto one copy's nodes, as syng builds them:
+// the reference walks the unit (1, 2) twice, and 4 only its second copy holds
+function collapsedRepeat(haplotypes: Record<string, string[]>) {
+  const lengths: Record<string, number> = {
+    0: 100,
+    1: 10,
+    2: 20,
+    3: 100,
+    4: 5,
+    5: 5,
+  }
+  const paths = {
+    'ref#0#chr': ['0', '1', '2', '1', '4', '2', '3'],
+    ...haplotypes,
+  }
+  const gfa = [
+    ...Object.entries(lengths).map(([id, n]) => `S\t${id}\t${'A'.repeat(n)}`),
+    ...Object.entries(paths).map(
+      ([name, ids]) => `P\t${name}\t${ids.map(id => `${id}+`).join(',')}\t*`,
+    ),
+  ].join('\n')
+  return walkRows(
+    anchorGraph(convertGFAToGraph(parseGFA(gfa), 'repeat'), 'ref'),
+  )!
+}
+
+const runsOf = (row: { runs: { bp: number; referenceStart?: number }[] }) =>
+  row.runs.map(r => [r.bp, r.referenceStart])
+
+test('a reference walking a collapsed repeat twice is one smooth run', () => {
+  const { reference } = collapsedRepeat({ 'a#1#c': ['0', '3'] })
+  expect(runsOf(reference)).toEqual([[265, 0]])
+})
+
+test('a haplotype matching the reference copy for copy takes its runs', () => {
+  const { reference, rows } = collapsedRepeat({
+    'a#1#c': ['0', '1', '2', '1', '4', '2', '3'],
+  })
+  expect(runsOf(rows[0]!)).toEqual(runsOf(reference))
+})
+
+test('each copy of a collapsed repeat follows the reference copy it continues', () => {
+  const { rows } = collapsedRepeat({
+    'three#1#c': ['0', '1', '2', '1', '4', '2', '1', '4', '2', '3'],
+    'snp#1#c': ['0', '1', '2', '1', '5', '2', '3'],
+  })
+  const three = rows.find(r => r.label === 'three')!
+  expect(runsOf(three)).toEqual([
+    [165, 0],
+    [135, 130],
+  ])
+  const snp = rows.find(r => r.label === 'snp')!
+  expect(runsOf(snp)).toEqual([
+    [140, 0],
+    [5, undefined],
+    [120, 145],
+  ])
 })
 
 test('a graph naming no reference takes every piece of its first path as the reference', () => {

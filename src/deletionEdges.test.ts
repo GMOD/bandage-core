@@ -4,6 +4,7 @@ import { join } from 'path'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
+import { anchorGraph } from './pathAnchoring'
 import { computeEdgeCurves, curvePointAt } from './util/geometry'
 
 // isotropic: one scale for both axes, which is every layout but the row ones
@@ -35,6 +36,23 @@ test('a backbone link that skips reference is a deletion of the gap', () => {
     end: 7020,
     bp: 6000,
   })
+})
+
+test("a link a collapsed repeat's second copy walks is no deletion", () => {
+  // the reference walks 1 and 2 twice, 4 only in its second copy, and the
+  // first visits of 1 and 4 lie 30 bp apart; 0 -> 3 still skips 65 bp
+  const lengths = [100, 10, 20, 100, 5]
+  const gfa = [
+    ...lengths.map((n, id) => `S\t${id}\t${'A'.repeat(n)}`),
+    'P\tref#0#chr\t0+,1+,2+,1+,4+,2+,3+\t*',
+    'P\ta#1#c\t0+,3+\t*',
+    ...['0 1', '1 2', '2 1', '1 4', '4 2', '2 3', '0 3'].map(pair => {
+      const [from, to] = pair.split(' ')
+      return `L\t${from}\t+\t${to}\t+\t0M`
+    }),
+  ].join('\n')
+  const found = deletionEdges(anchorGraph(graphOf(gfa), 'ref'))
+  expect(found.map(d => [d.from, d.to, d.bp])).toEqual([['0+', '3+', 65]])
 })
 
 test('adjacent backbone segments are not a deletion', () => {

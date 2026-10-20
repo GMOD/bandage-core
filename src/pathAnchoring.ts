@@ -3,6 +3,7 @@ import { panSNSample } from './pansn'
 import { PathVisitsBuilder } from './pathVisits'
 import { groupBy } from './util/groups'
 
+import type { AnchoredNode } from './anchoredNodes'
 import type { PathVisits } from './pathVisits'
 import type { Graph, GraphNode, PathOrigin } from './types'
 
@@ -258,4 +259,35 @@ export function trimOrigins(
         }
       : o
   })
+}
+
+// Where the reference starts each visit to a node, for a node it walks more
+// than once: a collapsed repeat's stable start is only its first visit.
+export function referenceVisitStarts(graph: Graph) {
+  const { pathVisits } = graph
+  const cache = new Map<string, number[]>()
+  return (node: AnchoredNode) => {
+    let starts = cache.get(node.id)
+    if (!starts) {
+      starts = []
+      const slot = pathVisits ? pathVisits.slot(node.name) : -1
+      const p = slot >= 0 ? pathVisits!.pathIndex(node.stable.refName) : -1
+      if (p >= 0) {
+        for (
+          let i = pathVisits!.offsets[slot]!;
+          i < pathVisits!.offsets[slot + 1]!;
+          i++
+        ) {
+          if (pathVisits!.path[i] === p) {
+            starts.push(pathVisits!.start[i]!)
+          }
+        }
+      }
+      if (starts.length < 2) {
+        starts = [node.stable.start]
+      }
+      cache.set(node.id, starts)
+    }
+    return starts
+  }
 }

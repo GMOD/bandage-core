@@ -40,6 +40,23 @@ test('every drawn node is in the node table', async () => {
   expect(new Set(d.nodes.node)).toEqual(new Set(d.nodeInfo.node))
 })
 
+test('the node table counts how often the reference walks each node', async () => {
+  const gfa = [
+    ...[100, 10, 20, 100].map((n, id) => `S\t${id}\t${'A'.repeat(n)}`),
+    'P\tref#0#chr\t0+,1+,2+,1+,2+,3+\t*',
+    'P\ta#1#c\t0+,3+\t*',
+    ...['0 1', '1 2', '2 1', '2 3', '0 3'].map(pair => {
+      const [from, to] = pair.split(' ')
+      return `L\t${from}\t+\t${to}\t+\t0M`
+    }),
+  ].join('\n')
+  const d = await gfaFigureData(gfa, 'repeat', { engine: 'stress' })
+  const visits = Object.fromEntries(
+    d.nodeInfo.name.map((name, i) => [name, d.nodeInfo.referenceVisits[i]]),
+  )
+  expect(visits).toEqual({ 0: 1, 1: 2, 2: 2, 3: 1 })
+})
+
 test('a panel per walk, its walk lifted and the rest faded', async () => {
   const d = await gfaFigureData(read('ecoli_pggb_subgraph.gfa'), 'ecoli', {
     engine: 'stress',

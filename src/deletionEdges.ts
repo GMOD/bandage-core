@@ -1,4 +1,5 @@
 import { firstNodeAtOrAfter, isBackbone } from './anchoredNodes'
+import { referenceVisitStarts } from './pathAnchoring'
 import {
   computeEdgeCurves,
   edgeJoinOf,
@@ -173,10 +174,33 @@ function skipsBetween(
   return forwards ? leavesRight && arrivesLeft : !leavesRight && !arrivesLeft
 }
 
+// A link between two reference visits measured at the visits nearest each
+// other: a link a collapsed repeat's second copy walks joins its nodes there,
+// and abuts, though their first visits lie a copy apart.
+function nearestVisits(
+  from: AnchoredNode,
+  to: AnchoredNode,
+  startsOf: (node: AnchoredNode) => number[],
+) {
+  let best = { from: from.stable.start, to: to.stable.start }
+  let bestGap = Infinity
+  for (const a of startsOf(from)) {
+    for (const b of startsOf(to)) {
+      const gap = a <= b ? b - (a + from.length) : a - (b + to.length)
+      if (Math.abs(gap) < bestGap) {
+        best = { from: a, to: b }
+        bestGap = Math.abs(gap)
+      }
+    }
+  }
+  return best
+}
+
 // Every edge that skips reference sequence, in graph.edges order.
 export function deletionEdges(graph: Graph): DeletionEdge[] {
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const backbone = backboneBySequence(graph)
+  const startsOf = referenceVisitStarts(graph)
   const found: DeletionEdge[] = []
   for (let edgeIndex = 0; edgeIndex < graph.edges.length; edgeIndex++) {
     const edge = graph.edges[edgeIndex]!
@@ -193,13 +217,13 @@ export function deletionEdges(graph: Graph): DeletionEdge[] {
       // may state a link from either strand. Whether it SKIPS what lies
       // between comes from its sides: a deletion leaves the right side of the
       // left node and arrives at the left side of the right one.
-      const forwards = from.stable.start <= to.stable.start
-      const [left, right] = forwards ? [from, to] : [to, from]
-      const start = left.stable.start + left.length
-      const end = right.stable.start
+      const at = nearestVisits(from, to, startsOf)
+      const forwards = at.from <= at.to
+      const start = forwards ? at.from + from.length : at.to + to.length
+      const end = forwards ? at.to : at.from
       const bp = end - start
       if (bp >= MIN_DELETION_BP && skipsBetween(edge, from, to, forwards)) {
-        const refName = left.stable.refName
+        const refName = from.stable.refName
         found.push({
           edgeIndex,
           from: edge.from,

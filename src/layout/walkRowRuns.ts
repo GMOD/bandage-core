@@ -292,6 +292,9 @@ export function walkRowRuns(
   // each node's span on the reference's first visit, NaN where it never visits
   const spanStart = new Float64Array(names.length).fill(Number.NaN)
   const spanEnd = new Float64Array(names.length)
+  // every visit's start for a node the reference walks more than once, as a
+  // collapsed repeat makes it
+  const revisits = new Map<number, number[]>()
   let reachesBefore = false
   let reachesAfter = false
   const cut = region && region.end > region.start ? region : undefined
@@ -300,7 +303,14 @@ export function walkRowRuns(
     for (let s = from[piece]!, stop = to[piece]!; s < stop; s++) {
       const node = all[s]!
       const len = lengthOf(node)
-      if (Number.isNaN(spanStart[node]!)) {
+      if (!Number.isNaN(spanStart[node]!)) {
+        const starts = revisits.get(node)
+        if (starts) {
+          starts.push(pos)
+        } else {
+          revisits.set(node, [spanStart[node]!, pos])
+        }
+      } else {
         spanStart[node] = pos
         spanEnd[node] = pos + len
         if (cut) {
@@ -493,6 +503,31 @@ export function walkRowRuns(
     let last = -1
     let lastFlags = 0
     let lastRef = Number.NaN
+    // where the walk last left the reference, kept across the runs off it
+    let cursor = Number.NaN
+    // A node the reference walks more than once takes the visit nearest where
+    // the walk left the reference, so a copy of a collapsed repeat follows the
+    // reference copy it continues; the first visit where nothing precedes it
+    const placeOf = (id: number) => {
+      const starts = revisits.get(id)
+      if (!starts || Number.isNaN(cursor)) {
+        return spanStart[id]!
+      }
+      const len = lengthOf(id)
+      let best = starts[0]!
+      let bestGap = Infinity
+      for (const start of starts) {
+        const gap = Math.min(
+          Math.abs(start - cursor),
+          Math.abs(start + len - cursor),
+        )
+        if (gap < bestGap) {
+          best = start
+          bestGap = gap
+        }
+      }
+      return best
+    }
     const [, runBp, runRef, runFlags] = runs.values as [
       number[],
       number[],
@@ -524,13 +559,13 @@ export function walkRowRuns(
         continue
       }
       const len = lengthOf(id)
-      const at = spanStart[id]!
+      const at = placeOf(id)
       const on = !Number.isNaN(at)
       visits?.push(id, bp, len, on ? 1 : 0)
       const placed = last >= 0 && !Number.isNaN(lastRef)
       const forward =
         on && placed && step >= 0 && lastRef + (runBp[last] ?? 0) === at
-      const back = on && placed && step <= 0 && spanEnd[id] === lastRef
+      const back = on && placed && step <= 0 && at + len === lastRef
       if (!on && last >= 0 && !(lastFlags & (RUN_ON_REFERENCE | RUN_GAP))) {
         runBp[last]! += len
       } else if (forward || back) {
@@ -550,7 +585,9 @@ export function walkRowRuns(
         step = 0
       }
       bp += len
-      if (!on) {
+      if (on) {
+        cursor = step < 0 ? at : at + len
+      } else {
         offReferenceBp += len
       }
     }

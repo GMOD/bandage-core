@@ -5,6 +5,7 @@ import { parseRegion } from './gbzCut'
 import { genePins } from './genes/genePins'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
+import { referenceVisitStarts } from './pathAnchoring'
 import {
   engineSettingsOf,
   fitTransform,
@@ -325,6 +326,7 @@ export function figureData(
     }
   }
 
+  const startsOf = referenceVisitStarts(graph)
   return {
     meta: {
       generator: `@jbrowse/bandage-core@${version}`,
@@ -354,6 +356,9 @@ export function figureData(
       length: graph.nodes.map(n => n.length),
       depth: graph.nodes.map(n => n.depth),
       backbone: graph.nodes.map(n => isBackbone(n)),
+      referenceVisits: graph.nodes.map(n =>
+        isBackbone(n) ? startsOf(n).length : 0,
+      ),
     },
     rowLabels: {
       label: (layout.rowLabels ?? []).map(r => r.label),

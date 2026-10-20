@@ -25,7 +25,8 @@ export interface WalkRun {
   bp: number
   onReference: boolean
   // lowest reference bp an on-reference run covers; the run covers `bp` of
-  // reference contiguously. In a tandem array that is the reference copy the
+  // reference contiguously. A node the reference walks more than once counts
+  // from the visit nearest where the walk left the reference. In a tandem array that is the reference copy the
   // graph threads this copy through, which need not be the one it most
   // resembles.
   referenceStart?: number
