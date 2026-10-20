@@ -55,6 +55,8 @@ test('the node table counts how often the reference walks each node', async () =
     d.nodeInfo.name.map((name, i) => [name, d.nodeInfo.referenceVisits[i]]),
   )
   expect(visits).toEqual({ 0: 1, 1: 2, 2: 2, 3: 1 })
+  expect(d.meta.referenceRamp).toEqual({ start: 50, end: 210 })
+  expect(d.meta.deletions).toBe(1)
 })
 
 test('a panel per walk, its walk lifted and the rest faded', async () => {

@@ -153,6 +153,7 @@ export function figureData(
   const {
     bounds,
     colorScheme,
+    referenceRamp,
     drawnDeletions,
     lift,
     facets,
@@ -337,6 +338,14 @@ export function figureData(
       referenceAxis: layout.referenceAxis ?? false,
       colorScheme,
       referenceName: referenceName ?? null,
+      // the reference bp the position hues run between, hue 0 to 300
+      referenceRamp: referenceRamp
+        ? {
+            start: referenceRamp.start,
+            end: referenceRamp.start + referenceRamp.span,
+          }
+        : null,
+      deletions: drawnDeletions.shown.length,
     },
     panels: {
       panel: panels.map(p => p.name),
