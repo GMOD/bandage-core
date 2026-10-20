@@ -47,6 +47,10 @@ export interface GraphPath {
   // the fragment's start and its end
   before?: PathStop
   after?: PathStop
+  // set on a walk-file cut's abridged walk: its two steps are where it leaves
+  // and rejoins the reference, around `steps` steps and `bp` the cut did not
+  // load
+  abridged?: { steps: number; bp: number }
 }
 
 // What lies past one end of a walk-file cut's fragment, as

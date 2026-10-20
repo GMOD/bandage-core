@@ -76,3 +76,31 @@ test('a force layout draws its nodes start to end', async () => {
   )
   expect(result.stranded).toBe(true)
 })
+
+test("an abridged walk's two unlinked steps lay out", async () => {
+  const walked: Graph = {
+    ...graph,
+    edges: [],
+    paths: [
+      { name: 'H#1#h', nodeIds: ['a', 'b'], abridged: { steps: 9, bp: 1e6 } },
+    ],
+  }
+  const { result } = await forceLayout(walked, engine, () =>
+    Promise.resolve({
+      result: {
+        nodePositions: {
+          a: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+          ],
+          b: [
+            { x: 20, y: 0 },
+            { x: 30, y: 0 },
+          ],
+        },
+      },
+      duration: 0,
+    }),
+  )
+  expect(Object.keys(result.nodePositions)).toEqual(['a', 'b'])
+})

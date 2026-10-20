@@ -84,6 +84,8 @@ export interface WalkRow {
   // that reaches one flank is measured from it, a lower bound
   complete: boolean
   stop?: WalkStop
+  // the steps an abridged walk's gaps stand for, which the cut did not load
+  abridgedSteps?: number
   runs: WalkRun[]
   // walkRows fills it only when asked, since an object per step costs a big
   // cut far more than its runs

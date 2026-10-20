@@ -20,7 +20,13 @@ const RUN_ON_REFERENCE = 1
 const RUN_REVERSED = 2
 const RUN_GAP = 4
 // a gap's cause, by index from bit 3
-const GAP_CAUSES = [undefined, 'missing', 'elsewhere', 'unknown'] as const
+const GAP_CAUSES = [
+  undefined,
+  'missing',
+  'elsewhere',
+  'unknown',
+  'abridged',
+] as const
 const CAUSE_SHIFT = 3
 
 const causeFlags = (cause: GapCause | undefined) =>
@@ -351,8 +357,10 @@ export function walkRowRuns(
     const head = heads[pieces[0]!]!
     const ordered = [...pieces].sort(byStart)
     let count = ordered.length - 1
+    let abridgedSteps = 0
     for (const piece of ordered) {
-      count += to[piece]! - from[piece]!
+      count += to[piece]! - from[piece]! + (heads[piece]!.abridged ? 1 : 0)
+      abridgedSteps += heads[piece]!.abridged?.steps ?? 0
     }
     if (count > steps.length) {
       steps = new Int32Array(count * 2)
@@ -383,8 +391,18 @@ export function walkRowRuns(
         stepStart[length++] = end
       }
       let pos = start ?? 0
+      const abridged = heads[piece]!.abridged
       for (let s = from[piece]!, stop = to[piece]!; s < stop; s++) {
         const node = all[s]!
+        const bp = abridged
+          ? abridged.bp - (pos - (start ?? 0)) - lengthOf(node)
+          : 0
+        if (bp > 0 && s === stop - 1 && s > from[piece]!) {
+          partsAt.set(length, [{ bp, cause: 'abridged' }])
+          steps[length] = -bp
+          stepStart[length++] = pos
+          pos += bp
+        }
         steps[length] = node
         stepStart[length++] = pos
         pos += lengthOf(node)
@@ -604,6 +622,7 @@ export function walkRowRuns(
       complete,
       stop,
       axis,
+      ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
     }
   }
 
@@ -676,7 +695,7 @@ export function runAt(t: WalkRowRuns, k: number): WalkRun {
   }
   if (f & RUN_GAP) {
     run.gap = true
-    const cause = GAP_CAUSES[(f >> CAUSE_SHIFT) & 3]
+    const cause = GAP_CAUSES[(f >> CAUSE_SHIFT) & 7]
     if (cause) {
       run.cause = cause
     }

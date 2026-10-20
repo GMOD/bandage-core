@@ -8,13 +8,14 @@ export const END_STOP_TAG = 'we'
 const STOP_KINDS = ['elsewhere', 'break', 'end'] as const
 
 // why a walk-row gap is empty (layout/walkRows.ts WalkRun)
-export type GapCause = 'missing' | 'elsewhere' | 'unknown'
+export type GapCause = 'missing' | 'elsewhere' | 'unknown' | 'abridged'
 
 // What a gap's cause says of its bp, and the key's words for it
 export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
   missing: 'not in the graph',
   elsewhere: 'on nodes filed elsewhere',
   unknown: 'gap, cause unknown',
+  abridged: 'abridged: steps not loaded',
 }
 
 // a gap with no cause: graph sequence the cut did not keep

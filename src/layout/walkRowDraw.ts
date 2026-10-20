@@ -26,6 +26,7 @@ export const OFF_REFERENCE = '#8e3fbf'
 export const OUTSIDE_CUT = '#bdbdbd'
 export const MISSING_INK = '#8a8a8a'
 export const UNKNOWN_GAP = '#e2e2e2'
+export const ABRIDGED_GAP = '#d9a441'
 export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
@@ -66,7 +67,15 @@ const near = ({ refName, start }: { refName: string; start: number }) =>
 // What the cut left out of a row, by the cause its gaps state: ` · 19 kb not
 // in the graph`, ` · 34 kb on nodes filed near chr22:20.3 Mb`, or for gaps
 // stating none ` · 19 kb outside the extracted subgraph`
-function gapsText(gapBp: number, runs: WalkRun[] | undefined) {
+function stepsText(steps: number) {
+  return steps < 1000 ? `${steps}` : `${Math.round(steps / 1000)} k`
+}
+
+function gapsText(
+  gapBp: number,
+  runs: WalkRun[] | undefined,
+  abridgedSteps = 0,
+) {
   if (gapBp <= 0) {
     return ''
   }
@@ -88,17 +97,23 @@ function gapsText(gapBp: number, runs: WalkRun[] | undefined) {
     [bpOf('unknown'), GAP_CAUSE_TEXT.unknown],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
-  return parts
-    .filter(([bp]) => bp > 0)
-    .map(([bp, text]) => ` · ${kb(bp)} ${text}`)
-    .join('')
+  const abridged = bpOf('abridged')
+  return (
+    (abridged > 0
+      ? ` · ${stepsText(abridgedSteps)} steps, ${kb(abridged)} not loaded`
+      : '') +
+    parts
+      .filter(([bp]) => bp > 0)
+      .map(([bp, text]) => ` · ${kb(bp)} ${text}`)
+      .join('')
+  )
 }
 
 // The text at the end of a bar: its length, what it carries against the
 // reference row, and what the cut left out, by cause where its gaps state
 // one. A walk reaching one flank states a lower bound and why it stops.
 export function walkRowReadout(
-  row: Pick<WalkRow, 'bp' | 'gapBp' | 'complete' | 'stop'> & {
+  row: Pick<WalkRow, 'bp' | 'gapBp' | 'complete' | 'stop' | 'abridgedSteps'> & {
     runs?: WalkRun[]
   },
   reference: Pick<WalkRow, 'bp'> | undefined,
@@ -109,7 +124,7 @@ export function walkRowReadout(
   if (!reference) {
     return `${kb(bp)}${units(bp, unit)}`
   }
-  const outside = gapsText(gapBp, row.runs)
+  const outside = gapsText(gapBp, row.runs, row.abridgedSteps)
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
@@ -155,13 +170,16 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
 
 // How a gap draws, and the key's words for it: graph sequence outside the
 // extracted subgraph as a band, bases the graph lacks as a hairline the walk
-// jumps along, and a gap the stops leave open as a pale band
+// jumps along, a gap the stops leave open as a pale band, and an abridged
+// walk's steps the cut did not load as an amber band
 export function gapStyle(cause: GapCause | undefined) {
   return cause === 'missing'
     ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.missing }
     : cause === 'unknown'
       ? { fill: UNKNOWN_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.unknown }
-      : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
+      : cause === 'abridged'
+        ? { fill: ABRIDGED_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.abridged }
+        : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
 }
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues
@@ -385,7 +403,7 @@ export function walkRowsKey(
     row.runs.filter(run => run.gap),
   )
   const labels = new Set(gaps.map(run => gapStyle(run.cause).label))
-  for (const cause of [undefined, 'missing', 'unknown'] as const) {
+  for (const cause of [undefined, 'missing', 'unknown', 'abridged'] as const) {
     const { fill, px, label } = gapStyle(cause)
     if (labels.has(label)) {
       entries.push({ swatch: { kind: 'gap', fill, px }, label })

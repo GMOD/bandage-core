@@ -332,3 +332,26 @@ test("a row takes the backbone's genes on its own contig, bare or PanSN", () => 
     'PANSN',
   ])
 })
+
+test("an abridged walk's readout counts the steps and bp not loaded", () => {
+  expect(
+    walkRowReadout(
+      {
+        bp: 2_100_000,
+        gapBp: 2_100_000,
+        complete: true,
+        abridgedSteps: 140_000,
+        runs: [
+          {
+            start: 0,
+            bp: 2_100_000,
+            onReference: false,
+            gap: true,
+            cause: 'abridged',
+          },
+        ],
+      },
+      { bp: 2_100_000 },
+    ),
+  ).toBe('2100 kb · 140 k steps, 2100 kb not loaded')
+})

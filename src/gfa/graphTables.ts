@@ -49,6 +49,9 @@ export interface GraphTables {
     // write them as tags (gfa/walkStops.ts)
     before?: WalkStopTable
     after?: WalkStopTable
+    // an abridged walk's steps and bp in all, NaN for any other walk
+    abridgedSteps?: Float64Array
+    abridgedBp?: Float64Array
   }
 }
 
@@ -65,6 +68,10 @@ export function tablePath(
   const walkName = w.names[p]!
   const fields = panSNFields(walkName)
   const start = w.starts[p]!
+  const steps = w.abridgedSteps?.[p] ?? Number.NaN
+  const abridged = Number.isNaN(steps)
+    ? {}
+    : { abridged: { steps, bp: w.abridgedBp?.[p] ?? 0 } }
   return fields
     ? {
         name: `${fields.sample}#${fields.haplotype}#${fields.contig}`,
@@ -74,6 +81,7 @@ export function tablePath(
           w.before && stopAt(w.before, p),
           w.after && stopAt(w.after, p),
         ),
+        ...abridged,
       }
     : { name: pLineName(walkName, start, w.ends[p]!), start }
 }

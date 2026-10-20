@@ -208,3 +208,48 @@ test("a gap's parts keep their causes and chunk", () => {
     ],
   })
 })
+
+// H leaves the reference after node 0 and rejoins at node 6, and the writer
+// abridged the 140 k steps and 9 kb between
+const abridged: GraphTables = {
+  nodes: {
+    names: ['0', '1', '2', '3', '4', '5', '6'],
+    lengths: Int32Array.of(1000, 1000, 1000, 1000, 1000, 1000, 1000),
+    refs: Int32Array.of(0, 0, 0, 0, 0, 0, 0),
+    starts: Float64Array.of(0, 1000, 2000, 3000, 4000, 5000, 6000),
+    ranks: Int32Array.of(0, 0, 0, 0, 0, 0, 0),
+    refNames: ['chr1'],
+  },
+  links: {
+    from: new Int32Array(0),
+    to: new Int32Array(0),
+    strands: new Uint8Array(0),
+  },
+  walks: {
+    names: ['GRCh38#0#chr1', 'H#1#h'],
+    starts: Float64Array.of(0, 0),
+    ends: Float64Array.of(7000, 9000),
+    offsets: Int32Array.of(0, 7, 9),
+    steps: Int32Array.of(0, 1, 2, 3, 4, 5, 6, 0, 6),
+    reversed: new Uint8Array(9),
+    abridgedSteps: Float64Array.of(Number.NaN, 140_000),
+    abridgedBp: Float64Array.of(Number.NaN, 9000),
+  },
+}
+
+test("an abridged walk's two steps bound a gap of the bp it left out", () => {
+  const [h] = rowsOf(abridged, { start: 2000, end: 5000 }).rows
+  expect(h).toMatchObject({
+    label: 'H#1',
+    bp: 7000,
+    gapBp: 7000,
+    complete: true,
+    abridgedSteps: 140_000,
+  })
+  expect(h.runs).toEqual([
+    { start: 0, bp: 7000, onReference: false, gap: true, cause: 'abridged' },
+  ])
+  expect(walkRowsOf(walkRowRuns(abridged)!)).toEqual(
+    walkRows(loadGraph(abridged, 'cut')),
+  )
+})
