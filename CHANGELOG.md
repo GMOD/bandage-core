@@ -1,3 +1,9 @@
+## [11.6.1](https://github.com/GMOD/bandage-core/compare/v11.6.0...v11.6.1) (2026-10-20)
+
+### Other Changes
+
+- Publish recordingCanvas again, which the plugin's tests import ([b1d4580](https://github.com/GMOD/bandage-core/commit/b1d458082f6e16628acd957135178e452ab1975c))
+
 ## [11.6.0](https://github.com/GMOD/bandage-core/compare/v11.5.0...v11.6.0) (2026-10-20)
 
 ### Other Changes
