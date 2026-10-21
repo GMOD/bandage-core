@@ -88,11 +88,15 @@ interface EdgeRow {
   alpha: number
   width: number
   deletion: boolean
+  // as on a node, where the curve starts, and (nx1, ny1, offset1) where it ends
   walk: number | null
   pass: number | null
   nx: number
   ny: number
   offset: number
+  nx1: number
+  ny1: number
+  offset1: number
 }
 
 // a lifted walk's key: its colour stops as hex, its one colour if it has
@@ -156,6 +160,21 @@ const hex = (v: number) => v.toString(16).padStart(2, '0')
 const cssHex = (c: number) =>
   `#${hex(abgrRed(c))}${hex(abgrGreen(c))}${hex(abgrBlue(c))}`
 const alphaOf = (c: number) => abgrAlpha(c) / 255
+
+interface Slide {
+  x: number
+  y: number
+}
+
+// A slide part way from `from` to `to`, as a unit normal and its length
+function easedSlide(from: Slide, to: Slide, f: number) {
+  const x = from.x + (to.x - from.x) * f
+  const y = from.y + (to.y - from.y) * f
+  const offset = Math.hypot(x, y)
+  return offset > 0
+    ? { nx: x / offset, ny: y / offset, offset }
+    : { nx: 0, ny: 0, offset: 0 }
+}
 
 export function figureData(
   graph: Graph,
@@ -311,6 +330,9 @@ export function figureData(
     'nx',
     'ny',
     'offset',
+    'nx1',
+    'ny1',
+    'offset1',
   ])
   const arrows = columns<ArrowRow>([
     'panel',
@@ -351,7 +373,15 @@ export function figureData(
     for (const [edge, run] of batch.edgeCurveRuns) {
       for (let i = run.start; i < run.start + run.count; i++) {
         const b = batch.edgeCurves[i]!
-        for (const c of b.curves) {
+        const slideOf = (n = { nx: 0, ny: 0 }, offset = 0) => ({
+          x: n.nx * offset * axis.scaleX,
+          y: n.ny * offset * axis.scaleX,
+        })
+        const from = slideOf(b.normal, b.offset)
+        const to = slideOf(b.toNormal ?? b.normal, b.toOffset ?? b.offset)
+        b.curves.forEach((c, k) => {
+          const start = easedSlide(from, to, k / b.curves.length)
+          const end = easedSlide(from, to, (k + 1) / b.curves.length)
           edges.push({
             panel,
             edge,
@@ -363,11 +393,12 @@ export function figureData(
             deletion: drawnDeletions.bypassed.has(edge),
             walk: b.walk ?? null,
             pass: b.pass ?? null,
-            nx: b.normal?.nx ?? 0,
-            ny: b.normal?.ny ?? 0,
-            offset: (b.offset ?? 0) * axis.scaleX,
+            ...start,
+            nx1: end.nx,
+            ny1: end.ny,
+            offset1: end.offset,
           })
-        }
+        })
       }
     }
     for (const [edge, run] of batch.arrowRuns) {

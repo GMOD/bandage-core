@@ -2,10 +2,15 @@ import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { isBackbone } from '../anchoredNodes'
 import {
   LANE_SMOOTHING_PX,
-  drawnPasses,
-  laneNormals,
+  THREAD_REACH_PX,
+  THREAD_TAPER_PX,
+  bandSpans,
+  bandWidthPx,
+  laneLines,
   laneSlots,
+  spanSlots,
   threadsPasses,
+  walkThreads,
 } from './walkLanes'
 import { meanDepth, nodeWidthPx, walkLaneWidthPx } from '../nodeWidths'
 import {
@@ -25,6 +30,7 @@ import {
   dashCurves,
   pathRibbonOffsets,
   polylinePx,
+  slideCurves,
   strandSides,
   translateCurves,
   yToXOf,
@@ -274,6 +280,12 @@ function leavesStart(
   const gap = (p: NodeSegment) =>
     Math.hypot(p.x - first.x0, (p.y - first.y0) * yToX)
   return gap(segments[0]!) < gap(segments.at(-1)!)
+}
+
+function entersStart(last: BezierCurve, segments: NodeSegment[], yToX: number) {
+  const gap = (p: NodeSegment) =>
+    Math.hypot(p.x - last.x1, (p.y - last.y1) * yToX)
+  return gap(segments[0]!) <= gap(segments.at(-1)!)
 }
 
 // The way into a node from the end an edge reaches it at: the direction an
@@ -873,31 +885,66 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const liftedWalks = highlight?.walks ?? []
   const threaded = threadsPasses(liftedWalks)
   const lanePasses = liftedWalks.map(w => (threaded ? w.mostPasses : 1))
-  const normalField =
+  const band = bandWidthPx(lanePasses, walkLaneWidthPx(contigThickness, 1))
+  const lines =
     liftedWalks.length > 1
-      ? laneNormals(
+      ? laneLines(
           liftedWalks.flatMap(w => w.route),
           nodePositions,
           yToX,
           LANE_SMOOTHING_PX * worldPerScreenPx,
+          threaded ? band * worldPerScreenPx : undefined,
         )
       : undefined
-  const shownPasses = liftedWalks.map(w =>
-    threaded
-      ? drawnPasses(
+  const threads = threaded
+    ? liftedWalks.map(w =>
+        walkThreads(
           w.route,
           w.passes,
           nodePositions,
           yToX,
-          LANE_SMOOTHING_PX * worldPerScreenPx,
-        )
-      : undefined,
+          THREAD_REACH_PX * worldPerScreenPx,
+        ),
+      )
+    : undefined
+  const spanField = threads
+    ? bandSpans(
+        liftedWalks.flatMap(w => w.route),
+        threads.map(t => t.span),
+        nodePositions,
+        yToX,
+        {
+          jump: LANE_SMOOTHING_PX * worldPerScreenPx,
+          reach: THREAD_REACH_PX * worldPerScreenPx,
+          taper: THREAD_TAPER_PX * worldPerScreenPx,
+        },
+      )
+    : undefined
+  const edgeKeys = new Set(
+    threads ? graph.edges.map(e => `${e.from}>${e.to}`) : [],
   )
+  const slotsAt = (nodeId: string, laneWidth: number) => {
+    const spans = spanField?.get(nodeId)
+    return spans
+      ? spanSlots(spans, lanePasses, laneWidth)
+      : laneSlots(lanePasses, laneWidth).map(
+          lane => (thread: number) => lane[thread] ?? lane[0]!,
+        )
+  }
   const laneNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
     const own = pointNormalsOf(segments, yToX)
-    const smoothed = normalField?.get(nodeId)
+    const smoothed = lines?.normals.get(nodeId)
     return smoothed ? own.map((n, i) => smoothed[i] ?? n) : own
   }
+  const laneShiftOf = (nodeId: string, index: number) =>
+    lines?.shifts.get(nodeId)?.[index] ?? { dx: 0, dy: 0 }
+  const lanePointsOf = (nodeId: string, segments: NodeSegment[]) =>
+    lines?.shifts.has(nodeId)
+      ? segments.map((p, i) => {
+          const { dx, dy } = laneShiftOf(nodeId, i)
+          return { ...p, x: p.x + dx, y: p.y + dy }
+        })
+      : segments
 
   // An arrowhead at every joint of a few hundred short nodes is a serration
   // along the whole drawing, so heads wait for a zoom where a node is longer
@@ -967,7 +1014,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       curves: BezierCurve[],
       thickness: number,
       color: number,
-      lane?: Pick<EdgeCurveBatch, 'walk' | 'pass' | 'normal' | 'offset'>,
+      lane?: Pick<
+        EdgeCurveBatch,
+        'walk' | 'pass' | 'normal' | 'offset' | 'toNormal' | 'toOffset'
+      >,
     ) => {
       if (isDeletion) {
         for (const dash of dashCurves(
@@ -1010,45 +1060,70 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     if (laneWalks) {
-      const fromNode = nodeById.get(edge.from)
-      const width = fromNode
-        ? nodeWidthPx(fromNode, contigThickness, nodeWidth, depthNorm)
-        : contigThickness
-      const slots = laneSlots(
-        lanePasses,
-        walkLaneWidthPx(width, laneWalks.length),
-      )
-      const normals = laneNormalsOf(edge.from, fromSegments)
-      const { nx, ny } = (leavesStart(
+      const laneWidthOf = (id: string) => {
+        const node = nodeById.get(id)
+        return walkLaneWidthPx(
+          node
+            ? nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
+            : contigThickness,
+          laneWalks.length,
+        )
+      }
+      const leaves = leavesStart(
         edge,
         fromSegments,
         baseCurves[0]!,
         stranded,
         yToX,
       )
-        ? normals[0]
-        : normals.at(-1)) ?? {
-        nx: 0,
-        ny: 0,
-      }
+        ? 0
+        : fromSegments.length - 1
+      const enters = entersStart(baseCurves.at(-1)!, toSegments, yToX)
+        ? 0
+        : toSegments.length - 1
+      const ends = [
+        { id: edge.from, segments: fromSegments, at: leaves },
+        { id: edge.to, segments: toSegments, at: enters },
+      ].map(({ id, segments, at }) => ({
+        slots: slotsAt(id, laneWidthOf(id)),
+        normal: laneNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
+        shift: laneShiftOf(id, at),
+      }))
+      const [from, to] = ends as [(typeof ends)[0], (typeof ends)[0]]
+      const slideOf = (end: typeof from, offset: number) => ({
+        dx: end.shift.dx + end.normal.nx * offset,
+        dy: end.shift.dy + (end.normal.ny * offset) / yToX,
+      })
       laneWalks.forEach((walk, lane) => {
         if (!walk.edgeIndexes.has(ei)) {
           return
         }
-        const shown = shownPasses[lane]
-        const passes = shown
-          ? Math.max(
-              walk.edgePasses.get(ei) ?? 1,
-              Math.min(shown.get(edge.from) ?? 1, shown.get(edge.to) ?? 1),
-            )
-          : 1
-        slots[lane]!.slice(0, passes).forEach((thread, pass) => {
-          const offset =
-            laneWalks.length === 1 ? 0 : thread.offset * worldPerScreenPx
-          const curves =
-            offset === 0
-              ? baseCurves
-              : translateCurves(baseCurves, nx * offset, (ny * offset) / yToX)
+        const own = threads?.[lane]?.linkThreads
+        const found: [number, number][] = own
+          ? [
+              ...(own.get(`${edge.from}>${edge.to}`) ?? []),
+              ...(edgeKeys.has(`${edge.to}>${edge.from}`)
+                ? []
+                : (own.get(`${edge.to}>${edge.from}`) ?? []).map(
+                    ([a, b]): [number, number] => [b, a],
+                  )),
+            ]
+          : []
+        const pairs: [number, number][] = found.length ? found : [[0, 0]]
+        for (const [pass, toPass] of pairs) {
+          const thread = from.slots[lane]!(pass)
+          const single = laneWalks.length === 1
+          const offset = single ? 0 : thread.offset * worldPerScreenPx
+          const toOffset = single
+            ? 0
+            : to.slots[lane]!(toPass).offset * worldPerScreenPx
+          const curves = single
+            ? baseCurves
+            : slideCurves(
+                baseCurves,
+                slideOf(from, offset),
+                slideOf(to, toOffset),
+              )
           if (inView(curves)) {
             stroke(
               curves,
@@ -1056,12 +1131,19 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               walk.colors.get(edge.from) ??
                 walk.colors.get(edge.to) ??
                 plainEdgeColor,
-              offset === 0
+              single
                 ? { walk: lane, pass }
-                : { walk: lane, pass, normal: { nx, ny }, offset },
+                : {
+                    walk: lane,
+                    pass,
+                    normal: from.normal,
+                    offset,
+                    toNormal: to.normal,
+                    toOffset,
+                  },
             )
           }
-        })
+        }
       })
       if (edgeCurves.length > edgeCurveStart) {
         arrowOn(baseCurves)
@@ -1161,27 +1243,30 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     if (drawable && lanes) {
-      const slots = laneSlots(lanePasses, walkLaneWidthPx(width, lanes.length))
+      const slots = slotsAt(nodeId, walkLaneWidthPx(width, lanes.length))
       const normals = lanes.length > 1 ? laneNormalsOf(nodeId, segments) : []
+      const points =
+        lanes.length > 1 ? lanePointsOf(nodeId, segments) : segments
       lanes.forEach((walk, lane) => {
         const laneColor = walk.colors.get(nodeId)
         if (laneColor === undefined) {
           return
         }
-        const passes = shownPasses[lane]?.get(nodeId) ?? 1
-        slots[lane]!.slice(0, passes).forEach((thread, pass) => {
+        const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? [0]
+        onThreads.forEach(pass => {
+          const thread = slots[lane]!(pass)
           const offset =
             lanes.length === 1 ? 0 : thread.offset * worldPerScreenPx
           nodeStrokes.push({
             points:
-              offset === 0
+              lanes.length === 1
                 ? segments
-                : offsetPolyline(segments, normals, offset, yToX),
+                : offsetPolyline(points, normals, offset, yToX),
             thickness: thread.halfWidth,
             color: laneColor,
             walk: lane,
             pass,
-            ...(offset === 0 ? {} : { normals, offset }),
+            ...(lanes.length === 1 ? {} : { normals, offset }),
           })
         })
       })

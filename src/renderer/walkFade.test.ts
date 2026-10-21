@@ -272,7 +272,7 @@ test('walks lifted together draw a stroke per pass, each keyed to its walk and p
   ])
   expect(strokesOf('v3+').map(s => [s.walk, s.pass])).toEqual([
     [0, 0],
-    [1, 0],
+    [1, 1],
   ])
   const ys = strokesOf('v1+').map(s => s.points[0]!.y)
   expect(ys).toEqual([...ys].sort((a, b) => a - b))

@@ -13,11 +13,14 @@ export interface EdgeCurveBatch {
   thickness: number
   color: number
   // a lifted walk's lane: its index in the lift, which pass of it, and how
-  // far, in x units, it lies along `normal` from the link's own curve
+  // far, in x units, it lies along `normal` from the link's own curve where
+  // it leaves, easing to `toOffset` along `toNormal` where it arrives
   walk?: number
   pass?: number
   normal?: { nx: number; ny: number }
   offset?: number
+  toNormal?: { nx: number; ny: number }
+  toOffset?: number
 }
 
 // A node's polyline, or one lengthwise stripe of it under drawPaths.

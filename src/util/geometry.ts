@@ -234,6 +234,32 @@ export function dashCurves(
   return out
 }
 
+// Curves slid by `from` at their start, easing to `to` at their end
+export function slideCurves(
+  curves: BezierCurve[],
+  from: { dx: number; dy: number },
+  to: { dx: number; dy: number },
+): BezierCurve[] {
+  const at = (f: number) => ({
+    dx: from.dx + (to.dx - from.dx) * f,
+    dy: from.dy + (to.dy - from.dy) * f,
+  })
+  return curves.map((c, i) => {
+    const a = at(i / curves.length)
+    const b = at((i + 1) / curves.length)
+    return {
+      x0: c.x0 + a.dx,
+      y0: c.y0 + a.dy,
+      cx0: c.cx0 + a.dx,
+      cy0: c.cy0 + a.dy,
+      cx1: c.cx1 + b.dx,
+      cy1: c.cy1 + b.dy,
+      x1: c.x1 + b.dx,
+      y1: c.y1 + b.dy,
+    }
+  })
+}
+
 export function translateCurves(
   curves: BezierCurve[],
   dx: number,
