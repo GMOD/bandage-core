@@ -104,8 +104,87 @@ test('alleles above the axis are reflected below it', () => {
   expect(mid(out['b3+']!).x).toBeGreaterThan(mid(out['b0+']!).x)
 })
 
-test('fewer than two placed backbone nodes leaves the drawing alone', () => {
-  const positions = { 'b0+': segment(3, 4), 'a0+': segment(9, -2) }
+const slope = (segs: NodeSegment[]) => {
+  const a = segs[0]!
+  const b = segs.at(-1)!
+  return Math.atan2(b.y - a.y, b.x - a.x)
+}
+
+// A window the fold left as one long reference segment, between two short
+// stubs past its edges that the force layout set off its line
+const quiet: Graph = {
+  name: 'quiet',
+  nodes: [
+    { id: 'left+', name: 'left', length: 400, depth: 1, stable: stable(0, 0) },
+    {
+      id: 'long+',
+      name: 'long',
+      length: 60_000,
+      depth: 1,
+      stable: stable(400, 0),
+    },
+    {
+      id: 'right+',
+      name: 'right',
+      length: 400,
+      depth: 1,
+      stable: stable(60_400, 0),
+    },
+  ],
+  edges: [],
+}
+
+test('a long segment reads level, whatever its stubs do', () => {
+  const tilted = {
+    'left+': [
+      { x: -10, y: 30 },
+      { x: 0, y: 10 },
+    ],
+    'long+': [
+      { x: 0, y: 10 },
+      { x: 300, y: 40 },
+      { x: 600, y: 70 },
+    ],
+    'right+': [
+      { x: 600, y: 70 },
+      { x: 604, y: 40 },
+    ],
+  }
+  const out = orientToReference(quiet, tilted)
+  expect(slope(out['long+']!)).toBeCloseTo(0, 2)
+})
+
+test('one placed backbone segment is turned level', () => {
+  const positions = {
+    'b0+': [
+      { x: 3, y: 4 },
+      { x: 9, y: 12 },
+    ],
+    'a0+': segment(9, -2),
+  }
+  const out = orientToReference(graph, positions)
+  expect(slope(out['b0+']!)).toBeCloseTo(0, 9)
+})
+
+test('a segment the reference reads reversed is drawn end to start', () => {
+  const reversed: Graph = {
+    ...graph,
+    nodes: [
+      {
+        id: 'b0+',
+        name: 'b0',
+        length: 10,
+        depth: 1,
+        stable: { ...stable(0, 0), strand: '-' },
+      },
+    ],
+  }
+  const out = orientToReference(reversed, { 'b0+': segment(0, 0) })
+  expect(out['b0+']![0]!.x).toBeGreaterThan(out['b0+']![1]!.x)
+})
+
+test('a backbone drawn as one point leaves the drawing alone', () => {
+  const positions = { 'b0+': [{ x: 3, y: 4 }], 'a0+': segment(9, -2) }
   expect(orientToReference(graph, positions)).toBe(positions)
 })
 
