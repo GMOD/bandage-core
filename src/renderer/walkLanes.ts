@@ -376,7 +376,7 @@ export function laneLines(
   band: number,
 ) {
   const turn = Math.max(reach, 2 * band)
-  const curl = 2 * Math.PI * band
+  const curl = Math.PI * band
   const margin = curl + band / 2 + turn / 2
   const normals = new Map<string, (Normal | undefined)[]>()
   const shifts = new Map<string, (Shift | undefined)[]>()

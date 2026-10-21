@@ -246,14 +246,16 @@ test('a copy keeps its thread round a bubble the other copy skips', () => {
   expect(links(outOfBubble).map(c => c.pass)).toEqual([1])
 })
 
-test('lanes take the chord of a curl too tight for the band to follow', () => {
+// Where each node's first thread runs, without its lane offset, for two walks
+// lifted round a loop of `radius` px hanging off a straight chain
+function curlCentres(radius: number) {
   const curl: Record<string, NodeSegment[]> = Object.fromEntries(
     Array.from({ length: 40 }, (_, i) => {
       const t = ((i - 10) / 20) * 2 * Math.PI
       const at =
         i < 10 || i >= 30
           ? { x: i, y: 0 }
-          : { x: 10 + Math.sin(t) * 4, y: 4 - Math.cos(t) * 4 }
+          : { x: 10 + Math.sin(t) * radius, y: radius - Math.cos(t) * radius }
       return [`c${i}+`, [at, { x: at.x + 0.01, y: at.y }]]
     }),
   )
@@ -266,14 +268,23 @@ test('lanes take the chord of a curl too tight for the band to follow', () => {
     walk('b', [...ids, ...ids].map(i => `>c${i}`).join('')),
   ].join('\n')
   const { strokes } = drawn(gfa, ['a#1#chr', 'b#1#chr'], curl)
-  const centre = (id: string) => {
+  return (id: string) => {
     const [s] = strokes(id)
     const p = s!.points[0]!
     const n = s!.normals![0]!
     return { x: p.x - n.nx * s!.offsetX!, y: p.y - n.ny * s!.offsetX! }
   }
+}
+
+test('lanes take the chord of a curl too tight for the band to follow', () => {
+  const centre = curlCentres(4)
   expect(Math.abs(centre('c20+').y)).toBeLessThan(1)
   expect(Math.hypot(centre('c2+').x - 2, centre('c2+').y)).toBeLessThan(0.5)
+})
+
+test("lanes keep to a loop wide enough for the band's inner thread", () => {
+  const centre = curlCentres(10)
+  expect(centre('c20+').y).toBeGreaterThan(15)
 })
 
 test('a dashed link eases its lane offset dash by dash from where it leaves to where it arrives', () => {
