@@ -32,6 +32,7 @@ import {
 import { FIT_PADDING, fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { svgCanvas } from './renderer/svgCanvas'
+import { PASSES_KEY, THREAD_PX, threadsPasses } from './renderer/walkLanes'
 import { nodesUnderBox } from './util/hitDetection'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
@@ -159,6 +160,19 @@ function exonKeySvg(x: number, y: number) {
   return {
     width: SWATCH_PX + 5 + 4 * LABEL_CHAR_PX,
     markup: `<g transform="translate(${x} ${y})" ${FONT}><rect x="1" y="4" width="${SWATCH_PX - 2}" height="10" rx="4" fill="none" stroke="${EXON_COLOR}" stroke-width="2"/><text x="${SWATCH_PX + 5}" y="13">exon</text></g>`,
+  }
+}
+
+function passesKeySvg(x: number, y: number) {
+  const lines = [6, 9, 12]
+    .map(
+      ly =>
+        `<line y1="${ly}" y2="${ly}" x2="${SWATCH_PX}" stroke="#444" stroke-width="${THREAD_PX}"/>`,
+    )
+    .join('')
+  return {
+    width: SWATCH_PX + 5 + PASSES_KEY.length * LABEL_CHAR_PX,
+    markup: `<g transform="translate(${x} ${y})" ${FONT}>${lines}<text x="${SWATCH_PX + 5}" y="13">${PASSES_KEY}</text></g>`,
   }
 }
 
@@ -389,6 +403,9 @@ export function figureSvg(
           0.3,
         ),
       )
+      if (threadsPasses(lift.walks)) {
+        push(passesKeySvg(x, 2))
+      }
     }
     if (rows) {
       const key = walkRowsKeyTree(

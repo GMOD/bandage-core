@@ -52,6 +52,8 @@ export type WalkScheme = (typeof WALK_SCHEMES)[number]['value']
 export interface WalkEncoding {
   field: WalkField
   scheme: WalkScheme
+  // the OKLab lightness a shading lane stops at short of its family's dark end
+  darkest?: number
 }
 
 export interface WalkLayer {
@@ -82,8 +84,13 @@ export function resolveEncoding(
       ? family
       : askedScheme
     : family
-  return { field, scheme }
+  return alone || field === 'walk'
+    ? { field, scheme }
+    : { field, scheme, darkest: TOGETHER_DARKEST }
 }
+
+// Walks lifted together that end together would meet in one dark stretch
+const TOGETHER_DARKEST = 0.55
 
 // Where a flat lane sits on its family: halfway between its ends
 const BASE_T = 0.5
@@ -133,8 +140,8 @@ function oklabEnds(scheme: WalkScheme) {
   return endsCache.get(scheme)
 }
 
-// A scheme at t in [0, 1] as rgb 0-255
-export function schemeRgb(scheme: WalkScheme, t: number) {
+// A scheme at t in [0, 1] as rgb 0-255, a family no darker than `darkest`
+export function schemeRgb(scheme: WalkScheme, t: number, darkest = 0) {
   const x = Math.max(0, Math.min(1, t))
   const ends = oklabEnds(scheme)
   if (!ends) {
@@ -145,37 +152,44 @@ export function schemeRgb(scheme: WalkScheme, t: number) {
     ).map(c => c * 255)
   }
   const [from, to] = ends as [number[], number[]]
-  return oklabToRgb(from.map((v, i) => v + (to[i]! - v) * x))
+  const light = from[0]!
+  const dark = to[0]!
+  const reach =
+    dark < darkest && light > darkest ? (light - darkest) / (light - dark) : 1
+  return oklabToRgb(from.map((v, i) => v + (to[i]! - v) * x * reach))
 }
 
-export function schemeCss(scheme: WalkScheme, t: number) {
-  const [r, g, b] = schemeRgb(scheme, t).map(Math.round)
+export function schemeCss(scheme: WalkScheme, t: number, darkest?: number) {
+  const [r, g, b] = schemeRgb(scheme, t, darkest).map(Math.round)
   return `rgb(${r}, ${g}, ${b})`
 }
 
-export function schemeColor(scheme: WalkScheme, t: number) {
-  const [r, g, b] = schemeRgb(scheme, t).map(Math.round)
+export function schemeColor(scheme: WalkScheme, t: number, darkest?: number) {
+  const [r, g, b] = schemeRgb(scheme, t, darkest).map(Math.round)
   return packAbgr(r!, g!, b!, 255)
 }
 
 // A field's value at a node through the walk's scheme; `t` undefined is a node
 // the field has nothing to say about, off the reference for `reference`
-export function encodedColor({ field, scheme }: WalkEncoding, t?: number) {
+export function encodedColor(
+  { field, scheme, darkest }: WalkEncoding,
+  t?: number,
+) {
   return field === 'walk'
     ? schemeColor(scheme, BASE_T)
     : t === undefined
       ? NO_VALUE_COLOR
-      : schemeColor(scheme, t)
+      : schemeColor(scheme, t, darkest)
 }
 
 export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
 
 // A key's colours: the walk's one colour, or the scheme across the field
-export function encodingStops({ field, scheme }: WalkEncoding) {
+export function encodingStops({ field, scheme, darkest }: WalkEncoding) {
   const stop = (offset: number, t: number) => ({
     offset,
-    color: schemeCss(scheme, t),
-    abgr: schemeColor(scheme, t),
+    color: schemeCss(scheme, t, darkest),
+    abgr: schemeColor(scheme, t, darkest),
   })
   return field === 'walk'
     ? [stop(0, BASE_T)]

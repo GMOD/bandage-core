@@ -13,6 +13,7 @@ import {
   loadGraph,
 } from './pipeline'
 import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
+import { PASSES_KEY, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
@@ -61,6 +62,14 @@ interface NodeRow {
   color: string
   alpha: number
   width: number
+  // a lifted walk's lane: its key row's walk, which pass of it, and the
+  // screen px it was slid along the unit normal (nx, ny) off the node's line,
+  // for a host drawing at another size to slide it again
+  walk: number | null
+  pass: number | null
+  nx: number
+  ny: number
+  offset: number
 }
 
 interface EdgeRow {
@@ -79,13 +88,22 @@ interface EdgeRow {
   alpha: number
   width: number
   deletion: boolean
+  walk: number | null
+  pass: number | null
+  nx: number
+  ny: number
+  offset: number
 }
 
-// a lifted walk's key: its colour stops as hex, and the note and scale its
-// bar is labelled with
+// a lifted walk's key: its colour stops as hex, its one colour if it has
+// one, and the note and scale its bar is labelled with; or, `kind` passes,
+// the key to its threads
 interface KeyRow {
   panel: string
+  kind: 'walk' | 'passes'
   walk: string
+  name: string
+  color: string
   note: string
   scale: string
   stops: string
@@ -174,17 +192,28 @@ export function figureData(
     key: string
     range: string
   }[] = []
-  const keys = columns<KeyRow>(['panel', 'walk', 'note', 'scale', 'stops'])
+  const keys = columns<KeyRow>([
+    'panel',
+    'kind',
+    'walk',
+    'name',
+    'color',
+    'note',
+    'scale',
+    'stops',
+  ])
   const pushKey = (walk: LiftedWalk, panel: string) => {
     const key = keyText(walk)
+    const stops = encodingStops(walk.encoding).map(s => cssHex(s.abgr))
     keys.push({
       panel,
+      kind: 'walk',
       walk: labelOf(walk.name),
+      name: walk.name,
+      color: walk.encoding.field === 'walk' ? stops[0]! : '',
       note: key.note,
       scale: key.scale ?? '',
-      stops: encodingStops(walk.encoding)
-        .map(s => cssHex(s.abgr))
-        .join(','),
+      stops: stops.join(','),
     })
     return key
   }
@@ -206,6 +235,18 @@ export function figureData(
   } else {
     for (const walk of lift?.walks ?? []) {
       pushKey(walk, '')
+    }
+    if (threadsPasses(lift?.walks ?? [])) {
+      keys.push({
+        panel: '',
+        kind: 'passes',
+        walk: '',
+        name: '',
+        color: '',
+        note: PASSES_KEY,
+        scale: '',
+        stops: '',
+      })
     }
     panels.push({ highlight: lift, name: '', key: '', range: '' })
   }
@@ -243,6 +284,11 @@ export function figureData(
     'color',
     'alpha',
     'width',
+    'walk',
+    'pass',
+    'nx',
+    'ny',
+    'offset',
   ])
   const edges = columns<EdgeRow>([
     'panel',
@@ -260,6 +306,11 @@ export function figureData(
     'alpha',
     'width',
     'deletion',
+    'walk',
+    'pass',
+    'nx',
+    'ny',
+    'offset',
   ])
   const arrows = columns<ArrowRow>([
     'panel',
@@ -278,7 +329,7 @@ export function figureData(
     for (const [node, run] of batch.nodeStrokeRuns) {
       for (let i = run.start; i < run.start + run.count; i++) {
         const s = batch.nodeStrokes[i]!
-        for (const p of s.points) {
+        s.points.forEach((p, k) => {
           nodes.push({
             panel,
             node,
@@ -288,8 +339,13 @@ export function figureData(
             color: cssHex(s.color),
             alpha: alphaOf(s.color),
             width: s.thickness * 2,
+            walk: s.walk ?? null,
+            pass: s.pass ?? null,
+            nx: s.normals?.[k]?.nx ?? 0,
+            ny: s.normals?.[k]?.ny ?? 0,
+            offset: (s.offset ?? 0) * axis.scaleX,
           })
-        }
+        })
       }
     }
     for (const [edge, run] of batch.edgeCurveRuns) {
@@ -305,6 +361,11 @@ export function figureData(
             alpha: alphaOf(b.color),
             width: b.thickness * 2,
             deletion: drawnDeletions.bypassed.has(edge),
+            walk: b.walk ?? null,
+            pass: b.pass ?? null,
+            nx: b.normal?.nx ?? 0,
+            ny: b.normal?.ny ?? 0,
+            offset: (b.offset ?? 0) * axis.scaleX,
           })
         }
       }

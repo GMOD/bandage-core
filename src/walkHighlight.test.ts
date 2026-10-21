@@ -282,3 +282,51 @@ test('a walk in a tagged walk cut measures itself against the reference walk', (
   expect(walk.reference).toBe(false)
   expect(walk.referenceBp).toBe(20)
 })
+
+// dup runs v1 v2 twice before v3, in two pieces: its copies part at v2 and a1
+const REPEAT = `${GFA}
+L\tv2\t+\tv1\t+\t0M
+L\ta1\t+\tv1\t+\t0M
+W\tdup\t1\tchr\t0\t8\t>v1>v2>v1
+W\tdup\t1\tchr\t8\t21\t>a1>v1>v2>v3`
+
+test('a walk counts its passes through each node and link over all its pieces', () => {
+  const h = walkHighlight(
+    anchorGraph(convertGFAToGraph(parseGFA(REPEAT)), 'ref'),
+    'dup#1#chr',
+  )!
+  expect(Object.fromEntries(h.passes)).toEqual({
+    'v1+': 3,
+    'v2+': 2,
+    'a1+': 1,
+    'v3+': 1,
+  })
+  expect(h.mostPasses).toBe(3)
+  expect(h.edgePasses.get(0)).toBe(2)
+  expect(h.route).toEqual([
+    ['v1+', 'v2+', 'v1+'],
+    ['a1+', 'v1+', 'v2+', 'v3+'],
+  ])
+  expect(walkHighlight(graph, 'ref#0#chr')!.mostPasses).toBe(1)
+})
+
+test('walks lifted together shade no darker than mid-lightness, alone they do', () => {
+  const [, alt] = walkLift(graph, [
+    { walk: 'ref#0#chr', color: { field: 'progress' } },
+    { walk: 'alt#1#chr', color: { field: 'progress' } },
+  ])!.walks
+  const [alone] = walkLift(graph, [{ walk: 'alt#1#chr' }])!.walks
+  expect(alt!.encoding.darkest).toBeGreaterThan(0.5)
+  expect(alone!.encoding.darkest).toBeUndefined()
+  const luma = (c: number) =>
+    (c & 0xff) + ((c >> 8) & 0xff) + ((c >> 16) & 0xff)
+  expect(luma(alt!.colors.get('v3+')!)).toBeGreaterThan(
+    luma(alone!.colors.get('v3+')!),
+  )
+})
+
+test('a floor on lightness keeps the light end and the flat colour', () => {
+  expect(schemeColor('blue', 0, 0.55)).toBe(schemeColor('blue', 0))
+  expect(schemeColor('blue', 1, 0.55)).not.toBe(schemeColor('blue', 1))
+  expect(schemeColor('rainbow', 1, 0.55)).toBe(schemeColor('rainbow', 1))
+})

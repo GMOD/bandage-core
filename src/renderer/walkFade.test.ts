@@ -241,3 +241,47 @@ test('a lifted walk leaving a one-point node draws its link', () => {
   })
   expect(batch.edgeCurveRuns.get(2)).toBeDefined()
 })
+
+// dup runs v1 v2 twice before v3
+const REPEAT = `${GFA}
+L\tv2\t+\tv1\t+\t0M
+W\tdup\t1\tchr\t0\t15\t>v1>v2>v1>v2>v3`
+
+test('walks lifted together draw a stroke per pass, each keyed to its walk and pass', () => {
+  const g = convertGFAToGraph(parseGFA(REPEAT))
+  const both = walkLift(g, [{ walk: 'ref#0#chr' }, { walk: 'dup#1#chr' }])!
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: positions,
+    graph: g,
+    nodeById: new Map(g.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 5,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: both,
+  })
+  const strokesOf = (id: string) => {
+    const { start, count } = batch.nodeStrokeRuns.get(id)!
+    return batch.nodeStrokes.slice(start, start + count)
+  }
+  expect(strokesOf('v1+').map(s => [s.walk, s.pass])).toEqual([
+    [0, 0],
+    [1, 0],
+    [1, 1],
+  ])
+  expect(strokesOf('v3+').map(s => [s.walk, s.pass])).toEqual([
+    [0, 0],
+    [1, 0],
+  ])
+  const ys = strokesOf('v1+').map(s => s.points[0]!.y)
+  expect(ys).toEqual([...ys].sort((a, b) => a - b))
+  for (const s of strokesOf('v1+')) {
+    expect(s.points[0]!.y).toBeCloseTo(s.normals![0]!.ny * s.offset!)
+  }
+  const links = (edge: number) => {
+    const { start, count } = batch.edgeCurveRuns.get(edge)!
+    return batch.edgeCurves.slice(start, start + count).map(c => c.pass)
+  }
+  expect(links(0)).toEqual([0, 0, 1])
+})

@@ -85,6 +85,12 @@ test('each lifted walk is keyed with its colour stops as hex', async () => {
     expect(stops).toMatch(/^#[0-9a-f]{6}(,#[0-9a-f]{6})*$/)
   }
   expect(d.walkNames).toEqual(expect.arrayContaining([K12, IAI39]))
+  expect(d.keys.name).toEqual([K12, IAI39])
+  expect(d.keys.kind).toEqual(['walk', 'walk'])
+  expect(d.keys.color).toEqual(d.keys.stops)
+  const lifted = d.nodes.walk.filter(w => w !== null)
+  expect(new Set(lifted)).toEqual(new Set([0, 1]))
+  expect(d.nodes.offset.some(o => o !== 0)).toBe(true)
   const faceted = await gfaFigureData(gfa, 'ecoli', {
     engine: 'stress',
     walks: [K12, IAI39],
@@ -140,4 +146,24 @@ test('a tube map has no tables yet', async () => {
       layout: 'tubemap',
     }),
   ).rejects.toThrow(/tube map/)
+})
+
+test('walks lifted together where one repeats key a thread per pass', async () => {
+  const gfa = [
+    'S\tv1\tAAAA',
+    'S\tv2\tCC',
+    'S\tv3\tGGG',
+    'L\tv1\t+\tv2\t+\t0M',
+    'L\tv2\t+\tv3\t+\t0M',
+    'L\tv2\t+\tv1\t+\t0M',
+    'W\tref\t0\tchr\t0\t9\t>v1>v2>v3',
+    'W\tdup\t1\tchr\t0\t15\t>v1>v2>v1>v2>v3',
+  ].join('\n')
+  const d = await gfaFigureData(gfa, 'dup', {
+    engine: 'stress',
+    walks: ['ref#0#chr', 'dup#1#chr'],
+  })
+  expect(d.keys.kind).toEqual(['walk', 'walk', 'passes'])
+  const passes = d.nodes.pass.filter((p, i) => d.nodes.walk[i] === 1)
+  expect(new Set(passes)).toEqual(new Set([0, 1]))
 })

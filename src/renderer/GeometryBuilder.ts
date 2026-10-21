@@ -1,5 +1,12 @@
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { isBackbone } from '../anchoredNodes'
+import {
+  LANE_SMOOTHING_PX,
+  drawnPasses,
+  laneNormals,
+  laneSlots,
+  threadsPasses,
+} from './walkLanes'
 import { meanDepth, nodeWidthPx, walkLaneWidthPx } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
@@ -863,6 +870,35 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const nodePathSlots =
     drawPaths && pathCount > 1 ? pathSlotsOf(graph) : NO_SLOTS
 
+  const liftedWalks = highlight?.walks ?? []
+  const threaded = threadsPasses(liftedWalks)
+  const lanePasses = liftedWalks.map(w => (threaded ? w.mostPasses : 1))
+  const normalField =
+    liftedWalks.length > 1
+      ? laneNormals(
+          liftedWalks.flatMap(w => w.route),
+          nodePositions,
+          yToX,
+          LANE_SMOOTHING_PX * worldPerScreenPx,
+        )
+      : undefined
+  const shownPasses = liftedWalks.map(w =>
+    threaded
+      ? drawnPasses(
+          w.route,
+          w.passes,
+          nodePositions,
+          yToX,
+          LANE_SMOOTHING_PX * worldPerScreenPx,
+        )
+      : undefined,
+  )
+  const laneNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
+    const own = pointNormalsOf(segments, yToX)
+    const smoothed = normalField?.get(nodeId)
+    return smoothed ? own.map((n, i) => smoothed[i] ?? n) : own
+  }
+
   // An arrowhead at every joint of a few hundred short nodes is a serration
   // along the whole drawing, so heads wait for a zoom where a node is longer
   // than its head.
@@ -931,6 +967,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       curves: BezierCurve[],
       thickness: number,
       color: number,
+      lane?: Pick<EdgeCurveBatch, 'walk' | 'pass' | 'normal' | 'offset'>,
     ) => {
       if (isDeletion) {
         for (const dash of dashCurves(
@@ -939,10 +976,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           yToX,
           viewportBounds,
         )) {
-          edgeCurves.push({ curves: dash, thickness, color })
+          edgeCurves.push({ curves: dash, thickness, color, ...lane })
         }
       } else {
-        edgeCurves.push({ curves, thickness, color })
+        edgeCurves.push({ curves, thickness, color, ...lane })
       }
     }
     const arrowOn = (curves: BezierCurve[]) => {
@@ -977,8 +1014,11 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const width = fromNode
         ? nodeWidthPx(fromNode, contigThickness, nodeWidth, depthNorm)
         : contigThickness
-      const laneWidth = walkLaneWidthPx(width, laneWalks.length)
-      const normals = pointNormalsOf(fromSegments, yToX)
+      const slots = laneSlots(
+        lanePasses,
+        walkLaneWidthPx(width, laneWalks.length),
+      )
+      const normals = laneNormalsOf(edge.from, fromSegments)
       const { nx, ny } = (leavesStart(
         edge,
         fromSegments,
@@ -995,21 +1035,33 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         if (!walk.edgeIndexes.has(ei)) {
           return
         }
-        const offset =
-          (lane - (laneWalks.length - 1) / 2) * laneWidth * worldPerScreenPx
-        const curves =
-          offset === 0
-            ? baseCurves
-            : translateCurves(baseCurves, nx * offset, (ny * offset) / yToX)
-        if (inView(curves)) {
-          stroke(
-            curves,
-            laneWidth / 2,
-            walk.colors.get(edge.from) ??
-              walk.colors.get(edge.to) ??
-              plainEdgeColor,
-          )
-        }
+        const shown = shownPasses[lane]
+        const passes = shown
+          ? Math.max(
+              walk.edgePasses.get(ei) ?? 1,
+              Math.min(shown.get(edge.from) ?? 1, shown.get(edge.to) ?? 1),
+            )
+          : 1
+        slots[lane]!.slice(0, passes).forEach((thread, pass) => {
+          const offset =
+            laneWalks.length === 1 ? 0 : thread.offset * worldPerScreenPx
+          const curves =
+            offset === 0
+              ? baseCurves
+              : translateCurves(baseCurves, nx * offset, (ny * offset) / yToX)
+          if (inView(curves)) {
+            stroke(
+              curves,
+              thread.halfWidth,
+              walk.colors.get(edge.from) ??
+                walk.colors.get(edge.to) ??
+                plainEdgeColor,
+              offset === 0
+                ? { walk: lane, pass }
+                : { walk: lane, pass, normal: { nx, ny }, offset },
+            )
+          }
+        })
       })
       if (edgeCurves.length > edgeCurveStart) {
         arrowOn(baseCurves)
@@ -1109,22 +1161,28 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     if (drawable && lanes) {
-      const laneWidth = walkLaneWidthPx(width, lanes.length)
-      const normals = pointNormalsOf(segments, yToX)
+      const slots = laneSlots(lanePasses, walkLaneWidthPx(width, lanes.length))
+      const normals = lanes.length > 1 ? laneNormalsOf(nodeId, segments) : []
       lanes.forEach((walk, lane) => {
         const laneColor = walk.colors.get(nodeId)
         if (laneColor === undefined) {
           return
         }
-        const offset =
-          (lane - (lanes.length - 1) / 2) * laneWidth * worldPerScreenPx
-        nodeStrokes.push({
-          points:
-            lanes.length === 1
-              ? segments
-              : offsetPolyline(segments, normals, offset, yToX),
-          thickness: laneWidth / 2,
-          color: laneColor,
+        const passes = shownPasses[lane]?.get(nodeId) ?? 1
+        slots[lane]!.slice(0, passes).forEach((thread, pass) => {
+          const offset =
+            lanes.length === 1 ? 0 : thread.offset * worldPerScreenPx
+          nodeStrokes.push({
+            points:
+              offset === 0
+                ? segments
+                : offsetPolyline(segments, normals, offset, yToX),
+            thickness: thread.halfWidth,
+            color: laneColor,
+            walk: lane,
+            pass,
+            ...(offset === 0 ? {} : { normals, offset }),
+          })
         })
       })
     } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
