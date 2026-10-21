@@ -2,7 +2,7 @@ import type { NodeSegment } from '../types'
 
 export const THREAD_PX = 2
 export const THREAD_GAP_PX = 1.5
-export const SLOT_GAP_PX = 3
+export const SLOT_GAP_PX = 4
 export const LANE_SMOOTHING_PX = 12
 
 // Walks lifted together draw a thread per pass through a node once one of
