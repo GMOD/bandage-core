@@ -74,18 +74,14 @@ A spec's `genes` are the backbone's, so in a walk strip `bandage-figure` boxes
 them on the reference row only, and the key labels the other rows "no gene
 track".
 
-`figureSvg` writes the spec into each SVG's `<metadata>` beside the version that
-drew it, such as `@jbrowse/bandage-core@4.0.25`. To make a figure again, run
+`bandage-figure` writes the spec into each SVG's `<metadata>` beside the version
+that drew it, such as `@jbrowse/bandage-core@4.0.25`. To make a figure again, run
 that version on the spec:
 `npx -p @jbrowse/bandage-core@4.0.25 bandage-figure spec.json`.
 
 In jbrowse-plugin-graphgenomeviewer and BandageJS, **Export SVG** saves the
-drawing through the same renderer. The plugin also has **Copy figure spec**,
-which copies the spec for what is on screen, to make the figure again from a
-script. The plugin writes one for a graph cut from a gbz-base track or read from
-a GFA url, with the genes of a GFF3 tabix track. `bandage-figure` refuses a
-layout that draws no nodes, such as walk rows or a tube map (`checkLayout`), so
-under those layouts the plugin disables **Copy figure spec** and says why.
+drawing through the same renderer, with no spec. `bandage-figure` refuses a
+layout that draws no nodes, such as walk rows or a tube map (`checkLayout`).
 
 After `pnpm build`, `node scripts/render-figures.mjs` renders every spec in
 [figures/](../figures) to `img/figure_<name>.svg`.
