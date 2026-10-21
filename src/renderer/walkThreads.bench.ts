@@ -57,10 +57,14 @@ describe('lifted walks on a 20k-node chain', () => {
   ] as const) {
     const name = `${walks} walks${repeating ? ', one repeating' : ''}`
     const options = liftedChain(20_000, walks, repeating)
-    test(name, async ({ bench }) => {
-      await bench(name, () => {
-        buildGeometry(options)
-      }).run()
-    })
+    test(
+      name,
+      async ({ bench }) => {
+        await bench(name, () => {
+          buildGeometry(options)
+        }).run({ time: 0, iterations: 5, warmupIterations: 1 })
+      },
+      120_000,
+    )
   }
 })
