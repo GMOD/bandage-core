@@ -86,8 +86,8 @@ test('each lifted walk is keyed with its colour stops as hex', async () => {
   }
   expect(d.walkNames).toEqual(expect.arrayContaining([K12, IAI39]))
   expect(d.keys.name).toEqual([K12, IAI39])
-  expect(d.keys.kind).toEqual(['walk', 'walk'])
   expect(d.keys.color).toEqual(d.keys.stops)
+  expect(d.threadKeys.note).toEqual([])
   const lifted = d.nodes.walk.filter(w => w !== null)
   expect(new Set(lifted)).toEqual(new Set([0, 1]))
   expect(d.nodes.offset.some(o => o !== 0)).toBe(true)
@@ -97,6 +97,14 @@ test('each lifted walk is keyed with its colour stops as hex', async () => {
     facet: 'walk',
   })
   expect(faceted.keys.panel).toEqual(faceted.panels.panel)
+  faceted.nodes.walk.forEach((w, i) => {
+    if (w !== null) {
+      expect(faceted.keys.panel[w]).toBe(faceted.nodes.panel[i])
+    }
+  })
+  expect(new Set(faceted.nodes.walk.filter(w => w !== null))).toEqual(
+    new Set([0, 1]),
+  )
 })
 
 test('a gene is pinned, its exons polylines along the nodes under them', async () => {
@@ -148,7 +156,7 @@ test('a tube map has no tables yet', async () => {
   ).rejects.toThrow(/tube map/)
 })
 
-test('walks lifted together where one repeats key a thread per pass', async () => {
+test('walks lifted together where one repeats key a thread per pass, apart from the walks', async () => {
   const gfa = [
     'S\tv1\tAAAA',
     'S\tv2\tCC',
@@ -163,17 +171,23 @@ test('walks lifted together where one repeats key a thread per pass', async () =
     engine: 'stress',
     walks: ['ref#0#chr', 'dup#1#chr'],
   })
-  expect(d.keys.kind).toEqual(['walk', 'walk', 'passes'])
+  expect(d.keys.walk).toHaveLength(2)
+  expect(d.threadKeys).toEqual({
+    panel: [''],
+    note: ['a thread per pass through a node'],
+  })
   const passes = d.nodes.pass.filter((p, i) => d.nodes.walk[i] === 1)
   expect(new Set(passes)).toEqual(new Set([0, 1]))
   const e = d.edges
-  const slide = (i: number, end: 0 | 1) =>
-    end
-      ? [e.nx1[i]! * e.offset1[i]!, e.ny1[i]! * e.offset1[i]!]
-      : [e.nx[i]! * e.offset[i]!, e.ny[i]! * e.offset[i]!]
   const lane = e.walk.findIndex(w => w === 0)
-  for (const v of [...slide(lane, 0), ...slide(lane, 1)]) {
+  const slide = (nx: number, ny: number, offset: number) => [
+    nx * offset,
+    ny * offset,
+  ]
+  const start = slide(e.nx[lane]!, e.ny[lane]!, e.offset[lane]!)
+  const end = slide(e.nx1[lane]!, e.ny1[lane]!, e.offset1[lane]!)
+  for (const v of [...start, ...end]) {
     expect(Number.isFinite(v)).toBe(true)
   }
-  expect(Math.hypot(...slide(lane, 1))).toBeGreaterThan(0)
+  expect(Math.hypot(end[0]!, end[1]!)).toBeGreaterThan(0)
 })

@@ -20,12 +20,8 @@ export interface WalkHighlight {
   // each node's first visit, as the fraction of the walk's bp before its
   // midpoint: 0 at the walk's start, 1 at its end
   progress: Map<string, number>
-  // how many times the walk passes through each node and takes each link,
-  // over all its pieces, and the most it passes through any one node
   passes: Map<string, number>
-  edgePasses: Map<number, number>
   mostPasses: number
-  // each piece's node ids in walk order
   route: readonly (readonly string[])[]
   steps: number
   bp: number
@@ -122,7 +118,6 @@ function highlightOf(
   const edgeIndexes = new Set<number>()
   const progress = new Map<string, number>()
   const passes = new Map<string, number>()
-  const edgePasses = new Map<number, number>()
   let mostPasses = 1
   let before = 0
   for (const piece of pieces) {
@@ -139,7 +134,6 @@ function highlightOf(
         const index = edgeAt.get(`${a}>${id}`) ?? edgeAt.get(`${id}>${a}`)
         if (index !== undefined) {
           edgeIndexes.add(index)
-          edgePasses.set(index, (edgePasses.get(index) ?? 0) + 1)
         }
       }
       const length = lengthOf(id)
@@ -187,7 +181,6 @@ function highlightOf(
     edgeIndexes,
     progress,
     passes,
-    edgePasses,
     mostPasses,
     route: pieces.map(piece => piece.nodeIds),
     steps: pieces.reduce((sum, piece) => sum + piece.nodeIds.length, 0),

@@ -283,14 +283,13 @@ test('a walk in a tagged walk cut measures itself against the reference walk', (
   expect(walk.referenceBp).toBe(20)
 })
 
-// dup runs v1 v2 twice before v3, in two pieces: its copies part at v2 and a1
 const REPEAT = `${GFA}
 L\tv2\t+\tv1\t+\t0M
 L\ta1\t+\tv1\t+\t0M
 W\tdup\t1\tchr\t0\t8\t>v1>v2>v1
 W\tdup\t1\tchr\t8\t21\t>a1>v1>v2>v3`
 
-test('a walk counts its passes through each node and link over all its pieces', () => {
+test('a walk counts its passes through each node over all its pieces', () => {
   const h = walkHighlight(
     anchorGraph(convertGFAToGraph(parseGFA(REPEAT)), 'ref'),
     'dup#1#chr',
@@ -302,7 +301,6 @@ test('a walk counts its passes through each node and link over all its pieces', 
     'v3+': 1,
   })
   expect(h.mostPasses).toBe(3)
-  expect(h.edgePasses.get(0)).toBe(2)
   expect(h.route).toEqual([
     ['v1+', 'v2+', 'v1+'],
     ['a1+', 'v1+', 'v2+', 'v3+'],

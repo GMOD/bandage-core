@@ -13,7 +13,7 @@ import {
   loadGraph,
 } from './pipeline'
 import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
-import { passesKey, threadsPasses } from './renderer/walkLanes'
+import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
@@ -22,6 +22,7 @@ import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { LayoutModeValue } from './layoutModes'
+import type { LaneSlide } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
 import type { LiftedWalk, WalkLift } from './walkHighlight'
@@ -62,9 +63,6 @@ interface NodeRow {
   color: string
   alpha: number
   width: number
-  // a lifted walk's lane: its key row's walk, which pass of it, and the
-  // screen px it was slid along the unit normal (nx, ny) off the node's line,
-  // for a host drawing at another size to slide it again
   walk: number | null
   pass: number | null
   nx: number
@@ -88,7 +86,6 @@ interface EdgeRow {
   alpha: number
   width: number
   deletion: boolean
-  // as on a node, where the curve starts, and (nx1, ny1, offset1) where it ends
   walk: number | null
   pass: number | null
   nx: number
@@ -99,18 +96,21 @@ interface EdgeRow {
   offset1: number
 }
 
-// a lifted walk's key: its colour stops as hex, its one colour if it has
-// one, and the note and scale its bar is labelled with; or, `kind` passes,
-// the key to its threads
+// a lifted walk's key: its colour stops as hex, and the note and scale its
+// bar is labelled with
 interface KeyRow {
   panel: string
-  kind: 'walk' | 'passes'
   walk: string
   name: string
   color: string
   note: string
   scale: string
   stops: string
+}
+
+interface ThreadKeyRow {
+  panel: string
+  note: string
 }
 
 interface PinRow {
@@ -161,21 +161,6 @@ const cssHex = (c: number) =>
   `#${hex(abgrRed(c))}${hex(abgrGreen(c))}${hex(abgrBlue(c))}`
 const alphaOf = (c: number) => abgrAlpha(c) / 255
 
-interface Slide {
-  x: number
-  y: number
-}
-
-// A slide part way from `from` to `to`, as a unit normal and its length
-function easedSlide(from: Slide, to: Slide, f: number) {
-  const x = from.x + (to.x - from.x) * f
-  const y = from.y + (to.y - from.y) * f
-  const offset = Math.hypot(x, y)
-  return offset > 0
-    ? { nx: x / offset, ny: y / offset, offset }
-    : { nx: 0, ny: 0, offset: 0 }
-}
-
 export function figureData(
   graph: Graph,
   layout: LayoutResult,
@@ -210,10 +195,10 @@ export function figureData(
     name: string
     key: string
     range: string
+    firstKeyRow: number
   }[] = []
   const keys = columns<KeyRow>([
     'panel',
-    'kind',
     'walk',
     'name',
     'color',
@@ -221,12 +206,12 @@ export function figureData(
     'scale',
     'stops',
   ])
+  const threadKeys = columns<ThreadKeyRow>(['panel', 'note'])
   const pushKey = (walk: LiftedWalk, panel: string) => {
     const key = keyText(walk)
     const stops = encodingStops(walk.encoding).map(s => cssHex(s.abgr))
     keys.push({
       panel,
-      kind: 'walk',
       walk: labelOf(walk.name),
       name: walk.name,
       color: walk.encoding.field === 'walk' ? stops[0]! : '',
@@ -243,12 +228,14 @@ export function figureData(
     for (const { panel } of ordered) {
       const walk = panel.walks[0]!
       const name = labelOf(walk.name)
+      const firstKeyRow = keys.out.panel.length
       const key = pushKey(walk, name)
       panels.push({
         highlight: panel,
         name,
         key: key.note,
         range: key.scale ?? '',
+        firstKeyRow,
       })
     }
   } else {
@@ -256,18 +243,15 @@ export function figureData(
       pushKey(walk, '')
     }
     if (threadsPasses(lift?.walks ?? [])) {
-      keys.push({
-        panel: '',
-        kind: 'passes',
-        walk: '',
-        name: '',
-        color: '',
-        note: passesKey(lift?.walks ?? []),
-        scale: '',
-        stops: '',
-      })
+      threadKeys.push({ panel: '', note: passesKey(lift?.walks ?? []) })
     }
-    panels.push({ highlight: lift, name: '', key: '', range: '' })
+    panels.push({
+      highlight: lift,
+      name: '',
+      key: '',
+      range: '',
+      firstKeyRow: 0,
+    })
   }
 
   const pins = columns<PinRow>(['gene', 'x', 'y', 'covered', 'bp'])
@@ -346,8 +330,15 @@ export function figureData(
     'alpha',
   ])
 
-  for (const { highlight, name: panel } of panels) {
+  for (const { highlight, name: panel, firstKeyRow } of panels) {
     const batch = geometry(highlight, axis)
+    const keyRowOf = (walk?: number) =>
+      walk === undefined ? null : firstKeyRow + walk
+    const screen = ({ normal, offsetX }: LaneSlide) => ({
+      nx: normal.nx,
+      ny: normal.ny,
+      offset: offsetX * axis.scaleX,
+    })
     for (const [node, run] of batch.nodeStrokeRuns) {
       for (let i = run.start; i < run.start + run.count; i++) {
         const s = batch.nodeStrokes[i]!
@@ -361,11 +352,11 @@ export function figureData(
             color: cssHex(s.color),
             alpha: alphaOf(s.color),
             width: s.thickness * 2,
-            walk: s.walk ?? null,
+            walk: keyRowOf(s.walk),
             pass: s.pass ?? null,
             nx: s.normals?.[k]?.nx ?? 0,
             ny: s.normals?.[k]?.ny ?? 0,
-            offset: (s.offset ?? 0) * axis.scaleX,
+            offset: (s.offsetX ?? 0) * axis.scaleX,
           })
         })
       }
@@ -373,15 +364,18 @@ export function figureData(
     for (const [edge, run] of batch.edgeCurveRuns) {
       for (let i = run.start; i < run.start + run.count; i++) {
         const b = batch.edgeCurves[i]!
-        const slideOf = (n = { nx: 0, ny: 0 }, offset = 0) => ({
-          x: n.nx * offset * axis.scaleX,
-          y: n.ny * offset * axis.scaleX,
-        })
-        const from = slideOf(b.normal, b.offset)
-        const to = slideOf(b.toNormal ?? b.normal, b.toOffset ?? b.offset)
+        const n = b.curves.length
+        const start = b.normal && { normal: b.normal, offsetX: b.offsetX ?? 0 }
+        const finish = b.endNormal && {
+          normal: b.endNormal,
+          offsetX: b.endOffsetX ?? 0,
+        }
+        const slideAlong = (along: number) =>
+          start && finish
+            ? screen(laneSlideAt(start, finish, along))
+            : { nx: 0, ny: 0, offset: 0 }
         b.curves.forEach((c, k) => {
-          const start = easedSlide(from, to, k / b.curves.length)
-          const end = easedSlide(from, to, (k + 1) / b.curves.length)
+          const end = slideAlong((k + 1) / n)
           edges.push({
             panel,
             edge,
@@ -391,9 +385,9 @@ export function figureData(
             alpha: alphaOf(b.color),
             width: b.thickness * 2,
             deletion: drawnDeletions.bypassed.has(edge),
-            walk: b.walk ?? null,
+            walk: keyRowOf(b.walk),
             pass: b.pass ?? null,
-            ...start,
+            ...slideAlong(k / n),
             nx1: end.nx,
             ny1: end.ny,
             offset1: end.offset,
@@ -445,6 +439,7 @@ export function figureData(
       range: panels.map(p => p.range),
     },
     keys: keys.out,
+    threadKeys: threadKeys.out,
     pins: pins.out,
     exons: exons.out,
     walkNames: [...new Set((graph.paths ?? []).map(p => p.name))],

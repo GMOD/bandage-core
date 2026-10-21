@@ -9,8 +9,8 @@ import {
   bandSpans,
   bandWidthPx,
   laneLines,
-  laneSlots,
-  scaledThread,
+  laneRuns,
+  laneSlideAt,
   spanSlots,
   threadsPasses,
   walkThreads,
@@ -30,7 +30,7 @@ import {
 import { referenceMidpoints } from '../referenceSpan'
 import { baseEdgeCurves } from '../util/edgeCurves'
 import {
-  dashCurves,
+  dashSpans,
   pathRibbonOffsets,
   polylinePx,
   slideCurves,
@@ -48,10 +48,12 @@ import type { WalkLift } from '../walkHighlight'
 import type {
   Arrowhead,
   EdgeCurveBatch,
+  LaneSlide,
   NodeStroke,
   RenderBatch,
   Run,
 } from './types'
+import type { LaneThread, Normal } from './walkLanes'
 import type { AxisScale, BezierCurve } from '../util/geometry'
 
 // Colors flow through the geometry builder as ABGR-in-u32 (see colorBits.ts),
@@ -268,6 +270,18 @@ function arrowheadFor({
   }
 }
 
+const FIRST_THREADS = [[0, 0]] as const
+const NO_SHIFT = { dx: 0, dy: 0 }
+
+function nearerStart(
+  at: { x: number; y: number },
+  segments: NodeSegment[],
+  yToX: number,
+) {
+  const gap = (p: NodeSegment) => Math.hypot(p.x - at.x, (p.y - at.y) * yToX)
+  return gap(segments[0]!) < gap(segments.at(-1)!)
+}
+
 // Whether a link leaves its from-node's start: as its strands say where the
 // layout is stranded, else wherever its curve begins
 function leavesStart(
@@ -277,18 +291,9 @@ function leavesStart(
   stranded: boolean | undefined,
   yToX: number,
 ) {
-  if (stranded) {
-    return strandSides(edge).from === 'start'
-  }
-  const gap = (p: NodeSegment) =>
-    Math.hypot(p.x - first.x0, (p.y - first.y0) * yToX)
-  return gap(segments[0]!) < gap(segments.at(-1)!)
-}
-
-function entersStart(last: BezierCurve, segments: NodeSegment[], yToX: number) {
-  const gap = (p: NodeSegment) =>
-    Math.hypot(p.x - last.x1, (p.y - last.y1) * yToX)
-  return gap(segments[0]!) <= gap(segments.at(-1)!)
+  return stranded
+    ? strandSides(edge).from === 'start'
+    : nearerStart({ x: first.x0, y: first.y0 }, segments, yToX)
 }
 
 // The way into a node from the end an edge reaches it at: the direction an
@@ -887,16 +892,23 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
 
   const liftedWalks = highlight?.walks ?? []
   const threaded = threadsPasses(liftedWalks)
-  const lanePasses = liftedWalks.map(w => (threaded ? w.mostPasses : 1))
+  const lanePasses = liftedWalks.map(w => w.mostPasses)
   const thinned = threaded ? bandScale(lanePasses) : 1
-  const band = bandWidthPx(lanePasses, THREAD_PX) * thinned
-  const lines = threaded
-    ? laneLines(
+  const runs = threaded
+    ? laneRuns(
         liftedWalks.flatMap(w => w.route),
         nodePositions,
         yToX,
         LANE_SMOOTHING_PX * worldPerScreenPx,
-        band * worldPerScreenPx,
+      )
+    : undefined
+  const lines = runs
+    ? laneLines(
+        runs,
+        nodePositions,
+        yToX,
+        LANE_SMOOTHING_PX * worldPerScreenPx,
+        bandWidthPx(lanePasses) * thinned * worldPerScreenPx,
       )
     : undefined
   const threads = threaded
@@ -910,43 +922,68 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ),
       )
     : undefined
-  const spanField = threads
-    ? bandSpans(
-        liftedWalks.flatMap(w => w.route),
-        threads.map(t => t.span),
-        nodePositions,
-        yToX,
-        {
-          jump: LANE_SMOOTHING_PX * worldPerScreenPx,
-          reach: THREAD_REACH_PX * worldPerScreenPx,
-          taper: THREAD_TAPER_PX * worldPerScreenPx,
-        },
-      )
-    : undefined
+  const spanField =
+    runs && threads
+      ? bandSpans(
+          runs,
+          threads.map(t => t.span),
+          {
+            reach: THREAD_REACH_PX * worldPerScreenPx,
+            taper: THREAD_TAPER_PX * worldPerScreenPx,
+          },
+        )
+      : undefined
   const edgeKeys = new Set(
     threads ? graph.edges.map(e => `${e.from}>${e.to}`) : [],
   )
-  const slotsAt = (nodeId: string, nodeLaneWidth: number) => {
-    const laneWidth = threaded ? THREAD_PX : nodeLaneWidth
-    const spans = spanField?.get(nodeId)
-    const slots = spans
-      ? spanSlots(spans.slot, lanePasses, laneWidth, spans.held)
-      : laneSlots(lanePasses, laneWidth).map(
-          lane => (thread: number) => lane[thread] ?? lane[0]!,
-        )
-    return thinned < 1
-      ? slots.map(
-          slot => (thread: number) => scaledThread(slot(thread), thinned),
-        )
-      : slots
+  const threadSlots = new Map<string, ((thread: number) => LaneThread)[]>()
+  const abuttingLanes = new Map<number, LaneThread[]>()
+  const threadAt = (
+    nodeId: string,
+    laneWidth: number,
+    lane: number,
+    pass: number,
+  ): LaneThread => {
+    if (!threaded) {
+      let lanes = abuttingLanes.get(laneWidth)
+      if (!lanes) {
+        lanes = liftedWalks.map((_, i) => ({
+          offset: (i - (liftedWalks.length - 1) / 2) * laneWidth,
+          halfWidth: laneWidth / 2,
+        }))
+        abuttingLanes.set(laneWidth, lanes)
+      }
+      return lanes[lane]!
+    }
+    let slots = threadSlots.get(nodeId)
+    if (!slots) {
+      const spans = spanField?.get(nodeId)
+      slots = spanSlots(
+        spans?.slot ?? lanePasses,
+        lanePasses,
+        THREAD_PX,
+        spans?.held,
+        thinned,
+      )
+      threadSlots.set(nodeId, slots)
+    }
+    return slots[lane]!(pass)
   }
+  const smoothedNormals = new Map<string, Normal[]>()
   const laneNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
-    const own = pointNormalsOf(segments, yToX)
     const smoothed = lines?.normals.get(nodeId)
-    return smoothed ? own.map((n, i) => smoothed[i] ?? n) : own
+    if (!smoothed) {
+      return pointNormalsOf(segments, yToX)
+    }
+    let normals = smoothedNormals.get(nodeId)
+    if (!normals) {
+      normals = pointNormalsOf(segments, yToX).map((n, i) => smoothed[i] ?? n)
+      smoothedNormals.set(nodeId, normals)
+    }
+    return normals
   }
   const laneShiftOf = (nodeId: string, index: number) =>
-    lines?.shifts.get(nodeId)?.[index] ?? { dx: 0, dy: 0 }
+    lines?.shifts.get(nodeId)?.[index] ?? NO_SHIFT
   const lanePointsOf = (nodeId: string, segments: NodeSegment[]) =>
     lines?.shifts.has(nodeId)
       ? segments.map((p, i) => {
@@ -1023,22 +1060,39 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       curves: BezierCurve[],
       thickness: number,
       color: number,
-      lane?: Pick<
-        EdgeCurveBatch,
-        'walk' | 'pass' | 'normal' | 'offset' | 'toNormal' | 'toOffset'
-      >,
+      lane?: { walk: number; pass: number; start: LaneSlide; end: LaneSlide },
     ) => {
-      if (isDeletion) {
-        for (const dash of dashCurves(
-          curves,
-          DELETION_DASH_PX / scale,
-          yToX,
-          viewportBounds,
-        )) {
-          edgeCurves.push({ curves: dash, thickness, color, ...lane })
+      const push = (pieces: BezierCurve[], from = 0, to = 1) => {
+        if (!lane) {
+          edgeCurves.push({ curves: pieces, thickness, color })
+          return
         }
-      } else {
-        edgeCurves.push({ curves, thickness, color, ...lane })
+        const start =
+          from === 0 ? lane.start : laneSlideAt(lane.start, lane.end, from)
+        const end = to === 1 ? lane.end : laneSlideAt(lane.start, lane.end, to)
+        edgeCurves.push({
+          curves: pieces,
+          thickness,
+          color,
+          walk: lane.walk,
+          pass: lane.pass,
+          normal: start.normal,
+          offsetX: start.offsetX,
+          endNormal: end.normal,
+          endOffsetX: end.offsetX,
+        })
+      }
+      if (!isDeletion) {
+        push(curves)
+        return
+      }
+      for (const dash of dashSpans(
+        curves,
+        DELETION_DASH_PX / scale,
+        yToX,
+        viewportBounds,
+      )) {
+        push(dash.curves, dash.startAlong, dash.endAlong)
       }
     }
     const arrowOn = (curves: BezierCurve[]) => {
@@ -1078,61 +1132,78 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           laneWalks.length,
         )
       }
-      const leaves = leavesStart(
-        edge,
+      const endOf = (id: string, segments: NodeSegment[], atStart: boolean) => {
+        const at = atStart ? 0 : segments.length - 1
+        return {
+          id,
+          laneWidth: laneWidthOf(id),
+          normal: laneNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
+          shift: laneShiftOf(id, at),
+        }
+      }
+      const from = endOf(
+        edge.from,
         fromSegments,
-        baseCurves[0]!,
-        stranded,
-        yToX,
+        leavesStart(edge, fromSegments, baseCurves[0]!, stranded, yToX),
       )
-        ? 0
-        : fromSegments.length - 1
-      const enters = entersStart(baseCurves.at(-1)!, toSegments, yToX)
-        ? 0
-        : toSegments.length - 1
-      const ends = [
-        { id: edge.from, segments: fromSegments, at: leaves },
-        { id: edge.to, segments: toSegments, at: enters },
-      ].map(({ id, segments, at }) => ({
-        slots: slotsAt(id, laneWidthOf(id)),
-        normal: laneNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
-        shift: laneShiftOf(id, at),
-      }))
-      const [from, to] = ends as [(typeof ends)[0], (typeof ends)[0]]
-      const slideOf = (end: typeof from, offset: number) => ({
-        dx: end.shift.dx + end.normal.nx * offset,
-        dy: end.shift.dy + (end.normal.ny * offset) / yToX,
+      const last = baseCurves.at(-1)!
+      const to = threaded
+        ? endOf(
+            edge.to,
+            toSegments,
+            nearerStart({ x: last.x1, y: last.y1 }, toSegments, yToX),
+          )
+        : from
+      const slideOf = (end: typeof from, offsetX: number) => ({
+        dx: end.shift.dx + end.normal.nx * offsetX,
+        dy: end.shift.dy + (end.normal.ny * offsetX) / yToX,
       })
+      const pairsOf = (
+        lane: number,
+      ): readonly (readonly [number, number])[] => {
+        const own = threads?.[lane]?.linkThreads
+        if (!own?.size) {
+          return FIRST_THREADS
+        }
+        const backKey = `${edge.to}>${edge.from}`
+        const found = [
+          ...(own.get(`${edge.from}>${edge.to}`) ?? []),
+          ...(edgeKeys.has(backKey) ? [] : (own.get(backKey) ?? [])).map(
+            ([a, b]): [number, number] => [b, a],
+          ),
+        ]
+        return found.length ? found : FIRST_THREADS
+      }
+      const single = laneWalks.length === 1
       laneWalks.forEach((walk, lane) => {
         if (!walk.edgeIndexes.has(ei)) {
           return
         }
-        const own = threads?.[lane]?.linkThreads
-        const found: [number, number][] = own
-          ? [
-              ...(own.get(`${edge.from}>${edge.to}`) ?? []),
-              ...(edgeKeys.has(`${edge.to}>${edge.from}`)
-                ? []
-                : (own.get(`${edge.to}>${edge.from}`) ?? []).map(
-                    ([a, b]): [number, number] => [b, a],
-                  )),
-            ]
-          : []
-        const pairs: [number, number][] = found.length ? found : [[0, 0]]
-        for (const [pass, toPass] of pairs) {
-          const thread = from.slots[lane]!(pass)
-          const single = laneWalks.length === 1
-          const offset = single ? 0 : thread.offset * worldPerScreenPx
-          const toOffset = single
-            ? 0
-            : to.slots[lane]!(toPass).offset * worldPerScreenPx
-          const curves = single
-            ? baseCurves
-            : slideCurves(
+        for (const [pass, toPass] of pairsOf(lane)) {
+          const thread = threadAt(from.id, from.laneWidth, lane, pass)
+          const offsetX = single ? 0 : thread.offset * worldPerScreenPx
+          const start: LaneSlide = { normal: from.normal, offsetX }
+          const end: LaneSlide = threaded
+            ? {
+                normal: to.normal,
+                offsetX:
+                  threadAt(to.id, to.laneWidth, lane, toPass).offset *
+                  worldPerScreenPx,
+              }
+            : start
+          const curves = threaded
+            ? slideCurves(
                 baseCurves,
-                slideOf(from, offset),
-                slideOf(to, toOffset),
+                slideOf(from, start.offsetX),
+                slideOf(to, end.offsetX),
               )
+            : offsetX === 0
+              ? baseCurves
+              : translateCurves(
+                  baseCurves,
+                  from.normal.nx * offsetX,
+                  (from.normal.ny * offsetX) / yToX,
+                )
           if (inView(curves)) {
             stroke(
               curves,
@@ -1140,16 +1211,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               walk.colors.get(edge.from) ??
                 walk.colors.get(edge.to) ??
                 plainEdgeColor,
-              single
-                ? { walk: lane, pass }
-                : {
-                    walk: lane,
-                    pass,
-                    normal: from.normal,
-                    offset,
-                    toNormal: to.normal,
-                    toOffset,
-                  },
+              { walk: lane, pass, start, end },
             )
           }
         }
@@ -1252,7 +1314,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     if (drawable && lanes) {
-      const slots = slotsAt(nodeId, walkLaneWidthPx(width, lanes.length))
+      const laneWidth = walkLaneWidthPx(width, lanes.length)
       const normals = lanes.length > 1 ? laneNormalsOf(nodeId, segments) : []
       const points =
         lanes.length > 1 ? lanePointsOf(nodeId, segments) : segments
@@ -1263,20 +1325,28 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         }
         const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? [0]
         onThreads.forEach(pass => {
-          const thread = slots[lane]!(pass)
-          const offset =
+          const thread = threadAt(nodeId, laneWidth, lane, pass)
+          const offsetX =
             lanes.length === 1 ? 0 : thread.offset * worldPerScreenPx
-          nodeStrokes.push({
-            points:
-              lanes.length === 1
-                ? segments
-                : offsetPolyline(points, normals, offset, yToX),
-            thickness: thread.halfWidth,
-            color: laneColor,
-            walk: lane,
-            pass,
-            ...(lanes.length === 1 ? {} : { normals, offset }),
-          })
+          nodeStrokes.push(
+            lanes.length === 1
+              ? {
+                  points: segments,
+                  thickness: thread.halfWidth,
+                  color: laneColor,
+                  walk: lane,
+                  pass,
+                }
+              : {
+                  points: offsetPolyline(points, normals, offsetX, yToX),
+                  thickness: thread.halfWidth,
+                  color: laneColor,
+                  walk: lane,
+                  pass,
+                  normals,
+                  offsetX,
+                },
+          )
         })
       })
     } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {

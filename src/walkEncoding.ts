@@ -52,7 +52,6 @@ export type WalkScheme = (typeof WALK_SCHEMES)[number]['value']
 export interface WalkEncoding {
   field: WalkField
   scheme: WalkScheme
-  // the OKLab lightness a shading lane stops at short of its family's dark end
   darkest?: number
 }
 
@@ -89,7 +88,6 @@ export function resolveEncoding(
     : { field, scheme, darkest: TOGETHER_DARKEST }
 }
 
-// Walks lifted together that end together would meet in one dark stretch
 const TOGETHER_DARKEST = 0.55
 
 // Where a flat lane sits on its family: halfway between its ends
@@ -140,7 +138,7 @@ function oklabEnds(scheme: WalkScheme) {
   return endsCache.get(scheme)
 }
 
-// A scheme at t in [0, 1] as rgb 0-255, a family no darker than `darkest`
+// A scheme at t in [0, 1] as rgb 0-255
 export function schemeRgb(scheme: WalkScheme, t: number, darkest = 0) {
   const x = Math.max(0, Math.min(1, t))
   const ends = oklabEnds(scheme)

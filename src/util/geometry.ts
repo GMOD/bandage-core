@@ -173,12 +173,25 @@ function visibleStretches(
 // over the curves as one line, so an edge drawn as many short pieces still
 // reads as dashed. With `bounds`, dashes clear of them are left out; the
 // others are the ones an unbounded call would give.
-export function dashCurves(
+export const dashCurves = (
   curves: BezierCurve[],
   dashWorld: number,
   yToX = 1,
   bounds?: Bounds,
-): BezierCurve[][] {
+) => dashSpans(curves, dashWorld, yToX, bounds).map(d => d.curves)
+
+export interface Dash {
+  curves: BezierCurve[]
+  startAlong: number
+  endAlong: number
+}
+
+export function dashSpans(
+  curves: BezierCurve[],
+  dashWorld: number,
+  yToX = 1,
+  bounds?: Bounds,
+): Dash[] {
   // Control-polygon length overestimates the arc, which errs toward more
   // dashes rather than toward a curve that reads as solid.
   const lengths = curves.map(
@@ -196,7 +209,7 @@ export function dashCurves(
     ? visibleStretches(curves, lengths, bounds, yToX)
     : undefined
   let seen = 0
-  const out: BezierCurve[][] = []
+  const out: Dash[] = []
   for (let i = 0; i < spans; i += 2) {
     const from = (i / spans) * total
     const to = ((i + 1) / spans) * total
@@ -212,41 +225,48 @@ export function dashCurves(
       }
     }
     const dash: BezierCurve[] = []
+    const along: number[] = []
     let start = 0
     curves.forEach((c, k) => {
       const length = lengths[k]!
       const end = start + length
       if (length > 0 && end > from && start < to) {
-        dash.push(
-          subCurve(
-            c,
-            Math.max(0, (from - start) / length),
-            Math.min(1, (to - start) / length),
-          ),
-        )
+        const t0 = Math.max(0, (from - start) / length)
+        const t1 = Math.min(1, (to - start) / length)
+        dash.push(subCurve(c, t0, t1))
+        along.push((k + t0) / curves.length, (k + t1) / curves.length)
       }
       start = end
     })
     if (dash.length) {
-      out.push(dash)
+      out.push({
+        curves: dash,
+        startAlong: along[0]!,
+        endAlong: along.at(-1)!,
+      })
     }
   }
   return out
 }
 
-// Curves slid by `from` at their start, easing to `to` at their end
+export interface Slide {
+  dx: number
+  dy: number
+}
+
+export const slideAt = (from: Slide, to: Slide, along: number): Slide => ({
+  dx: from.dx + (to.dx - from.dx) * along,
+  dy: from.dy + (to.dy - from.dy) * along,
+})
+
 export function slideCurves(
   curves: BezierCurve[],
-  from: { dx: number; dy: number },
-  to: { dx: number; dy: number },
+  from: Slide,
+  to: Slide,
 ): BezierCurve[] {
-  const at = (f: number) => ({
-    dx: from.dx + (to.dx - from.dx) * f,
-    dy: from.dy + (to.dy - from.dy) * f,
-  })
   return curves.map((c, i) => {
-    const a = at(i / curves.length)
-    const b = at((i + 1) / curves.length)
+    const a = slideAt(from, to, i / curves.length)
+    const b = slideAt(from, to, (i + 1) / curves.length)
     return {
       x0: c.x0 + a.dx,
       y0: c.y0 + a.dy,
