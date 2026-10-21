@@ -1,3 +1,10 @@
+## [11.7.2](https://github.com/GMOD/bandage-core/compare/v11.7.1...v11.7.2) (2026-10-21)
+
+### Other Changes
+
+- Orient a force layout to every drawn point of the reference ([9c46a40](https://github.com/GMOD/bandage-core/commit/9c46a402fedceaccddbd9edd7e07b7f114537e4e))
+- Keep the one small skip that holds a folded cut together ([aaead1a](https://github.com/GMOD/bandage-core/commit/aaead1a9292cff15c4f7e36a1be04494ab3b6abd))
+
 ## [11.7.1](https://github.com/GMOD/bandage-core/compare/v11.7.0...v11.7.1) (2026-10-21)
 
 ### Other Changes
