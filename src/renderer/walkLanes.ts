@@ -2,6 +2,7 @@ import { slideAt } from '../util/geometry'
 
 import type { LaneSlide } from './types'
 import type { NodeSegment } from '../types'
+import type { LiftedWalk } from '../walkHighlight'
 
 export const THREAD_PX = 2
 export const THREAD_GAP_PX = 1.5
@@ -661,4 +662,47 @@ export function bandSpans(
     }
   })
   return out
+}
+
+export function liftLanes(
+  walks: readonly LiftedWalk[],
+  nodePositions: Record<string, NodeSegment[]>,
+  yToX: number,
+  worldPerScreenPx: number,
+) {
+  const threaded = threadsPasses(walks)
+  const passes = walks.map(w => w.mostPasses)
+  const reach = THREAD_REACH_PX * worldPerScreenPx
+  const runs = laneRuns(
+    walks.flatMap(w => w.route),
+    nodePositions,
+    yToX,
+    LANE_SMOOTHING_PX * worldPerScreenPx,
+  )
+  const lines = laneLines(
+    runs,
+    nodePositions,
+    yToX,
+    LANE_SMOOTHING_PX * worldPerScreenPx,
+    bandWidthPx(passes) * (threaded ? bandScale(passes) : 1) * worldPerScreenPx,
+    threaded,
+  )
+  const threads = threaded
+    ? walks.map(w => walkThreads(w.route, w.passes, nodePositions, yToX, reach))
+    : undefined
+  const spans = threads
+    ? bandSpans(
+        runs,
+        threads.map(t => t.span),
+        { reach, taper: THREAD_TAPER_PX * worldPerScreenPx },
+      )
+    : undefined
+  const furthestShift = { dx: 0, dy: 0 }
+  for (const own of lines.shifts.values()) {
+    for (const shift of own) {
+      furthestShift.dx = Math.max(furthestShift.dx, Math.abs(shift?.dx ?? 0))
+      furthestShift.dy = Math.max(furthestShift.dy, Math.abs(shift?.dy ?? 0))
+    }
+  }
+  return { lines, threads, spans, furthestShift }
 }

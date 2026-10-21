@@ -1,20 +1,14 @@
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { isBackbone } from '../anchoredNodes'
 import {
-  LANE_SMOOTHING_PX,
   THREAD_PITCH_PX,
   THREAD_PX,
-  THREAD_REACH_PX,
-  THREAD_TAPER_PX,
   bandScale,
-  bandSpans,
   bandWidthPx,
-  laneLines,
-  laneRuns,
   laneSlideAt,
+  liftLanes,
   slotCentres,
   threadsPasses,
-  walkThreads,
 } from './walkLanes'
 import { meanDepth, nodeWidthPx, walkLaneWidthPx } from '../nodeWidths'
 import {
@@ -40,6 +34,7 @@ import {
   yToXOf,
 } from '../util/geometry'
 import { pushTo } from '../util/groups'
+import { weakMemo } from '../util/weakMemo'
 
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
@@ -840,6 +835,8 @@ function pathSlotsOf(graph: Graph): ReadonlyMap<string, number[]> {
   return slots
 }
 
+const lanesCache = weakMemo<WalkLift, ReturnType<typeof liftLanes>>()
+
 const linksCache = new WeakMap<Graph, Map<string, Set<string>>>()
 
 function linksOf(graph: Graph): ReadonlyMap<string, ReadonlySet<string>> {
@@ -924,47 +921,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const threaded = threadsPasses(liftedWalks)
   const lanePasses = liftedWalks.map(w => w.mostPasses)
   const thinned = threaded ? bandScale(lanePasses) : 1
-  const runs =
-    liftedWalks.length > 1
-      ? laneRuns(
-          liftedWalks.flatMap(w => w.route),
-          nodePositions,
-          yToX,
-          LANE_SMOOTHING_PX * worldPerScreenPx,
+  const fields =
+    highlight && liftedWalks.length > 1
+      ? lanesCache(
+          highlight,
+          [nodePositions, version, axis.scaleX, axis.scaleY],
+          () => liftLanes(liftedWalks, nodePositions, yToX, worldPerScreenPx),
         )
       : undefined
-  const lines = runs
-    ? laneLines(
-        runs,
-        nodePositions,
-        yToX,
-        LANE_SMOOTHING_PX * worldPerScreenPx,
-        bandWidthPx(lanePasses) * thinned * worldPerScreenPx,
-        threaded,
-      )
-    : undefined
-  const threads = threaded
-    ? liftedWalks.map(w =>
-        walkThreads(
-          w.route,
-          w.passes,
-          nodePositions,
-          yToX,
-          THREAD_REACH_PX * worldPerScreenPx,
-        ),
-      )
-    : undefined
-  const spanField =
-    runs && threads
-      ? bandSpans(
-          runs,
-          threads.map(t => t.span),
-          {
-            reach: THREAD_REACH_PX * worldPerScreenPx,
-            taper: THREAD_TAPER_PX * worldPerScreenPx,
-          },
-        )
-      : undefined
+  const lines = fields?.lines
+  const threads = fields?.threads
+  const spanField = fields?.spans
   const plainCentres = threaded ? slotCentres(lanePasses, lanePasses) : []
   const centresByNode = new Map<string, number[]>()
   const centresOf = (nodeId: string) => {
@@ -1027,14 +994,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       shift: laneShiftOf(id, at),
     }
   }
-  let shiftX = 0
-  let shiftY = 0
-  for (const own of lines?.shifts.values() ?? []) {
-    for (const shift of own) {
-      shiftX = Math.max(shiftX, Math.abs(shift?.dx ?? 0))
-      shiftY = Math.max(shiftY, Math.abs(shift?.dy ?? 0))
-    }
-  }
   const lanesMayShow = (curves: BezierCurve[], fromId: string) => {
     if (!viewportBounds) {
       return true
@@ -1046,8 +1005,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     return isBezierInBounds(
       curves,
       viewportBounds,
-      reach + shiftX,
-      reach / yToX + shiftY,
+      reach + (fields?.furthestShift.dx ?? 0),
+      reach / yToX + (fields?.furthestShift.dy ?? 0),
     )
   }
   const threadPairs = (

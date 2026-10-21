@@ -57,11 +57,13 @@ describe('lifted walks on a 20k-node chain', () => {
   ] as const) {
     const name = `${walks} walks${repeating ? ', one repeating' : ''}`
     const options = liftedChain(20_000, walks, repeating)
+    let zoom = 1
     test(
       name,
       async ({ bench }) => {
         await bench(name, () => {
-          buildGeometry(options)
+          zoom = zoom === 1 ? 1 + 1e-9 : 1
+          buildGeometry({ ...options, axis: { scaleX: zoom, scaleY: zoom } })
         }).run({ time: 0, iterations: 5, warmupIterations: 1 })
       },
       120_000,

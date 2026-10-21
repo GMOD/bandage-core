@@ -401,3 +401,27 @@ test('a viewport only a thread reaches still draws that thread, as an unculled b
   expect(culled.length).toBeGreaterThan(0)
   expect(all).toEqual(expect.arrayContaining(culled))
 })
+
+test('a drag that moves a node in place redraws its threads once the version changes', () => {
+  const graph = convertGFAToGraph(parseGFA(DUP))
+  const lift = () =>
+    walkLift(graph, [{ walk: 'ref#0#chr' }, { walk: 'dup#1#chr' }])!
+  const highlight = lift()
+  const nodePositions = structuredClone(flat)
+  const build = (version: number, fresh = false) =>
+    buildGeometry({
+      axis: { scaleX: 1, scaleY: 1 },
+      nodePositions,
+      graph,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      contigThickness: 5,
+      connectorThickness: 2,
+      drawPaths: false,
+      highlight: fresh ? lift() : highlight,
+      version,
+    })
+  build(0)
+  nodePositions['v2+']![1]!.y += 6
+  expect(build(1)).toEqual(build(1, true))
+})
