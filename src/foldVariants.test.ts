@@ -406,13 +406,13 @@ test('an allele run that starts with a 0 bp segment keeps its orientation', () =
   })
 })
 
-test('a short skip whose reference the cut left out stays, so the graph does not split', () => {
+test('a short skip whose reference a cut left out stays, so the cut does not split', () => {
   const cut = rgfa([
     seg('r1', 'ref#chr', 0, 1000, 0),
     seg('r3', 'ref#chr', 1063, 1000, 0),
     link('r1', 'r3'),
   ])
-  const folded = foldVariants(cut, 432)
+  const folded = foldVariants(cut, 432, { cut: true })
   expect(folded.edges.map(e => [e.from, e.to, e.foldBridge])).toEqual([
     ['r1+', 'r3+', true],
   ])
@@ -430,7 +430,7 @@ test('of the small skips that could rejoin a cut, the shortest stays', () => {
     link('r1', 'r4'),
     link('r2', 'r4'),
   ])
-  const folded = foldVariants(cut, 432)
+  const folded = foldVariants(cut, 432, { cut: true })
   expect(
     folded.edges.filter(e => e.foldBridge).map(e => [e.from, e.to]),
   ).toEqual([['r2+', 'r4+']])
@@ -448,4 +448,13 @@ test('a short skip folds where the reference it skips is in the cut', () => {
   const folded = foldVariants(graph, 432)
   expect(folded.nodes).toHaveLength(1)
   expect(folded.edges).toEqual([])
+})
+
+test('without `cut` a short skip folds even where it is the only link', () => {
+  const graph = rgfa([
+    seg('r1', 'ref#chr', 0, 1000, 0),
+    seg('r3', 'ref#chr', 1063, 1000, 0),
+    link('r1', 'r3'),
+  ])
+  expect(foldVariants(graph, 432).edges).toEqual([])
 })

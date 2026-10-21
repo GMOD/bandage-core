@@ -27,7 +27,16 @@ import type { Graph, GraphEdge, GraphNode } from './types'
 //
 // A graph with walks is returned as it is, since a folded detour would need
 // every walk rerouted along what is kept, and so is a graph with no backbone.
-export function foldVariants(graph: Graph, belowBp: number): Graph {
+//
+// `cut` is for a window cut out of a graph, whose reference can end inside a
+// small skip: the fold then keeps the shortest skip that rejoins what the kept
+// links leave apart (`bridges`). Without it the fold is gfa-to-tabix's, which
+// builds the coarse tiers, and foldParity.test.ts holds the two together.
+export function foldVariants(
+  graph: Graph,
+  belowBp: number,
+  { cut = false }: { cut?: boolean } = {},
+): Graph {
   if (
     !(belowBp > 0) ||
     graph.paths?.length ||
@@ -85,7 +94,9 @@ export function foldVariants(graph: Graph, belowBp: number): Graph {
   for (const k of smallSkips) {
     keeps[k] = false
   }
-  const bridging = new Set(bridges(nodes.length, ends, keeps, smallSkips))
+  const bridging = new Set(
+    cut ? bridges(nodes.length, ends, keeps, smallSkips) : [],
+  )
   const keptEdges = edges.flatMap((edge, k) =>
     bridging.has(k) ? [{ ...edge, foldBridge: true }] : keeps[k] ? [edge] : [],
   )
