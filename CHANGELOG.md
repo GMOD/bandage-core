@@ -1,3 +1,9 @@
+## [11.7.1](https://github.com/GMOD/bandage-core/compare/v11.7.0...v11.7.1) (2026-10-21)
+
+### Other Changes
+
+- Measure a deletion across a window edge on the uncut segments ([786a6b0](https://github.com/GMOD/bandage-core/commit/786a6b03105a515e65e719534fab9c89ce56ccd1))
+
 ## [11.7.0](https://github.com/GMOD/bandage-core/compare/v11.6.1...v11.7.0) (2026-10-20)
 
 ### Other Changes
