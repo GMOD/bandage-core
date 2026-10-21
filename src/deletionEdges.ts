@@ -272,6 +272,7 @@ export function deletionEdges(cut: Graph): DeletionEdge[] {
     const from = byId.get(edge.from)
     const to = byId.get(edge.to)
     if (
+      !edge.foldBridge &&
       from !== undefined &&
       to !== undefined &&
       isBackbone(from) &&

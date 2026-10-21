@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 
+import { deletionEdges } from './deletionEdges'
 import { foldVariants } from './foldVariants'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { writeRgfa } from './gfa/writeRgfa'
@@ -403,4 +404,48 @@ test('an allele run that starts with a 0 bp segment keeps its orientation', () =
     fromStrand: '+',
     toStrand: '+',
   })
+})
+
+test('a short skip whose reference the cut left out stays, so the graph does not split', () => {
+  const cut = rgfa([
+    seg('r1', 'ref#chr', 0, 1000, 0),
+    seg('r3', 'ref#chr', 1063, 1000, 0),
+    link('r1', 'r3'),
+  ])
+  const folded = foldVariants(cut, 432)
+  expect(folded.edges.map(e => [e.from, e.to, e.foldBridge])).toEqual([
+    ['r1+', 'r3+', true],
+  ])
+  expect(deletionEdges(folded)).toEqual([])
+})
+
+test('of the small skips that could rejoin a cut, the shortest stays', () => {
+  const cut = rgfa([
+    seg('r1', 'ref#chr', 0, 1000, 0),
+    seg('r2', 'ref#chr', 1000, 40, 0),
+    seg('r4', 'ref#chr', 1100, 1000, 0),
+    seg('a', 'alt#chr', 0, 5000, 1),
+    link('r1', 'r2'),
+    link('r1', 'a'),
+    link('r1', 'r4'),
+    link('r2', 'r4'),
+  ])
+  const folded = foldVariants(cut, 432)
+  expect(
+    folded.edges.filter(e => e.foldBridge).map(e => [e.from, e.to]),
+  ).toEqual([['r2+', 'r4+']])
+})
+
+test('a short skip folds where the reference it skips is in the cut', () => {
+  const graph = rgfa([
+    seg('r1', 'ref#chr', 0, 1000, 0),
+    seg('r2', 'ref#chr', 1000, 63, 0),
+    seg('r3', 'ref#chr', 1063, 1000, 0),
+    link('r1', 'r2'),
+    link('r2', 'r3'),
+    link('r1', 'r3'),
+  ])
+  const folded = foldVariants(graph, 432)
+  expect(folded.nodes).toHaveLength(1)
+  expect(folded.edges).toEqual([])
 })

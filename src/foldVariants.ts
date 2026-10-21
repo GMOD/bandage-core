@@ -66,16 +66,62 @@ export function foldVariants(graph: Graph, belowBp: number): Graph {
     }
   }
 
-  const keptEdges = edges.filter((edge, k) => {
-    const a = index.get(edge.from)
-    const b = index.get(edge.to)
-    if (a === undefined || b === undefined) {
-      return false
-    }
-    const skip = skipped(nodes[a]!, sides[k]!.from, nodes[b]!, sides[k]!.to)
-    return kept[a] && kept[b] && !(skip > 0 && skip < belowBp)
+  const ends = edges.map(edge => [index.get(edge.from), index.get(edge.to)])
+  const keeps = edges.map((_, k) => {
+    const [a, b] = ends[k]!
+    return a !== undefined && b !== undefined && !!kept[a] && !!kept[b]
   })
+  const smallSkips = edges
+    .flatMap((_, k) => {
+      const [a, b] = ends[k]!
+      if (!keeps[k]) {
+        return []
+      }
+      const bp = skipped(nodes[a!]!, sides[k]!.from, nodes[b!]!, sides[k]!.to)
+      return bp > 0 && bp < belowBp ? [{ k, bp }] : []
+    })
+    .sort((x, y) => x.bp - y.bp)
+    .map(({ k }) => k)
+  for (const k of smallSkips) {
+    keeps[k] = false
+  }
+  const bridging = new Set(bridges(nodes.length, ends, keeps, smallSkips))
+  const keptEdges = edges.flatMap((edge, k) =>
+    bridging.has(k) ? [{ ...edge, foldBridge: true }] : keeps[k] ? [edge] : [],
+  )
   return mergeAlleleRuns({ ...graph, nodes, edges: keptEdges }, kept, allele)
+}
+
+// The small skips a fold has to keep, shortest first: those joining what the
+// kept links leave apart. A cut can end inside the reference a skip passes over, and then the
+// skip is the only link to the segment past it, which dropped would float
+// free of the graph.
+function bridges(
+  count: number,
+  ends: (number | undefined)[][],
+  keeps: boolean[],
+  smallSkips: number[],
+) {
+  const parent = Array.from({ length: count }, (_, i) => i)
+  const find = (i: number) => {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]!]!
+      i = parent[i]!
+    }
+    return i
+  }
+  const join = (k: number) => {
+    const [a, b] = ends[k]!
+    const [ra, rb] = [find(a!), find(b!)]
+    parent[ra] = rb
+    return ra !== rb
+  }
+  keeps.forEach((keep, k) => {
+    if (keep) {
+      join(k)
+    }
+  })
+  return smallSkips.filter(join)
 }
 
 type Side = 's' | 'e'
