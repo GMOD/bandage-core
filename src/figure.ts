@@ -32,7 +32,7 @@ import {
 import { FIT_PADDING, fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { svgCanvas } from './renderer/svgCanvas'
-import { PASSES_KEY, THREAD_PX, threadsPasses } from './renderer/walkLanes'
+import { THREAD_PX, passesKey, threadsPasses } from './renderer/walkLanes'
 import { nodesUnderBox } from './util/hitDetection'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
@@ -163,7 +163,7 @@ function exonKeySvg(x: number, y: number) {
   }
 }
 
-function passesKeySvg(x: number, y: number) {
+function passesKeySvg(x: number, y: number, note: string) {
   const lines = [6, 9, 12]
     .map(
       ly =>
@@ -171,8 +171,8 @@ function passesKeySvg(x: number, y: number) {
     )
     .join('')
   return {
-    width: SWATCH_PX + 5 + PASSES_KEY.length * LABEL_CHAR_PX,
-    markup: `<g transform="translate(${x} ${y})" ${FONT}>${lines}<text x="${SWATCH_PX + 5}" y="13">${PASSES_KEY}</text></g>`,
+    width: SWATCH_PX + 5 + note.length * LABEL_CHAR_PX,
+    markup: `<g transform="translate(${x} ${y})" ${FONT}>${lines}<text x="${SWATCH_PX + 5}" y="13">${note}</text></g>`,
   }
 }
 
@@ -404,7 +404,7 @@ export function figureSvg(
         ),
       )
       if (threadsPasses(lift.walks)) {
-        push(passesKeySvg(x, 2))
+        push(passesKeySvg(x, 2, passesKey(lift.walks)))
       }
     }
     if (rows) {

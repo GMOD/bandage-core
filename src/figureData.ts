@@ -13,7 +13,7 @@ import {
   loadGraph,
 } from './pipeline'
 import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
-import { PASSES_KEY, threadsPasses } from './renderer/walkLanes'
+import { passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
@@ -262,7 +262,7 @@ export function figureData(
         walk: '',
         name: '',
         color: '',
-        note: PASSES_KEY,
+        note: passesKey(lift?.walks ?? []),
         scale: '',
         stops: '',
       })

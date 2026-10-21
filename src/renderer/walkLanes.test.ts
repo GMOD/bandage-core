@@ -1,10 +1,15 @@
 import {
+  MAX_BAND_PX,
+  PASSES_KEY,
   SLOT_GAP_PX,
   THREAD_GAP_PX,
   THREAD_PX,
+  bandScale,
+  bandWidthPx,
   laneLines,
   laneNormals,
   laneSlots,
+  passesKey,
   spanSlots,
   threadsPasses,
   walkThreads,
@@ -140,4 +145,23 @@ test('with a band, lanes take the chord of a curl too tight to hold it', () => {
   expect(
     Math.hypot(shifts.get('c2')![0]!.dx, shifts.get('c2')![0]!.dy),
   ).toBeLessThan(0.5)
+})
+
+test('a band of threads wider than MAX_BAND_PX thins to fit, and its key says so', () => {
+  const crowd = Array.from({ length: 10 }, () => 2)
+  expect(bandScale(crowd) * bandWidthPx(crowd, THREAD_PX)).toBeCloseTo(
+    MAX_BAND_PX,
+  )
+  expect(passesKey(crowd.map(mostPasses => ({ mostPasses })))).toBe(
+    `${PASSES_KEY}, thinned to fit`,
+  )
+  expect(bandScale([2, 2, 3])).toBe(1)
+  expect(passesKey([{ mostPasses: 2 }, { mostPasses: 3 }])).toBe(PASSES_KEY)
+})
+
+test('a walk holding fewer threads than its slot eases to draws them in its middle', () => {
+  const [easing] = spanSlots([1.5], [2], 4, [1])
+  const [held] = spanSlots([1.5], [2], 4)
+  expect(easing!(0).offset).toBeCloseTo(0)
+  expect(held!(0).offset).toBeLessThan(-0.5)
 })

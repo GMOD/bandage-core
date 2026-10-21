@@ -2,12 +2,15 @@ import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { isBackbone } from '../anchoredNodes'
 import {
   LANE_SMOOTHING_PX,
+  THREAD_PX,
   THREAD_REACH_PX,
   THREAD_TAPER_PX,
+  bandScale,
   bandSpans,
   bandWidthPx,
   laneLines,
   laneSlots,
+  scaledThread,
   spanSlots,
   threadsPasses,
   walkThreads,
@@ -885,17 +888,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const liftedWalks = highlight?.walks ?? []
   const threaded = threadsPasses(liftedWalks)
   const lanePasses = liftedWalks.map(w => (threaded ? w.mostPasses : 1))
-  const band = bandWidthPx(lanePasses, walkLaneWidthPx(contigThickness, 1))
-  const lines =
-    liftedWalks.length > 1
-      ? laneLines(
-          liftedWalks.flatMap(w => w.route),
-          nodePositions,
-          yToX,
-          LANE_SMOOTHING_PX * worldPerScreenPx,
-          threaded ? band * worldPerScreenPx : undefined,
-        )
-      : undefined
+  const thinned = threaded ? bandScale(lanePasses) : 1
+  const band = bandWidthPx(lanePasses, THREAD_PX) * thinned
+  const lines = threaded
+    ? laneLines(
+        liftedWalks.flatMap(w => w.route),
+        nodePositions,
+        yToX,
+        LANE_SMOOTHING_PX * worldPerScreenPx,
+        band * worldPerScreenPx,
+      )
+    : undefined
   const threads = threaded
     ? liftedWalks.map(w =>
         walkThreads(
@@ -923,13 +926,19 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const edgeKeys = new Set(
     threads ? graph.edges.map(e => `${e.from}>${e.to}`) : [],
   )
-  const slotsAt = (nodeId: string, laneWidth: number) => {
+  const slotsAt = (nodeId: string, nodeLaneWidth: number) => {
+    const laneWidth = threaded ? THREAD_PX : nodeLaneWidth
     const spans = spanField?.get(nodeId)
-    return spans
-      ? spanSlots(spans, lanePasses, laneWidth)
+    const slots = spans
+      ? spanSlots(spans.slot, lanePasses, laneWidth, spans.held)
       : laneSlots(lanePasses, laneWidth).map(
           lane => (thread: number) => lane[thread] ?? lane[0]!,
         )
+    return thinned < 1
+      ? slots.map(
+          slot => (thread: number) => scaledThread(slot(thread), thinned),
+        )
+      : slots
   }
   const laneNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
     const own = pointNormalsOf(segments, yToX)

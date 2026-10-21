@@ -13,6 +13,10 @@ export const threadsPasses = (walks: readonly { mostPasses: number }[]) =>
   walks.length > 1 && walks.some(w => w.mostPasses > 1)
 
 export const PASSES_KEY = 'a thread per pass through a node'
+export const MAX_BAND_PX = 48
+
+const threadsWidth = (threads: number) =>
+  threads * THREAD_PX + Math.max(0, threads - 1) * THREAD_GAP_PX
 
 export interface LaneThread {
   offset: number
@@ -56,6 +60,21 @@ export function bandWidthPx(mostPasses: readonly number[], laneWidth: number) {
     ? last.offset + last.halfWidth - first.offset + first.halfWidth
     : 0
 }
+
+// How much a band of threads thins so it is never wider than MAX_BAND_PX,
+// counting a walk that passes each node once as one thread
+export const bandScale = (mostPasses: readonly number[]) =>
+  Math.min(1, MAX_BAND_PX / (bandWidthPx(mostPasses, THREAD_PX) || 1))
+
+export const passesKey = (walks: readonly { mostPasses: number }[]) =>
+  bandScale(walks.map(w => w.mostPasses)) < 1
+    ? `${PASSES_KEY}, thinned to fit`
+    : PASSES_KEY
+
+export const scaledThread = (
+  { offset, halfWidth }: LaneThread,
+  scale: number,
+): LaneThread => ({ offset: offset * scale, halfWidth: halfWidth * scale })
 
 interface LinePoint {
   x: number
@@ -217,33 +236,51 @@ function alignNormals(
 }
 
 // A curl the line runs round in under `length` before coming back within
-// `close` of itself takes its chord
+// `close` of itself takes its chord. The search steps a quarter of `close`
+// along the line, finer than any curl it finds
 function cutCurls(run: LinePoint[], close: number, length: number) {
   const s = arcOf(run)
   const out = run.map(p => ({ ...p }))
-  let i = 0
-  while (i < run.length) {
+  const picks: number[] = []
+  s.forEach((at, k) => {
+    const last = picks.at(-1)
+    if (last === undefined || at - s[last]! >= close / 4) {
+      picks.push(k)
+    }
+  })
+  if (picks.at(-1) !== run.length - 1) {
+    picks.push(run.length - 1)
+  }
+  let a = 0
+  while (a < picks.length) {
+    const i = picks[a]!
     let to = -1
-    for (let j = i + 1; j < run.length && s[j]! - s[i]! <= length; j++) {
+    for (
+      let b = a + 1;
+      b < picks.length && s[picks[b]!]! - s[i]! <= length;
+      b++
+    ) {
+      const j = picks[b]!
       if (s[j]! - s[i]! > Math.PI * close && gapOf(run[i]!, run[j]!) <= close) {
-        to = j
+        to = b
       }
     }
     if (to < 0) {
-      i++
+      a++
       continue
     }
-    const a = run[i]!
-    const b = run[to]!
-    for (let k = i + 1; k < to; k++) {
-      const f = (s[k]! - s[i]!) / (s[to]! - s[i]!)
+    const j = picks[to]!
+    const p = run[i]!
+    const q = run[j]!
+    for (let k = i + 1; k < j; k++) {
+      const f = (s[k]! - s[i]!) / (s[j]! - s[i]!)
       out[k] = {
         ...run[k]!,
-        x: a.x + (b.x - a.x) * f,
-        y: a.y + (b.y - a.y) * f,
+        x: p.x + (q.x - p.x) * f,
+        y: p.y + (q.y - p.y) * f,
       }
     }
-    i = to
+    a = to
   }
   return out
 }
@@ -361,11 +398,21 @@ function windowed(
   return out
 }
 
-// Each value's mean over the line within `half` of it along `s`
-function windowMean(s: readonly number[], v: readonly number[], half: number) {
+// Each value's mean over the line within `half` of it along `s`, counting
+// only the values `counted` keeps
+function windowMean(
+  s: readonly number[],
+  v: readonly number[],
+  half: number,
+  counted: (value: number) => boolean = () => true,
+) {
   const n = v.length
   const weight = s.map((_, i) =>
-    n > 1 ? (s[Math.min(i + 1, n - 1)]! - s[Math.max(i - 1, 0)]!) / 2 : 1,
+    !counted(v[i]!)
+      ? 0
+      : n > 1
+        ? (s[Math.min(i + 1, n - 1)]! - s[Math.max(i - 1, 0)]!) / 2
+        : 1,
   )
   const sumW = [0]
   const sumWV = [0]
@@ -508,7 +555,8 @@ export function walkThreads(
 // How many threads each walk's slot holds at each node: the most any node
 // within `reach` along the line through it asks, 0 for a walk on none of
 // them, eased over `taper`. A walk away round a bubble keeps its slot, and a
-// walk gone for longer gives it up
+// walk gone for longer gives it up. `held` is the threads the walk's own
+// nodes ask, eased over `taper` where the walk runs
 export function bandSpans(
   routes: readonly (readonly string[])[],
   spans: readonly ReadonlyMap<string, number>[],
@@ -521,14 +569,20 @@ export function bandSpans(
     const s = arcOf(run)
     const perWalk = spans.map(own => {
       const raw = run.map(p => own.get(routes[p.route]![p.step]!) ?? 0)
-      return windowMean(s, windowed(s, raw, reach / 2, 1), taper / 2)
+      return {
+        slot: windowMean(s, windowed(s, raw, reach / 2, 1), taper / 2),
+        held: windowMean(s, raw, taper / 2, v => v > 0),
+      }
     })
-    return run.map((_, i) => perWalk.map(v => v[i]!))
+    return run.map((_, i) => ({
+      slot: perWalk.map(v => v.slot[i]!),
+      held: perWalk.map(v => v.held[i]!),
+    }))
   })
   const field = claimed(runs, routes, nodePositions, (r, i) => eased[r]![i]!)
-  const out = new Map<string, number[]>()
+  const out = new Map<string, { slot: number[]; held: number[] }>()
   for (const [id, points] of field) {
-    const known = points.filter((p): p is number[] => !!p)
+    const known = points.filter(p => !!p)
     const mid = known[Math.floor(known.length / 2)]
     if (mid) {
       out.set(id, mid)
@@ -539,16 +593,16 @@ export function bandSpans(
 
 // Where each walk's threads sit in a band of `spans` threads per walk,
 // fractional where a slot eases wider. A walk that passes each node once
-// keeps a lane of `laneWidth`
+// keeps a lane of `laneWidth`. Where a slot eases wider than the `own`
+// threads its walk holds near the node, those threads sit in its middle
 export function spanSlots(
   spans: readonly number[],
   mostPasses: readonly number[],
   laneWidth: number,
+  own: readonly number[] = spans,
 ) {
   const widths = spans.map((m, i) =>
-    mostPasses[i]! > 1
-      ? m * THREAD_PX + Math.max(0, m - 1) * THREAD_GAP_PX
-      : laneWidth * Math.min(1, m),
+    mostPasses[i]! > 1 ? threadsWidth(m) : laneWidth * Math.min(1, m),
   )
   let seen = 0
   const gaps = spans.map(m => {
@@ -562,7 +616,8 @@ export function spanSlots(
   let at = -band / 2
   return widths.map((width, i) => {
     at += gaps[i]!
-    const from = at
+    const slack = mostPasses[i]! > 1 ? width - threadsWidth(own[i]!) : 0
+    const from = at + Math.max(0, slack) / 2
     at += width
     return (thread: number): LaneThread =>
       mostPasses[i]! > 1

@@ -3,6 +3,7 @@ import { abgrAlpha } from './colorBits'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { anchorGraph } from '../pathAnchoring'
+import { MAX_BAND_PX } from './walkLanes'
 import { walkLift } from '../walkHighlight'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3. Lifting alt out fades v2 and the
@@ -284,4 +285,66 @@ test('walks lifted together draw a stroke per pass, each keyed to its walk and p
     return batch.edgeCurves.slice(start, start + count).map(c => c.pass)
   }
   expect(links(0)).toEqual([0, 0, 1])
+})
+
+const strokesIn = (batch: ReturnType<typeof buildGeometry>, id: string) => {
+  const { start, count } = batch.nodeStrokeRuns.get(id)!
+  return batch.nodeStrokes.slice(start, start + count)
+}
+
+test('walks lifted together that never repeat a node lane along each node as it runs', () => {
+  const bent = {
+    ...positions,
+    'v2+': [
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+    ],
+  }
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: bent,
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 5,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: lift('ref#0#chr', 'alt#1#chr'),
+  })
+  for (const s of strokesIn(batch, 'v1+')) {
+    for (const n of s.normals!) {
+      expect(Math.abs(n.nx)).toBeLessThan(1e-9)
+    }
+  }
+})
+
+test('many walks lifted together that repeat thin their threads to a band no wider than MAX_BAND_PX', () => {
+  const walks = Array.from(
+    { length: 10 },
+    (_, i) => `W\td${i}\t1\tchr\t0\t15\t>v1>v2>v1>v2>v3`,
+  )
+  const g = convertGFAToGraph(parseGFA([REPEAT, ...walks].join('\n')))
+  const all = walkLift(
+    g,
+    ['ref#0#chr', 'dup#1#chr', ...walks.map((_, i) => `d${i}#1#chr`)].map(
+      walk => ({ walk }),
+    ),
+  )!
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: positions,
+    graph: g,
+    nodeById: new Map(g.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 5,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: all,
+  })
+  const strokes = strokesIn(batch, 'v1+')
+  expect(strokes).toHaveLength(1 + 2 * 11)
+  const lo = Math.min(...strokes.map(s => s.offset! - s.thickness))
+  const hi = Math.max(...strokes.map(s => s.offset! + s.thickness))
+  expect(hi - lo).toBeLessThanOrEqual(MAX_BAND_PX + 1e-9)
+  expect(hi - lo).toBeGreaterThan(MAX_BAND_PX / 2)
 })
