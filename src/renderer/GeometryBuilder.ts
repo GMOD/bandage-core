@@ -2,6 +2,7 @@ import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { isBackbone } from '../anchoredNodes'
 import {
   LANE_SMOOTHING_PX,
+  THREAD_PITCH_PX,
   THREAD_PX,
   THREAD_REACH_PX,
   THREAD_TAPER_PX,
@@ -11,7 +12,7 @@ import {
   laneLines,
   laneRuns,
   laneSlideAt,
-  spanSlots,
+  slotCentres,
   threadsPasses,
   walkThreads,
 } from './walkLanes'
@@ -53,7 +54,7 @@ import type {
   RenderBatch,
   Run,
 } from './types'
-import type { LaneThread, Normal } from './walkLanes'
+import type { Normal } from './walkLanes'
 import type { AxisScale, BezierCurve } from '../util/geometry'
 
 // Colors flow through the geometry builder as ABGR-in-u32 (see colorBits.ts),
@@ -271,6 +272,7 @@ function arrowheadFor({
 }
 
 const FIRST_THREADS = [[0, 0]] as const
+const ONE_PASS = [0]
 const NO_SHIFT = { dx: 0, dy: 0 }
 
 function nearerStart(
@@ -938,52 +940,39 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const edgeKeys = new Set(
     threads ? graph.edges.map(e => `${e.from}>${e.to}`) : [],
   )
-  const threadSlots = new Map<string, ((thread: number) => LaneThread)[]>()
-  const abuttingLanes = new Map<number, LaneThread[]>()
-  const threadAt = (
+  const centresByNode = new Map<string, number[]>()
+  const laneOffset = (
     nodeId: string,
     laneWidth: number,
     lane: number,
     pass: number,
-  ): LaneThread => {
+  ) => {
     if (!threaded) {
-      let lanes = abuttingLanes.get(laneWidth)
-      if (!lanes) {
-        lanes = liftedWalks.map((_, i) => ({
-          offset: (i - (liftedWalks.length - 1) / 2) * laneWidth,
-          halfWidth: laneWidth / 2,
-        }))
-        abuttingLanes.set(laneWidth, lanes)
-      }
-      return lanes[lane]!
+      return (lane - (liftedWalks.length - 1) / 2) * laneWidth
     }
-    let slots = threadSlots.get(nodeId)
-    if (!slots) {
+    let centres = centresByNode.get(nodeId)
+    if (!centres) {
       const spans = spanField?.get(nodeId)
-      slots = spanSlots(
-        spans?.slot ?? lanePasses,
-        lanePasses,
-        THREAD_PX,
-        spans?.held,
-        thinned,
-      )
-      threadSlots.set(nodeId, slots)
+      centres = slotCentres(spans?.slot ?? lanePasses, lanePasses, spans?.held)
+      centresByNode.set(nodeId, centres)
     }
-    return slots[lane]!(pass)
+    return (centres[lane]! + pass * THREAD_PITCH_PX) * thinned
   }
-  const smoothedNormals = new Map<string, Normal[]>()
+  const laneHalfWidth = (laneWidth: number) =>
+    threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
+  const laneNormals = new Map<string, Normal[]>()
   const laneNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
-    const smoothed = lines?.normals.get(nodeId)
-    if (!smoothed) {
-      return pointNormalsOf(segments, yToX)
-    }
-    let normals = smoothedNormals.get(nodeId)
+    let normals = laneNormals.get(nodeId)
     if (!normals) {
-      normals = pointNormalsOf(segments, yToX).map((n, i) => smoothed[i] ?? n)
-      smoothedNormals.set(nodeId, normals)
+      const smoothed = lines?.normals.get(nodeId)
+      normals = smoothed
+        ? pointNormalsOf(segments, yToX).map((n, i) => smoothed[i] ?? n)
+        : pointNormalsOf(segments, yToX)
+      laneNormals.set(nodeId, normals)
     }
     return normals
   }
+  const laneWidths = new Map<string, number>()
   const laneShiftOf = (nodeId: string, index: number) =>
     lines?.shifts.get(nodeId)?.[index] ?? NO_SHIFT
   const lanePointsOf = (nodeId: string, segments: NodeSegment[]) =>
@@ -1126,13 +1115,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : undefined
     if (laneWalks) {
       const laneWidthOf = (id: string) => {
-        const node = nodeById.get(id)
-        return walkLaneWidthPx(
-          node
-            ? nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
-            : contigThickness,
-          laneWalks.length,
-        )
+        let width = laneWidths.get(id)
+        if (width === undefined) {
+          const node = nodeById.get(id)
+          width = walkLaneWidthPx(
+            node
+              ? nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
+              : contigThickness,
+            laneWalks.length,
+          )
+          laneWidths.set(id, width)
+        }
+        return width
       }
       const endOf = (id: string, segments: NodeSegment[], atStart: boolean) => {
         const at = atStart ? 0 : segments.length - 1
@@ -1160,6 +1154,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         dx: end.shift.dx + end.normal.nx * offsetX,
         dy: end.shift.dy + (end.normal.ny * offsetX) / yToX,
       })
+      const aheadKey = threads ? `${edge.from}>${edge.to}` : ''
+      const backKey = threads ? `${edge.to}>${edge.from}` : ''
       const pairsOf = (
         lane: number,
       ): readonly (readonly [number, number])[] => {
@@ -1167,14 +1163,13 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         if (!own?.size) {
           return FIRST_THREADS
         }
-        const backKey = `${edge.to}>${edge.from}`
-        const found = [
-          ...(own.get(`${edge.from}>${edge.to}`) ?? []),
-          ...(edgeKeys.has(backKey) ? [] : (own.get(backKey) ?? [])).map(
-            ([a, b]): [number, number] => [b, a],
-          ),
-        ]
-        return found.length ? found : FIRST_THREADS
+        const ahead = own.get(aheadKey)
+        const back = edgeKeys.has(backKey) ? undefined : own.get(backKey)
+        if (!back) {
+          return ahead ?? FIRST_THREADS
+        }
+        const turned = back.map(([a, b]): [number, number] => [b, a])
+        return ahead ? [...ahead, ...turned] : turned
       }
       const single = laneWalks.length === 1
       laneWalks.forEach((walk, lane) => {
@@ -1182,14 +1177,15 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           return
         }
         for (const [pass, toPass] of pairsOf(lane)) {
-          const thread = threadAt(from.id, from.laneWidth, lane, pass)
-          const offsetX = single ? 0 : thread.offset * worldPerScreenPx
+          const offsetX = single
+            ? 0
+            : laneOffset(from.id, from.laneWidth, lane, pass) * worldPerScreenPx
           const start: LaneSlide = { normal: from.normal, offsetX }
           const end: LaneSlide = threaded
             ? {
                 normal: to.normal,
                 offsetX:
-                  threadAt(to.id, to.laneWidth, lane, toPass).offset *
+                  laneOffset(to.id, to.laneWidth, lane, toPass) *
                   worldPerScreenPx,
               }
             : start
@@ -1209,7 +1205,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           if (inView(curves)) {
             stroke(
               curves,
-              thread.halfWidth,
+              laneHalfWidth(from.laneWidth),
               walk.colors.get(edge.from) ??
                 walk.colors.get(edge.to) ??
                 plainEdgeColor,
@@ -1325,23 +1321,25 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         if (laneColor === undefined) {
           return
         }
-        const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? [0]
+        const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS
+        const thickness = laneHalfWidth(laneWidth)
         onThreads.forEach(pass => {
-          const thread = threadAt(nodeId, laneWidth, lane, pass)
           const offsetX =
-            lanes.length === 1 ? 0 : thread.offset * worldPerScreenPx
+            lanes.length === 1
+              ? 0
+              : laneOffset(nodeId, laneWidth, lane, pass) * worldPerScreenPx
           nodeStrokes.push(
             lanes.length === 1
               ? {
                   points: segments,
-                  thickness: thread.halfWidth,
+                  thickness,
                   color: laneColor,
                   walk: lane,
                   pass,
                 }
               : {
                   points: offsetPolyline(points, normals, offsetX, yToX),
-                  thickness: thread.halfWidth,
+                  thickness,
                   color: laneColor,
                   walk: lane,
                   pass,

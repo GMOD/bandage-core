@@ -15,11 +15,6 @@ export const PASSES_KEY = 'a thread per pass through a node'
 export const threadsPasses = (walks: readonly { mostPasses: number }[]) =>
   walks.length > 1 && walks.some(w => w.mostPasses > 1)
 
-export interface LaneThread {
-  offset: number
-  halfWidth: number
-}
-
 export interface Normal {
   nx: number
   ny: number
@@ -53,33 +48,24 @@ function slotLayout(
   return { widths, gaps, band: sum(widths) + sum(gaps) }
 }
 
-export function spanSlots(
+export const THREAD_PITCH_PX = THREAD_PX + THREAD_GAP_PX
+
+// Where each walk's first thread runs, in px from the band's middle; a walk's
+// later threads step THREAD_PITCH_PX on from there
+export function slotCentres(
   spans: readonly number[],
   mostPasses: readonly number[],
-  laneWidth: number,
   held: readonly number[] = spans,
-  scale = 1,
 ) {
-  const { widths, gaps, band } = slotLayout(spans, mostPasses, laneWidth)
+  const { widths, gaps, band } = slotLayout(spans, mostPasses, THREAD_PX)
   let at = -band / 2
   return widths.map((width, i) => {
-    const threaded = mostPasses[i]! > 1
     at += gaps[i]!
-    const slack = threaded ? Math.max(0, width - threadsWidth(held[i]!)) : 0
-    const from = at + slack / 2
+    const slack =
+      mostPasses[i]! > 1 ? Math.max(0, width - threadsWidth(held[i]!)) : 0
+    const centre = at + slack / 2 + THREAD_PX / 2
     at += width
-    return (thread: number): LaneThread =>
-      threaded
-        ? {
-            offset:
-              (from + thread * (THREAD_PX + THREAD_GAP_PX) + THREAD_PX / 2) *
-              scale,
-            halfWidth: (THREAD_PX / 2) * scale,
-          }
-        : {
-            offset: (from + laneWidth / 2) * scale,
-            halfWidth: (laneWidth / 2) * scale,
-          }
+    return centre
   })
 }
 
@@ -274,7 +260,7 @@ function cutCurls<P extends { x: number; y: number }>(
   length: number,
 ) {
   const s = arcOf(run)
-  const out = run.map(p => ({ ...p }))
+  const out = run.slice()
   const picks: number[] = []
   s.forEach((at, k) => {
     const last = picks.at(-1)
@@ -319,7 +305,7 @@ function cutCurls<P extends { x: number; y: number }>(
   return out
 }
 
-function rounded<P extends { x: number; y: number }>(run: P[], half: number) {
+function rounded(run: readonly { x: number; y: number }[], half: number) {
   const s = arcOf(run)
   const end = s.at(-1)!
   const sums = [{ w: 0, x: 0, y: 0 }]
@@ -348,11 +334,10 @@ function rounded<P extends { x: number; y: number }>(run: P[], half: number) {
     const w = sums[hi]!.w - sums[lo]!.w
     return w > 0
       ? {
-          ...p,
           x: (sums[hi]!.x - sums[lo]!.x) / w,
           y: (sums[hi]!.y - sums[lo]!.y) / w,
         }
-      : p
+      : { x: p.x, y: p.y }
   })
 }
 
@@ -387,7 +372,7 @@ export function laneLines(
     const owned = lanes.owned[r]!
     const pieces = ownedWindows(arcOf(run), owned, margin).map(([lo, hi]) => {
       const points = run.slice(lo, hi + 1)
-      const line = smooth
+      const line: readonly { x: number; y: number }[] = smooth
         ? rounded(cutCurls(points, band / 2, curl), band / 2)
         : points
       return { lo, points, line, normals: smoothedNormals(line, turn) }
@@ -410,7 +395,7 @@ export function laneLines(
         }
         const n = own[i]
         if (n) {
-          setNormal(p, { nx: sign * n.nx, ny: sign * n.ny })
+          setNormal(p, sign > 0 ? n : { nx: -n.nx, ny: -n.ny })
         }
         if (smooth) {
           setShift(p, {
