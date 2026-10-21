@@ -78,14 +78,14 @@ node scripts/layout-lab/collapse.mjs kiv2_eight.gfa GRCh38 out.svg
 
 `bubbles.mjs` draws a variant map from gfatools' bubble rows (the hosted
 `hprc-v2.1-mc-grch38.bubbles.bed.gz`): one glyph per bubble, typed and sized
-from the row. `copycount.mjs` reads a path GFA and reports the bp each walk
-carries between a window's flanking reference nodes, as repeat units, plus
-per-node carriage. `popbubble.mjs` cuts one bubble's segments out of a GFA so
-`one.mjs` can draw it alone. `graphBubbles.mjs` derives the bubbles from the
-graph alone, off the layered order, the prototype of
+from the row. `copycount.mjs` reads a path GFA and reports each walk's bp
+between a window's flanking reference nodes, as repeat units, plus how many
+haplotypes pass through each node. `popbubble.mjs` cuts one bubble's segments
+out of a GFA so `one.mjs` can draw it alone. `graphBubbles.mjs` derives the
+bubbles from the graph alone, off the layered order, the prototype of
 `src/bubbles/bubblesFromGraph.ts`; `validate-decomp.mjs` checks that against the
-walks, and `collapse.mjs` merges runs of equal carriage and draws thickness by
-haplotype count.
+walks, and `collapse.mjs` merges runs of nodes with equal haplotype counts and
+draws each run's thickness by that count.
 
 ## Coarsen a tube map
 
