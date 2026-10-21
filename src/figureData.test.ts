@@ -166,4 +166,14 @@ test('walks lifted together where one repeats key a thread per pass', async () =
   expect(d.keys.kind).toEqual(['walk', 'walk', 'passes'])
   const passes = d.nodes.pass.filter((p, i) => d.nodes.walk[i] === 1)
   expect(new Set(passes)).toEqual(new Set([0, 1]))
+  const e = d.edges
+  const slide = (i: number, end: 0 | 1) =>
+    end
+      ? [e.nx1[i]! * e.offset1[i]!, e.ny1[i]! * e.offset1[i]!]
+      : [e.nx[i]! * e.offset[i]!, e.ny[i]! * e.offset[i]!]
+  const lane = e.walk.findIndex(w => w === 0)
+  for (const v of [...slide(lane, 0), ...slide(lane, 1)]) {
+    expect(Number.isFinite(v)).toBe(true)
+  }
+  expect(Math.hypot(...slide(lane, 1))).toBeGreaterThan(0)
 })
