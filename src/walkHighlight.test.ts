@@ -348,3 +348,34 @@ test('a floor on lightness keeps the light end and the flat colour', () => {
   expect(schemeColor('blue', 1, 0.55)).not.toBe(schemeColor('blue', 1))
   expect(schemeColor('rainbow', 1, 0.55)).toBe(schemeColor('rainbow', 1))
 })
+
+test('ramps past the fourth walk split their family, the first taking the pale end', () => {
+  const haplotypes = [1, 2, 3, 4, 5].map(i => `h${i}#1#chr`)
+  const five = convertGFAToGraph(
+    parseGFA(
+      [
+        'S\tv1\tAAAA',
+        'S\tv2\tCC',
+        'L\tv1\t+\tv2\t+\t0M',
+        ...haplotypes.map(h => `W\t${h.split('#')[0]}\t1\tchr\t0\t6\t>v1>v2`),
+      ].join('\n'),
+    ),
+  )
+  const lifted = (n: number) =>
+    walkLift(
+      five,
+      haplotypes
+        .slice(0, n)
+        .map(walk => ({ walk, color: { field: 'progress' as const } })),
+    )!.walks
+  expect(lifted(4).every(w => w.encoding.stretch === undefined)).toBe(true)
+  const [first, , , , fifth] = lifted(5)
+  expect([first!.encoding.scheme, fifth!.encoding.scheme]).toEqual([
+    'blue',
+    'blue',
+  ])
+  const stops = (w: typeof first) => encodingStops(w!.encoding).map(s => s.abgr)
+  expect(stops(first)[0]).toBe(stops(lifted(4)[0])[0])
+  expect(stops(first).filter(c => stops(fifth).includes(c))).toEqual([])
+  expect(stops(first).at(-1)).not.toBe(stops(fifth)[0])
+})

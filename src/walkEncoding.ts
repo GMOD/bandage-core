@@ -54,6 +54,7 @@ export interface WalkEncoding {
   scheme: WalkScheme
   darkest?: number
   shade?: number
+  stretch?: readonly [number, number]
 }
 
 export interface WalkLayer {
@@ -100,6 +101,44 @@ const BASE_T = 0.5
 // The shade a flat lane takes on each round through the families, deeper
 // then paler, so twelve walks lifted together take twelve colours
 const SHADES = [BASE_T, 0.85, 0.2]
+
+// The gap left between two ramps that split one family, so neither ends on
+// the colour the other starts at
+const STRETCH_GAP = 0.08
+
+const rampsOn = ({ field, scheme }: WalkEncoding) =>
+  field !== 'walk' && scheme !== 'rainbow'
+
+// Ramps lifted together that share a family split it, the first taking the
+// pale end, so past the fourth walk no two gradients pass through one colour
+export function splitFamilies(encodings: readonly WalkEncoding[]) {
+  const counts = new Map<WalkScheme, number>()
+  for (const e of encodings) {
+    if (rampsOn(e)) {
+      counts.set(e.scheme, (counts.get(e.scheme) ?? 0) + 1)
+    }
+  }
+  const seen = new Map<WalkScheme, number>()
+  return encodings.map((e): WalkEncoding => {
+    const k = rampsOn(e) ? counts.get(e.scheme)! : 1
+    if (k < 2) {
+      return e
+    }
+    const j = seen.get(e.scheme) ?? 0
+    seen.set(e.scheme, j + 1)
+    const half = STRETCH_GAP / 2
+    return {
+      ...e,
+      stretch: [
+        j / k + (j > 0 ? half : 0),
+        (j + 1) / k - (j < k - 1 ? half : 0),
+      ],
+    }
+  })
+}
+
+const along = ({ stretch }: WalkEncoding, t: number) =>
+  stretch ? stretch[0] + (stretch[1] - stretch[0]) * t : t
 
 const toLinear = (c: number) =>
   c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
@@ -177,26 +216,20 @@ export function schemeColor(scheme: WalkScheme, t: number, darkest?: number) {
 
 // A field's value at a node through the walk's scheme; `t` undefined is a node
 // the field has nothing to say about, off the reference for `reference`
-export function encodedColor(
-  { field, scheme, darkest, shade = BASE_T }: WalkEncoding,
-  t?: number,
-) {
+export function encodedColor(encoding: WalkEncoding, t?: number) {
+  const { field, scheme, darkest, shade = BASE_T } = encoding
   return field === 'walk'
     ? schemeColor(scheme, shade)
     : t === undefined
       ? NO_VALUE_COLOR
-      : schemeColor(scheme, t, darkest)
+      : schemeColor(scheme, along(encoding, t), darkest)
 }
 
 export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
 
 // A key's colours: the walk's one colour, or the scheme across the field
-export function encodingStops({
-  field,
-  scheme,
-  darkest,
-  shade = BASE_T,
-}: WalkEncoding) {
+export function encodingStops(encoding: WalkEncoding) {
+  const { field, scheme, darkest, shade = BASE_T } = encoding
   const stop = (offset: number, t: number) => ({
     offset,
     color: schemeCss(scheme, t, darkest),
@@ -204,7 +237,7 @@ export function encodingStops({
   })
   return field === 'walk'
     ? [stop(0, shade)]
-    : Array.from({ length: 7 }, (_, i) => stop(i / 6, i / 6))
+    : Array.from({ length: 7 }, (_, i) => stop(i / 6, along(encoding, i / 6)))
 }
 
 // A swatch for the legend: the walk's colour, or the scheme across the field

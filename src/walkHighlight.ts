@@ -2,7 +2,7 @@ import { gapParts } from './gfa/walkStops'
 import { panSNContig } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { rampFraction } from './renderer/GeometryBuilder'
-import { encodedColor, resolveEncoding } from './walkEncoding'
+import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
 
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { Graph, GraphNode, GraphPath } from './types'
@@ -261,13 +261,18 @@ export function walkLift(
     return undefined
   }
   let picked = 0
-  const walks = lifted.map(({ walk, layer }) => {
-    const encoding = resolveEncoding(
-      layer,
-      walk.reference,
-      walk.reference ? 0 : picked++,
-      lifted.length === 1,
-    )
+  const encodings = splitFamilies(
+    lifted.map(({ walk, layer }) =>
+      resolveEncoding(
+        layer,
+        walk.reference,
+        walk.reference ? 0 : picked++,
+        lifted.length === 1,
+      ),
+    ),
+  )
+  const walks = lifted.map(({ walk }, i) => {
+    const encoding = encodings[i]!
     const { reversed, bp } = reversedNodes(graph, index.byId, walk)
     return {
       ...walk,
