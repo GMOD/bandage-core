@@ -130,9 +130,11 @@ export function laneRuns(
   const seen = new Set<string>()
   const owns = routes.map(route =>
     route.map(id => {
-      const first = !!nodePositions[id]?.length && !seen.has(id)
+      if (seen.has(id)) {
+        return false
+      }
       seen.add(id)
-      return first
+      return !!nodePositions[id]?.length
     }),
   )
   const gap = (a: { x: number; y: number }, b: NodeSegment) =>
