@@ -71,6 +71,18 @@ test('repeat copies of one sequence are told apart by offset, not by name', () =
   ).toEqual(['K12 @4,166,751', 'Sakai @4,735,469', 'Sakai @4,976,146'])
 })
 
+test('haplotypes their range suffixes would separate still take sample#haplotype', () => {
+  expect(
+    pathLegend(
+      [
+        'HG01978#1#JAGYVQ1.1:100-200',
+        'HG01978#2#JAGYVR2.1:300-400',
+        'HG01952#1#JAHAME3.1:500-600',
+      ].map(name => ({ name, nodeIds: [] })),
+    ).map(e => e.label),
+  ).toEqual(['HG01978#1', 'HG01978#2', 'HG01952#1'])
+})
+
 // but a plain two-haplotype cut still widens the name rather than reaching for
 // an offset both paths share
 test('two haplotypes at the same offset widen the name instead', () => {

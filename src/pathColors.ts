@@ -125,13 +125,20 @@ export function pathLegend(
   })
   const entries = [...firstOf].map(([name, i]) => ({ name, i }))
   const named = entries.map(e => labelTiers(e.name))
-  // narrowest first, and the offset is tried before the next name tier: two
-  // copies of one operon are told apart by where they are, not by widening a
-  // name that is genuinely identical
-  const candidates = [0, 1, 2].flatMap(t => [
-    entries.map((_, k) => named[k]![t]!),
-    entries.map((e, k) => offsetTiers(e.name, named[k]!)[t]!),
-  ])
+  // narrowest first, with sample#haplotype before any offset: the offset tells
+  // apart copies of one sequence that no wider name would, such as two copies
+  // of one operon, and haplotypes take their own names
+  const name = (t: number) => entries.map((_, k) => named[k]![t]!)
+  const offset = (t: number) =>
+    entries.map((e, k) => offsetTiers(e.name, named[k]!)[t]!)
+  const candidates = [
+    name(0),
+    name(1),
+    offset(0),
+    name(2),
+    offset(1),
+    offset(2),
+  ]
   const distinct = candidates.find(
     labels => new Set(labels).size === entries.length,
   )
