@@ -42,6 +42,19 @@ test('lifted walks are keyed above the drawing, one short entry each', () => {
   expect(svg).toContain('not on these walks')
 })
 
+test('a key too wide for the figure wraps onto more lines above the drawing', () => {
+  const svg = figureSvg(graph, layout, { width: 200, walks })
+  const header = svg.slice(0, svg.indexOf('<svg y="'))
+  const keys = [
+    ...header.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)"/g),
+  ].map(m => ({ x: Number(m[1]), y: Number(m[2]) }))
+  expect(keys).toHaveLength(walks.length + 1)
+  expect(new Set(keys.map(k => k.y)).size).toBeGreaterThan(1)
+  expect(Math.max(...keys.map(k => k.x))).toBeLessThan(200)
+  const drawingAt = Number(/<svg y="([\d.]+)"/.exec(svg)![1])
+  expect(drawingAt).toBeGreaterThanOrEqual(Math.max(...keys.map(k => k.y)) + 16)
+})
+
 test('by sample, a sample takes a row and its haplotypes the columns', () => {
   const svg = figureSvg(graph, layout, {
     width: 600,

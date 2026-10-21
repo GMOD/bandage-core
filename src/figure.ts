@@ -115,13 +115,15 @@ const FONT = 'font-family="Helvetica, Arial, sans-serif" font-size="11"'
 const BAR_PX = 48
 const SWATCH_PX = 18
 const KEY_GAP_PX = 16
+const KEY_LINE_PX = 16
+const KEY_TALL_PX = 32
 const STRIP_KEY_PX = 22
 const FADED = 'rgb(160,160,160)'
 const GENE_INK = '#1c1c22'
 
 // A key at (x, y): a swatch or a short bar of its scale, bold `label` and
 // `after` beside it, and `under` on the line below. Returns its markup and
-// about how wide it is.
+// about how wide and tall it is.
 function keySvg(
   id: string,
   x: number,
@@ -149,6 +151,7 @@ function keySvg(
   )
   return {
     width,
+    height: under ? KEY_TALL_PX : KEY_LINE_PX,
     markup: `${defs}<g transform="translate(${x} ${y})" ${FONT}><rect y="5" width="${bar}" height="8" rx="2" ${fill}/><text x="${bar + 5}" y="13"><tspan font-weight="bold">${escapeAttr(label)}</tspan>${escapeAttr(after)}</text>${
       under ? `<text y="28">${escapeAttr(under)}</text>` : ''
     }</g>`,
@@ -159,6 +162,7 @@ function keySvg(
 function exonKeySvg(x: number, y: number) {
   return {
     width: SWATCH_PX + 5 + 4 * LABEL_CHAR_PX,
+    height: KEY_LINE_PX,
     markup: `<g transform="translate(${x} ${y})" ${FONT}><rect x="1" y="4" width="${SWATCH_PX - 2}" height="10" rx="4" fill="none" stroke="${EXON_COLOR}" stroke-width="2"/><text x="${SWATCH_PX + 5}" y="13">exon</text></g>`,
   }
 }
@@ -172,8 +176,35 @@ function passesKeySvg(x: number, y: number, note: string) {
     .join('')
   return {
     width: SWATCH_PX + 5 + note.length * LABEL_CHAR_PX,
+    height: KEY_LINE_PX,
     markup: `<g transform="translate(${x} ${y})" ${FONT}>${lines}<text x="${SWATCH_PX + 5}" y="13">${note}</text></g>`,
   }
+}
+
+type KeyAt = (
+  x: number,
+  y: number,
+) => { width: number; height: number; markup: string }
+
+// Keys one after another along a line, a new line where the next would run
+// past the figure's right edge
+function keyLines(keys: readonly KeyAt[], width: number) {
+  const markup: string[] = []
+  let x = 6
+  let y = 2
+  let line = 0
+  for (const key of keys) {
+    const size = key(0, 0)
+    if (x > 6 && x + size.width > width - 6) {
+      x = 6
+      y += line + 4
+      line = 0
+    }
+    markup.push(key(x, y).markup)
+    x += size.width + KEY_GAP_PX
+    line = Math.max(line, size.height)
+  }
+  return { markup, height: y + line }
 }
 
 function walkKeySvg(
@@ -380,22 +411,18 @@ export function figureSvg(
     })
     height = grid.total
   } else {
-    let x = 6
-    const push = (key: { width: number; markup: string }) => {
-      parts.push(key.markup)
-      x += key.width + KEY_GAP_PX
-    }
+    const keys: KeyAt[] = []
     if (lift) {
       lift.walks.forEach((walk, i) => {
-        push(
-          walkKeySvg(`key${i}`, x, 2, walk, labelOf(walk.name), keyText(walk)),
+        keys.push((x, y) =>
+          walkKeySvg(`key${i}`, x, y, walk, labelOf(walk.name), keyText(walk)),
         )
       })
-      push(
+      keys.push((x, y) =>
         keySvg(
           'faded',
           x,
-          2,
+          y,
           [{ offset: 0, color: FADED }],
           '',
           `not on ${lift.walks.length === 1 ? labelOf(lift.walks[0]!.name) : 'these walks'}`,
@@ -404,26 +431,28 @@ export function figureSvg(
         ),
       )
       if (threadsPasses(lift.walks)) {
-        push(passesKeySvg(x, 2, passesKey(lift.walks)))
+        keys.push((x, y) => passesKeySvg(x, y, passesKey(lift.walks)))
       }
     }
     if (rows) {
-      const key = walkRowsKeyTree(
-        walkRowsKey(rows, {
-          ramp: rampInterval,
-          genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
-        }),
-        x,
-        2,
-        'rows-key',
-      )
-      push({ width: key.width, markup: serializeEl(key.tree) })
+      const entries = walkRowsKey(rows, {
+        ramp: rampInterval,
+        genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
+      })
+      keys.push((x, y) => {
+        const key = walkRowsKeyTree(entries, x, y, 'rows-key')
+        return {
+          width: key.width,
+          height: KEY_LINE_PX,
+          markup: serializeEl(key.tree),
+        }
+      })
     } else if (!lift && referenceRamp) {
-      push(
+      keys.push((x, y) =>
         keySvg(
           'ramp',
           x,
-          2,
+          y,
           encodingStops({ field: 'reference', scheme: 'rainbow' }),
           referenceName ? `${referenceName} position` : 'Reference position',
           '',
@@ -436,9 +465,11 @@ export function figureSvg(
       )
     }
     if (pins.some(pin => pin.exonsByNode.length > 0)) {
-      push(exonKeySvg(x, 2))
+      keys.push((x, y) => exonKeySvg(x, y))
     }
-    const header = parts.length > 0 ? FACET_TITLE_PX : 0
+    const keyed = keyLines(keys, width)
+    parts.push(...keyed.markup)
+    const header = keys.length > 0 ? Math.max(FACET_TITLE_PX, keyed.height) : 0
     const usable = width - 2 * FIT_PADDING
     const drawn =
       pixelRows || !(bounds.w > 0) ? bounds.h : (bounds.h * usable) / bounds.w
