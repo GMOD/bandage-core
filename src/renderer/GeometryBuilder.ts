@@ -840,6 +840,25 @@ function pathSlotsOf(graph: Graph): ReadonlyMap<string, number[]> {
   return slots
 }
 
+const linksCache = new WeakMap<Graph, Map<string, Set<string>>>()
+
+function linksOf(graph: Graph): ReadonlyMap<string, ReadonlySet<string>> {
+  let links = linksCache.get(graph)
+  if (!links) {
+    links = new Map()
+    for (const { from, to } of graph.edges) {
+      let out = links.get(from)
+      if (!out) {
+        out = new Set()
+        links.set(from, out)
+      }
+      out.add(to)
+    }
+    linksCache.set(graph, links)
+  }
+  return links
+}
+
 export function buildGeometry(options: BuildOptions): RenderBatch {
   const {
     nodePositions,
@@ -946,9 +965,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           },
         )
       : undefined
-  const edgeKeys = new Set(
-    threads ? graph.edges.map(e => `${e.from}>${e.to}`) : [],
-  )
   const plainCentres = threaded ? slotCentres(lanePasses, lanePasses) : []
   const centresByNode = new Map<string, number[]>()
   const centresOf = (nodeId: string) => {
@@ -1036,15 +1052,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   }
   const threadPairs = (
     lane: number,
-    aheadKey: string,
-    backKey: string,
+    from: string,
+    to: string,
   ): readonly (readonly [number, number])[] => {
     const own = threads?.[lane]?.linkThreads
     if (!own?.size) {
       return FIRST_THREADS
     }
-    const ahead = own.get(aheadKey)
-    const back = edgeKeys.has(backKey) ? undefined : own.get(backKey)
+    const ahead = own.get(from)?.get(to)
+    const back = linksOf(graph).get(to)?.has(from)
+      ? undefined
+      : own.get(to)?.get(from)
     if (!back) {
       return ahead ?? FIRST_THREADS
     }
@@ -1229,8 +1247,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             nearerStart({ x: last.x1, y: last.y1 }, toSegments, yToX),
           )
         : from
-      const aheadKey = threads ? `${edge.from}>${edge.to}` : ''
-      const backKey = threads ? `${edge.to}>${edge.from}` : ''
       const single = laneWalks.length === 1
       const thickness = laneHalfWidth(from.laneWidth)
       for (let lane = 0; lane < laneWalks.length; lane++) {
@@ -1238,7 +1254,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         if (!walk.edgeIndexes.has(ei)) {
           continue
         }
-        for (const [pass, toPass] of threadPairs(lane, aheadKey, backKey)) {
+        for (const [pass, toPass] of threadPairs(lane, edge.from, edge.to)) {
           const offsetX = single
             ? 0
             : laneOffset(from.id, from.laneWidth, lane, pass) * worldPerScreenPx

@@ -486,8 +486,19 @@ function windowMean(
 
 export interface WalkThreads {
   span: ReadonlyMap<string, number>
-  nodeThreads: Map<string, number[]>
-  linkThreads: Map<string, [number, number][]>
+  nodeThreads: Map<string, readonly number[]>
+  linkThreads: Map<string, Map<string, [number, number][]>>
+}
+
+const ONE_THREAD: readonly number[] = [0]
+
+function repeats(passes: ReadonlyMap<string, number>) {
+  for (const p of passes.values()) {
+    if (p > 1) {
+      return true
+    }
+  }
+  return false
 }
 
 export function walkThreads(
@@ -497,16 +508,29 @@ export function walkThreads(
   yToX: number,
   reach: number,
 ): WalkThreads {
-  if (![...passes.values()].some(p => p > 1)) {
+  if (!repeats(passes)) {
     return { span: passes, nodeThreads: new Map(), linkThreads: new Map() }
   }
-  const span = new Map<string, number>()
-  const visits = new Map<string, number>()
-  const wanted = new Map<string, { visit: number; thread: number }[]>()
-  const steps: { id: string; visit: number }[][] = []
+  const index = new Map<string, number>()
+  const ids: string[] = []
+  const widths: number[] = []
+  const visits: number[] = []
+  const steps: number[][] = []
+  const stepVisits: number[][] = []
+  const stepWants: number[][] = []
   for (const piece of route) {
     const points: { x: number; y: number }[] = []
+    const nodes: number[] = []
     for (const id of piece) {
+      let k = index.get(id)
+      if (k === undefined) {
+        k = ids.length
+        index.set(id, k)
+        ids.push(id)
+        widths.push(0)
+        visits.push(0)
+      }
+      nodes.push(k)
       const segments = nodePositions[id]
       const mid = segments?.[Math.floor(segments.length / 2)]
       points.push(
@@ -516,85 +540,88 @@ export function walkThreads(
     const s = arcOf(points)
     const p = piece.map(id => passes.get(id) ?? 1)
     const most = windowed(s, p, reach / 2, 1)
-    const copy = piece.map(id => {
-      const visit = (visits.get(id) ?? 0) + 1
-      visits.set(id, visit)
-      return visit
-    })
-    const full = p.map((v, i) => v === most[i])
-    const before: number[] = []
+    const copy = nodes.map(k => ++visits[k]!)
+    const n = piece.length
+    const before = new Int32Array(n)
     let last = -1
-    for (let i = 0; i < piece.length; i++) {
-      last = full[i] ? i : last
-      before.push(last)
+    for (let i = 0; i < n; i++) {
+      last = p[i] === most[i] ? i : last
+      before[i] = last
     }
-    const after = new Array<number>(piece.length)
+    const after = new Int32Array(n)
     last = -1
-    for (let i = piece.length - 1; i >= 0; i--) {
-      last = full[i] ? i : last
+    for (let i = n - 1; i >= 0; i--) {
+      last = p[i] === most[i] ? i : last
       after[i] = last
     }
-    const own: { id: string; visit: number }[] = []
-    piece.forEach((id, i) => {
+    const wants = new Array<number>(n)
+    for (let i = 0; i < n; i++) {
       const b = before[i]!
       const a = after[i]!
       const nearest =
         b < 0 ? a : a < 0 ? b : s[i]! - s[b]! <= s[a]! - s[i]! ? b : a
-      const thread = Math.min(copy[nearest]!, most[i]!) - 1
-      span.set(id, Math.max(span.get(id) ?? 0, most[i]!))
-      const list = wanted.get(id) ?? []
-      list.push({ visit: copy[i]!, thread })
-      wanted.set(id, list)
-      own.push({ id, visit: copy[i]! })
-    })
-    steps.push(own)
+      wants[i] = Math.min(copy[nearest]!, most[i]!) - 1
+      widths[nodes[i]!] = Math.max(widths[nodes[i]!]!, most[i]!)
+    }
+    steps.push(nodes)
+    stepVisits.push(copy)
+    stepWants.push(wants)
   }
-  const threadOf = new Map<string, number[]>()
-  const nodeThreads = new Map<string, number[]>()
-  for (const [id, list] of wanted) {
-    const width = span.get(id)!
-    const taken = new Set<number>()
-    const free = (want: number) => {
-      for (let d = 0; d < width; d++) {
-        for (const c of [want - d, want + d]) {
-          if (c >= 0 && c < width && !taken.has(c)) {
-            return c
-          }
+  const taken: (Set<number> | undefined)[] = []
+  const threadOf: (number[] | undefined)[] = []
+  const free = (k: number, want: number) => {
+    const width = widths[k]!
+    const own = (taken[k] ??= new Set())
+    for (let d = 0; d < width; d++) {
+      for (const c of [want - d, want + d]) {
+        if (c >= 0 && c < width && !own.has(c)) {
+          return c
         }
       }
-      return want
     }
-    const byVisit: number[] = []
-    for (const { visit, thread } of list) {
-      const t = free(thread)
-      taken.add(t)
-      byVisit[visit] = t
-    }
-    threadOf.set(id, byVisit)
+    return want
+  }
+  steps.forEach((nodes, piece) => {
+    nodes.forEach((k, i) => {
+      if (widths[k]! > 1) {
+        const t = free(k, stepWants[piece]![i]!)
+        taken[k]!.add(t)
+        ;(threadOf[k] ??= [])[stepVisits[piece]![i]!] = t
+      }
+    })
+  })
+  const span = new Map<string, number>()
+  const nodeThreads = new Map<string, readonly number[]>()
+  ids.forEach((id, k) => {
+    span.set(id, widths[k]!)
     nodeThreads.set(
       id,
-      [...taken].sort((a, b) => a - b),
+      taken[k] ? [...taken[k]].sort((a, b) => a - b) : ONE_THREAD,
     )
-  }
-  const linkThreads = new Map<string, [number, number][]>()
-  for (const own of steps) {
-    own.forEach((cur, i) => {
-      const prev = own[i - 1]
-      if (!prev) {
-        return
-      }
-      const key = `${prev.id}>${cur.id}`
+  })
+  const linkThreads = new Map<string, Map<string, [number, number][]>>()
+  steps.forEach((nodes, piece) => {
+    const visit = stepVisits[piece]!
+    for (let i = 1; i < nodes.length; i++) {
+      const from = nodes[i - 1]!
+      const to = nodes[i]!
       const pair: [number, number] = [
-        threadOf.get(prev.id)![prev.visit]!,
-        threadOf.get(cur.id)![cur.visit]!,
+        threadOf[from]?.[visit[i - 1]!] ?? 0,
+        threadOf[to]?.[visit[i]!] ?? 0,
       ]
-      const list = linkThreads.get(key) ?? []
-      if (!list.some(([a, b]) => a === pair[0] && b === pair[1])) {
+      let ahead = linkThreads.get(ids[from]!)
+      if (!ahead) {
+        ahead = new Map()
+        linkThreads.set(ids[from]!, ahead)
+      }
+      const list = ahead.get(ids[to]!)
+      if (!list) {
+        ahead.set(ids[to]!, [pair])
+      } else if (!list.some(([a, b]) => a === pair[0] && b === pair[1])) {
         list.push(pair)
       }
-      linkThreads.set(key, list)
-    })
-  }
+    }
+  })
   return { span, nodeThreads, linkThreads }
 }
 
