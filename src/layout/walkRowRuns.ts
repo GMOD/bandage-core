@@ -1,6 +1,6 @@
 import { tableNodeIds, tablePath } from '../gfa/graphTables'
 import { gapParts } from '../gfa/walkStops'
-import { panSNContig, panSNSample } from '../pansn'
+import { panSNContig, panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
 
@@ -631,6 +631,14 @@ export function walkRowRuns(
     meta: rowOf(pieces),
     row: i + 1,
   }))
+  // two haplotypes of one sample named by P lines widen every label, as a
+  // legend's do
+  const metas = [referenceRow, ...rows.map(r => r.meta)]
+  if (new Set(metas.map(m => m.label)).size < metas.length) {
+    for (const meta of metas) {
+      meta.label = panSNHaplotype(meta.name) ?? meta.label
+    }
+  }
   rows.sort(
     (a, b) =>
       Number(b.meta.complete) - Number(a.meta.complete) ||

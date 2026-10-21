@@ -521,3 +521,22 @@ test('a sample filter keeps the samples it names, in its order', () => {
   ])
   expect(filterSamples(rows, undefined)).toBe(rows)
 })
+
+test('two haplotypes of one sample, named by P lines, label every row sample#haplotype', () => {
+  const gfa = [
+    'S\t1\tAAAA',
+    'S\t2\tCC',
+    'S\t3\tGGG',
+    'L\t1\t+\t2\t+\t0M',
+    'L\t2\t+\t3\t+\t0M',
+    'L\t1\t+\t3\t+\t0M',
+    'P\tref#chr:0-9\t1+,2+,3+\t*',
+    'P\ta#1#c:0-9\t1+,2+,3+\t*',
+    'P\ta#2#c:0-7\t1+,3+\t*',
+    'P\tb#1#c:0-9\t1+,2+,3+\t*',
+  ].join('\n')
+  const graph = anchorGraph(convertGFAToGraph(parseGFA(gfa)), 'ref')
+  const { reference, rows } = walkRows(graph)!
+  expect(reference.label).toBe('ref')
+  expect(rows.map(r => r.label).sort()).toEqual(['a#1', 'a#2', 'b#1'])
+})
