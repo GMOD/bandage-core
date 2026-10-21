@@ -53,6 +53,7 @@ export interface WalkEncoding {
   field: WalkField
   scheme: WalkScheme
   darkest?: number
+  shade?: number
 }
 
 export interface WalkLayer {
@@ -83,15 +84,22 @@ export function resolveEncoding(
       ? family
       : askedScheme
     : family
-  return alone || field === 'walk'
-    ? { field, scheme }
-    : { field, scheme, darkest: TOGETHER_DARKEST }
+  const round = Math.floor(picked / FAMILIES.length) % SHADES.length
+  return field === 'walk' && scheme === family && round > 0
+    ? { field, scheme, shade: SHADES[round] }
+    : alone || field === 'walk'
+      ? { field, scheme }
+      : { field, scheme, darkest: TOGETHER_DARKEST }
 }
 
 const TOGETHER_DARKEST = 0.55
 
 // Where a flat lane sits on its family: halfway between its ends
 const BASE_T = 0.5
+
+// The shade a flat lane takes on each round through the families, deeper
+// then paler, so twelve walks lifted together take twelve colours
+const SHADES = [BASE_T, 0.85, 0.2]
 
 const toLinear = (c: number) =>
   c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
@@ -170,11 +178,11 @@ export function schemeColor(scheme: WalkScheme, t: number, darkest?: number) {
 // A field's value at a node through the walk's scheme; `t` undefined is a node
 // the field has nothing to say about, off the reference for `reference`
 export function encodedColor(
-  { field, scheme, darkest }: WalkEncoding,
+  { field, scheme, darkest, shade = BASE_T }: WalkEncoding,
   t?: number,
 ) {
   return field === 'walk'
-    ? schemeColor(scheme, BASE_T)
+    ? schemeColor(scheme, shade)
     : t === undefined
       ? NO_VALUE_COLOR
       : schemeColor(scheme, t, darkest)
@@ -183,14 +191,19 @@ export function encodedColor(
 export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
 
 // A key's colours: the walk's one colour, or the scheme across the field
-export function encodingStops({ field, scheme, darkest }: WalkEncoding) {
+export function encodingStops({
+  field,
+  scheme,
+  darkest,
+  shade = BASE_T,
+}: WalkEncoding) {
   const stop = (offset: number, t: number) => ({
     offset,
     color: schemeCss(scheme, t, darkest),
     abgr: schemeColor(scheme, t, darkest),
   })
   return field === 'walk'
-    ? [stop(0, BASE_T)]
+    ? [stop(0, shade)]
     : Array.from({ length: 7 }, (_, i) => stop(i / 6, i / 6))
 }
 

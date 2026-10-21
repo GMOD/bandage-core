@@ -2,7 +2,13 @@ import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
 import { anchorGraph } from './pathAnchoring'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
-import { NO_VALUE_COLOR, encodedColor, schemeColor } from './walkEncoding'
+import {
+  NO_VALUE_COLOR,
+  encodedColor,
+  encodingStops,
+  resolveEncoding,
+  schemeColor,
+} from './walkEncoding'
 import { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 import { walkKey, walkPosition } from './walkKey'
 
@@ -131,6 +137,20 @@ test('one colour for the walk paints it flat', () => {
   ])!.walks
   const blue = encodedColor({ field: 'walk', scheme: 'blue' })
   expect(new Set(alt!.colors.values())).toEqual(new Set([blue]))
+})
+
+test('flat lanes past the four families take each one deeper, then paler', () => {
+  const nth = (picked: number) =>
+    resolveEncoding({ walk: 'w' }, false, picked, false)
+  expect(nth(0)).toEqual({ field: 'walk', scheme: 'blue' })
+  expect(nth(4)).toEqual({ field: 'walk', scheme: 'blue', shade: 0.85 })
+  expect(nth(9)).toEqual({ field: 'walk', scheme: 'red', shade: 0.2 })
+  const twelve = Array.from({ length: 12 }, (_, i) => encodedColor(nth(i)))
+  expect(new Set(twelve).size).toBe(12)
+  expect(encodingStops(nth(4))[0]!.abgr).toBe(twelve[4])
+  expect(
+    resolveEncoding({ walk: 'w', color: { scheme: 'green' } }, false, 4, false),
+  ).toEqual({ field: 'walk', scheme: 'green' })
 })
 
 test('progress runs pale to deep along the walk', () => {
