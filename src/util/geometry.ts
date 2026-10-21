@@ -261,23 +261,33 @@ export const slideAt = (from: Slide, to: Slide, along: number): Slide => ({
 
 export function slideCurves(
   curves: BezierCurve[],
-  from: Slide,
-  to: Slide,
+  fromDx: number,
+  fromDy: number,
+  toDx: number,
+  toDy: number,
 ): BezierCurve[] {
-  return curves.map((c, i) => {
-    const a = slideAt(from, to, i / curves.length)
-    const b = slideAt(from, to, (i + 1) / curves.length)
-    return {
-      x0: c.x0 + a.dx,
-      y0: c.y0 + a.dy,
-      cx0: c.cx0 + a.dx,
-      cy0: c.cy0 + a.dy,
-      cx1: c.cx1 + b.dx,
-      cy1: c.cy1 + b.dy,
-      x1: c.x1 + b.dx,
-      y1: c.y1 + b.dy,
+  const n = curves.length
+  const out: BezierCurve[] = new Array(n)
+  for (let i = 0; i < n; i++) {
+    const c = curves[i]!
+    const a = i / n
+    const b = (i + 1) / n
+    const adx = fromDx + (toDx - fromDx) * a
+    const ady = fromDy + (toDy - fromDy) * a
+    const bdx = fromDx + (toDx - fromDx) * b
+    const bdy = fromDy + (toDy - fromDy) * b
+    out[i] = {
+      x0: c.x0 + adx,
+      y0: c.y0 + ady,
+      cx0: c.cx0 + adx,
+      cy0: c.cy0 + ady,
+      cx1: c.cx1 + bdx,
+      cy1: c.cy1 + bdy,
+      x1: c.x1 + bdx,
+      y1: c.y1 + bdy,
     }
-  })
+  }
+  return out
 }
 
 export function translateCurves(

@@ -34,7 +34,15 @@ function drawn(
   gfa: string,
   walks: string[],
   nodePositions: Record<string, NodeSegment[]> = flat,
-  { scale = 1, deletions }: { scale?: number; deletions?: number[] } = {},
+  {
+    scale = 1,
+    deletions,
+    viewportBounds,
+  }: {
+    scale?: number
+    deletions?: number[]
+    viewportBounds?: { minX: number; minY: number; maxX: number; maxY: number }
+  } = {},
 ) {
   const graph = convertGFAToGraph(parseGFA(gfa))
   const highlight = walkLift(
@@ -52,6 +60,7 @@ function drawn(
     drawPaths: false,
     highlight,
     deletions: deletions && new Map(deletions.map(e => [e, ['v2+']])),
+    viewportBounds,
   })
   const slice = <T>(all: T[], run?: { start: number; count: number }) =>
     run ? all.slice(run.start, run.start + run.count) : []
@@ -378,4 +387,17 @@ test('a dashed link eases its lane offset dash by dash from where it leaves to w
   })
   expect(gone).toEqual([...gone].sort((a, b) => a - b))
   expect(gone.at(-1)).toBeGreaterThan(gone[1]!)
+})
+
+test('a viewport only a thread reaches still draws that thread, as an unculled build does', () => {
+  const edge = 0
+  const all = drawn(DUP, ['ref#0#chr', 'dup#1#chr']).links(edge)
+  const outer = Math.max(...all.map(l => Math.abs(l.curves[0]!.y0)))
+  const viewportBounds = { minX: 12, maxX: 18, minY: outer - 0.5, maxY: 99 }
+  const culled = drawn(DUP, ['ref#0#chr', 'dup#1#chr'], flat, {
+    viewportBounds,
+  }).links(edge)
+  expect(outer).toBeGreaterThan(1)
+  expect(culled.length).toBeGreaterThan(0)
+  expect(all).toEqual(expect.arrayContaining(culled))
 })

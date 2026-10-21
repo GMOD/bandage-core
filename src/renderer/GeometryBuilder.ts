@@ -329,6 +329,9 @@ function normal(a: Point | undefined, b: Point | undefined) {
   return len > 0 ? { nx: -dy / len, ny: dx / len } : undefined
 }
 
+const MITRE_LIMIT = 0.1
+const LONGEST_NORMAL = 1 / Math.sqrt(MITRE_LIMIT)
+
 // Per-point unit normals of a polyline, mitred at the interior joints so a
 // stripe slid along them keeps a constant distance from the node's outline
 // where it bends. `yToX` puts the axes in comparable units first (see
@@ -343,7 +346,7 @@ function pointNormalsOf(rawPoints: Point[], yToX = 1) {
       const nx = (before.nx + after.nx) / 2
       const ny = (before.ny + after.ny) / 2
       const dot = before.nx * nx + before.ny * ny
-      return dot > 0.1 ? { nx: nx / dot, ny: ny / dot } : { nx, ny }
+      return dot > MITRE_LIMIT ? { nx: nx / dot, ny: ny / dot } : { nx, ny }
     }
     return before ?? after ?? { nx: 0, ny: 0 }
   })
@@ -359,10 +362,14 @@ function offsetPolyline(
   distance: number,
   yToX = 1,
 ) {
-  return points.map((p, i) => ({
-    x: p.x + normals[i]!.nx * distance,
-    y: p.y + (normals[i]!.ny * distance) / yToX,
-  }))
+  const out = new Array<{ x: number; y: number }>(points.length)
+  for (let i = 0; i < points.length; i++) {
+    out[i] = {
+      x: points[i]!.x + normals[i]!.nx * distance,
+      y: points[i]!.y + (normals[i]!.ny * distance) / yToX,
+    }
+  }
+  return out
 }
 
 export interface BuildOptions {
@@ -749,6 +756,8 @@ function isPolylineInBounds(
 function isBezierInBounds(
   curves: BezierCurve[],
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  growX = 0,
+  growY = 0,
 ) {
   for (const c of curves) {
     const cMinX = Math.min(c.x0, c.cx0, c.cx1, c.x1)
@@ -756,10 +765,10 @@ function isBezierInBounds(
     const cMinY = Math.min(c.y0, c.cy0, c.cy1, c.y1)
     const cMaxY = Math.max(c.y0, c.cy0, c.cy1, c.y1)
     if (
-      cMaxX >= bounds.minX &&
-      cMinX <= bounds.maxX &&
-      cMaxY >= bounds.minY &&
-      cMinY <= bounds.maxY
+      cMaxX >= bounds.minX - growX &&
+      cMinX <= bounds.maxX + growX &&
+      cMaxY >= bounds.minY - growY &&
+      cMinY <= bounds.maxY + growY
     ) {
       return true
     }
@@ -940,24 +949,28 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const edgeKeys = new Set(
     threads ? graph.edges.map(e => `${e.from}>${e.to}`) : [],
   )
+  const plainCentres = threaded ? slotCentres(lanePasses, lanePasses) : []
   const centresByNode = new Map<string, number[]>()
+  const centresOf = (nodeId: string) => {
+    let centres = centresByNode.get(nodeId)
+    if (!centres) {
+      const spans = spanField?.get(nodeId)
+      centres = spans
+        ? slotCentres(spans.slot, lanePasses, spans.held)
+        : plainCentres
+      centresByNode.set(nodeId, centres)
+    }
+    return centres
+  }
   const laneOffset = (
     nodeId: string,
     laneWidth: number,
     lane: number,
     pass: number,
-  ) => {
-    if (!threaded) {
-      return (lane - (liftedWalks.length - 1) / 2) * laneWidth
-    }
-    let centres = centresByNode.get(nodeId)
-    if (!centres) {
-      const spans = spanField?.get(nodeId)
-      centres = slotCentres(spans?.slot ?? lanePasses, lanePasses, spans?.held)
-      centresByNode.set(nodeId, centres)
-    }
-    return (centres[lane]! + pass * THREAD_PITCH_PX) * thinned
-  }
+  ) =>
+    threaded
+      ? (centresOf(nodeId)[lane]! + pass * THREAD_PITCH_PX) * thinned
+      : (lane - (liftedWalks.length - 1) / 2) * laneWidth
   const laneHalfWidth = (laneWidth: number) =>
     threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
   const laneNormals = new Map<string, Normal[]>()
@@ -973,8 +986,71 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     return normals
   }
   const laneWidths = new Map<string, number>()
+  const laneWidthOf = (id: string) => {
+    let width = laneWidths.get(id)
+    if (width === undefined) {
+      const node = nodeById.get(id)
+      width = walkLaneWidthPx(
+        node
+          ? nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
+          : contigThickness,
+        liftedWalks.length,
+      )
+      laneWidths.set(id, width)
+    }
+    return width
+  }
   const laneShiftOf = (nodeId: string, index: number) =>
     lines?.shifts.get(nodeId)?.[index] ?? NO_SHIFT
+  const laneEndOf = (id: string, segments: NodeSegment[], atStart: boolean) => {
+    const at = atStart ? 0 : segments.length - 1
+    return {
+      id,
+      laneWidth: laneWidthOf(id),
+      normal: laneNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
+      shift: laneShiftOf(id, at),
+    }
+  }
+  let shiftX = 0
+  let shiftY = 0
+  for (const own of lines?.shifts.values() ?? []) {
+    for (const shift of own) {
+      shiftX = Math.max(shiftX, Math.abs(shift?.dx ?? 0))
+      shiftY = Math.max(shiftY, Math.abs(shift?.dy ?? 0))
+    }
+  }
+  const lanesMayShow = (curves: BezierCurve[], fromId: string) => {
+    if (!viewportBounds) {
+      return true
+    }
+    const offset = threaded
+      ? bandWidthPx(lanePasses) * thinned
+      : ((liftedWalks.length - 1) / 2) * laneWidthOf(fromId)
+    const reach = LONGEST_NORMAL * offset * worldPerScreenPx
+    return isBezierInBounds(
+      curves,
+      viewportBounds,
+      reach + shiftX,
+      reach / yToX + shiftY,
+    )
+  }
+  const threadPairs = (
+    lane: number,
+    aheadKey: string,
+    backKey: string,
+  ): readonly (readonly [number, number])[] => {
+    const own = threads?.[lane]?.linkThreads
+    if (!own?.size) {
+      return FIRST_THREADS
+    }
+    const ahead = own.get(aheadKey)
+    const back = edgeKeys.has(backKey) ? undefined : own.get(backKey)
+    if (!back) {
+      return ahead ?? FIRST_THREADS
+    }
+    const turned = back.map(([a, b]): [number, number] => [b, a])
+    return ahead ? [...ahead, ...turned] : turned
+  }
   const lanePointsOf = (nodeId: string, segments: NodeSegment[]) =>
     lines?.shifts.has(nodeId)
       ? segments.map((p, i) => {
@@ -1047,43 +1123,66 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // ~5,000 px of arc). Hue cannot separate them either, since hue means
     // reference position and charcoal means off the reference. A broken line is
     // available, unused, and says what it draws: sequence that is not there.
+    const dashesOf = (curves: BezierCurve[]) =>
+      dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
       curves: BezierCurve[],
       thickness: number,
       color: number,
-      lane?: { walk: number; pass: number; start: LaneSlide; end: LaneSlide },
     ) => {
-      const push = (pieces: BezierCurve[], from = 0, to = 1) => {
-        if (!lane) {
-          edgeCurves.push({ curves: pieces, thickness, color })
-          return
-        }
-        const start =
-          from === 0 ? lane.start : laneSlideAt(lane.start, lane.end, from)
-        const end = to === 1 ? lane.end : laneSlideAt(lane.start, lane.end, to)
-        edgeCurves.push({
-          curves: pieces,
-          thickness,
-          color,
-          walk: lane.walk,
-          pass: lane.pass,
-          normal: start.normal,
-          offsetX: start.offsetX,
-          endNormal: end.normal,
-          endOffsetX: end.offsetX,
-        })
-      }
       if (!isDeletion) {
-        push(curves)
+        edgeCurves.push({ curves, thickness, color })
         return
       }
-      for (const dash of dashSpans(
-        curves,
-        DELETION_DASH_PX / scale,
-        yToX,
-        viewportBounds,
-      )) {
-        push(dash.curves, dash.startAlong, dash.endAlong)
+      for (const dash of dashesOf(curves)) {
+        edgeCurves.push({ curves: dash.curves, thickness, color })
+      }
+    }
+    const laneStroke = (
+      curves: BezierCurve[],
+      thickness: number,
+      color: number,
+      walk: number,
+      pass: number,
+      normal: Normal,
+      offsetX: number,
+      endNormal: Normal,
+      endOffsetX: number,
+    ) => {
+      if (!isDeletion) {
+        edgeCurves.push({
+          curves,
+          thickness,
+          color,
+          walk,
+          pass,
+          normal,
+          offsetX,
+          endNormal,
+          endOffsetX,
+        })
+        return
+      }
+      const start: LaneSlide = { normal, offsetX }
+      const end: LaneSlide = { normal: endNormal, offsetX: endOffsetX }
+      for (const dash of dashesOf(curves)) {
+        const a =
+          dash.startAlong === 0
+            ? start
+            : laneSlideAt(start, end, dash.startAlong)
+        const b =
+          dash.endAlong === 1 ? end : laneSlideAt(start, end, dash.endAlong)
+        edgeCurves.push({
+          curves: dash.curves,
+          thickness,
+          color,
+          walk,
+          pass,
+          normal: a.normal,
+          offsetX: a.offsetX,
+          endNormal: b.normal,
+          endOffsetX: b.offsetX,
+        })
       }
     }
     const arrowOn = (curves: BezierCurve[]) => {
@@ -1113,87 +1212,46 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       highlight?.walks.length && onWalk && !ribbons
         ? highlight.walks
         : undefined
+    if (laneWalks && !lanesMayShow(baseCurves, edge.from)) {
+      continue
+    }
     if (laneWalks) {
-      const laneWidthOf = (id: string) => {
-        let width = laneWidths.get(id)
-        if (width === undefined) {
-          const node = nodeById.get(id)
-          width = walkLaneWidthPx(
-            node
-              ? nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
-              : contigThickness,
-            laneWalks.length,
-          )
-          laneWidths.set(id, width)
-        }
-        return width
-      }
-      const endOf = (id: string, segments: NodeSegment[], atStart: boolean) => {
-        const at = atStart ? 0 : segments.length - 1
-        return {
-          id,
-          laneWidth: laneWidthOf(id),
-          normal: laneNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
-          shift: laneShiftOf(id, at),
-        }
-      }
-      const from = endOf(
+      const from = laneEndOf(
         edge.from,
         fromSegments,
         leavesStart(edge, fromSegments, baseCurves[0]!, stranded, yToX),
       )
       const last = baseCurves.at(-1)!
       const to = threaded
-        ? endOf(
+        ? laneEndOf(
             edge.to,
             toSegments,
             nearerStart({ x: last.x1, y: last.y1 }, toSegments, yToX),
           )
         : from
-      const slideOf = (end: typeof from, offsetX: number) => ({
-        dx: end.shift.dx + end.normal.nx * offsetX,
-        dy: end.shift.dy + (end.normal.ny * offsetX) / yToX,
-      })
       const aheadKey = threads ? `${edge.from}>${edge.to}` : ''
       const backKey = threads ? `${edge.to}>${edge.from}` : ''
-      const pairsOf = (
-        lane: number,
-      ): readonly (readonly [number, number])[] => {
-        const own = threads?.[lane]?.linkThreads
-        if (!own?.size) {
-          return FIRST_THREADS
-        }
-        const ahead = own.get(aheadKey)
-        const back = edgeKeys.has(backKey) ? undefined : own.get(backKey)
-        if (!back) {
-          return ahead ?? FIRST_THREADS
-        }
-        const turned = back.map(([a, b]): [number, number] => [b, a])
-        return ahead ? [...ahead, ...turned] : turned
-      }
       const single = laneWalks.length === 1
-      laneWalks.forEach((walk, lane) => {
+      const thickness = laneHalfWidth(from.laneWidth)
+      for (let lane = 0; lane < laneWalks.length; lane++) {
+        const walk = laneWalks[lane]!
         if (!walk.edgeIndexes.has(ei)) {
-          return
+          continue
         }
-        for (const [pass, toPass] of pairsOf(lane)) {
+        for (const [pass, toPass] of threadPairs(lane, aheadKey, backKey)) {
           const offsetX = single
             ? 0
             : laneOffset(from.id, from.laneWidth, lane, pass) * worldPerScreenPx
-          const start: LaneSlide = { normal: from.normal, offsetX }
-          const end: LaneSlide = threaded
-            ? {
-                normal: to.normal,
-                offsetX:
-                  laneOffset(to.id, to.laneWidth, lane, toPass) *
-                  worldPerScreenPx,
-              }
-            : start
+          const endOffsetX = threaded
+            ? laneOffset(to.id, to.laneWidth, lane, toPass) * worldPerScreenPx
+            : offsetX
           const curves = threaded
             ? slideCurves(
                 baseCurves,
-                slideOf(from, start.offsetX),
-                slideOf(to, end.offsetX),
+                from.shift.dx + from.normal.nx * offsetX,
+                from.shift.dy + (from.normal.ny * offsetX) / yToX,
+                to.shift.dx + to.normal.nx * endOffsetX,
+                to.shift.dy + (to.normal.ny * endOffsetX) / yToX,
               )
             : offsetX === 0
               ? baseCurves
@@ -1203,17 +1261,22 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
                   (from.normal.ny * offsetX) / yToX,
                 )
           if (inView(curves)) {
-            stroke(
+            laneStroke(
               curves,
-              laneHalfWidth(from.laneWidth),
+              thickness,
               walk.colors.get(edge.from) ??
                 walk.colors.get(edge.to) ??
                 plainEdgeColor,
-              { walk: lane, pass, start, end },
+              lane,
+              pass,
+              from.normal,
+              offsetX,
+              to.normal,
+              endOffsetX,
             )
           }
         }
-      })
+      }
       if (edgeCurves.length > edgeCurveStart) {
         arrowOn(baseCurves)
       }
@@ -1316,39 +1379,37 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const normals = lanes.length > 1 ? laneNormalsOf(nodeId, segments) : []
       const points =
         lanes.length > 1 ? lanePointsOf(nodeId, segments) : segments
-      lanes.forEach((walk, lane) => {
-        const laneColor = walk.colors.get(nodeId)
+      const thickness = laneHalfWidth(laneWidth)
+      for (let lane = 0; lane < lanes.length; lane++) {
+        const laneColor = lanes[lane]!.colors.get(nodeId)
         if (laneColor === undefined) {
-          return
+          continue
         }
         const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS
-        const thickness = laneHalfWidth(laneWidth)
-        onThreads.forEach(pass => {
+        for (const pass of onThreads) {
+          if (lanes.length === 1) {
+            nodeStrokes.push({
+              points: segments,
+              thickness,
+              color: laneColor,
+              walk: lane,
+              pass,
+            })
+            continue
+          }
           const offsetX =
-            lanes.length === 1
-              ? 0
-              : laneOffset(nodeId, laneWidth, lane, pass) * worldPerScreenPx
-          nodeStrokes.push(
-            lanes.length === 1
-              ? {
-                  points: segments,
-                  thickness,
-                  color: laneColor,
-                  walk: lane,
-                  pass,
-                }
-              : {
-                  points: offsetPolyline(points, normals, offsetX, yToX),
-                  thickness,
-                  color: laneColor,
-                  walk: lane,
-                  pass,
-                  normals,
-                  offsetX,
-                },
-          )
-        })
-      })
+            laneOffset(nodeId, laneWidth, lane, pass) * worldPerScreenPx
+          nodeStrokes.push({
+            points: offsetPolyline(points, normals, offsetX, yToX),
+            thickness,
+            color: laneColor,
+            walk: lane,
+            pass,
+            normals,
+            offsetX,
+          })
+        }
+      }
     } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
       const normals = pointNormalsOf(segments, yToX)
       for (const slot of slots) {
