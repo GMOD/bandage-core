@@ -114,9 +114,9 @@ const gapOf = (a: { x: number; y: number }, b: { x: number; y: number }) =>
   Math.hypot(b.x - a.x, b.y - a.y)
 
 function arcOf(run: readonly { x: number; y: number }[]) {
-  const s = [0]
+  const s = new Float64Array(run.length)
   for (let i = 1; i < run.length; i++) {
-    s.push(s[i - 1]! + gapOf(run[i - 1]!, run[i]!))
+    s[i] = s[i - 1]! + gapOf(run[i - 1]!, run[i]!)
   }
   return s
 }
@@ -196,7 +196,7 @@ export function laneRuns(
 }
 
 function ownedWindows(
-  s: readonly number[],
+  s: ArrayLike<number>,
   owned: readonly boolean[],
   margin: number,
 ) {
@@ -314,39 +314,40 @@ function cutCurls<P extends { x: number; y: number }>(
 }
 
 function rounded(run: readonly { x: number; y: number }[], half: number) {
+  const n = run.length
   const s = arcOf(run)
-  const end = s.at(-1)!
-  const sums = [{ w: 0, x: 0, y: 0 }]
-  run.forEach((p, i) => {
-    const w = (s[Math.min(i + 1, run.length - 1)]! - s[Math.max(i - 1, 0)]!) / 2
-    const last = sums[i]!
-    sums.push({ w: last.w + w, x: last.x + w * p.x, y: last.y + w * p.y })
-  })
-  const firstAtOrAfter = (at: number) => {
-    let lo = 0
-    let hi = s.length
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1
-      if (s[mid]! < at) {
-        lo = mid + 1
-      } else {
-        hi = mid
-      }
-    }
-    return lo
+  const end = s[n - 1]!
+  const sumW = new Float64Array(n + 1)
+  const sumX = new Float64Array(n + 1)
+  const sumY = new Float64Array(n + 1)
+  for (let i = 0; i < n; i++) {
+    const p = run[i]!
+    const w = (s[Math.min(i + 1, n - 1)]! - s[Math.max(i - 1, 0)]!) / 2
+    sumW[i + 1] = sumW[i]! + w
+    sumX[i + 1] = sumX[i]! + w * p.x
+    sumY[i + 1] = sumY[i]! + w * p.y
   }
-  return run.map((p, i) => {
+  const out = new Array<{ x: number; y: number }>(n)
+  let lo = 0
+  let hi = 0
+  for (let i = 0; i < n; i++) {
+    const p = run[i]!
     const reach = Math.min(half, s[i]!, end - s[i]!)
-    const lo = firstAtOrAfter(s[i]! - reach)
-    const hi = firstAtOrAfter(s[i]! + reach + 1e-9 * (1 + end))
-    const w = sums[hi]!.w - sums[lo]!.w
-    return w > 0
-      ? {
-          x: (sums[hi]!.x - sums[lo]!.x) / w,
-          y: (sums[hi]!.y - sums[lo]!.y) / w,
-        }
-      : { x: p.x, y: p.y }
-  })
+    const from = s[i]! - reach
+    const to = s[i]! + reach + 1e-9 * (1 + end)
+    while (lo < n && s[lo]! < from) {
+      lo++
+    }
+    while (hi < n && s[hi]! < to) {
+      hi++
+    }
+    const w = sumW[hi]! - sumW[lo]!
+    out[i] =
+      w > 0
+        ? { x: (sumX[hi]! - sumX[lo]!) / w, y: (sumY[hi]! - sumY[lo]!) / w }
+        : { x: p.x, y: p.y }
+  }
+  return out
 }
 
 function fieldSetter<T>(
@@ -354,10 +355,12 @@ function fieldSetter<T>(
   nodePositions: Record<string, NodeSegment[]>,
 ) {
   return ({ id, index }: LinePoint, value: T) => {
-    const own =
-      field.get(id) ?? new Array<T | undefined>(nodePositions[id]!.length)
+    let own = field.get(id)
+    if (!own) {
+      own = new Array<T | undefined>(nodePositions[id]!.length)
+      field.set(id, own)
+    }
     own[index] = value
-    field.set(id, own)
   }
 }
 
@@ -420,7 +423,7 @@ export function laneLines(
 }
 
 function windowed(
-  s: readonly number[],
+  s: ArrayLike<number>,
   v: readonly number[],
   half: number,
   sign: 1 | -1,
