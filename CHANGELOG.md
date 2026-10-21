@@ -1,3 +1,28 @@
+## [11.8.0](https://github.com/GMOD/bandage-core/compare/v11.7.3...v11.8.0) (2026-10-21)
+
+### Other Changes
+
+- Neither viewer copies a figure spec now ([bb65214](https://github.com/GMOD/bandage-core/commit/bb652143eccd1dc149f08bb18947c03593bac072))
+- Move bandage-fold's docs into the README and delete docs/coarse-tier.md ([370c9dd](https://github.com/GMOD/bandage-core/commit/370c9ddb438e64f99fbc634687bc0d566eabf69f))
+- Rewrap docs prettier wraps differently ([b691378](https://github.com/GMOD/bandage-core/commit/b69137846b726f6a4c01c028ee5c1dc1316f7316))
+- Draw a thread per pass where lifted walks repeat, and lighten their ramps ([ff8651f](https://github.com/GMOD/bandage-core/commit/ff8651f36c3eae0ad976e2d99a1ee56af76c172c))
+- Widen the gap between walks' thread slots to 4 px ([4929789](https://github.com/GMOD/bandage-core/commit/4929789a3084a4a4a9ae7574078b9c55abf4ef6d))
+- Keep each copy on its own thread, and narrow the band where walks thin out ([accfa33](https://github.com/GMOD/bandage-core/commit/accfa33fa3d25835176d90fe346401490b8c9995))
+- Test that figureData states where a lane's link ends ([80c7929](https://github.com/GMOD/bandage-core/commit/80c79294678160b7f1236e89974f8c8701860420))
+- Skip lane lines unless a walk repeats, cap the thread band, and centre easing threads ([ee30c8b](https://github.com/GMOD/bandage-core/commit/ee30c8b52bd1f9549698938d2d7abc5a1e4f82cc))
+- Draw lifted walks' threads in time proportional to what they draw ([65218ad](https://github.com/GMOD/bandage-core/commit/65218ad857dba4c2a66c17515f8421f7217edbfb))
+- Bound the lift bench to five runs, which a 20-walk build takes a second each ([a28924f](https://github.com/GMOD/bandage-core/commit/a28924ffaaa9e5c9f42471e07007986f68ec1ad1))
+- Key each lifted walk with the field its colours run over ([1aacd82](https://github.com/GMOD/bandage-core/commit/1aacd82834eb29f33598481757515a73c9080354))
+- Cut only the curls a band's inner thread cannot follow ([4f69312](https://github.com/GMOD/bandage-core/commit/4f6931220bc883de78cfee8a6df139e9bc83d8f5))
+- Lane walks that never repeat along the walk's smoothed normals ([966c5cc](https://github.com/GMOD/bandage-core/commit/966c5cc2279b8c00bfa7024a0d9b564200ead007))
+- Shade flat lanes past the fourth walk deeper, then paler ([12d957a](https://github.com/GMOD/bandage-core/commit/12d957a68e4f05ac52de2291408c71fe921b53ee))
+- Place threads from each node's slot centres, and cache lane normals and widths ([dcc3df7](https://github.com/GMOD/bandage-core/commit/dcc3df71e39af8c961015027902c3875681d0e6b))
+- Wrap a figure's key onto more lines where it would run past the edge ([d2f2310](https://github.com/GMOD/bandage-core/commit/d2f2310b6b48d5365c165ef75d4c44e3fa5d8c29))
+- Turn a lane run no earlier run overlaps by its nodes' own direction ([a2b03e3](https://github.com/GMOD/bandage-core/commit/a2b03e33fd5b6c23eb82161bd959dfffa87b718b))
+- Wrap a walk-rows figure's key entry by entry ([1166fa8](https://github.com/GMOD/bandage-core/commit/1166fa869e73cf5a02af825646a7613ce073d5ed))
+- Label walks by sample#haplotype before reaching for an offset ([326986c](https://github.com/GMOD/bandage-core/commit/326986c70faa207ea116911b2d9a9c91d45ce4f2))
+- Widen walk-row labels to sample#haplotype where two would match ([0ba03af](https://github.com/GMOD/bandage-core/commit/0ba03afd9bd6b505288e12b0d230a165bbe50fff))
+
 ## [11.7.3](https://github.com/GMOD/bandage-core/compare/v11.7.2...v11.7.3) (2026-10-21)
 
 ### Other Changes
