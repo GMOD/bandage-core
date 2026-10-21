@@ -439,13 +439,15 @@ export function figureSvg(
         ramp: rampInterval,
         genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
       })
-      keys.push((x, y) => {
-        const key = walkRowsKeyTree(entries, x, y, 'rows-key')
-        return {
-          width: key.width,
-          height: KEY_LINE_PX,
-          markup: serializeEl(key.tree),
-        }
+      entries.forEach((entry, i) => {
+        keys.push((x, y) => {
+          const key = walkRowsKeyTree([entry], x, y, `rows-key-${i}`)
+          return {
+            width: key.width - KEY_GAP_PX,
+            height: KEY_LINE_PX,
+            markup: serializeEl(key.tree),
+          }
+        })
       })
     } else if (!lift && referenceRamp) {
       keys.push((x, y) =>

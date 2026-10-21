@@ -152,6 +152,20 @@ test('genes outline their exons, are named under their pins and keyed', () => {
   expect(figureSvg(graph, layout, { width: 600 })).not.toContain('>exon<')
 })
 
+test('a walk-rows key too wide for the figure wraps entry by entry', () => {
+  const svg = figureSvg(graph, layout, {
+    width: 200,
+    walkRows: walkRows(graph, undefined)!,
+  })
+  const header = svg.slice(0, svg.indexOf('<svg y="'))
+  const keys = [
+    ...header.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)"/g),
+  ].map(m => ({ x: Number(m[1]), y: Number(m[2]) }))
+  expect(keys.length).toBeGreaterThan(1)
+  expect(new Set(keys.map(k => k.y)).size).toBeGreaterThan(1)
+  expect(Math.max(...keys.map(k => k.x))).toBeLessThan(200)
+})
+
 test('walk rows in a strip sit under the drawing, labelled and keyed', () => {
   const plain = figureSvg(graph, layout, { width: 600 })
   const rows = walkRows(graph, undefined)!
