@@ -4,16 +4,21 @@
 [@jbrowse/bandage-core](https://www.npmjs.com/package/@jbrowse/bandage-core),
 draws a pangenome graph to an SVG from a JSON spec, with no browser. It runs the
 same layout engine, geometry and renderer the plugin and BandageJS draw the
-screen with, so a figure matches what the viewer showed, and the same spec makes
-the same figure again: two runs of one spec write identical files.
+screen with, so a figure matches what the viewer showed. Two runs of one spec
+write identical files.
+
+`bandage-figure` reads the graph from the GFA file a spec names under `gfa` or
+the gbz-base window it names under `gbz`. To draw a cut from a walk file
+(`.walks.bed.gz`), write the cut as GFA with `graphTablesGFA` and name that file
+under `gfa`.
 
 ```console
 npx -p @jbrowse/bandage-core bandage-figure figures/kiv2_walks.json -o kiv2.svg
 ```
 
-[figures/kiv2_walks.json](../figures/kiv2_walks.json) cuts LPA's KIV-2 repeat
-array from the HPRC release 2 graph and lifts four walks through it, a panel
-each:
+With [figures/kiv2_walks.json](../figures/kiv2_walks.json), `bandage-figure`
+cuts LPA's KIV-2 repeat array from the HPRC release 2 gbz-base database and
+lifts four walks through it, one panel each:
 
 ```json
 {
@@ -37,9 +42,9 @@ each:
 ![The KIV-2 array, a panel per walk: each haplotype takes its own loops](../img/figure_kiv2_walks.svg)
 
 Each panel shades its walk yellow where it starts and red where it ends, on the
-same layout, so the walks compare by the loops they take. GRCh38 takes the small
-ones; HG00097 adds one (+22.2 kb); HG01960 skips most of GRCh38's for the big
-one (+49.9 kb); HG00133 takes both (+116.4 kb).
+same layout, so the panels show which loops each walk takes. GRCh38 takes the
+small ones; HG00097 adds one (+22.2 kb); HG01960 skips most of GRCh38's for the
+big one (+49.9 kb); HG00133 takes both (+116.4 kb).
 
 ## The spec
 
@@ -66,21 +71,21 @@ one (+49.9 kb); HG00133 takes both (+116.4 kb).
 | `walkRowSamples`           | the samples the strip keeps, in the order it draws them                                                                                                                                                       |
 
 A spec's `genes` are the backbone's, so in a walk strip `bandage-figure` boxes
-them on the reference row only, and the key says "no gene track" for the other
-rows.
+them on the reference row only, and the key labels the other rows "no gene
+track".
 
-Every SVG keeps its spec in its `<metadata>` beside the version that drew it,
-such as `@jbrowse/bandage-core@4.0.25`, so a figure found later says how it was
-made and with what;
-`npx -p @jbrowse/bandage-core@4.0.25 bandage-figure spec.json` makes it again.
+`figureSvg` writes the spec into each SVG's `<metadata>` beside the version that
+drew it, such as `@jbrowse/bandage-core@4.0.25`. To make a figure again, run
+that version on the spec:
+`npx -p @jbrowse/bandage-core@4.0.25 bandage-figure spec.json`.
 
 In jbrowse-plugin-graphgenomeviewer and BandageJS, **Export SVG** saves the
-drawing through the same renderer, and **Copy figure spec** gives the spec for
-what is on screen, to make the figure again from a script. The plugin writes one
-for a graph cut from a gbz-base track or read from a GFA url, with the genes of
-a GFF3 tabix track. `bandage-figure` refuses a layout that draws no nodes, such
-as walk rows or a tube map (`checkLayout`), so under those the plugin disables
-**Copy figure spec** and says why.
+drawing through the same renderer. The plugin also has **Copy figure spec**,
+which copies the spec for what is on screen, to make the figure again from a
+script. The plugin writes one for a graph cut from a gbz-base track or read from
+a GFA url, with the genes of a GFF3 tabix track. `bandage-figure` refuses a
+layout that draws no nodes, such as walk rows or a tube map (`checkLayout`), so
+under those layouts the plugin disables **Copy figure spec** and says why.
 
-`node scripts/render-figures.mjs` renders every spec in [figures/](../figures)
-to `img/figure_<name>.svg`.
+After `pnpm build`, `node scripts/render-figures.mjs` renders every spec in
+[figures/](../figures) to `img/figure_<name>.svg`.
