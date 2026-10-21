@@ -212,6 +212,46 @@ test('threads follow the walk smoothed, not each short node', () => {
   }
 })
 
+test('a walk running backwards keeps its lane on one side through a bubble only it takes', () => {
+  const gfa = [
+    'S\tv1\tAAAA',
+    'S\tv2\tCC',
+    'S\tv3\tGG',
+    'S\tv4\tTTT',
+    'L\tv1\t+\tv2\t+\t0M',
+    'L\tv2\t+\tv4\t+\t0M',
+    'L\tv1\t+\tv3\t+\t0M',
+    'L\tv3\t+\tv4\t+\t0M',
+    'W\tref\t0\tchr\t0\t9\t>v1>v2>v4',
+    walk('b', '<v4<v3<v1'),
+  ].join('\n')
+  const apart: Record<string, NodeSegment[]> = {
+    'v1+': [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+    ],
+    'v2+': [
+      { x: 30, y: 0 },
+      { x: 40, y: 0 },
+    ],
+    'v3+': [
+      { x: 30, y: 20 },
+      { x: 40, y: 20 },
+    ],
+    'v4+': [
+      { x: 60, y: 0 },
+      { x: 70, y: 0 },
+    ],
+  }
+  const { strokes } = drawn(gfa, ['ref#0#chr', 'b#1#chr'], apart)
+  const side = (id: string) =>
+    Math.sign(
+      strokes(id).find(s => s.walk === 1)!.points[0]!.y - apart[id]![0]!.y,
+    )
+  expect(side('v3+')).toBe(side('v1+'))
+  expect(side('v4+')).toBe(side('v1+'))
+})
+
 test('lanes of walks that never repeat follow the walk smoothed too, on their own nodes', () => {
   const gfa = `${ZIGZAG}\n${walk('a', chain(upTo(20)))}\n${walk('b', chain(upTo(20)))}`
   const { strokes } = drawn(gfa, ['a#1#chr', 'b#1#chr'], zigzag)

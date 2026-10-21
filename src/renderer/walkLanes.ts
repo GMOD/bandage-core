@@ -102,6 +102,7 @@ interface LinePoint {
   id: string
   index: number
   middle: boolean
+  forward: boolean
 }
 
 export interface LaneRuns {
@@ -178,7 +179,14 @@ export function laneRuns(
       for (let k = 0; k < segments.length; k++) {
         const index = forward ? k : segments.length - 1 - k
         const p = segments[index]!
-        run.push({ x: p.x, y: p.y * yToX, id, index, middle: index === middle })
+        run.push({
+          x: p.x,
+          y: p.y * yToX,
+          id,
+          index,
+          middle: index === middle,
+          forward,
+        })
         mine.push(owns[r]![step]!)
       }
     })
@@ -378,6 +386,7 @@ export function laneLines(
       return { lo, points, line, normals: smoothedNormals(line, turn) }
     })
     let agree = 0
+    let along = 0
     for (const piece of pieces) {
       piece.points.forEach((p, i) => {
         const theirs = normals.get(p.id)?.[p.index]
@@ -385,9 +394,10 @@ export function laneLines(
         if (theirs && mine) {
           agree += theirs.nx * mine.nx + theirs.ny * mine.ny
         }
+        along += p.forward ? 1 : -1
       })
     }
-    const sign = agree < 0 ? -1 : 1
+    const sign = (agree === 0 ? along : agree) < 0 ? -1 : 1
     for (const { lo, points, line, normals: own } of pieces) {
       points.forEach((p, i) => {
         if (!owned[lo + i]) {
