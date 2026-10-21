@@ -1,3 +1,13 @@
+## [11.7.3](https://github.com/GMOD/bandage-core/compare/v11.7.2...v11.7.3) (2026-10-21)
+
+### Other Changes
+
+- Group the API by task and name each input format ([76854b7](https://github.com/GMOD/bandage-core/commit/76854b73688c38dcf930884d62d18c38f6f789f8))
+- Retitle for bandage-fold, fix the gfa-to-tabix fold link and parity script path ([55bb916](https://github.com/GMOD/bandage-core/commit/55bb91684627eda4ebc29b0273fe30c19ccf1244))
+- Copy figure spec is the plugin's; say how to draw a walk-file cut ([b26210b](https://github.com/GMOD/bandage-core/commit/b26210bea6917c672f61e1ab4ecf5ff814180b4e))
+- Layout-lab README: count haplotypes instead of carriage ([00b08f9](https://github.com/GMOD/bandage-core/commit/00b08f9151a2956c4b9450a59f14d38c3e07575d))
+- Bridge a folded cut only when the caller says it is a cut ([8fa52c8](https://github.com/GMOD/bandage-core/commit/8fa52c8f246b0faea86e6daf6916df71173e40de))
+
 ## [11.7.2](https://github.com/GMOD/bandage-core/compare/v11.7.1...v11.7.2) (2026-10-21)
 
 ### Other Changes
