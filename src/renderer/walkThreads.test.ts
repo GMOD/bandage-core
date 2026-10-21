@@ -212,6 +212,22 @@ test('threads follow the walk smoothed, not each short node', () => {
   }
 })
 
+test('lanes of walks that never repeat follow the walk smoothed too, on their own nodes', () => {
+  const gfa = `${ZIGZAG}\n${walk('a', chain(upTo(20)))}\n${walk('b', chain(upTo(20)))}`
+  const { strokes } = drawn(gfa, ['a#1#chr', 'b#1#chr'], zigzag)
+  for (let i = 6; i < 14; i++) {
+    for (const s of strokes(`n${i}+`)) {
+      s.normals!.forEach((n, k) => {
+        expect(Math.abs(n.nx)).toBeLessThan(0.1)
+        expect(n.ny).toBeGreaterThan(0.99)
+        const own = zigzag[`n${i}+`]![k]!
+        expect(s.points[k]!.x - n.nx * s.offsetX!).toBeCloseTo(own.x, 9)
+        expect(s.points[k]!.y - n.ny * s.offsetX!).toBeCloseTo(own.y, 9)
+      })
+    }
+  }
+})
+
 test('a walk running against the first keeps the threads in their order', () => {
   const back = upTo(20).slice(5).reverse()
   const gfa = `${ZIGZAG}\n${walk('a', chain([...upTo(10), ...upTo(10)]))}\n${walk('b', back.map(i => `<n${i}`).join(''))}`

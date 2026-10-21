@@ -894,14 +894,15 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const threaded = threadsPasses(liftedWalks)
   const lanePasses = liftedWalks.map(w => w.mostPasses)
   const thinned = threaded ? bandScale(lanePasses) : 1
-  const runs = threaded
-    ? laneRuns(
-        liftedWalks.flatMap(w => w.route),
-        nodePositions,
-        yToX,
-        LANE_SMOOTHING_PX * worldPerScreenPx,
-      )
-    : undefined
+  const runs =
+    liftedWalks.length > 1
+      ? laneRuns(
+          liftedWalks.flatMap(w => w.route),
+          nodePositions,
+          yToX,
+          LANE_SMOOTHING_PX * worldPerScreenPx,
+        )
+      : undefined
   const lines = runs
     ? laneLines(
         runs,
@@ -909,6 +910,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         yToX,
         LANE_SMOOTHING_PX * worldPerScreenPx,
         bandWidthPx(lanePasses) * thinned * worldPerScreenPx,
+        threaded,
       )
     : undefined
   const threads = threaded

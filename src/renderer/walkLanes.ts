@@ -374,10 +374,11 @@ export function laneLines(
   yToX: number,
   reach: number,
   band: number,
+  smooth = true,
 ) {
   const turn = Math.max(reach, 2 * band)
   const curl = Math.PI * band
-  const margin = curl + band / 2 + turn / 2
+  const margin = smooth ? curl + band / 2 + turn / 2 : turn / 2
   const normals = new Map<string, (Normal | undefined)[]>()
   const shifts = new Map<string, (Shift | undefined)[]>()
   const setNormal = fieldSetter(normals, nodePositions)
@@ -386,7 +387,9 @@ export function laneLines(
     const owned = lanes.owned[r]!
     const pieces = ownedWindows(arcOf(run), owned, margin).map(([lo, hi]) => {
       const points = run.slice(lo, hi + 1)
-      const line = rounded(cutCurls(points, band / 2, curl), band / 2)
+      const line = smooth
+        ? rounded(cutCurls(points, band / 2, curl), band / 2)
+        : points
       return { lo, points, line, normals: smoothedNormals(line, turn) }
     })
     let agree = 0
@@ -409,10 +412,12 @@ export function laneLines(
         if (n) {
           setNormal(p, { nx: sign * n.nx, ny: sign * n.ny })
         }
-        setShift(p, {
-          dx: line[i]!.x - p.x,
-          dy: (line[i]!.y - p.y) / yToX,
-        })
+        if (smooth) {
+          setShift(p, {
+            dx: line[i]!.x - p.x,
+            dy: (line[i]!.y - p.y) / yToX,
+          })
+        }
       })
     }
   })
