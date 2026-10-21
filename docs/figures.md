@@ -75,8 +75,8 @@ them on the reference row only, and the key labels the other rows "no gene
 track".
 
 `bandage-figure` writes the spec into each SVG's `<metadata>` beside the version
-that drew it, such as `@jbrowse/bandage-core@4.0.25`. To make a figure again, run
-that version on the spec:
+that drew it, such as `@jbrowse/bandage-core@4.0.25`. To make a figure again,
+run that version on the spec:
 `npx -p @jbrowse/bandage-core@4.0.25 bandage-figure spec.json`.
 
 In jbrowse-plugin-graphgenomeviewer and BandageJS, **Export SVG** saves the
