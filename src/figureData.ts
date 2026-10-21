@@ -96,8 +96,8 @@ interface EdgeRow {
   offset1: number
 }
 
-// a lifted walk's key: its colour stops as hex, and the note and scale its
-// bar is labelled with
+// a lifted walk's key: its colour stops as hex, the field they run over, and
+// the note and scale its bar is labelled with
 interface KeyRow {
   panel: string
   walk: string
@@ -106,6 +106,7 @@ interface KeyRow {
   note: string
   scale: string
   stops: string
+  field: string
 }
 
 interface ThreadKeyRow {
@@ -205,6 +206,7 @@ export function figureData(
     'note',
     'scale',
     'stops',
+    'field',
   ])
   const threadKeys = columns<ThreadKeyRow>(['panel', 'note'])
   const pushKey = (walk: LiftedWalk, panel: string) => {
@@ -218,6 +220,7 @@ export function figureData(
       note: key.note,
       scale: key.scale ?? '',
       stops: stops.join(','),
+      field: walk.encoding.field,
     })
     return key
   }

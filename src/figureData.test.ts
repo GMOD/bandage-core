@@ -87,6 +87,13 @@ test('each lifted walk is keyed with its colour stops as hex', async () => {
   expect(d.walkNames).toEqual(expect.arrayContaining([K12, IAI39]))
   expect(d.keys.name).toEqual([K12, IAI39])
   expect(d.keys.color).toEqual(d.keys.stops)
+  expect(d.keys.field).toEqual(['walk', 'walk'])
+  const ramped = await gfaFigureData(gfa, 'ecoli', {
+    engine: 'stress',
+    walks: [{ walk: K12, color: { field: 'progress' } }],
+  })
+  expect(ramped.keys.field).toEqual(['progress'])
+  expect(ramped.keys.color).toEqual([''])
   expect(d.threadKeys.note).toEqual([])
   const lifted = d.nodes.walk.filter(w => w !== null)
   expect(new Set(lifted)).toEqual(new Set([0, 1]))
