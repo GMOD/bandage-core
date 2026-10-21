@@ -138,9 +138,33 @@ export function clipToWindow(
         : [from, Math.min(to, from + reachBp)]
     return start === from && end === to
       ? node
-      : { ...node, length: end - start, stable: { ...node.stable, start } }
+      : {
+          ...node,
+          length: end - start,
+          stable: { ...node.stable, start },
+          unclipped: { start: from, length: node.length },
+        }
   })
   return nodes.some((node, i) => node !== graph.nodes[i])
     ? { ...graph, nodes }
+    : graph
+}
+
+// The graph with every clipped segment back at its full extent, which is what
+// a link between two segments joins.
+export function unclipped(graph: Graph): Graph {
+  return graph.nodes.some(n => n.unclipped)
+    ? {
+        ...graph,
+        nodes: graph.nodes.map(({ unclipped: full, ...node }) =>
+          full && node.stable
+            ? {
+                ...node,
+                length: full.length,
+                stable: { ...node.stable, start: full.start },
+              }
+            : node,
+        ),
+      }
     : graph
 }

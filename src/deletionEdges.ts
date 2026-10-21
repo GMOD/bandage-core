@@ -1,4 +1,5 @@
 import { firstNodeAtOrAfter, isBackbone } from './anchoredNodes'
+import { unclipped } from './layout/trimToWindow'
 import { referenceVisitStarts } from './pathAnchoring'
 import {
   computeEdgeCurves,
@@ -257,8 +258,10 @@ function switchesCopy(
   )
 }
 
-// Every edge that skips reference sequence, in graph.edges order.
-export function deletionEdges(graph: Graph): DeletionEdge[] {
+// Every edge that skips reference sequence, in graph.edges order. A segment
+// cut back to a window is measured in full: its cut end is no gap.
+export function deletionEdges(cut: Graph): DeletionEdge[] {
+  const graph = unclipped(cut)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const backbone = backboneBySequence(graph)
   const startsOf = referenceVisitStarts(graph)

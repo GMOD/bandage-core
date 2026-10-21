@@ -4,6 +4,7 @@ import path from 'path'
 import { clipToWindow, trimToWindow } from './trimToWindow'
 import { tubeMapLayout } from './tubeMapLayout'
 import { isBackbone } from '../anchoredNodes'
+import { deletionEdges } from '../deletionEdges'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { anchorGraph, pathOrigin } from '../pathAnchoring'
@@ -114,4 +115,28 @@ test('clipping cuts the backbone back to the window, and what lies outside to a 
   ])
   expect(clipped.edges).toBe(graph.edges)
   expect(clipToWindow(graph, { start: 0, end: 250_000 }, 1000)).toBe(graph)
+})
+
+test('a segment cut back to the window does not turn its links into deletions', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(
+      [
+        'S\tbefore\t*\tLN:i:10000\tSN:Z:chr\tSO:i:70000\tSR:i:0',
+        'S\tleft\t*\tLN:i:20000\tSN:Z:chr\tSO:i:80000\tSR:i:0',
+        'S\tmid\t*\tLN:i:5000\tSN:Z:chr\tSO:i:100000\tSR:i:0',
+        'S\tright\t*\tLN:i:20000\tSN:Z:chr\tSO:i:105000\tSR:i:0',
+        'S\tafter\t*\tLN:i:1000\tSN:Z:chr\tSO:i:125000\tSR:i:0',
+        'S\tgone\t*\tLN:i:1000\tSN:Z:chr\tSO:i:140000\tSR:i:0',
+        'L\tbefore\t+\tleft\t+\t0M',
+        'L\tleft\t+\tmid\t+\t0M',
+        'L\tmid\t+\tright\t+\t0M',
+        'L\tright\t+\tafter\t+\t0M',
+        'L\tmid\t+\tgone\t+\t0M',
+      ].join('\n'),
+    ),
+  )
+  const clipped = clipToWindow(graph, { start: 95_000, end: 110_000 }, 1000)
+  expect(
+    deletionEdges(clipped).map(d => [d.from, d.to, d.start, d.end, d.bp]),
+  ).toEqual([['mid+', 'gone+', 105_000, 140_000, 35_000]])
 })

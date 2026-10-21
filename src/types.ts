@@ -15,6 +15,9 @@ export interface GraphNode {
   // carriage, and only a path GFA can state it: rGFA's SR is build order, so
   // there the most a segment says is which assembly first contributed it.
   samples?: string[]
+  // where a backbone segment clipToWindow cut back lies in full, so a link
+  // from its cut end is measured from where the segment really ends
+  unclipped?: { start: number; length: number }
 }
 
 export interface GraphEdge {
