@@ -1,3 +1,14 @@
+## [11.9.0](https://github.com/GMOD/bandage-core/compare/v11.8.0...v11.9.0) (2026-10-21)
+
+### Other Changes
+
+- Cull a lifted link before building its lanes, by the furthest a lane can slide ([1aa75b9](https://github.com/GMOD/bandage-core/commit/1aa75b9755f0b86a91164be5ac2eccc8d68b7c20))
+- Smooth lane lines over typed prefix sums, and write each node's field once ([5f0d540](https://github.com/GMOD/bandage-core/commit/5f0d5403cad9fb994d1fe8a3c383bf6af833a26b))
+- Assign threads over node indices, and key link threads by from and to ids ([dff2834](https://github.com/GMOD/bandage-core/commit/dff28342e367c11ad3ff3029edd268664aa55a71))
+- Skip a node's position lookup once an earlier walk has claimed it ([88056b8](https://github.com/GMOD/bandage-core/commit/88056b87f7923359d3810592a8467690808a06ab))
+- Cache a lift's lanes on the lift, by positions, version and zoom ([e9edcf2](https://github.com/GMOD/bandage-core/commit/e9edcf2bd036ad8fa1ac0c4bb30f62fcd90759c3))
+- Split a family between the ramps lifted together that share it ([fc5b7d7](https://github.com/GMOD/bandage-core/commit/fc5b7d7b8604fcec87aa5838afa538f9484fca28))
+
 ## [11.8.0](https://github.com/GMOD/bandage-core/compare/v11.7.3...v11.8.0) (2026-10-21)
 
 ### Other Changes
