@@ -1,3 +1,10 @@
+## [11.10.0](https://github.com/GMOD/bandage-core/compare/v11.9.0...v11.10.0) (2026-10-22)
+
+### Other Changes
+
+- Shade each thread by its own pass, and add an orange ramp ([f133671](https://github.com/GMOD/bandage-core/commit/f1336713b8dfbdb409208e27f5d8ebdc040be5f6))
+- Format the walkThreads test ([277056b](https://github.com/GMOD/bandage-core/commit/277056bb142c88a8a0a9523c78924f94af9119ac))
+
 ## [11.9.0](https://github.com/GMOD/bandage-core/compare/v11.8.0...v11.9.0) (2026-10-21)
 
 ### Other Changes
