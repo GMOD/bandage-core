@@ -1,3 +1,9 @@
+## [11.11.0](https://github.com/GMOD/bandage-core/compare/v11.10.0...v11.11.0) (2026-10-22)
+
+### Other Changes
+
+- Draw a link by how many walks take it, as an edgeWidth option ([912c9ed](https://github.com/GMOD/bandage-core/commit/912c9ed202cf4dab8dee15491adb74de95644e3a))
+
 ## [11.10.0](https://github.com/GMOD/bandage-core/compare/v11.9.0...v11.10.0) (2026-10-22)
 
 ### Other Changes
