@@ -1,7 +1,10 @@
 import { walkThreads } from './walkLanes'
 
 test("each thread through a node carries one of the walk's visits to it", () => {
-  const route = [['a', 'b', 'a'], ['c', 'a', 'b']]
+  const route = [
+    ['a', 'b', 'a'],
+    ['c', 'a', 'b'],
+  ]
   const passes = new Map([
     ['a', 3],
     ['b', 2],
