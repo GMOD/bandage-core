@@ -20,6 +20,8 @@ export interface WalkHighlight {
   // each node's first visit, as the fraction of the walk's bp before its
   // midpoint: 0 at the walk's start, 1 at its end
   progress: Map<string, number>
+  // the same fraction at every visit, in the order the walk makes them
+  passProgress: Map<string, number[]>
   passes: Map<string, number>
   mostPasses: number
   route: readonly (readonly string[])[]
@@ -39,6 +41,8 @@ export interface LiftedWalk extends WalkHighlight {
   encoding: WalkEncoding
   // the lane colour at each node the walk visits
   colors: Map<string, number>
+  // the colour at each visit, in the order the walk makes them
+  passColors: Map<string, number[]>
   // the nodes it crosses the other way from the reference walk, and their
   // bp; empty for the reference
   reversed: Set<string>
@@ -117,6 +121,7 @@ function highlightOf(
   const nodeIds = new Set<string>()
   const edgeIndexes = new Set<number>()
   const progress = new Map<string, number>()
+  const passProgress = new Map<string, number[]>()
   const passes = new Map<string, number>()
   let mostPasses = 1
   let before = 0
@@ -137,8 +142,15 @@ function highlightOf(
         }
       }
       const length = lengthOf(id)
+      const at = span > 0 ? (before + length / 2) / span : 0
       if (!progress.has(id)) {
-        progress.set(id, span > 0 ? (before + length / 2) / span : 0)
+        progress.set(id, at)
+      }
+      const seen = passProgress.get(id)
+      if (seen) {
+        seen.push(at)
+      } else {
+        passProgress.set(id, [at])
       }
       before += length
     })
@@ -180,6 +192,7 @@ function highlightOf(
     nodeIds,
     edgeIndexes,
     progress,
+    passProgress,
     passes,
     mostPasses,
     route: pieces.map(piece => piece.nodeIds),
@@ -191,7 +204,7 @@ function highlightOf(
   }
 }
 
-// Each node's value for the walk's field, through its scheme
+// Each visit's value for the walk's field, through its scheme
 function laneColors(
   byId: Map<string, GraphNode>,
   walk: WalkHighlight,
@@ -199,17 +212,17 @@ function laneColors(
   ramp: ReferenceRamp | undefined,
 ) {
   const colors = new Map<string, number>()
-  for (const [id, progress] of walk.progress) {
+  const passColors = new Map<string, number[]>()
+  for (const [id, progress] of walk.passProgress) {
     const node = byId.get(id)
-    const t =
-      encoding.field === 'progress'
-        ? progress
-        : ramp && node
-          ? rampFraction(node, ramp)
-          : undefined
-    colors.set(id, encodedColor(encoding, t))
+    const atNode = ramp && node ? rampFraction(node, ramp) : undefined
+    const each = progress.map(t =>
+      encodedColor(encoding, encoding.field === 'progress' ? t : atNode),
+    )
+    colors.set(id, each[0]!)
+    passColors.set(id, each)
   }
-  return colors
+  return { colors, passColors }
 }
 
 // The nodes a walk reads on the other strand from the reference walk
@@ -277,7 +290,7 @@ export function walkLift(
     return {
       ...walk,
       encoding,
-      colors: laneColors(index.byId, walk, encoding, ramp),
+      ...laneColors(index.byId, walk, encoding, ramp),
       reversed,
       reversedBp: bp,
     }
@@ -309,7 +322,7 @@ export function facetLifts(
         {
           ...walk,
           encoding,
-          colors: laneColors(byId, walk, encoding, ramp),
+          ...laneColors(byId, walk, encoding, ramp),
         },
       ],
       ramp,

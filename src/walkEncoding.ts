@@ -38,12 +38,14 @@ export type WalkField = (typeof WALK_FIELDS)[number]['value']
 //
 // A dichromat sees one axis, blue to yellow, so cyan to navy and yellow to red
 // stay apart for every reader and come first; pink and lime fold into them.
+// Orange runs within red's stretch, so no walk takes it unasked.
 export const WALK_SCHEMES = [
   { value: 'grey', label: 'Grey to black', ends: ['#a3a3a3', '#151515'] },
   { value: 'blue', label: 'Cyan to navy', ends: ['#6ee0f0', '#0b2c7a'] },
   { value: 'red', label: 'Yellow to red', ends: ['#ffd24a', '#b3121b'] },
   { value: 'purple', label: 'Pink to plum', ends: ['#f5a3d8', '#5e1a6e'] },
   { value: 'green', label: 'Lime to forest', ends: ['#b6e36c', '#0b5d3b'] },
+  { value: 'orange', label: 'Peach to rust', ends: ['#ffc285', '#8f3a00'] },
   { value: 'rainbow', label: 'Rainbow' },
 ] as const
 

@@ -328,6 +328,20 @@ test('a walk counts its passes through each node over all its pieces', () => {
   expect(walkHighlight(graph, 'ref#0#chr')!.mostPasses).toBe(1)
 })
 
+test('a repeat shades each pass at its own place along the walk', () => {
+  const repeat = anchorGraph(convertGFAToGraph(parseGFA(REPEAT)), 'ref')
+  const [, dup] = walkLift(repeat, [
+    { walk: 'ref#0#chr' },
+    { walk: 'dup#1#chr', color: { field: 'progress', scheme: 'orange' } },
+  ])!.walks
+  const passes = dup!.passProgress.get('v1+')!
+  expect(passes.map(t => t * 23)).toEqual([2, 8, 18])
+  expect(dup!.passColors.get('v1+')).toEqual(
+    passes.map(t => encodedColor(dup!.encoding, t)),
+  )
+  expect(dup!.colors.get('v1+')).toBe(dup!.passColors.get('v1+')![0])
+})
+
 test('walks lifted together shade no darker than mid-lightness, alone they do', () => {
   const [, alt] = walkLift(graph, [
     { walk: 'ref#0#chr', color: { field: 'progress' } },

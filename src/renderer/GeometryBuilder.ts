@@ -1028,6 +1028,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const turned = back.map(([a, b]): [number, number] => [b, a])
     return ahead ? [...ahead, ...turned] : turned
   }
+  const threadColor = (lane: number, nodeId: string, thread: number) =>
+    liftedWalks[lane]?.passColors.get(nodeId)?.[
+      threads?.[lane]?.threadPasses.get(nodeId)?.[thread] ?? 0
+    ]
   const lanePointsOf = (nodeId: string, segments: NodeSegment[]) =>
     lines?.shifts.has(nodeId)
       ? segments.map((p, i) => {
@@ -1239,8 +1243,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             laneStroke(
               curves,
               thickness,
-              walk.colors.get(edge.from) ??
-                walk.colors.get(edge.to) ??
+              threadColor(lane, edge.from, pass) ??
+                threadColor(lane, edge.to, toPass) ??
                 plainEdgeColor,
               lane,
               pass,
@@ -1362,11 +1366,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         }
         const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS
         for (const pass of onThreads) {
+          const color = threadColor(lane, nodeId, pass) ?? laneColor
           if (lanes.length === 1) {
             nodeStrokes.push({
               points: segments,
               thickness,
-              color: laneColor,
+              color,
               walk: lane,
               pass,
             })
@@ -1377,7 +1382,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           nodeStrokes.push({
             points: offsetPolyline(points, normals, offsetX, yToX),
             thickness,
-            color: laneColor,
+            color,
             walk: lane,
             pass,
             normals,

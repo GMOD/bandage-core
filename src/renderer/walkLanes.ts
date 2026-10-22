@@ -490,6 +490,8 @@ function windowMean(
 export interface WalkThreads {
   span: ReadonlyMap<string, number>
   nodeThreads: Map<string, readonly number[]>
+  // which of the walk's visits to a node each of its threads carries
+  threadPasses: Map<string, readonly number[]>
   linkThreads: Map<string, Map<string, [number, number][]>>
 }
 
@@ -512,7 +514,12 @@ export function walkThreads(
   reach: number,
 ): WalkThreads {
   if (!repeats(passes)) {
-    return { span: passes, nodeThreads: new Map(), linkThreads: new Map() }
+    return {
+      span: passes,
+      nodeThreads: new Map(),
+      threadPasses: new Map(),
+      linkThreads: new Map(),
+    }
   }
   const index = new Map<string, number>()
   const ids: string[] = []
@@ -595,12 +602,18 @@ export function walkThreads(
   })
   const span = new Map<string, number>()
   const nodeThreads = new Map<string, readonly number[]>()
+  const threadPasses = new Map<string, readonly number[]>()
   ids.forEach((id, k) => {
     span.set(id, widths[k]!)
     nodeThreads.set(
       id,
       taken[k] ? [...taken[k]].sort((a, b) => a - b) : ONE_THREAD,
     )
+    const passOf: number[] = []
+    threadOf[k]?.forEach((thread, visit) => {
+      passOf[thread] = visit - 1
+    })
+    threadPasses.set(id, passOf)
   })
   const linkThreads = new Map<string, Map<string, [number, number][]>>()
   steps.forEach((nodes, piece) => {
@@ -625,7 +638,7 @@ export function walkThreads(
       }
     }
   })
-  return { span, nodeThreads, linkThreads }
+  return { span, nodeThreads, threadPasses, linkThreads }
 }
 
 export function bandSpans(
