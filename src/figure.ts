@@ -40,6 +40,7 @@ import { encodingStops } from './walkEncoding'
 import { rangeText } from './walkKey'
 
 import type { ColorScheme } from './colorSchemes'
+import type { EdgeWidth } from './edgeWidths'
 import type { FacetInput } from './facetGrid'
 import type { GeneModel, GenePin } from './genes/genePins'
 import type {
@@ -70,6 +71,7 @@ export interface FigureOptions {
   facet?: FacetInput
   colorScheme?: ColorScheme
   nodeWidth?: NodeWidth
+  edgeWidth?: EdgeWidth
   // true when absent, as for the layout
   showDeletionEdges?: boolean
   // the layout was laid out for a linear view, which draws strand arrows from

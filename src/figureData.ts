@@ -41,6 +41,7 @@ export type FigureDataOptions = Pick<
   | 'facet'
   | 'colorScheme'
   | 'nodeWidth'
+  | 'edgeWidth'
   | 'showDeletionEdges'
   | 'linearLayout'
   | 'contigThickness'

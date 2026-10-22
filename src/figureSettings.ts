@@ -1,6 +1,7 @@
 import { ENGINE_DEFAULTS } from './pipeline'
 
 import type { ColorScheme } from './colorSchemes'
+import type { EdgeWidth } from './edgeWidths'
 import type { NodeWidth } from './nodeWidths'
 import type { EngineSettings } from './pipeline'
 
@@ -11,6 +12,7 @@ export interface FigureSettings extends Partial<EngineSettings> {
   height?: number
   colorScheme?: ColorScheme
   nodeWidth?: NodeWidth
+  edgeWidth?: EdgeWidth
   contigThickness?: number
   connectorThickness?: number
   // the interval the reference ramp spans where it is not the cut window
@@ -23,6 +25,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   height: 800,
   colorScheme: 'auto',
   nodeWidth: 'depth',
+  edgeWidth: 'uniform',
   contigThickness: 6,
   connectorThickness: 2,
 }

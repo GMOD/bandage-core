@@ -22,6 +22,7 @@ export type FigureSceneOptions = Pick<
   | 'facet'
   | 'colorScheme'
   | 'nodeWidth'
+  | 'edgeWidth'
   | 'showDeletionEdges'
   | 'linearLayout'
   | 'contigThickness'
@@ -126,6 +127,7 @@ export function figureScene(
           o.connectorThickness ?? FIGURE_DEFAULTS.connectorThickness,
         drawPaths: false,
         nodeWidth,
+        edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
         linearLayout: o.linearLayout,
         highlight,
         axis,

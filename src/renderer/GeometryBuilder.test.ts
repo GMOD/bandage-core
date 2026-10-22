@@ -96,6 +96,46 @@ test('keys the strokes by node and by edge', () => {
   expect(batch.edgeCurveRuns.get(0)).toEqual({ start: 0, count: 1 })
 })
 
+test('a link drawn by walks is thicker the more walks take it', () => {
+  const graph = {
+    name: 'test',
+    nodes: [
+      { id: 'A+', name: 'A', length: 100, depth: 1 },
+      { id: 'B+', name: 'B', length: 200, depth: 1 },
+      { id: 'C+', name: 'C', length: 100, depth: 1 },
+    ],
+    edges: [
+      { from: 'A+', to: 'B+', pathIds: ['w1', 'w2', 'w3', 'w4'] },
+      { from: 'B+', to: 'C+', pathIds: ['w1'] },
+    ],
+  }
+  const positions = {
+    ...simplePositions,
+    'C+': [
+      { x: 40, y: 0 },
+      { x: 50, y: 0 },
+    ],
+  }
+  const thickness = (edgeWidth: 'uniform' | 'walks', edge: number) => {
+    const batch = buildGeometry({
+      nodePositions: positions,
+      graph,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      axis: iso(),
+      contigThickness: 5,
+      connectorThickness: 2,
+      drawPaths: false,
+      edgeWidth,
+    })
+    return batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
+  }
+  expect(thickness('uniform', 0)).toBe(thickness('uniform', 1))
+  // the busiest link at the ceiling, one walk of four at half of it
+  expect(thickness('walks', 0)).toBe(4)
+  expect(thickness('walks', 1)).toBe(0.5 + 3.5 * 0.5)
+})
+
 test('handles empty node positions gracefully', () => {
   const batch = buildGeometry({
     nodePositions: {},

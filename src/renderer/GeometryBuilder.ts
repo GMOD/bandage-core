@@ -10,6 +10,7 @@ import {
   slotCentres,
   threadsPasses,
 } from './walkLanes'
+import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
 import { meanDepth, nodeWidthPx, walkLaneWidthPx } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
@@ -37,6 +38,7 @@ import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
 
 import type { ResolvedColorScheme } from '../colorSchemes'
+import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
@@ -382,6 +384,9 @@ export interface BuildOptions {
   drawPaths: boolean
   // thicker by depth, or every node at `contigThickness`; see nodeWidths.ts
   nodeWidth?: NodeWidth
+  // thicker by the walks taking a link, or every link at
+  // `connectorThickness`; see edgeWidths.ts
+  edgeWidth?: EdgeWidth
   // walks lifted out: each draws a lane of its own along the nodes it visits,
   // their links draw dark and heavy, and everything else fades to a fraction
   // of its alpha
@@ -866,6 +871,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     connectorThickness,
     drawPaths,
     nodeWidth = 'uniform',
+    edgeWidth = 'uniform',
     highlight,
     axis,
     linearLayout,
@@ -878,6 +884,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     version = 0,
   } = options
   const depthNorm = nodeWidth === 'depth' ? meanDepth(graph) : 0
+  const busiest = edgeWidth === 'walks' ? busiestEdge(graph) : 0
   const scale = axis.scaleX
   const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
   const yToX = yToXOf(axis)
@@ -1063,8 +1070,13 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const bypassed = deletions?.get(ei)
     const isDeletion = bypassed !== undefined
     const onWalk = highlight?.edgeIndexes.has(ei) ?? false
-    const edgeThickness =
+    // a ribbon per walk already shows how many take the link, so only the
+    // link drawn alone widens by its walks
+    const ribbonThickness =
       (connectorThickness / 2) * (isDeletion ? DELETION_THICKNESS_FACTOR : 1)
+    const edgeThickness = isDeletion
+      ? ribbonThickness
+      : (connectorThickness / 2) * edgeWidthFactor(numPaths, busiest, edgeWidth)
     // One stroke per path crossing the edge, fanned off it: the shared curve
     // slid sideways, which is also what the hit index tests against. Rebuilding
     // the curve at each offset was 40% of a striped build and differed from a
@@ -1170,7 +1182,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const head = showArrows
         ? arrowheadFor({
             curves,
-            edgeHalfWidth: connectorThickness / 2,
+            edgeHalfWidth:
+              isDeletion || ribbons ? connectorThickness / 2 : edgeThickness,
             nodeHalfWidth: intoHalfWidth,
             scale,
             yToX,
@@ -1286,7 +1299,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         const ribbonColor = pathColorByName(edge.pathIds![pathIdx]!)
         stroke(
           curves,
-          edgeThickness,
+          ribbonThickness,
           highlight &&
             (highlight.walks.length
               ? !highlight.names.has(edge.pathIds![pathIdx]!)
