@@ -229,3 +229,17 @@ test('one figure draws as it did', async () => {
     svg.replace(/bandage-core@[^&]+/, 'bandage-core@VERSION'),
   ).toMatchFileSnapshot('__snapshots__/figure_walks.svg')
 })
+
+test('a figure keys the dashed links it draws as skipped reference sequence', () => {
+  const skipped = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(`${GFA}\nL\tv1\t+\tv3\t+\t0M\nW\tdel\t1\tchr\t0\t7\t>v1>v3`),
+    ),
+    'ref',
+  )
+  const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
+  expect(figureSvg(skipped, skippedLayout, { width: 600 })).toMatch(
+    /skips \S.* sequence \(a deletion\)/,
+  )
+  expect(figureSvg(graph, layout, { width: 600 })).not.toContain('(a deletion)')
+})

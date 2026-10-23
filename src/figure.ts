@@ -1,3 +1,4 @@
+import { deletionKey } from './deletionEdges'
 import { escapeAttr, serializeEl } from './el'
 import {
   FACET_GAP_PX,
@@ -122,6 +123,7 @@ const KEY_LINE_PX = 16
 const KEY_TALL_PX = 32
 const STRIP_KEY_PX = 22
 const FADED = 'rgb(160,160,160)'
+const DELETION_INK = 'rgb(24,24,28)'
 const GENE_INK = '#1c1c22'
 
 // A key at (x, y): a swatch or a short bar of its scale, bold `label` and
@@ -167,6 +169,15 @@ function exonKeySvg(x: number, y: number) {
     width: SWATCH_PX + 5 + 4 * LABEL_CHAR_PX,
     height: KEY_LINE_PX,
     markup: `<g transform="translate(${x} ${y})" ${FONT}><rect x="1" y="4" width="${SWATCH_PX - 2}" height="10" rx="4" fill="none" stroke="${EXON_COLOR}" stroke-width="2"/><text x="${SWATCH_PX + 5}" y="13">exon</text></g>`,
+  }
+}
+
+// the dashed links' key, in the ink the drawing gives them: faded under a lift
+function deletionKeySvg(x: number, y: number, note: string, color: string) {
+  return {
+    width: SWATCH_PX + 5 + note.length * LABEL_CHAR_PX,
+    height: KEY_LINE_PX,
+    markup: `<g transform="translate(${x} ${y})" ${FONT}><line y1="9" y2="9" x2="${SWATCH_PX}" stroke="${color}" stroke-width="2" stroke-dasharray="4 3"/><text x="${SWATCH_PX + 5}" y="13">${note}</text></g>`,
   }
 }
 
@@ -264,6 +275,7 @@ export function figureSvg(
     labelOf,
     referenceName,
     keyText,
+    drawnDeletions,
     contigThickness,
     nodeWidth,
     geometry,
@@ -472,6 +484,16 @@ export function figureSvg(
             referenceRamp.start,
             referenceRamp.start + referenceRamp.span,
           ),
+        ),
+      )
+    }
+    if (drawnDeletions.shown.length > 0) {
+      keys.push((x, y) =>
+        deletionKeySvg(
+          x,
+          y,
+          deletionKey(referenceName),
+          lift ? FADED : DELETION_INK,
         ),
       )
     }

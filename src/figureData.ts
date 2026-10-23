@@ -1,4 +1,5 @@
 import { isBackbone } from './anchoredNodes'
+import { deletionKey } from './deletionEdges'
 import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { parseRegion } from './gbzCut'
@@ -439,6 +440,9 @@ export function figureData(
           }
         : null,
       deletions: drawnDeletions.shown.length,
+      deletionKey: drawnDeletions.shown.length
+        ? deletionKey(referenceName)
+        : null,
       // what the key for the drawing a lift fades says
       fadedKey: lift
         ? fadedKey(
