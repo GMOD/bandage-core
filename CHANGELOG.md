@@ -1,3 +1,9 @@
+## [11.17.0](https://github.com/GMOD/bandage-core/compare/v11.16.0...v11.17.0) (2026-10-23)
+
+### Other Changes
+
+- Draw a node as wide as its frequency, from walks, AF tags or a table ([66d745b](https://github.com/GMOD/bandage-core/commit/66d745b838893e218979608e9b66f86f92136e93))
+
 ## [11.16.0](https://github.com/GMOD/bandage-core/compare/v11.15.0...v11.16.0) (2026-10-23)
 
 ### Other Changes
