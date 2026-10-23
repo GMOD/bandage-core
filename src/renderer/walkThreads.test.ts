@@ -428,7 +428,10 @@ test('a drag that moves a node in place redraws its threads once the version cha
 
 // A box of shared nodes, each followed by a node only one pass takes, that a
 // duplicated walk runs twice: out of the box and up round a loop back to its
-// start the first time, out and down the second, as the reference does
+// start the first time, out and down the second, as the reference does. At
+// BOX_SCALE the band is wider than the box's nodes are long.
+const BOX_SCALE = 0.15
+
 function duplicatedBox() {
   const ids: string[] = []
   const at: Record<string, NodeSegment[]> = {}
@@ -484,7 +487,9 @@ function duplicatedBox() {
 
 test('a lane slides across a link by no more than half the link', () => {
   const { gfa, at } = duplicatedBox()
-  const { batch } = drawn(gfa, ['ref#1#chr', 'dup#1#chr'], at)
+  const { batch } = drawn(gfa, ['ref#1#chr', 'dup#1#chr'], at, {
+    scale: BOX_SCALE,
+  })
   for (const lane of batch.edgeCurves) {
     const { normal, endNormal, offsetX = 0, endOffsetX = 0 } = lane
     if (!normal || !endNormal) {
@@ -500,13 +505,15 @@ test('a lane slides across a link by no more than half the link', () => {
       last.x1 - endNormal.nx * endOffsetX - (first.x0 - normal.nx * offsetX),
       last.y1 - endNormal.ny * endOffsetX - (first.y0 - normal.ny * offsetX),
     )
-    expect(slide).toBeLessThanOrEqual(0.5 + along / 2)
+    expect(slide * BOX_SCALE).toBeLessThanOrEqual(0.5 + (along * BOX_SCALE) / 2)
   }
 })
 
 test("a thread runs the way its walk does, even round a hairpin's inside", () => {
   const { gfa, at } = duplicatedBox()
-  const { batch } = drawn(gfa, ['ref#1#chr', 'dup#1#chr'], at)
+  const { batch } = drawn(gfa, ['ref#1#chr', 'dup#1#chr'], at, {
+    scale: BOX_SCALE,
+  })
   for (const s of batch.nodeStrokes) {
     const normals = s.normals
     if (s.walk === undefined || !normals) {
