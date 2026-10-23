@@ -102,12 +102,14 @@ interface LinePoint {
   y: number
   id: string
   index: number
+  visit: number
   middle: boolean
   forward: boolean
 }
 
 export interface LaneRuns {
   runs: LinePoint[][]
+  walkOf: number[]
   owned: boolean[][]
 }
 
@@ -122,80 +124,83 @@ function arcOf(run: readonly { x: number; y: number }[]) {
   return s
 }
 
+// Each walk's route as runs of node points, broken where the walk jumps
+// further than `jump`. A point is owned on the first visit any walk makes to
+// its node, and `visit` counts the walk's own visits to the node from 0.
 export function laneRuns(
-  routes: readonly (readonly string[])[],
+  walkRoutes: readonly (readonly (readonly string[])[])[],
   nodePositions: Record<string, NodeSegment[]>,
   yToX: number,
   jump: number,
 ): LaneRuns {
   const seen = new Set<string>()
-  const owns = routes.map(route =>
-    route.map(id => {
-      if (seen.has(id)) {
-        return false
-      }
-      seen.add(id)
-      return !!nodePositions[id]?.length
-    }),
-  )
   const gap = (a: { x: number; y: number }, b: NodeSegment) =>
     Math.hypot(b.x - a.x, b.y * yToX - a.y)
   const runs: LinePoint[][] = []
+  const walkOf: number[] = []
   const owned: boolean[][] = []
   let run: LinePoint[] = []
   let mine: boolean[] = []
+  let walk = 0
   const breakRun = () => {
     if (run.length) {
       runs.push(run)
+      walkOf.push(walk)
       owned.push(mine)
     }
     run = []
     mine = []
   }
-  routes.forEach((route, r) => {
-    if (!owns[r]!.includes(true)) {
-      return
+  walkRoutes.forEach((routes, w) => {
+    walk = w
+    const visits = new Map<string, number>()
+    for (const route of routes) {
+      route.forEach((id, step) => {
+        const visit = visits.get(id) ?? 0
+        visits.set(id, visit + 1)
+        const segments = nodePositions[id]
+        if (!segments?.length) {
+          breakRun()
+          return
+        }
+        const owns = !seen.has(id)
+        seen.add(id)
+        const first = segments[0]!
+        const last = segments.at(-1)!
+        const prev = run.at(-1)
+        const next = nodePositions[route[step + 1] ?? '']
+        const toNext = (p: NodeSegment) => {
+          const at = { x: p.x, y: p.y * yToX }
+          return next?.length
+            ? Math.min(gap(at, next[0]!), gap(at, next.at(-1)!))
+            : 0
+        }
+        const forward = prev
+          ? gap(prev, first) <= gap(prev, last)
+          : toNext(last) <= toNext(first)
+        if (prev && gap(prev, forward ? first : last) > jump) {
+          breakRun()
+        }
+        const middle = Math.floor(segments.length / 2)
+        for (let k = 0; k < segments.length; k++) {
+          const index = forward ? k : segments.length - 1 - k
+          const p = segments[index]!
+          run.push({
+            x: p.x,
+            y: p.y * yToX,
+            id,
+            index,
+            visit,
+            middle: index === middle,
+            forward,
+          })
+          mine.push(owns)
+        }
+      })
+      breakRun()
     }
-    route.forEach((id, step) => {
-      const segments = nodePositions[id]
-      if (!segments?.length) {
-        breakRun()
-        return
-      }
-      const first = segments[0]!
-      const last = segments.at(-1)!
-      const prev = run.at(-1)
-      const next = nodePositions[route[step + 1] ?? '']
-      const toNext = (p: NodeSegment) => {
-        const at = { x: p.x, y: p.y * yToX }
-        return next?.length
-          ? Math.min(gap(at, next[0]!), gap(at, next.at(-1)!))
-          : 0
-      }
-      const forward = prev
-        ? gap(prev, first) <= gap(prev, last)
-        : toNext(last) <= toNext(first)
-      if (prev && gap(prev, forward ? first : last) > jump) {
-        breakRun()
-      }
-      const middle = Math.floor(segments.length / 2)
-      for (let k = 0; k < segments.length; k++) {
-        const index = forward ? k : segments.length - 1 - k
-        const p = segments[index]!
-        run.push({
-          x: p.x,
-          y: p.y * yToX,
-          id,
-          index,
-          middle: index === middle,
-          forward,
-        })
-        mine.push(owns[r]![step]!)
-      }
-    })
-    breakRun()
   })
-  return { runs, owned }
+  return { runs, walkOf, owned }
 }
 
 function ownedWindows(
@@ -353,20 +358,65 @@ function rounded(run: readonly { x: number; y: number }[], half: number) {
   return out
 }
 
-function fieldSetter<T>(
-  field: Map<string, (T | undefined)[]>,
-  nodePositions: Record<string, NodeSegment[]>,
+export interface VisitFrame {
+  normals: (Normal | undefined)[]
+  shifts: (Shift | undefined)[]
+}
+
+// Which way each point's normal faces, so a walk's lanes keep the side the
+// node's first visit set. A point takes the sign its neighbours within `half`
+// agree on with the normals already set, in arc order; a stretch none of them
+// has seen takes the sign before it, and a run that meets no set normal at
+// all keeps the side its nodes read forward on.
+function runSigns(
+  run: readonly LinePoint[],
+  own: readonly (Normal | undefined)[],
+  canonical: (p: LinePoint) => Normal | undefined,
+  settle: (i: number, sign: 1 | -1) => void,
+  half: number,
 ) {
-  return ({ id, index }: LinePoint, value: T) => {
-    let own = field.get(id)
-    if (!own) {
-      own = new Array<T | undefined>(nodePositions[id]!.length)
-      field.set(id, own)
+  const s = arcOf(run)
+  const n = run.length
+  const agreement = new Float64Array(n)
+  let hi = 0
+  let lo = 0
+  let sum = 0
+  let decided: 0 | 1 | -1 = 0
+  let pending = 0
+  for (let i = 0; i < n; i++) {
+    while (hi < n && s[hi]! - s[i]! <= half) {
+      const theirs = canonical(run[hi]!)
+      const mine = own[hi]
+      agreement[hi] =
+        theirs && mine ? theirs.nx * mine.nx + theirs.ny * mine.ny : 0
+      sum += agreement[hi]!
+      hi++
     }
-    own[index] = value
+    while (s[i]! - s[lo]! > half) {
+      sum -= agreement[lo++]!
+    }
+    if (Math.abs(sum) > 1e-9) {
+      decided = sum < 0 ? -1 : 1
+    }
+    if (!decided) {
+      continue
+    }
+    for (; pending <= i; pending++) {
+      settle(pending, decided)
+    }
+  }
+  if (pending < n) {
+    const along = run.reduce((a, p) => a + (p.forward ? 1 : -1), 0)
+    for (; pending < n; pending++) {
+      settle(pending, along < 0 ? -1 : 1)
+    }
   }
 }
 
+// Each walk's visit to a node gets the walk's own frame there: the normal of
+// its smoothed route and, when `smooth`, the shift onto that route, so a lane
+// follows its own walk through a junction rather than whichever walk reached
+// the node first
 export function laneLines(
   lanes: LaneRuns,
   nodePositions: Record<string, NodeSegment[]>,
@@ -377,52 +427,57 @@ export function laneLines(
 ) {
   const turn = Math.max(reach, 2 * band)
   const curl = Math.PI * band
-  const margin = smooth ? curl + band / 2 + turn / 2 : turn / 2
-  const normals = new Map<string, (Normal | undefined)[]>()
-  const shifts = new Map<string, (Shift | undefined)[]>()
-  const setNormal = fieldSetter(normals, nodePositions)
-  const setShift = fieldSetter(shifts, nodePositions)
-  lanes.runs.forEach((run, r) => {
-    const owned = lanes.owned[r]!
-    const pieces = ownedWindows(arcOf(run), owned, margin).map(([lo, hi]) => {
-      const points = run.slice(lo, hi + 1)
-      const line: readonly { x: number; y: number }[] = smooth
-        ? rounded(cutCurls(points, band / 2, curl), band / 2)
-        : points
-      return { lo, points, line, normals: smoothedNormals(line, turn) }
+  const frames = Array.from(
+    { length: Math.max(-1, ...lanes.walkOf) + 1 },
+    () => new Map<string, VisitFrame[]>(),
+  )
+  const canonical = new Map<string, (Normal | undefined)[]>()
+  const frameOf = ({ id, visit }: LinePoint, walk: number) => {
+    const own = frames[walk]!
+    const visits = own.get(id) ?? []
+    own.set(id, visits)
+    const length = nodePositions[id]!.length
+    return (visits[visit] ??= {
+      normals: new Array<Normal | undefined>(length),
+      shifts: new Array<Shift | undefined>(length),
     })
-    let agree = 0
-    let along = 0
-    for (const piece of pieces) {
-      piece.points.forEach((p, i) => {
-        const theirs = normals.get(p.id)?.[p.index]
-        const mine = piece.normals[i]
-        if (theirs && mine) {
-          agree += theirs.nx * mine.nx + theirs.ny * mine.ny
-        }
-        along += p.forward ? 1 : -1
-      })
-    }
-    const sign = (agree === 0 ? along : agree) < 0 ? -1 : 1
-    for (const { lo, points, line, normals: own } of pieces) {
-      points.forEach((p, i) => {
-        if (!owned[lo + i]) {
-          return
-        }
+  }
+  lanes.runs.forEach((run, r) => {
+    const walk = lanes.walkOf[r]!
+    const owned = lanes.owned[r]!
+    const line: readonly { x: number; y: number }[] = smooth
+      ? rounded(cutCurls(run, band / 2, curl), band / 2)
+      : run
+    const own = smoothedNormals(line, turn)
+    runSigns(
+      run,
+      own,
+      p => canonical.get(p.id)?.[p.index],
+      (i, sign) => {
+        const p = run[i]!
+        const frame = frameOf(p, walk)
         const n = own[i]
-        if (n) {
-          setNormal(p, sign > 0 ? n : { nx: -n.nx, ny: -n.ny })
-        }
+        const faced = n && (sign > 0 ? n : { nx: -n.nx, ny: -n.ny })
+        frame.normals[p.index] = faced
         if (smooth) {
-          setShift(p, {
+          frame.shifts[p.index] = {
             dx: line[i]!.x - p.x,
             dy: (line[i]!.y - p.y) / yToX,
-          })
+          }
         }
-      })
-    }
+        if (owned[i] && faced) {
+          let set = canonical.get(p.id)
+          if (!set) {
+            set = new Array<Normal | undefined>(nodePositions[p.id]!.length)
+            canonical.set(p.id, set)
+          }
+          set[p.index] = faced
+        }
+      },
+      turn,
+    )
   })
-  return { normals, shifts }
+  return { frames }
 }
 
 function windowed(
@@ -492,6 +547,9 @@ export interface WalkThreads {
   nodeThreads: Map<string, readonly number[]>
   // which of the walk's visits to a node each of its threads carries
   threadPasses: Map<string, readonly number[]>
+  // where a node the walk visits once runs its thread, in thread pitches,
+  // where that falls between threads
+  threadAt: Map<string, readonly number[]>
   linkThreads: Map<string, Map<string, [number, number][]>>
 }
 
@@ -518,6 +576,7 @@ export function walkThreads(
       span: passes,
       nodeThreads: new Map(),
       threadPasses: new Map(),
+      threadAt: new Map(),
       linkThreads: new Map(),
     }
   }
@@ -528,6 +587,7 @@ export function walkThreads(
   const steps: number[][] = []
   const stepVisits: number[][] = []
   const stepWants: number[][] = []
+  const stepGlides: number[][] = []
   for (const piece of route) {
     const points: { x: number; y: number }[] = []
     const nodes: number[] = []
@@ -565,17 +625,26 @@ export function walkThreads(
       after[i] = last
     }
     const wants = new Array<number>(n)
+    const glides = new Array<number>(n).fill(NaN)
     for (let i = 0; i < n; i++) {
       const b = before[i]!
       const a = after[i]!
       const nearest =
         b < 0 ? a : a < 0 ? b : s[i]! - s[b]! <= s[a]! - s[i]! ? b : a
-      wants[i] = Math.min(copy[nearest]!, most[i]!) - 1
+      const want = (k: number) => Math.min(copy[k]!, most[i]!) - 1
+      wants[i] = want(nearest)
+      // a node the walk passes once has no other thread of its own to dodge,
+      // so it slides from the thread behind it to the one ahead
+      if (p[i] === 1 && b >= 0 && a >= 0 && want(a) !== want(b)) {
+        const f = (s[i]! - s[b]!) / (s[a]! - s[b]! || 1)
+        glides[i] = want(b) + (want(a) - want(b)) * f
+      }
       widths[nodes[i]!] = Math.max(widths[nodes[i]!]!, most[i]!)
     }
     steps.push(nodes)
     stepVisits.push(copy)
     stepWants.push(wants)
+    stepGlides.push(glides)
   }
   const taken: (Set<number> | undefined)[] = []
   const threadOf: (number[] | undefined)[] = []
@@ -591,19 +660,31 @@ export function walkThreads(
     }
     return want
   }
+  const glideOf: (number[] | undefined)[] = []
   steps.forEach((nodes, piece) => {
     nodes.forEach((k, i) => {
       if (widths[k]! > 1) {
-        const t = free(k, stepWants[piece]![i]!)
+        const glide = stepGlides[piece]![i]!
+        const t = free(
+          k,
+          Number.isNaN(glide) ? stepWants[piece]![i]! : Math.round(glide),
+        )
         taken[k]!.add(t)
         ;(threadOf[k] ??= [])[stepVisits[piece]![i]!] = t
+        if (!Number.isNaN(glide)) {
+          ;(glideOf[k] ??= [])[t] = glide
+        }
       }
     })
   })
   const span = new Map<string, number>()
   const nodeThreads = new Map<string, readonly number[]>()
   const threadPasses = new Map<string, readonly number[]>()
+  const threadAt = new Map<string, readonly number[]>()
   ids.forEach((id, k) => {
+    if (glideOf[k]) {
+      threadAt.set(id, glideOf[k])
+    }
     span.set(id, widths[k]!)
     nodeThreads.set(
       id,
@@ -638,7 +719,7 @@ export function walkThreads(
       }
     }
   })
-  return { span, nodeThreads, threadPasses, linkThreads }
+  return { span, nodeThreads, threadPasses, threadAt, linkThreads }
 }
 
 export function bandSpans(
@@ -677,6 +758,46 @@ export function bandSpans(
   return out
 }
 
+// Where each walk's first thread runs at each of its visits, eased along the
+// walk's own route, so a lane slides over smoothly where the band around it
+// gains or loses a walk rather than stepping at the node where it changes
+function visitCentres(
+  lanes: LaneRuns,
+  spans: ReadonlyMap<string, { slot: number[]; held: number[] }>,
+  passes: readonly number[],
+  half: number,
+) {
+  const plain = slotCentres(passes, passes)
+  const byNode = new Map<string, number[]>()
+  const centresAt = (id: string) => {
+    let centres = byNode.get(id)
+    if (!centres) {
+      const own = spans.get(id)
+      centres = own ? slotCentres(own.slot, passes, own.held) : plain
+      byNode.set(id, centres)
+    }
+    return centres
+  }
+  const out = passes.map(() => new Map<string, number[]>())
+  lanes.runs.forEach((run, r) => {
+    const walk = lanes.walkOf[r]!
+    const s = arcOf(run)
+    const mids = run.flatMap((p, i) => (p.middle ? [i] : []))
+    const eased = windowMean(
+      mids.map(i => s[i]!),
+      mids.map(i => centresAt(run[i]!.id)[walk]!),
+      half,
+    )
+    mids.forEach((i, k) => {
+      const { id, visit } = run[i]!
+      const own = out[walk]!.get(id) ?? []
+      own[visit] = eased[k]!
+      out[walk]!.set(id, own)
+    })
+  })
+  return out
+}
+
 export function liftLanes(
   walks: readonly LiftedWalk[],
   nodePositions: Record<string, NodeSegment[]>,
@@ -687,7 +808,7 @@ export function liftLanes(
   const passes = walks.map(w => w.mostPasses)
   const reach = THREAD_REACH_PX * worldPerScreenPx
   const runs = laneRuns(
-    walks.flatMap(w => w.route),
+    walks.map(w => w.route),
     nodePositions,
     yToX,
     LANE_SMOOTHING_PX * worldPerScreenPx,
@@ -710,12 +831,25 @@ export function liftLanes(
         { reach, taper: THREAD_TAPER_PX * worldPerScreenPx },
       )
     : undefined
+  const centres =
+    spans &&
+    visitCentres(runs, spans, passes, (THREAD_TAPER_PX / 2) * worldPerScreenPx)
   const furthestShift = { dx: 0, dy: 0 }
-  for (const own of lines.shifts.values()) {
-    for (const shift of own) {
-      furthestShift.dx = Math.max(furthestShift.dx, Math.abs(shift?.dx ?? 0))
-      furthestShift.dy = Math.max(furthestShift.dy, Math.abs(shift?.dy ?? 0))
+  for (const walk of lines.frames) {
+    for (const visits of walk.values()) {
+      for (const { shifts } of visits) {
+        for (const shift of shifts) {
+          furthestShift.dx = Math.max(
+            furthestShift.dx,
+            Math.abs(shift?.dx ?? 0),
+          )
+          furthestShift.dy = Math.max(
+            furthestShift.dy,
+            Math.abs(shift?.dy ?? 0),
+          )
+        }
+      }
     }
   }
-  return { lines, threads, spans, furthestShift }
+  return { lines, threads, spans, centres, furthestShift }
 }

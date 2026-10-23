@@ -51,7 +51,7 @@ import type {
   RenderBatch,
   Run,
 } from './types'
-import type { Normal } from './walkLanes'
+import type { Normal, VisitFrame } from './walkLanes'
 import type { AxisScale, BezierCurve } from '../util/geometry'
 
 // Colors flow through the geometry builder as ABGR-in-u32 (see colorBits.ts),
@@ -959,19 +959,34 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     pass: number,
   ) =>
     threaded
-      ? (centresOf(nodeId)[lane]! + pass * THREAD_PITCH_PX) * thinned
+      ? ((fields?.centres?.[lane]?.get(nodeId)?.[visitOf(lane, nodeId, pass)] ??
+          centresOf(nodeId)[lane]!) +
+          (threads?.[lane]?.threadAt.get(nodeId)?.[pass] ?? pass) *
+            THREAD_PITCH_PX) *
+        thinned
       : (lane - (liftedWalks.length - 1) / 2) * laneWidth
   const laneHalfWidth = (laneWidth: number) =>
     threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
-  const laneNormals = new Map<string, Normal[]>()
-  const laneNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
-    let normals = laneNormals.get(nodeId)
+  const plainNormals = new Map<string, Normal[]>()
+  const frameNormals = new WeakMap<VisitFrame, Normal[]>()
+  const frameOf = (lane: number, nodeId: string, visit: number) =>
+    lines?.frames[lane]?.get(nodeId)?.[visit]
+  const visitOf = (lane: number, nodeId: string, thread: number) =>
+    threads?.[lane]?.threadPasses.get(nodeId)?.[thread] ?? 0
+  const laneNormalsOf = (
+    nodeId: string,
+    segments: NodeSegment[],
+    frame: VisitFrame | undefined,
+  ) => {
+    let normals = frame ? frameNormals.get(frame) : plainNormals.get(nodeId)
     if (!normals) {
-      const smoothed = lines?.normals.get(nodeId)
-      normals = smoothed
-        ? pointNormalsOf(segments, yToX).map((n, i) => smoothed[i] ?? n)
-        : pointNormalsOf(segments, yToX)
-      laneNormals.set(nodeId, normals)
+      const plain = pointNormalsOf(segments, yToX)
+      normals = frame ? plain.map((n, i) => frame.normals[i] ?? n) : plain
+      if (frame) {
+        frameNormals.set(frame, normals)
+      } else {
+        plainNormals.set(nodeId, normals)
+      }
     }
     return normals
   }
@@ -990,15 +1005,20 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
     return width
   }
-  const laneShiftOf = (nodeId: string, index: number) =>
-    lines?.shifts.get(nodeId)?.[index] ?? NO_SHIFT
-  const laneEndOf = (id: string, segments: NodeSegment[], atStart: boolean) => {
+  const laneEndOf = (
+    id: string,
+    segments: NodeSegment[],
+    atStart: boolean,
+    lane: number,
+    thread: number,
+  ) => {
     const at = atStart ? 0 : segments.length - 1
+    const frame = frameOf(lane, id, visitOf(lane, id, thread))
     return {
       id,
       laneWidth: laneWidthOf(id),
-      normal: laneNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
-      shift: laneShiftOf(id, at),
+      normal: laneNormalsOf(id, segments, frame)[at] ?? { nx: 0, ny: 0 },
+      shift: frame?.shifts[at] ?? NO_SHIFT,
     }
   }
   const lanesMayShow = (curves: BezierCurve[], fromId: string) => {
@@ -1039,10 +1059,13 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     liftedWalks[lane]?.passColors.get(nodeId)?.[
       threads?.[lane]?.threadPasses.get(nodeId)?.[thread] ?? 0
     ]
-  const lanePointsOf = (nodeId: string, segments: NodeSegment[]) =>
-    lines?.shifts.has(nodeId)
+  const lanePointsOf = (
+    segments: NodeSegment[],
+    frame: VisitFrame | undefined,
+  ) =>
+    frame?.shifts.length
       ? segments.map((p, i) => {
-          const { dx, dy } = laneShiftOf(nodeId, i)
+          const { dx, dy } = frame.shifts[i] ?? NO_SHIFT
           return { ...p, x: p.x + dx, y: p.y + dy }
         })
       : segments
@@ -1210,27 +1233,37 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       continue
     }
     if (laneWalks) {
-      const from = laneEndOf(
-        edge.from,
+      const fromAtStart = leavesStart(
+        edge,
         fromSegments,
-        leavesStart(edge, fromSegments, baseCurves[0]!, stranded, yToX),
+        baseCurves[0]!,
+        stranded,
+        yToX,
       )
       const last = baseCurves.at(-1)!
-      const to = threaded
-        ? laneEndOf(
-            edge.to,
-            toSegments,
-            nearerStart({ x: last.x1, y: last.y1 }, toSegments, yToX),
-          )
-        : from
+      const toAtStart = nearerStart(
+        { x: last.x1, y: last.y1 },
+        toSegments,
+        yToX,
+      )
       const single = laneWalks.length === 1
-      const thickness = laneHalfWidth(from.laneWidth)
+      const thickness = laneHalfWidth(laneWidthOf(edge.from))
       for (let lane = 0; lane < laneWalks.length; lane++) {
         const walk = laneWalks[lane]!
         if (!walk.edgeIndexes.has(ei)) {
           continue
         }
         for (const [pass, toPass] of threadPairs(lane, edge.from, edge.to)) {
+          const from = laneEndOf(
+            edge.from,
+            fromSegments,
+            fromAtStart,
+            lane,
+            pass,
+          )
+          const to = threaded
+            ? laneEndOf(edge.to, toSegments, toAtStart, lane, toPass)
+            : from
           const offsetX = single
             ? 0
             : laneOffset(from.id, from.laneWidth, lane, pass) * worldPerScreenPx
@@ -1368,9 +1401,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : undefined
     if (drawable && lanes) {
       const laneWidth = walkLaneWidthPx(width, lanes.length)
-      const normals = lanes.length > 1 ? laneNormalsOf(nodeId, segments) : []
-      const points =
-        lanes.length > 1 ? lanePointsOf(nodeId, segments) : segments
       const thickness = laneHalfWidth(laneWidth)
       for (let lane = 0; lane < lanes.length; lane++) {
         const laneColor = lanes[lane]!.colors.get(nodeId)
@@ -1390,6 +1420,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             })
             continue
           }
+          const frame = frameOf(lane, nodeId, visitOf(lane, nodeId, pass))
+          const normals = laneNormalsOf(nodeId, segments, frame)
+          const points = lanePointsOf(segments, frame)
           const offsetX =
             laneOffset(nodeId, laneWidth, lane, pass) * worldPerScreenPx
           nodeStrokes.push({
