@@ -425,3 +425,105 @@ test('a drag that moves a node in place redraws its threads once the version cha
   nodePositions['v2+']![1]!.y += 6
   expect(build(1)).toEqual(build(1, true))
 })
+
+// A box of shared nodes, each followed by a node only one pass takes, that a
+// duplicated walk runs twice: out of the box and up round a loop back to its
+// start the first time, out and down the second, as the reference does
+function duplicatedBox() {
+  const ids: string[] = []
+  const at: Record<string, NodeSegment[]> = {}
+  const node = (id: string, x: number, y: number, dx = 2, dy = 0) => {
+    ids.push(id)
+    at[`${id}+`] = [
+      { x, y },
+      { x: x + dx, y: y + dy },
+    ]
+  }
+  for (let i = 0; i < 6; i++) {
+    node(`t${i}`, -60 + 10 * i, 0)
+  }
+  for (let i = 0; i < 12; i++) {
+    node(`s${i}`, 10 * i, 0, 3)
+    node(`a${i}`, 10 * i + 4, 0.6, 3)
+    node(`b${i}`, 10 * i + 4, -0.6, 3)
+  }
+  for (let i = 0; i < 24; i++) {
+    const t = (i / 23) * Math.PI
+    node(
+      `u${i}`,
+      60 + 70 * Math.cos(t),
+      50 * Math.sin(t) + 8 * (1 - i / 23),
+      1,
+      1,
+    )
+  }
+  for (let i = 0; i < 8; i++) {
+    node(`d${i}`, 120 + 10 * i, -10 * i)
+  }
+  const box = (alt: string) =>
+    Array.from({ length: 12 }, (_, i) => `>s${i}>${alt}${i}`).join('')
+  const run = (prefix: string, n: number) =>
+    Array.from({ length: n }, (_, i) => `>${prefix}${i}`).join('')
+  const ref = `${run('t', 6)}${box('a')}${run('d', 8)}`
+  const dup = `${run('t', 6)}${box('a')}${run('u', 24)}${box('b')}${run('d', 8)}`
+  const links = new Set<string>()
+  for (const w of [ref, dup]) {
+    const steps = [...w.matchAll(/>(\w+)/g)].map(m => m[1]!)
+    for (let i = 1; i < steps.length; i++) {
+      links.add(`L\t${steps[i - 1]}\t+\t${steps[i]}\t+\t0M`)
+    }
+  }
+  const gfa = [
+    ...ids.map(id => `S\t${id}\tA`),
+    ...links,
+    walk('ref', ref),
+    walk('dup', dup),
+  ].join('\n')
+  return { gfa, at }
+}
+
+test('a lane slides across a link by no more than half the link', () => {
+  const { gfa, at } = duplicatedBox()
+  const { batch } = drawn(gfa, ['ref#1#chr', 'dup#1#chr'], at)
+  for (const lane of batch.edgeCurves) {
+    const { normal, endNormal, offsetX = 0, endOffsetX = 0 } = lane
+    if (!normal || !endNormal) {
+      continue
+    }
+    const first = lane.curves[0]!
+    const last = lane.curves.at(-1)!
+    const slide = Math.hypot(
+      endNormal.nx * endOffsetX - normal.nx * offsetX,
+      endNormal.ny * endOffsetX - normal.ny * offsetX,
+    )
+    const along = Math.hypot(
+      last.x1 - endNormal.nx * endOffsetX - (first.x0 - normal.nx * offsetX),
+      last.y1 - endNormal.ny * endOffsetX - (first.y0 - normal.ny * offsetX),
+    )
+    expect(slide).toBeLessThanOrEqual(0.5 + along / 2)
+  }
+})
+
+test("a thread runs the way its walk does, even round a hairpin's inside", () => {
+  const { gfa, at } = duplicatedBox()
+  const { batch } = drawn(gfa, ['ref#1#chr', 'dup#1#chr'], at)
+  for (const s of batch.nodeStrokes) {
+    const normals = s.normals
+    if (s.walk === undefined || !normals) {
+      continue
+    }
+    const offsets = s.offsets ?? s.points.map(() => s.offsetX!)
+    const centre = s.points.map((p, k) => ({
+      x: p.x - normals[k]!.nx * offsets[k]!,
+      y: p.y - normals[k]!.ny * offsets[k]!,
+    }))
+    for (let k = 1; k < s.points.length; k++) {
+      const along =
+        (s.points[k]!.x - s.points[k - 1]!.x) *
+          (centre[k]!.x - centre[k - 1]!.x) +
+        (s.points[k]!.y - s.points[k - 1]!.y) *
+          (centre[k]!.y - centre[k - 1]!.y)
+      expect(along).toBeGreaterThanOrEqual(-1e-9)
+    }
+  }
+})
