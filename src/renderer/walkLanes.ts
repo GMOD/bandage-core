@@ -361,6 +361,8 @@ function rounded(run: readonly { x: number; y: number }[], half: number) {
 export interface VisitFrame {
   normals: (Normal | undefined)[]
   shifts: (Shift | undefined)[]
+  // px from the band's middle that the visit's thread runs at each point
+  offsets: (number | undefined)[]
 }
 
 // Which way each point's normal faces, so a walk's lanes keep the side the
@@ -441,6 +443,7 @@ export function laneLines(
     return (visits[visit] ??= {
       normals: new Array<Normal | undefined>(length),
       shifts: new Array<Shift | undefined>(length),
+      offsets: new Array<number | undefined>(length),
     })
   }
   lanes.runs.forEach((run, r) => {
@@ -763,12 +766,13 @@ export function bandSpans(
   return out
 }
 
-// How far each walk's visit runs its thread from the band's middle, in px,
-// eased along the walk's own route so a thread slides over smoothly where the
-// band gains or loses a walk or the thread changes place, rather than stepping
-// sideways at whichever node the change falls on
-function visitOffsets(
+// How far each walk's visit runs its thread from the band's middle at each
+// of its points, eased along the walk's own route so a thread slides over
+// smoothly where the band gains or loses a walk or the thread changes place,
+// rather than stepping sideways at whichever node boundary the change falls on
+function easeOffsets(
   lanes: LaneRuns,
+  frames: readonly Map<string, VisitFrame[]>[],
   arcs: readonly ArrayLike<number>[],
   spans: ReadonlyMap<string, { slot: number[]; held: number[] }>,
   passes: readonly number[],
@@ -791,27 +795,23 @@ function visitOffsets(
     const thread = Math.max(0, threadPasses.get(id)?.indexOf(visit) ?? 0)
     return threadAt.get(id)?.[thread] ?? thread
   }
-  const out = passes.map(() => new Map<string, number[]>())
   lanes.runs.forEach((run, r) => {
     const walk = lanes.walkOf[r]!
-    const s = arcs[r]!
-    const mids = run.flatMap((p, i) => (p.middle ? [i] : []))
     const eased = windowMean(
-      mids.map(i => s[i]!),
-      mids.map(i => {
-        const { id, visit } = run[i]!
-        return centresAt(id)[walk]! + placeOf(walk, id, visit) * THREAD_PITCH_PX
-      }),
+      Array.from(arcs[r]!),
+      run.map(
+        ({ id, visit }) =>
+          centresAt(id)[walk]! + placeOf(walk, id, visit) * THREAD_PITCH_PX,
+      ),
       half,
     )
-    mids.forEach((i, k) => {
-      const { id, visit } = run[i]!
-      const own = out[walk]!.get(id) ?? []
-      own[visit] = eased[k]!
-      out[walk]!.set(id, own)
+    run.forEach(({ id, visit, index }, i) => {
+      const frame = frames[walk]!.get(id)?.[visit]
+      if (frame) {
+        frame.offsets[index] = eased[i]
+      }
     })
   })
-  return out
 }
 
 export function liftLanes(
@@ -850,17 +850,17 @@ export function liftLanes(
         { reach, taper: THREAD_TAPER_PX * worldPerScreenPx },
       )
     : undefined
-  const offsets =
-    spans &&
-    threads &&
-    visitOffsets(
+  if (spans && threads) {
+    easeOffsets(
       runs,
+      lines.frames,
       lines.arcs,
       spans,
       passes,
       threads,
       (THREAD_TAPER_PX / 2) * worldPerScreenPx,
     )
+  }
   const furthestShift = { dx: 0, dy: 0 }
   for (const walk of lines.frames) {
     for (const visits of walk.values()) {
@@ -878,5 +878,5 @@ export function liftLanes(
       }
     }
   }
-  return { lines, threads, spans, offsets, furthestShift }
+  return { lines, threads, spans, furthestShift }
 }

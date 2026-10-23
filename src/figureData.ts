@@ -361,7 +361,7 @@ export function figureData(
             pass: s.pass ?? null,
             nx: s.normals?.[k]?.nx ?? 0,
             ny: s.normals?.[k]?.ny ?? 0,
-            offset: (s.offsetX ?? 0) * axis.scaleX,
+            offset: (s.offsets?.[k] ?? s.offsetX ?? 0) * axis.scaleX,
           })
         })
       }

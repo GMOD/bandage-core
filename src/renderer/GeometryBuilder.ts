@@ -356,14 +356,15 @@ function pointNormalsOf(rawPoints: Point[], yToX = 1) {
 function offsetPolyline(
   points: { x: number; y: number }[],
   normals: { nx: number; ny: number }[],
-  distance: number,
+  distance: number | readonly number[],
   yToX = 1,
 ) {
   const out = new Array<{ x: number; y: number }>(points.length)
   for (let i = 0; i < points.length; i++) {
+    const d = typeof distance === 'number' ? distance : distance[i]!
     out[i] = {
-      x: points[i]!.x + normals[i]!.nx * distance,
-      y: points[i]!.y + (normals[i]!.ny * distance) / yToX,
+      x: points[i]!.x + normals[i]!.nx * d,
+      y: points[i]!.y + (normals[i]!.ny * d) / yToX,
     }
   }
   return out
@@ -959,9 +960,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     pass: number,
   ) =>
     threaded
-      ? (fields?.offsets?.[lane]?.get(nodeId)?.[visitOf(lane, nodeId, pass)] ??
-          centresOf(nodeId)[lane]! + pass * THREAD_PITCH_PX) * thinned
+      ? (centresOf(nodeId)[lane]! + pass * THREAD_PITCH_PX) * thinned
       : (lane - (liftedWalks.length - 1) / 2) * laneWidth
+  // a thread's offset at one point of a node, eased along its walk
+  const threadOffsetAt = (
+    frame: VisitFrame | undefined,
+    at: number,
+    fallback: number,
+  ) => {
+    const eased = frame?.offsets[at]
+    return eased === undefined ? fallback : eased * thinned
+  }
   const laneHalfWidth = (laneWidth: number) =>
     threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
   const plainNormals = new Map<string, Normal[]>()
@@ -1011,11 +1020,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   ) => {
     const at = atStart ? 0 : segments.length - 1
     const frame = frameOf(lane, id, visitOf(lane, id, thread))
+    const laneWidth = laneWidthOf(id)
     return {
       id,
-      laneWidth: laneWidthOf(id),
+      laneWidth,
       normal: laneNormalsOf(id, segments, frame)[at] ?? { nx: 0, ny: 0 },
       shift: frame?.shifts[at] ?? NO_SHIFT,
+      offset: threadOffsetAt(
+        frame,
+        at,
+        laneOffset(id, laneWidth, lane, thread),
+      ),
     }
   }
   const lanesMayShow = (curves: BezierCurve[], fromId: string) => {
@@ -1261,12 +1276,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           const to = threaded
             ? laneEndOf(edge.to, toSegments, toAtStart, lane, toPass)
             : from
-          const offsetX = single
-            ? 0
-            : laneOffset(from.id, from.laneWidth, lane, pass) * worldPerScreenPx
-          const endOffsetX = threaded
-            ? laneOffset(to.id, to.laneWidth, lane, toPass) * worldPerScreenPx
-            : offsetX
+          const offsetX = single ? 0 : from.offset * worldPerScreenPx
+          const endOffsetX = threaded ? to.offset * worldPerScreenPx : offsetX
           const curves = threaded
             ? slideCurves(
                 baseCurves,
@@ -1420,16 +1431,24 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           const frame = frameOf(lane, nodeId, visitOf(lane, nodeId, pass))
           const normals = laneNormalsOf(nodeId, segments, frame)
           const points = lanePointsOf(segments, frame)
-          const offsetX =
-            laneOffset(nodeId, laneWidth, lane, pass) * worldPerScreenPx
+          const plain = laneOffset(nodeId, laneWidth, lane, pass)
+          const offsets = frame?.offsets.some(o => o !== undefined)
+            ? segments.map(
+                (_, i) => threadOffsetAt(frame, i, plain) * worldPerScreenPx,
+              )
+            : undefined
+          const offsetX = offsets
+            ? offsets[Math.floor(offsets.length / 2)]!
+            : plain * worldPerScreenPx
           nodeStrokes.push({
-            points: offsetPolyline(points, normals, offsetX, yToX),
+            points: offsetPolyline(points, normals, offsets ?? offsetX, yToX),
             thickness,
             color,
             walk: lane,
             pass,
             normals,
             offsetX,
+            ...(offsets && { offsets }),
           })
         }
       }
