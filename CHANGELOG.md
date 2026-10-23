@@ -1,3 +1,18 @@
+## [11.13.0](https://github.com/GMOD/bandage-core/compare/v11.12.0...v11.13.0) (2026-10-23)
+
+### Other Changes
+
+- Give each walk's visit to a node its own lane frame ([ab1cffa](https://github.com/GMOD/bandage-core/commit/ab1cffa36204cfefa3e92a53821b52fd8c597cbc))
+- Ease each visit's whole thread offset along its walk ([597bc24](https://github.com/GMOD/bandage-core/commit/597bc24d1afa09ee19d9255e7a0c2a6eca1edd02))
+- Ease a thread's offset point by point along its walk ([9d23337](https://github.com/GMOD/bandage-core/commit/9d233378fea70f32aa93671b485eda4cfd162206))
+- Smooth a lane's line again where it turns tighter than the band ([1035eee](https://github.com/GMOD/bandage-core/commit/1035eee540097630dbe0c782974fd45ada2baffd))
+- Test that lanes slide gently across links and never fold at a hairpin ([133672c](https://github.com/GMOD/bandage-core/commit/133672c1bf227ac17a23868401a10ebe98414d90))
+- Draw the duplicated box at a scale where its band outgrows its nodes ([f32f799](https://github.com/GMOD/bandage-core/commit/f32f7998fbc43c6e429f6e4ec346f7f83d4cc337))
+- Share the first visit's frame wherever a walk runs its way ([d3e1158](https://github.com/GMOD/bandage-core/commit/d3e1158cf590032c59b6a09842b42e81854778a5))
+- Lay lane runs out by step in flat arrays, and cache steps across zooms ([11454e0](https://github.com/GMOD/bandage-core/commit/11454e00c44d3951fd8e39e91a1a2c1b63e9ee13))
+- Keep one offset for a visit whose thread runs level along its node ([11cb0ca](https://github.com/GMOD/bandage-core/commit/11cb0caa57620cb7f98b61c08c88aff130534d17))
+- Share a frame only where every step in reach runs the first visit's way ([c73d774](https://github.com/GMOD/bandage-core/commit/c73d774c165948f805d6ffe0947f0bbb8d8b2e84))
+
 ## [11.12.0](https://github.com/GMOD/bandage-core/compare/v11.11.1...v11.12.0) (2026-10-23)
 
 ### Other Changes
