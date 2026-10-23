@@ -63,6 +63,22 @@ export interface WalkLift {
   names: Set<string>
 }
 
+// What a lift's faded key says: that the faded drawing is other haplotypes'
+// sequence when every node it fades lies on another of the graph's paths.
+// Links don't count, since a cut keeps the source graph's links between the
+// nodes it keeps even where it drops the walks that take them.
+export function fadedKey(graph: Graph, lift: WalkLift, walks: string) {
+  const onPaths = new Set<string>()
+  for (const path of graph.paths ?? []) {
+    for (const id of path.nodeIds) {
+      onPaths.add(id)
+    }
+  }
+  return graph.nodes.every(n => lift.nodeIds.has(n.id) || onPaths.has(n.id))
+    ? 'only in other haplotypes'
+    : `nodes and links not on ${walks}`
+}
+
 const isReference = (graph: Graph, name: string) =>
   !!graph.referencePath && pathOrigin(name).name === graph.referencePath
 

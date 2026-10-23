@@ -39,7 +39,21 @@ test('a figure is one standalone SVG of the drawing', () => {
 test('lifted walks are keyed above the drawing, one short entry each', () => {
   const svg = figureSvg(graph, layout, { width: 600, walks: walks.slice(0, 2) })
   expect(svg).toMatch(/<tspan font-weight="bold">ref[^<]*<\/tspan>/)
-  expect(svg).toContain('nodes and links not on these walks')
+})
+
+test('the faded key calls the faded nodes other haplotypes only when a path visits each one', () => {
+  const ref = [{ walk: 'ref#0#chr' }]
+  expect(figureSvg(graph, layout, { width: 600, walks: ref })).toContain(
+    'only in other haplotypes',
+  )
+  const loose = anchorGraph(
+    convertGFAToGraph(parseGFA(`${GFA}\nS\tx1\tA\nL\tv3\t+\tx1\t+\t0M`)),
+    'ref',
+  )
+  const looseLayout = layoutModeByValue('ordered').run(loose, undefined)!
+  expect(figureSvg(loose, looseLayout, { width: 600, walks: ref })).toContain(
+    'nodes and links not on ref',
+  )
 })
 
 test('a key too wide for the figure wraps onto more lines above the drawing', () => {

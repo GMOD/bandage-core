@@ -37,6 +37,7 @@ import { nodesUnderBox } from './util/hitDetection'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
+import { fadedKey } from './walkHighlight'
 import { rangeText } from './walkKey'
 
 import type { ColorScheme } from './colorSchemes'
@@ -427,7 +428,13 @@ export function figureSvg(
           y,
           [{ offset: 0, color: FADED }],
           '',
-          `nodes and links not on ${lift.walks.length === 1 ? labelOf(lift.walks[0]!.name) : 'these walks'}`,
+          fadedKey(
+            graph,
+            lift,
+            lift.walks.length === 1
+              ? labelOf(lift.walks[0]!.name)
+              : 'these walks',
+          ),
           undefined,
           0.3,
         ),

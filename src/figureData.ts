@@ -18,6 +18,7 @@ import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
+import { fadedKey } from './walkHighlight'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
@@ -438,6 +439,16 @@ export function figureData(
           }
         : null,
       deletions: drawnDeletions.shown.length,
+      // what the key for the drawing a lift fades says
+      fadedKey: lift
+        ? fadedKey(
+            graph,
+            lift,
+            lift.walks.length === 1
+              ? labelOf(lift.walks[0]!.name)
+              : 'these walks',
+          )
+        : null,
     },
     panels: {
       panel: panels.map(p => p.name),
