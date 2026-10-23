@@ -982,7 +982,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     at: number,
     fallback: number,
   ) => {
-    const eased = frame?.offsets[at]
+    const eased = frame?.offsets?.[at] ?? frame?.offset
     return eased === undefined ? fallback : eased * thinned
   }
   const laneHalfWidth = (laneWidth: number) =>
@@ -1043,7 +1043,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   ) => {
     const at = atStart ? 0 : segments.length - 1
     const frame = frames?.[lane]?.[visitOf(lane, id, thread)]
-    const eased = frame?.offsets[at]
+    const eased = frame?.offsets?.[at] ?? frame?.offset
     return {
       normal: frame?.normals[at] ??
         plainNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
@@ -1466,14 +1466,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           const normals = laneNormalsOf(nodeId, segments, frame)
           const points = lanePointsOf(segments, frame)
           const plain = laneOffset(nodeId, laneWidth, lane, pass)
-          const offsets = frame?.offsets.some(o => o !== undefined)
-            ? segments.map(
-                (_, i) => threadOffsetAt(frame, i, plain) * worldPerScreenPx,
-              )
-            : undefined
+          const offsets = frame?.offsets?.map(
+            o => o * thinned * worldPerScreenPx,
+          )
           const offsetX = offsets
             ? offsets[Math.floor(offsets.length / 2)]!
-            : plain * worldPerScreenPx
+            : threadOffsetAt(frame, 0, plain) * worldPerScreenPx
           nodeStrokes.push({
             points: offsetPolyline(points, normals, offsets ?? offsetX, yToX),
             thickness,

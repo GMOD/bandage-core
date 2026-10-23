@@ -505,8 +505,10 @@ function loosened(line: readonly { x: number; y: number }[], radius: number) {
 export interface VisitFrame {
   normals: (Normal | undefined)[]
   shifts: (Shift | undefined)[]
-  // px from the band's middle that the visit's thread runs at each point
-  offsets: (number | undefined)[]
+  // px from the band's middle that the visit's thread runs: `offset` along
+  // the whole node, or `offsets` at each point where it changes along it
+  offset?: number
+  offsets?: number[]
 }
 
 // Which way each point's normal faces, so a walk's lanes keep the side the
@@ -589,7 +591,6 @@ export function laneLines(
   const newFrame = (length: number): VisitFrame => ({
     normals: new Array<Normal | undefined>(length),
     shifts: smooth ? new Array<Shift | undefined>(length) : [],
-    offsets: smooth ? new Array<number | undefined>(length) : [],
   })
   const place = (id: string, walk: number, visit: number, f: VisitFrame) => {
     let byWalk = frames.get(id)
@@ -668,11 +669,7 @@ export function laneLines(
         !smooth && shared[i]
           ? first
           : shared[i]
-            ? {
-                normals: first.normals,
-                shifts: first.shifts,
-                offsets: new Array<number | undefined>(first.offsets.length),
-              }
+            ? { normals: first.normals, shifts: first.shifts }
             : newFrame(first.normals.length)
       place(ids[i]!, walk, visits[i]!, own[i]!)
     }
@@ -1055,7 +1052,7 @@ function easeOffsets(
     return centres
   }
   runs.forEach((run, r) => {
-    const { walk, ids, visits, starts, stepOf } = run
+    const { walk, ids, visits, starts } = run
     const { threadPasses, threadAt } = threads[walk]!
     const raw = new Float64Array(run.xs.length)
     ids.forEach((id, i) => {
@@ -1068,10 +1065,23 @@ function easeOffsets(
       )
     })
     const eased = windowMean(arcs[r]!, raw, half)
-    const frames = stepFrames[r]!
-    for (let p = 0; p < raw.length; p++) {
-      frames[stepOf[p]!]!.offsets[pointIndex(run, p)] = eased[p]
-    }
+    stepFrames[r]!.forEach((frame, i) => {
+      const from = starts[i]!
+      const to = starts[i + 1]!
+      let constant = true
+      for (let p = from + 1; constant && p < to; p++) {
+        constant = Math.abs(eased[p]! - eased[from]!) < 1e-9
+      }
+      if (constant) {
+        frame.offset = eased[from]
+        return
+      }
+      const offsets = new Array<number>(to - from)
+      for (let p = from; p < to; p++) {
+        offsets[pointIndex(run, p)] = eased[p]!
+      }
+      frame.offsets = offsets
+    })
   })
 }
 
