@@ -1,6 +1,7 @@
+import { isBackbone } from './anchoredNodes'
 import { gapParts } from './gfa/walkStops'
 import { panSNContig } from './pansn'
-import { pathOrigin } from './pathAnchoring'
+import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { rampFraction } from './renderer/GeometryBuilder'
 import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
 
@@ -206,23 +207,77 @@ function highlightOf(
 
 // Each visit's value for the walk's field, through its scheme
 function laneColors(
+  graph: Graph,
   byId: Map<string, GraphNode>,
   walk: WalkHighlight,
   encoding: WalkEncoding,
   ramp: ReferenceRamp | undefined,
 ) {
+  const places =
+    encoding.field === 'progress' || !ramp
+      ? undefined
+      : referencePlaces(graph, byId, walk, ramp)
   const colors = new Map<string, number>()
   const passColors = new Map<string, number[]>()
   for (const [id, progress] of walk.passProgress) {
-    const node = byId.get(id)
-    const atNode = ramp && node ? rampFraction(node, ramp) : undefined
-    const each = progress.map(t =>
-      encodedColor(encoding, encoding.field === 'progress' ? t : atNode),
+    const at = places?.get(id)
+    const each = progress.map((t, pass) =>
+      encodedColor(encoding, places ? at?.[pass] : t),
     )
     colors.set(id, each[0]!)
     passColors.set(id, each)
   }
   return { colors, passColors }
+}
+
+// Each visit's fraction along the ramp, in the order the walk makes them. A
+// node the reference walks more than once takes the copy nearest where the
+// walk last left the reference, as walk rows place it, so each pass through a
+// collapsed repeat takes its own copy's hue
+function referencePlaces(
+  graph: Graph,
+  byId: Map<string, GraphNode>,
+  walk: WalkHighlight,
+  ramp: ReferenceRamp,
+) {
+  const startsOf = referenceVisitStarts(graph)
+  const places = new Map<string, (number | undefined)[]>()
+  for (const piece of walk.route) {
+    let cursor = Number.NaN
+    let last = Number.NaN
+    for (const id of piece) {
+      const node = byId.get(id)
+      let t = node && rampFraction(node, ramp)
+      if (node && t !== undefined && isBackbone(node)) {
+        const starts = startsOf(node)
+        const len = node.length
+        let at = starts[0]!
+        if (starts.length > 1 && !Number.isNaN(cursor)) {
+          let gap = Infinity
+          for (const start of starts) {
+            const g = Math.min(
+              Math.abs(start - cursor),
+              Math.abs(start + len - cursor),
+            )
+            if (g < gap) {
+              at = start
+              gap = g
+            }
+          }
+          t = (at + len / 2 - ramp.start) / ramp.span
+        }
+        cursor = at + len === last ? at : at + len
+        last = at
+      }
+      const seen = places.get(id)
+      if (seen) {
+        seen.push(t)
+      } else {
+        places.set(id, [t])
+      }
+    }
+  }
+  return places
 }
 
 // The nodes a walk reads on the other strand from the reference walk
@@ -290,7 +345,7 @@ export function walkLift(
     return {
       ...walk,
       encoding,
-      ...laneColors(index.byId, walk, encoding, ramp),
+      ...laneColors(graph, index.byId, walk, encoding, ramp),
       reversed,
       reversedBp: bp,
     }
@@ -322,7 +377,7 @@ export function facetLifts(
         {
           ...walk,
           encoding,
-          ...laneColors(byId, walk, encoding, ramp),
+          ...laneColors(graph, byId, walk, encoding, ramp),
         },
       ],
       ramp,

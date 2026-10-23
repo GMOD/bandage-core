@@ -342,6 +342,33 @@ test('a repeat shades each pass at its own place along the walk', () => {
   expect(dup!.colors.get('v1+')).toBe(dup!.passColors.get('v1+')![0])
 })
 
+// ref walks the repeat v1 twice, at 0 and 6; tail walks it once, after v2
+const COPIES = `S\tv1\tAAAA
+S\tv2\tCC
+S\tv3\tGGG
+L\tv1\t+\tv2\t+\t0M
+L\tv2\t+\tv1\t+\t0M
+L\tv1\t+\tv3\t+\t0M
+W\tref\t0\tchr\t0\t13\t>v1>v2>v1>v3
+W\ttail\t1\tchr\t0\t9\t>v2>v1>v3`
+
+test('each pass through a collapsed repeat takes its own copy on the reference', () => {
+  const copies = anchorGraph(convertGFAToGraph(parseGFA(COPIES)), 'ref')
+  const ramp = computeReferenceRamp(copies, { start: 0, end: 13 })
+  const [ref, tail] = walkLift(
+    copies,
+    [
+      { walk: 'ref#0#chr', color: { field: 'reference', scheme: 'rainbow' } },
+      { walk: 'tail#1#chr', color: { field: 'reference', scheme: 'rainbow' } },
+    ],
+    ramp,
+  )!.walks
+  const at = (w: typeof ref, mids: number[]) =>
+    mids.map(mid => encodedColor(w!.encoding, mid / 13))
+  expect(ref!.passColors.get('v1+')).toEqual(at(ref, [2, 8]))
+  expect(tail!.passColors.get('v1+')).toEqual(at(tail, [8]))
+})
+
 test('walks lifted together shade no darker than mid-lightness, alone they do', () => {
   const [, alt] = walkLift(graph, [
     { walk: 'ref#0#chr', color: { field: 'progress' } },
