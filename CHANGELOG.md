@@ -1,3 +1,9 @@
+## [11.11.1](https://github.com/GMOD/bandage-core/compare/v11.11.0...v11.11.1) (2026-10-23)
+
+### Other Changes
+
+- Colour each pass of a lane by its own reference copy ([bc26053](https://github.com/GMOD/bandage-core/commit/bc260530fbc54d4e6ba8d3164ccbc18ed810d985))
+
 ## [11.11.0](https://github.com/GMOD/bandage-core/compare/v11.10.0...v11.11.0) (2026-10-22)
 
 ### Other Changes
