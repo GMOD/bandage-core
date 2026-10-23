@@ -115,7 +115,7 @@ export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export { deletionDrawing, deletionEdges } from './deletionEdges'
 export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
-export { facetLifts, walkHighlight, walkLift } from './walkHighlight'
+export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
 export { figureData, gfaFigureData } from './figureData'
