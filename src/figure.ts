@@ -427,7 +427,7 @@ export function figureSvg(
           y,
           [{ offset: 0, color: FADED }],
           '',
-          `not on ${lift.walks.length === 1 ? labelOf(lift.walks[0]!.name) : 'these walks'}`,
+          `nodes and links not on ${lift.walks.length === 1 ? labelOf(lift.walks[0]!.name) : 'these walks'}`,
           undefined,
           0.3,
         ),

@@ -39,7 +39,7 @@ test('a figure is one standalone SVG of the drawing', () => {
 test('lifted walks are keyed above the drawing, one short entry each', () => {
   const svg = figureSvg(graph, layout, { width: 600, walks: walks.slice(0, 2) })
   expect(svg).toMatch(/<tspan font-weight="bold">ref[^<]*<\/tspan>/)
-  expect(svg).toContain('not on these walks')
+  expect(svg).toContain('nodes and links not on these walks')
 })
 
 test('a key too wide for the figure wraps onto more lines above the drawing', () => {
