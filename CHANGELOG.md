@@ -1,3 +1,9 @@
+## [11.16.0](https://github.com/GMOD/bandage-core/compare/v11.15.0...v11.16.0) (2026-10-23)
+
+### Other Changes
+
+- Key the dashed deletion links in a figure, with deletionKey's words ([107d31c](https://github.com/GMOD/bandage-core/commit/107d31c4334108325ea8e9c920067a35a28be8d6))
+
 ## [11.15.0](https://github.com/GMOD/bandage-core/compare/v11.14.0...v11.15.0) (2026-10-23)
 
 ### Other Changes
