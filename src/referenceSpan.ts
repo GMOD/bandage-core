@@ -123,3 +123,25 @@ export function referenceMidpoints(graph: Graph) {
   }
   return midpoints
 }
+
+// referenceMidpoints, with an allele chain too long for its flank search
+// taking the nearest placed node's midpoint. Only a node nothing links to the
+// reference stays unplaced.
+export function referencePositions(graph: Graph) {
+  const positions = referenceMidpoints(graph)
+  const neighbors = buildNeighbors(graph)
+  let frontier = [...positions.keys()]
+  while (frontier.length > 0) {
+    const next: string[] = []
+    for (const id of frontier) {
+      for (const neighborId of neighbors.get(id) ?? []) {
+        if (!positions.has(neighborId)) {
+          positions.set(neighborId, positions.get(id)!)
+          next.push(neighborId)
+        }
+      }
+    }
+    frontier = next
+  }
+  return positions
+}

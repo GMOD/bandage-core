@@ -59,6 +59,33 @@ test('the node table counts how often the reference walks each node', async () =
   expect(d.meta.deletions).toBe(1)
 })
 
+test('the node table places each node on the reference, alleles by their flanks', async () => {
+  const chain = Array.from({ length: 12 }, (_, i) => `c${i}`)
+  const gfa = [
+    ...[100, 10, 20, 100].map((n, id) => `S\t${id}\t${'A'.repeat(n)}`),
+    ...chain.map(id => `S\t${id}\tAAAA`),
+    'S\tlone\tAAAA',
+    'P\tref#0#chr:1000-1210\t0+,1+,3+\t*',
+    'P\ta#1#c\t0+,2+,3+\t*',
+    `P\tb#1#c\t0+,${chain.map(id => `${id}+`).join(',')},3+\t*`,
+    ...['0 1', '1 3', '0 2', '2 3', '0 c0', 'c11 3'].map(pair => {
+      const [from, to] = pair.split(' ')
+      return `L\t${from}\t+\t${to}\t+\t0M`
+    }),
+    ...chain.slice(1).map((id, i) => `L\t${chain[i]}\t+\t${id}\t+\t0M`),
+  ].join('\n')
+  const d = await gfaFigureData(gfa, 'bubble', { engine: 'stress' })
+  const positions = Object.fromEntries(
+    d.nodeInfo.name.map((name, i) => [name, d.nodeInfo.position[i]]),
+  )
+  expect(positions).toMatchObject({ 0: 1050, 1: 1105, 2: 1105, 3: 1160 })
+  expect(positions.lone).toBeNull()
+  for (const id of chain) {
+    expect(positions[id]).toBeGreaterThanOrEqual(1050)
+    expect(positions[id]).toBeLessThanOrEqual(1160)
+  }
+})
+
 test('a panel per walk, its walk lifted and the rest faded', async () => {
   const d = await gfaFigureData(read('ecoli_pggb_subgraph.gfa'), 'ecoli', {
     engine: 'stress',

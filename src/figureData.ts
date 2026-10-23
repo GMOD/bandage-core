@@ -12,6 +12,7 @@ import {
   forceLayout,
   loadGraph,
 } from './pipeline'
+import { referencePositions } from './referenceSpan'
 import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
 import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
@@ -418,6 +419,7 @@ export function figureData(
   }
 
   const startsOf = referenceVisitStarts(graph)
+  const positions = referencePositions(graph)
   return {
     meta: {
       generator: `@jbrowse/bandage-core@${version}`,
@@ -459,6 +461,7 @@ export function figureData(
       referenceVisits: graph.nodes.map(n =>
         isBackbone(n) ? startsOf(n).length : 0,
       ),
+      position: graph.nodes.map(n => positions.get(n.id) ?? null),
     },
     rowLabels: {
       label: (layout.rowLabels ?? []).map(r => r.label),
