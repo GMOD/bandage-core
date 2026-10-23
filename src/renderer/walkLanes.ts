@@ -370,12 +370,12 @@ export interface VisitFrame {
 // all keeps the side its nodes read forward on.
 function runSigns(
   run: readonly LinePoint[],
+  s: ArrayLike<number>,
   own: readonly (Normal | undefined)[],
   canonical: (p: LinePoint) => Normal | undefined,
   settle: (i: number, sign: 1 | -1) => void,
   half: number,
 ) {
-  const s = arcOf(run)
   const n = run.length
   const agreement = new Float64Array(n)
   let hi = 0
@@ -432,6 +432,7 @@ export function laneLines(
     () => new Map<string, VisitFrame[]>(),
   )
   const canonical = new Map<string, (Normal | undefined)[]>()
+  const arcs: Float64Array[] = []
   const frameOf = ({ id, visit }: LinePoint, walk: number) => {
     const own = frames[walk]!
     const visits = own.get(id) ?? []
@@ -449,8 +450,11 @@ export function laneLines(
       ? rounded(cutCurls(run, band / 2, curl), band / 2)
       : run
     const own = smoothedNormals(line, turn)
+    const s = arcOf(line)
+    arcs.push(s)
     runSigns(
       run,
+      s,
       own,
       p => canonical.get(p.id)?.[p.index],
       (i, sign) => {
@@ -477,7 +481,7 @@ export function laneLines(
       turn,
     )
   })
-  return { frames }
+  return { frames, arcs }
 }
 
 function windowed(
@@ -724,12 +728,13 @@ export function walkThreads(
 
 export function bandSpans(
   lanes: LaneRuns,
+  arcs: readonly ArrayLike<number>[],
   spans: readonly ReadonlyMap<string, number>[],
   { reach, taper }: { reach: number; taper: number },
 ) {
   const out = new Map<string, { slot: number[]; held: number[] }>()
   lanes.runs.forEach((run, r) => {
-    const s = arcOf(run)
+    const s = arcs[r]!
     const mids = run.flatMap((p, i) => (p.middle ? [i] : []))
     const along = mids.map(i => s[i]!)
     const owned = mids.map(i => lanes.owned[r]![i]!)
@@ -758,13 +763,16 @@ export function bandSpans(
   return out
 }
 
-// Where each walk's first thread runs at each of its visits, eased along the
-// walk's own route, so a lane slides over smoothly where the band around it
-// gains or loses a walk rather than stepping at the node where it changes
-function visitCentres(
+// How far each walk's visit runs its thread from the band's middle, in px,
+// eased along the walk's own route so a thread slides over smoothly where the
+// band gains or loses a walk or the thread changes place, rather than stepping
+// sideways at whichever node the change falls on
+function visitOffsets(
   lanes: LaneRuns,
+  arcs: readonly ArrayLike<number>[],
   spans: ReadonlyMap<string, { slot: number[]; held: number[] }>,
   passes: readonly number[],
+  threads: readonly WalkThreads[],
   half: number,
 ) {
   const plain = slotCentres(passes, passes)
@@ -778,14 +786,22 @@ function visitCentres(
     }
     return centres
   }
+  const placeOf = (walk: number, id: string, visit: number) => {
+    const { threadPasses, threadAt } = threads[walk]!
+    const thread = Math.max(0, threadPasses.get(id)?.indexOf(visit) ?? 0)
+    return threadAt.get(id)?.[thread] ?? thread
+  }
   const out = passes.map(() => new Map<string, number[]>())
   lanes.runs.forEach((run, r) => {
     const walk = lanes.walkOf[r]!
-    const s = arcOf(run)
+    const s = arcs[r]!
     const mids = run.flatMap((p, i) => (p.middle ? [i] : []))
     const eased = windowMean(
       mids.map(i => s[i]!),
-      mids.map(i => centresAt(run[i]!.id)[walk]!),
+      mids.map(i => {
+        const { id, visit } = run[i]!
+        return centresAt(id)[walk]! + placeOf(walk, id, visit) * THREAD_PITCH_PX
+      }),
       half,
     )
     mids.forEach((i, k) => {
@@ -813,12 +829,14 @@ export function liftLanes(
     yToX,
     LANE_SMOOTHING_PX * worldPerScreenPx,
   )
+  const band =
+    bandWidthPx(passes) * (threaded ? bandScale(passes) : 1) * worldPerScreenPx
   const lines = laneLines(
     runs,
     nodePositions,
     yToX,
     LANE_SMOOTHING_PX * worldPerScreenPx,
-    bandWidthPx(passes) * (threaded ? bandScale(passes) : 1) * worldPerScreenPx,
+    band,
     threaded,
   )
   const threads = threaded
@@ -827,13 +845,22 @@ export function liftLanes(
   const spans = threads
     ? bandSpans(
         runs,
+        lines.arcs,
         threads.map(t => t.span),
         { reach, taper: THREAD_TAPER_PX * worldPerScreenPx },
       )
     : undefined
-  const centres =
+  const offsets =
     spans &&
-    visitCentres(runs, spans, passes, (THREAD_TAPER_PX / 2) * worldPerScreenPx)
+    threads &&
+    visitOffsets(
+      runs,
+      lines.arcs,
+      spans,
+      passes,
+      threads,
+      (THREAD_TAPER_PX / 2) * worldPerScreenPx,
+    )
   const furthestShift = { dx: 0, dy: 0 }
   for (const walk of lines.frames) {
     for (const visits of walk.values()) {
@@ -851,5 +878,5 @@ export function liftLanes(
       }
     }
   }
-  return { lines, threads, spans, centres, furthestShift }
+  return { lines, threads, spans, offsets, furthestShift }
 }

@@ -959,11 +959,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     pass: number,
   ) =>
     threaded
-      ? ((fields?.centres?.[lane]?.get(nodeId)?.[visitOf(lane, nodeId, pass)] ??
-          centresOf(nodeId)[lane]!) +
-          (threads?.[lane]?.threadAt.get(nodeId)?.[pass] ?? pass) *
-            THREAD_PITCH_PX) *
-        thinned
+      ? (fields?.offsets?.[lane]?.get(nodeId)?.[visitOf(lane, nodeId, pass)] ??
+          centresOf(nodeId)[lane]! + pass * THREAD_PITCH_PX) * thinned
       : (lane - (liftedWalks.length - 1) / 2) * laneWidth
   const laneHalfWidth = (laneWidth: number) =>
     threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
