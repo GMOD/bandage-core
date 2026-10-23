@@ -1,3 +1,12 @@
+## [11.14.0](https://github.com/GMOD/bandage-core/compare/v11.13.0...v11.14.0) (2026-10-23)
+
+### Other Changes
+
+- Record why hairpin tips keep their pull-back, in the first ADR ([065dbb2](https://github.com/GMOD/bandage-core/commit/065dbb24d6d5e0220eb08861da2ca131a9c3aa78))
+- Record why slot order stays walk order, in ADR 0002 ([fa15919](https://github.com/GMOD/bandage-core/commit/fa15919b119d26cc4c2095a3b96fd5b5646292c9))
+- Name what the faded key stands for in a figure's legend ([8d61292](https://github.com/GMOD/bandage-core/commit/8d612929e73eb8f4f9ba62168f6242448cb0fb2e))
+- Call a lift's faded drawing other haplotypes' when paths visit every faded node ([f06f4e8](https://github.com/GMOD/bandage-core/commit/f06f4e8444ffe1f90b0c2d7dddc2a27a38b85b51))
+
 ## [11.13.0](https://github.com/GMOD/bandage-core/compare/v11.12.0...v11.13.0) (2026-10-23)
 
 ### Other Changes
