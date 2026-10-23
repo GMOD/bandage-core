@@ -1,3 +1,9 @@
+## [11.12.0](https://github.com/GMOD/bandage-core/compare/v11.11.1...v11.12.0) (2026-10-23)
+
+### Other Changes
+
+- Give the node table each node's reference position ([9b86a0b](https://github.com/GMOD/bandage-core/commit/9b86a0bb27fba410fb427f6315fa0eda006b9c66))
+
 ## [11.11.1](https://github.com/GMOD/bandage-core/compare/v11.11.0...v11.11.1) (2026-10-23)
 
 ### Other Changes
