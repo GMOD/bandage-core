@@ -1,3 +1,9 @@
+## [11.15.0](https://github.com/GMOD/bandage-core/compare/v11.14.0...v11.15.0) (2026-10-23)
+
+### Other Changes
+
+- Export fadedKey, so a viewer's legend can say what its lift fades ([cd39404](https://github.com/GMOD/bandage-core/commit/cd394045bcad6a40b398273c7de3c80b0c61bc9e))
+
 ## [11.14.0](https://github.com/GMOD/bandage-core/compare/v11.13.0...v11.14.0) (2026-10-23)
 
 ### Other Changes
