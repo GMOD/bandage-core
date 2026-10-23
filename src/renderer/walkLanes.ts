@@ -580,7 +580,7 @@ export function laneLines(
 ) {
   const turn = Math.max(reach, 2 * band)
   const curl = Math.PI * band
-  const context = smooth ? curl + band + turn / 2 : turn / 2
+  const context = smooth ? curl + 3 * band + turn / 2 : turn / 2
   const frames = new Map<string, VisitFrame[][]>()
   const firsts = new Map<
     string,
@@ -638,24 +638,34 @@ export function laneLines(
       plus[i + 1] = plus[i]! + (d === 1 ? 1 : 0)
       minus[i + 1] = minus[i]! + (d === -1 ? 1 : 0)
     }
+    // a step shares when every step whose points or links fall within
+    // `context` of its own points runs the first visit's way; without threads,
+    // flat lanes tile a node, so every visit shares the first visit's frame
     const shared = new Array<boolean>(steps)
-    let lo = 0
-    let hi = 0
+    let reachFrom = 0
+    let reachTo = 0
     for (let i = 0; i < steps; i++) {
-      const at = raw[starts[i]!]!
-      while (at - raw[starts[lo]!]! > context) {
-        lo++
+      if (!smooth) {
+        shared[i] = !owned[i]
+        continue
       }
-      while (hi + 1 < steps && raw[starts[hi + 1]!]! - at <= context) {
-        hi++
+      const from = raw[starts[i]!]! - context
+      const to = raw[starts[i + 1]! - 1]! + context
+      while (raw[reachFrom]! < from) {
+        reachFrom++
       }
+      while (reachTo + 1 < n && raw[reachTo + 1]! <= to) {
+        reachTo++
+      }
+      const lo = stepOf[Math.max(0, reachFrom - 1)]!
+      const hi = stepOf[Math.min(n - 1, reachTo + 1)]!
       const span = hi - lo
       const forward = plus[hi]! - plus[lo]!
       const backward = minus[hi]! - minus[lo]!
       shared[i] =
         !owned[i] &&
-        at >= context &&
-        end - at >= context &&
+        from >= 0 &&
+        to <= end &&
         span > 0 &&
         (forward === span || backward === span)
     }

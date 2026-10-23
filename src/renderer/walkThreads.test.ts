@@ -586,3 +586,77 @@ test('every visit a walk makes to a node gets a frame at every point', () => {
     }
   })
 })
+
+// Walk a runs a long node in from the left, b a long node up from below, and
+// both carry on along the same short nodes; b runs its last two twice, so the
+// lift draws threads
+function joinFromBelow() {
+  const at: Record<string, NodeSegment[]> = {
+    'P+': [
+      { x: -200, y: 0 },
+      { x: -1, y: 0 },
+    ],
+    'R+': [
+      { x: 0, y: 200 },
+      { x: 0, y: 1 },
+    ],
+  }
+  const ids = Array.from({ length: 40 }, (_, i) => `s${i}`)
+  ids.forEach((id, i) => {
+    at[`${id}+`] = [
+      { x: i, y: 0 },
+      { x: i + 0.5, y: 0 },
+    ]
+  })
+  const chain = ids.map(id => `>${id}`).join('')
+  const gfa = [
+    'S\tP\tA',
+    'S\tR\tA',
+    ...ids.map(id => `S\t${id}\tA`),
+    'L\tP\t+\ts0\t+\t0M',
+    'L\tR\t+\ts0\t+\t0M',
+    ...ids.slice(1).map((id, i) => `L\t${ids[i]}\t+\t${id}\t+\t0M`),
+    'L\ts39\t+\ts38\t+\t0M',
+    walk('a', `>P${chain}`),
+    walk('b', `>R${chain}>s38>s39`),
+  ].join('\n')
+  return { gfa, at }
+}
+
+test('a walk joining from another side frames the shared nodes as it would alone, at any zoom', () => {
+  const { gfa, at } = joinFromBelow()
+  const graph = convertGFAToGraph(parseGFA(gfa))
+  const lift = (names: string[]) =>
+    walkLift(
+      graph,
+      names.map(walk => ({ walk })),
+    )!.walks
+  for (const worldPerPx of [1, 0.25, 1 / 16]) {
+    const joint = liftLanes(lift(['a#1#chr', 'b#1#chr']), at, 1, worldPerPx)
+    const alone = liftLanes(lift(['b#1#chr', 'a#1#chr']), at, 1, worldPerPx)
+    for (const id of ['s0+', 's1+', 's2+']) {
+      const mine = joint.lines.frames.get(id)![1]![0]!
+      const own = alone.lines.frames.get(id)![0]![0]!
+      at[id]!.forEach((_, k) => {
+        const m = mine.normals[k]!
+        const o = own.normals[k]!
+        expect(Math.abs(m.nx * o.nx + m.ny * o.ny)).toBeGreaterThan(0.999)
+        expect(mine.shifts[k]!.dx).toBeCloseTo(own.shifts[k]!.dx, 6)
+        expect(mine.shifts[k]!.dy).toBeCloseTo(own.shifts[k]!.dy, 6)
+      })
+    }
+  }
+})
+
+test('flat lanes of walks that never repeat share one normal at each node', () => {
+  const round = `${chain(upTo(14))}>b14${chain([15, 16])}`
+  const gfa = `${ZIGZAG}\n${walk('a', chain(upTo(20)))}\n${walk('b', round)}`
+  const bubbled = { ...zigzag, 'b14+': zigzag['n14+']! }
+  const { batch } = drawn(gfa, ['a#1#chr', 'b#1#chr'], bubbled)
+  for (const [, run] of batch.nodeStrokeRuns) {
+    const strokes = batch.nodeStrokes.slice(run.start, run.start + run.count)
+    for (const s of strokes) {
+      expect(s.normals).toEqual(strokes[0]!.normals)
+    }
+  }
+})
