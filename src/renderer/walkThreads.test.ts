@@ -1,5 +1,11 @@
 import { buildGeometry } from './GeometryBuilder'
-import { MAX_BAND_PX, PASSES_KEY, passesKey, threadsPasses } from './walkLanes'
+import {
+  MAX_BAND_PX,
+  PASSES_KEY,
+  liftLanes,
+  passesKey,
+  threadsPasses,
+} from './walkLanes'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { walkLift } from '../walkHighlight'
@@ -426,49 +432,54 @@ test('a drag that moves a node in place redraws its threads once the version cha
   expect(build(1)).toEqual(build(1, true))
 })
 
-// A box of shared nodes, each followed by a node only one pass takes, that a
-// duplicated walk runs twice: out of the box and up round a loop back to its
-// start the first time, out and down the second, as the reference does. At
-// BOX_SCALE the band is wider than the box's nodes are long.
+// A box of `length` shared nodes, those past the first `plain` each followed
+// by a node only one pass takes, that a duplicated walk runs twice: out of the
+// box and up round a loop `reach` past its ends back to its start the first
+// time, out and down the second, as the reference does. A box node is `long`. At BOX_SCALE the band is wider than the box's
+// nodes are long.
 const BOX_SCALE = 0.15
 
-function duplicatedBox() {
+function duplicatedBox(length = 12, plain = 6, reach = 10, long = 3) {
   const ids: string[] = []
   const at: Record<string, NodeSegment[]> = {}
   const node = (id: string, x: number, y: number, dx = 2, dy = 0) => {
     ids.push(id)
-    at[`${id}+`] = [
-      { x, y },
-      { x: x + dx, y: y + dy },
-    ]
+    at[`${id}+`] = [0, 1, 2, 3].map(k => ({
+      x: x + (dx * k) / 3,
+      y: y + (dy * k) / 3,
+    }))
   }
+  const span = 10 * length
+  const loop = 2 * length
   for (let i = 0; i < 6; i++) {
     node(`t${i}`, -60 + 10 * i, 0)
   }
-  for (let i = 0; i < 12; i++) {
-    node(`s${i}`, 10 * i, 0, 3)
+  for (let i = 0; i < length; i++) {
+    node(`s${i}`, 10 * i, 0, long)
     node(`a${i}`, 10 * i + 4, 0.6, 3)
     node(`b${i}`, 10 * i + 4, -0.6, 3)
   }
-  for (let i = 0; i < 24; i++) {
-    const t = (i / 23) * Math.PI
+  for (let i = 0; i < loop; i++) {
+    const t = (i / (loop - 1)) * Math.PI
     node(
       `u${i}`,
-      60 + 70 * Math.cos(t),
-      50 * Math.sin(t) + 8 * (1 - i / 23),
+      span / 2 + (span / 2 + reach) * Math.cos(t),
+      50 * Math.sin(t) + (reach - 2) * (1 - i / (loop - 1)),
       1,
       1,
     )
   }
   for (let i = 0; i < 8; i++) {
-    node(`d${i}`, 120 + 10 * i, -10 * i)
+    node(`d${i}`, span + 10 * i, -10 * i)
   }
   const box = (alt: string) =>
-    Array.from({ length: 12 }, (_, i) => `>s${i}>${alt}${i}`).join('')
+    Array.from({ length }, (_, i) =>
+      i < plain ? `>s${i}` : `>s${i}>${alt}${i}`,
+    ).join('')
   const run = (prefix: string, n: number) =>
     Array.from({ length: n }, (_, i) => `>${prefix}${i}`).join('')
   const ref = `${run('t', 6)}${box('a')}${run('d', 8)}`
-  const dup = `${run('t', 6)}${box('a')}${run('u', 24)}${box('b')}${run('d', 8)}`
+  const dup = `${run('t', 6)}${box('a')}${run('u', loop)}${box('b')}${run('d', 8)}`
   const links = new Set<string>()
   for (const w of [ref, dup]) {
     const steps = [...w.matchAll(/>(\w+)/g)].map(m => m[1]!)
@@ -533,4 +544,45 @@ test("a thread runs the way its walk does, even round a hairpin's inside", () =>
       expect(along).toBeGreaterThanOrEqual(-1e-9)
     }
   }
+})
+
+test('a thread steps along a node no more than twice as far as the node does', () => {
+  const { gfa, at } = duplicatedBox()
+  const { batch } = drawn(gfa, ['dup#1#chr', 'ref#1#chr'], at, {
+    scale: BOX_SCALE,
+  })
+  const step = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    Math.hypot(b.x - a.x, b.y - a.y)
+  for (const [id, run] of batch.nodeStrokeRuns) {
+    const own = at[id]!
+    for (const s of batch.nodeStrokes.slice(run.start, run.start + run.count)) {
+      for (let k = 1; k < s.points.length; k++) {
+        const drawnPx = step(s.points[k - 1]!, s.points[k]!) * BOX_SCALE
+        expect(drawnPx).toBeLessThan(
+          2 * step(own[k - 1]!, own[k]!) * BOX_SCALE + 1,
+        )
+      }
+    }
+  }
+})
+
+test('every visit a walk makes to a node gets a frame at every point', () => {
+  const { gfa, at } = duplicatedBox(60, 50, 2, 9)
+  const graph = convertGFAToGraph(parseGFA(gfa))
+  const { walks } = walkLift(graph, [
+    { walk: 'dup#1#chr' },
+    { walk: 'ref#1#chr' },
+  ])!
+  const { lines } = liftLanes(walks, at, 1, 1)
+  walks.forEach((walk, w) => {
+    for (const [id, passes] of walk.passes) {
+      for (let visit = 0; visit < passes; visit++) {
+        const frame = lines.frames[w]!.get(id)![visit]!
+        at[id]!.forEach((_, k) => {
+          expect(frame.normals[k]).toBeDefined()
+          expect(frame.shifts[k]).toBeDefined()
+        })
+      }
+    }
+  })
 })

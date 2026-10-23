@@ -974,25 +974,33 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const laneHalfWidth = (laneWidth: number) =>
     threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
   const plainNormals = new Map<string, Normal[]>()
-  const frameNormals = new WeakMap<VisitFrame, Normal[]>()
+  const visitNormals = new WeakMap<VisitFrame['normals'], Normal[]>()
   const frameOf = (lane: number, nodeId: string, visit: number) =>
     lines?.frames[lane]?.get(nodeId)?.[visit]
   const visitOf = (lane: number, nodeId: string, thread: number) =>
     threads?.[lane]?.threadPasses.get(nodeId)?.[thread] ?? 0
+  const plainNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
+    let normals = plainNormals.get(nodeId)
+    if (!normals) {
+      normals = pointNormalsOf(segments, yToX)
+      plainNormals.set(nodeId, normals)
+    }
+    return normals
+  }
   const laneNormalsOf = (
     nodeId: string,
     segments: NodeSegment[],
     frame: VisitFrame | undefined,
   ) => {
-    let normals = frame ? frameNormals.get(frame) : plainNormals.get(nodeId)
+    if (!frame) {
+      return plainNormalsOf(nodeId, segments)
+    }
+    let normals = visitNormals.get(frame.normals)
     if (!normals) {
-      const plain = pointNormalsOf(segments, yToX)
-      normals = frame ? plain.map((n, i) => frame.normals[i] ?? n) : plain
-      if (frame) {
-        frameNormals.set(frame, normals)
-      } else {
-        plainNormals.set(nodeId, normals)
-      }
+      normals = plainNormalsOf(nodeId, segments).map(
+        (n, i) => frame.normals[i] ?? n,
+      )
+      visitNormals.set(frame.normals, normals)
     }
     return normals
   }
@@ -1071,16 +1079,25 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     liftedWalks[lane]?.passColors.get(nodeId)?.[
       threads?.[lane]?.threadPasses.get(nodeId)?.[thread] ?? 0
     ]
+  const visitPoints = new WeakMap<VisitFrame['shifts'], NodeSegment[]>()
   const lanePointsOf = (
     segments: NodeSegment[],
     frame: VisitFrame | undefined,
-  ) =>
-    frame?.shifts.length
-      ? segments.map((p, i) => {
-          const { dx, dy } = frame.shifts[i] ?? NO_SHIFT
-          return { ...p, x: p.x + dx, y: p.y + dy }
-        })
-      : segments
+  ) => {
+    if (!frame || !threaded) {
+      return segments
+    }
+    let points = visitPoints.get(frame.shifts)
+    if (!points) {
+      const { shifts } = frame
+      points = segments.map((p, i) => {
+        const { dx, dy } = shifts[i] ?? NO_SHIFT
+        return { ...p, x: p.x + dx, y: p.y + dy }
+      })
+      visitPoints.set(frame.shifts, points)
+    }
+    return points
+  }
 
   // An arrowhead at every joint of a few hundred short nodes is a serration
   // along the whole drawing, so heads wait for a zoom where a node is longer
