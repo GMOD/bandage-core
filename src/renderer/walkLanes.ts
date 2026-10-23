@@ -97,24 +97,35 @@ export function laneSlideAt(
     : { normal: { nx: 0, ny: 0 }, offsetX: 0 }
 }
 
-interface LinePoint {
-  x: number
-  y: number
-  id: string
-  index: number
-  visit: number
-  middle: boolean
-  forward: boolean
+// A walk's route between the jumps that break it: one entry per step, a visit
+// to a node, and the step's points in the order the walk reads them
+export interface LaneRun {
+  walk: number
+  ids: string[]
+  // the walk's own visits to the node before this one
+  visits: number[]
+  forward: boolean[]
+  // the first visit any walk makes to the node
+  owned: boolean[]
+  // where each step's points start, and one more where the last ends
+  starts: number[]
+  xs: Float64Array
+  ys: Float64Array
+  stepOf: Int32Array
 }
 
-export interface LaneRuns {
-  runs: LinePoint[][]
-  walkOf: number[]
-  owned: boolean[][]
+// The node point a run's point `p` is: its index along the node's segments
+function pointIndex(run: LaneRun, p: number) {
+  const i = run.stepOf[p]!
+  const k = p - run.starts[i]!
+  return run.forward[i] ? k : run.starts[i + 1]! - run.starts[i]! - 1 - k
 }
 
-const gapOf = (a: { x: number; y: number }, b: { x: number; y: number }) =>
-  Math.hypot(b.x - a.x, b.y - a.y)
+const gapOf = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  return Math.sqrt(dx * dx + dy * dy)
+}
 
 function arcOf(run: readonly { x: number; y: number }[]) {
   const s = new Float64Array(run.length)
@@ -124,83 +135,134 @@ function arcOf(run: readonly { x: number; y: number }[]) {
   return s
 }
 
-// Each walk's route as runs of node points, broken where the walk jumps
-// further than `jump`. A point is owned on the first visit any walk makes to
-// its node, and `visit` counts the walk's own visits to the node from 0.
-export function laneRuns(
+// One step of a walk: its visit to a node, the walk's earlier visits to the
+// node, and whether it is the first visit any walk makes to the node. None of
+// it changes with zoom, so a host can keep it across rebuilds.
+export interface WalkStep {
+  id: string
+  visit: number
+  owned: boolean
+  segments: NodeSegment[] | undefined
+}
+
+// Each walk's steps, piece by piece
+export function walkSteps(
   walkRoutes: readonly (readonly (readonly string[])[])[],
   nodePositions: Record<string, NodeSegment[]>,
-  yToX: number,
-  jump: number,
-): LaneRuns {
+) {
   const seen = new Set<string>()
-  const gap = (a: { x: number; y: number }, b: NodeSegment) =>
-    Math.hypot(b.x - a.x, b.y * yToX - a.y)
-  const runs: LinePoint[][] = []
-  const walkOf: number[] = []
-  const owned: boolean[][] = []
-  let run: LinePoint[] = []
-  let mine: boolean[] = []
-  let walk = 0
-  const breakRun = () => {
-    if (run.length) {
-      runs.push(run)
-      walkOf.push(walk)
-      owned.push(mine)
-    }
-    run = []
-    mine = []
-  }
-  walkRoutes.forEach((routes, w) => {
-    walk = w
+  return walkRoutes.map(routes => {
     const visits = new Map<string, number>()
-    for (const route of routes) {
-      route.forEach((id, step) => {
+    return routes.map(route =>
+      route.map((id): WalkStep => {
         const visit = visits.get(id) ?? 0
         visits.set(id, visit + 1)
         const segments = nodePositions[id]
+        const owned = !!segments?.length && !seen.has(id)
+        if (owned) {
+          seen.add(id)
+        }
+        return { id, visit, owned, segments }
+      }),
+    )
+  })
+}
+
+// Each walk's steps as runs, broken where the walk jumps further than `jump`
+export function laneRuns(
+  steps: readonly (readonly (readonly WalkStep[])[])[],
+  yToX: number,
+  jump: number,
+) {
+  const runs: LaneRun[] = []
+  steps.forEach((pieces, walk) => {
+    let total = 0
+    for (const piece of pieces) {
+      for (const { segments } of piece) {
+        total += segments?.length ?? 0
+      }
+    }
+    const xs = new Float64Array(total)
+    const ys = new Float64Array(total)
+    let at = 0
+    let from = 0
+    let run: Omit<LaneRun, 'xs' | 'ys' | 'stepOf'> = fresh()
+    function fresh() {
+      return {
+        walk,
+        ids: [] as string[],
+        visits: [] as number[],
+        forward: [] as boolean[],
+        owned: [] as boolean[],
+        starts: [0],
+      }
+    }
+    const breakRun = () => {
+      if (run.ids.length) {
+        const stepOf = new Int32Array(at - from)
+        for (let i = 0; i < run.ids.length; i++) {
+          stepOf.fill(i, run.starts[i], run.starts[i + 1])
+        }
+        runs.push({
+          ...run,
+          xs: xs.subarray(from, at),
+          ys: ys.subarray(from, at),
+          stepOf,
+        })
+      }
+      run = fresh()
+      from = at
+    }
+    const gap = (x: number, y: number, p: NodeSegment) => {
+      const dx = p.x - x
+      const dy = p.y * yToX - y
+      return Math.sqrt(dx * dx + dy * dy)
+    }
+    for (const piece of pieces) {
+      piece.forEach(({ id, visit, owned, segments }, k) => {
         if (!segments?.length) {
           breakRun()
           return
         }
-        const owns = !seen.has(id)
-        seen.add(id)
         const first = segments[0]!
         const last = segments.at(-1)!
-        const prev = run.at(-1)
-        const next = nodePositions[route[step + 1] ?? '']
-        const toNext = (p: NodeSegment) => {
-          const at = { x: p.x, y: p.y * yToX }
-          return next?.length
-            ? Math.min(gap(at, next[0]!), gap(at, next.at(-1)!))
-            : 0
+        let forward: boolean
+        if (at > from) {
+          const x = xs[at - 1]!
+          const y = ys[at - 1]!
+          const toFirst = gap(x, y, first)
+          const toLast = gap(x, y, last)
+          forward = toFirst <= toLast
+          if (Math.min(toFirst, toLast) > jump) {
+            breakRun()
+          }
+        } else {
+          const next = piece[k + 1]?.segments
+          const toNext = (p: NodeSegment) =>
+            next?.length
+              ? Math.min(
+                  gap(p.x, p.y * yToX, next[0]!),
+                  gap(p.x, p.y * yToX, next.at(-1)!),
+                )
+              : 0
+          forward = toNext(last) <= toNext(first)
         }
-        const forward = prev
-          ? gap(prev, first) <= gap(prev, last)
-          : toNext(last) <= toNext(first)
-        if (prev && gap(prev, forward ? first : last) > jump) {
-          breakRun()
+        run.ids.push(id)
+        run.visits.push(visit)
+        run.forward.push(forward)
+        run.owned.push(owned)
+        for (let j = 0; j < segments.length; j++) {
+          const p = segments[forward ? j : segments.length - 1 - j]!
+          xs[at] = p.x
+          ys[at] = p.y * yToX
+          at++
         }
-        const middle = Math.floor(segments.length / 2)
-        for (let k = 0; k < segments.length; k++) {
-          const index = forward ? k : segments.length - 1 - k
-          const p = segments[index]!
-          run.push({
-            x: p.x,
-            y: p.y * yToX,
-            id,
-            index,
-            visit,
-            middle: index === middle,
-            forward,
-          })
-          mine.push(owns)
-        }
+        run.starts.push(at - from)
       })
       breakRun()
     }
   })
-  return { runs, walkOf, owned }
+  return runs
 }
 
 function ownedWindows(
@@ -358,70 +420,83 @@ function rounded(run: readonly { x: number; y: number }[], half: number) {
   return out
 }
 
-// The point `at` along a polyline whose arc lengths are `s`
-function pointAlong(
+// Which points of a line turn tighter than `radius`, by the circle through
+// each point and the points `radius` either side of it along the line
+function tightPoints(
   line: readonly { x: number; y: number }[],
-  s: ArrayLike<number>,
-  at: number,
+  radius: number,
 ) {
-  let lo = 0
-  let hi = line.length - 1
-  if (at <= 0) {
-    return line[0]!
-  }
-  if (at >= s[hi]!) {
-    return line[hi]!
-  }
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1
-    if (s[mid]! <= at) {
-      lo = mid
-    } else {
-      hi = mid
+  const n = line.length
+  const s = arcOf(line)
+  const end = s[n - 1]!
+  const tight = new Uint8Array(n)
+  const along = (j: number, at: number) => {
+    const a = line[j]!
+    const b = line[j + 1]
+    if (!b) {
+      return a
     }
+    const span = s[j + 1]! - s[j]!
+    const f = span > 0 ? (at - s[j]!) / span : 0
+    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
   }
-  const span = s[hi]! - s[lo]!
-  const f = span > 0 ? (at - s[lo]!) / span : 0
-  const a = line[lo]!
-  const b = line[hi]!
-  return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
+  let lo = 0
+  let hi = 0
+  for (let i = 0; i < n; i++) {
+    if (s[i]! < radius || end - s[i]! < radius) {
+      continue
+    }
+    while (lo + 1 < n && s[lo + 1]! <= s[i]! - radius) {
+      lo++
+    }
+    while (hi + 1 < n && s[hi + 1]! <= s[i]! + radius) {
+      hi++
+    }
+    const p = line[i]!
+    const a = along(lo, s[i]! - radius)
+    const b = along(hi, s[i]! + radius)
+    const twice = Math.abs(
+      (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x),
+    )
+    tight[i] =
+      twice > 0 &&
+      (gapOf(a, b) * gapOf(a, p) * gapOf(p, b)) / (2 * twice) < radius
+        ? 1
+        : 0
+  }
+  return { tight, s }
 }
 
 // The line smoothed again wherever it turns tighter than `radius`, the
 // furthest a thread runs from it, so the band's inner thread rounds a hairpin
-// rather than folding back on itself at the tip
+// rather than folding back on itself at the tip. Only the stretches round
+// tight points change, so later passes smooth those alone.
 function loosened(line: readonly { x: number; y: number }[], radius: number) {
-  let out = line
-  for (let pass = 0; pass < 8; pass++) {
-    const s = arcOf(out)
-    const end = s[s.length - 1]!
-    const tight = out.map((p, i) => {
-      if (s[i]! < radius || end - s[i]! < radius) {
+  const out = line.slice()
+  const { tight, s } = tightPoints(out, radius)
+  let windows = ownedWindows(
+    s,
+    Array.from(tight, t => t > 0),
+    3 * radius,
+  )
+  for (let pass = 0; pass < 8 && windows.length; pass++) {
+    windows = windows.filter(([lo, hi]) => {
+      const part = out.slice(lo, hi + 1)
+      const local = tightPoints(part, radius)
+      if (!local.tight.includes(1)) {
         return false
       }
-      const a = pointAlong(out, s, s[i]! - radius)
-      const b = pointAlong(out, s, s[i]! + radius)
-      const ab = gapOf(a, b)
-      const twice = Math.abs(
-        (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x),
-      )
-      return (
-        twice > 0 && (ab * gapOf(a, p) * gapOf(p, b)) / (2 * twice) < radius
-      )
-    })
-    if (!tight.includes(true)) {
-      return out
-    }
-    const weight = windowMean(
-      Array.from(s),
-      tight.map(t => (t ? 1 : 0)),
-      radius,
-    ).map(w => Math.min(1, 3 * w))
-    const smoother = rounded(out, radius)
-    out = out.map((p, i) => {
-      const w = weight[i]!
-      const q = smoother[i]!
-      return w > 0 ? { x: p.x + (q.x - p.x) * w, y: p.y + (q.y - p.y) * w } : p
+      const weight = windowMean(local.s, local.tight, radius)
+      const smoother = rounded(part, radius)
+      for (let k = 0; k < part.length; k++) {
+        const w = Math.min(1, 3 * weight[k]!)
+        if (w > 0) {
+          const p = part[k]!
+          const q = smoother[k]!
+          out[lo + k] = { x: p.x + (q.x - p.x) * w, y: p.y + (q.y - p.y) * w }
+        }
+      }
+      return true
     })
   }
   return out
@@ -440,14 +515,14 @@ export interface VisitFrame {
 // has seen takes the sign before it, and a run that meets no set normal at
 // all keeps the side its nodes read forward on.
 function runSigns(
-  run: readonly LinePoint[],
   s: ArrayLike<number>,
   own: readonly (Normal | undefined)[],
-  canonical: (p: LinePoint) => Normal | undefined,
-  settle: (i: number, sign: 1 | -1) => void,
+  canonical: (k: number) => Normal | undefined,
+  forward: (k: number) => boolean,
+  settle: (k: number, sign: 1 | -1) => void,
   half: number,
 ) {
-  const n = run.length
+  const n = own.length
   const agreement = new Float64Array(n)
   let hi = 0
   let lo = 0
@@ -456,7 +531,7 @@ function runSigns(
   let pending = 0
   for (let i = 0; i < n; i++) {
     while (hi < n && s[hi]! - s[i]! <= half) {
-      const theirs = canonical(run[hi]!)
+      const theirs = canonical(hi)
       const mine = own[hi]
       agreement[hi] =
         theirs && mine ? theirs.nx * mine.nx + theirs.ny * mine.ny : 0
@@ -477,7 +552,10 @@ function runSigns(
     }
   }
   if (pending < n) {
-    const along = run.reduce((a, p) => a + (p.forward ? 1 : -1), 0)
+    let along = 0
+    for (let k = 0; k < n; k++) {
+      along += forward(k) ? 1 : -1
+    }
     for (; pending < n; pending++) {
       settle(pending, along < 0 ? -1 : 1)
     }
@@ -489,10 +567,10 @@ function runSigns(
 // follows its own walk through a junction rather than whichever walk reached
 // the node first. A visit whose route runs the first visit's way for `context`
 // either side would smooth to the same frame, so it shares that one, and only
-// the stretches where routes part are smoothed again.
+// the stretches where routes part are smoothed again. `frames` holds each
+// node's frames by walk, then by the walk's visit.
 export function laneLines(
-  lanes: LaneRuns,
-  nodePositions: Record<string, NodeSegment[]>,
+  runs: readonly LaneRun[],
   yToX: number,
   reach: number,
   band: number,
@@ -501,120 +579,113 @@ export function laneLines(
   const turn = Math.max(reach, 2 * band)
   const curl = Math.PI * band
   const context = smooth ? curl + band + turn / 2 : turn / 2
-  const frames = Array.from(
-    { length: Math.max(-1, ...lanes.walkOf) + 1 },
-    () => new Map<string, VisitFrame[]>(),
-  )
+  const frames = new Map<string, VisitFrame[][]>()
   const firsts = new Map<
     string,
-    { run: number; start: number; forward: boolean; frame: VisitFrame }
+    { run: number; step: number; frame: VisitFrame }
   >()
   const arcs: Float64Array[] = []
+  const stepFrames: VisitFrame[][] = []
   const newFrame = (length: number): VisitFrame => ({
     normals: new Array<Normal | undefined>(length),
-    shifts: new Array<Shift | undefined>(length),
-    offsets: new Array<number | undefined>(length),
+    shifts: smooth ? new Array<Shift | undefined>(length) : [],
+    offsets: smooth ? new Array<number | undefined>(length) : [],
   })
-  const place = ({ id, visit }: LinePoint, walk: number, frame: VisitFrame) => {
-    const own = frames[walk]!
-    const visits = own.get(id) ?? []
-    own.set(id, visits)
-    visits[visit] = frame
+  const place = (id: string, walk: number, visit: number, f: VisitFrame) => {
+    let byWalk = frames.get(id)
+    if (!byWalk) {
+      byWalk = []
+      frames.set(id, byWalk)
+    }
+    ;(byWalk[walk] ??= [])[visit] = f
   }
-  // the frame each point of each run draws from
-  const pointFrames: VisitFrame[][] = []
-  lanes.runs.forEach((run, r) => {
-    const walk = lanes.walkOf[r]!
-    const owned = lanes.owned[r]!
-    const n = run.length
-    const firstRun = new Int32Array(n).fill(-1)
-    const firstAt = new Int32Array(n)
-    const starts: number[] = []
-    for (let i = 0; i < n; i++) {
-      const p = run[i]!
-      const prev = run[i - 1]
-      if (prev?.id !== p.id || prev.visit !== p.visit) {
-        starts.push(i)
-        if (owned[i]) {
-          const frame = newFrame(nodePositions[p.id]!.length)
-          firsts.set(p.id, { run: r, start: i, forward: p.forward, frame })
-          place(p, walk, frame)
-        }
+  runs.forEach((run, r) => {
+    const { walk, ids, visits, owned, starts, xs, ys, stepOf } = run
+    const steps = ids.length
+    const n = xs.length
+    const own = new Array<VisitFrame>(steps)
+    for (let i = 0; i < steps; i++) {
+      if (owned[i]) {
+        own[i] = newFrame(starts[i + 1]! - starts[i]!)
+        firsts.set(ids[i]!, { run: r, step: i, frame: own[i]! })
+        place(ids[i]!, walk, visits[i]!, own[i]!)
       }
     }
-    starts.forEach((start, v) => {
-      const stop = starts[v + 1] ?? n
-      const first = owned[start] ? undefined : firsts.get(run[start]!.id)
-      if (!first) {
-        return
-      }
-      const last = nodePositions[run[start]!.id]!.length - 1
-      for (let i = start; i < stop; i++) {
-        const { index } = run[i]!
+    const raw = new Float64Array(n)
+    for (let p = 1; p < n; p++) {
+      const dx = xs[p]! - xs[p - 1]!
+      const dy = ys[p]! - ys[p - 1]!
+      raw[p] = raw[p - 1]! + Math.sqrt(dx * dx + dy * dy)
+    }
+    const end = raw[n - 1]!
+    const firstRun = new Int32Array(steps).fill(-1)
+    const firstStep = new Int32Array(steps)
+    const firstFrame = new Array<VisitFrame | undefined>(steps)
+    for (let i = 0; i < steps; i++) {
+      const first = owned[i] ? undefined : firsts.get(ids[i]!)
+      if (first) {
         firstRun[i] = first.run
-        firstAt[i] = first.start + (first.forward ? index : last - index)
+        firstStep[i] = first.step
+        firstFrame[i] = first.frame
       }
-    })
-    const raw = arcOf(run)
-    const end = raw[n - 1] ?? 0
-    const plus = new Int32Array(n + 1)
-    const minus = new Int32Array(n + 1)
-    for (let i = 0; i + 1 < n; i++) {
+    }
+    const plus = new Int32Array(steps)
+    const minus = new Int32Array(steps)
+    for (let i = 0; i + 1 < steps; i++) {
       const same = firstRun[i]! >= 0 && firstRun[i + 1] === firstRun[i]
-      const d = same ? firstAt[i + 1]! - firstAt[i]! : 0
+      const d = same ? firstStep[i + 1]! - firstStep[i]! : 0
       plus[i + 1] = plus[i]! + (d === 1 ? 1 : 0)
       minus[i + 1] = minus[i]! + (d === -1 ? 1 : 0)
     }
-    const shared = new Array<boolean>(n)
+    const shared = new Array<boolean>(steps)
     let lo = 0
     let hi = 0
-    for (let i = 0; i < n; i++) {
-      while (raw[i]! - raw[lo]! > context) {
+    for (let i = 0; i < steps; i++) {
+      const at = raw[starts[i]!]!
+      while (at - raw[starts[lo]!]! > context) {
         lo++
       }
-      while (hi + 1 < n && raw[hi + 1]! - raw[i]! <= context) {
+      while (hi + 1 < steps && raw[starts[hi + 1]!]! - at <= context) {
         hi++
       }
-      const steps = hi - lo
+      const span = hi - lo
       const forward = plus[hi]! - plus[lo]!
       const backward = minus[hi]! - minus[lo]!
       shared[i] =
-        raw[i]! >= context &&
-        end - raw[i]! >= context &&
-        steps > 0 &&
-        (forward === steps || backward === steps)
+        !owned[i] &&
+        at >= context &&
+        end - at >= context &&
+        span > 0 &&
+        (forward === span || backward === span)
     }
-    const visitFrames: VisitFrame[] = []
-    const slot = new Int32Array(n)
-    starts.forEach((start, v) => {
-      const stop = starts[v + 1] ?? n
-      const p = run[start]!
-      slot.fill(v, start, stop)
-      const first = firsts.get(p.id)!.frame
-      let whole = !owned[start]
-      for (let i = start; whole && i < stop; i++) {
-        whole = shared[i]!
+    for (let i = 0; i < steps; i++) {
+      if (owned[i]) {
+        continue
       }
-      const frame: VisitFrame = owned[start]
-        ? first
-        : whole
-          ? {
-              normals: first.normals,
-              shifts: first.shifts,
-              offsets: new Array<number | undefined>(first.offsets.length),
-            }
-          : newFrame(first.normals.length)
-      if (!owned[start]) {
-        place(p, walk, frame)
-      }
-      visitFrames.push(frame)
-    })
-    const notShared = new Array<boolean>(n)
-    for (let i = 0; i < n; i++) {
-      notShared[i] = !shared[i]
+      const first = firstFrame[i]!
+      // without threads a frame carries no offsets of its own to keep apart
+      own[i] =
+        !smooth && shared[i]
+          ? first
+          : shared[i]
+            ? {
+                normals: first.normals,
+                shifts: first.shifts,
+                offsets: new Array<number | undefined>(first.offsets.length),
+              }
+            : newFrame(first.normals.length)
+      place(ids[i]!, walk, visits[i]!, own[i]!)
     }
-    for (const [from, to] of ownedWindows(raw, notShared, context)) {
-      const points = run.slice(from, to + 1)
+    stepFrames.push(own)
+    const apart = new Array<boolean>(n)
+    for (let p = 0; p < n; p++) {
+      apart[p] = !shared[stepOf[p]!]
+    }
+    for (const [from, to] of ownedWindows(raw, apart, context)) {
+      const points: { x: number; y: number }[] = []
+      for (let p = from; p <= to; p++) {
+        points.push({ x: xs[p]!, y: ys[p]! })
+      }
       const line: readonly { x: number; y: number }[] = smooth
         ? loosened(
             rounded(cutCurls(points, band / 2, curl), band / 2),
@@ -623,45 +694,35 @@ export function laneLines(
         : points
       const normals = smoothedNormals(line, turn)
       runSigns(
-        points,
         arcOf(line),
         normals,
-        p => firsts.get(p.id)?.frame.normals[p.index],
+        k => {
+          const i = stepOf[from + k]!
+          return (owned[i] ? own[i] : firstFrame[i])?.normals[
+            pointIndex(run, from + k)
+          ]
+        },
+        k => run.forward[stepOf[from + k]!]!,
         (k, sign) => {
-          const i = from + k
+          const p = from + k
+          const i = stepOf[p]!
           if (shared[i]) {
             return
           }
-          const p = run[i]!
-          const frame = visitFrames[slot[i]!]!
+          const index = pointIndex(run, p)
           const m = normals[k]
-          frame.normals[p.index] =
+          own[i]!.normals[index] =
             m && (sign > 0 ? m : { nx: -m.nx, ny: -m.ny })
           if (smooth) {
-            frame.shifts[p.index] = {
-              dx: line[k]!.x - p.x,
-              dy: (line[k]!.y - p.y) / yToX,
+            own[i]!.shifts[index] = {
+              dx: line[k]!.x - points[k]!.x,
+              dy: (line[k]!.y - points[k]!.y) / yToX,
             }
           }
         },
         turn,
       )
     }
-    // a visit may share points with its walk's own earlier pass, so the
-    // copies wait until this run's windows are smoothed
-    for (let i = 0; i < n; i++) {
-      const frame = visitFrames[slot[i]!]!
-      if (shared[i] && !owned[i]) {
-        const { id, index } = run[i]!
-        const first = firsts.get(id)!.frame
-        if (frame.normals !== first.normals) {
-          frame.normals[index] = first.normals[index]
-          frame.shifts[index] = first.shifts[index]
-        }
-      }
-    }
-    const own = Array.from(slot, v => visitFrames[v]!)
-    pointFrames.push(own)
     if (!smooth) {
       arcs.push(raw)
       return
@@ -669,18 +730,17 @@ export function laneLines(
     const s = new Float64Array(n)
     let px = 0
     let py = 0
-    for (let i = 0; i < n; i++) {
-      const p = run[i]!
-      const shift = own[i]!.shifts[p.index]
-      const x = p.x + (shift?.dx ?? 0)
-      const y = p.y + (shift?.dy ?? 0) * yToX
-      s[i] = i ? s[i - 1]! + Math.hypot(x - px, y - py) : 0
+    for (let p = 0; p < n; p++) {
+      const shift = own[stepOf[p]!]!.shifts[pointIndex(run, p)]
+      const x = xs[p]! + (shift?.dx ?? 0)
+      const y = ys[p]! + (shift?.dy ?? 0) * yToX
+      s[p] = p ? s[p - 1]! + Math.sqrt((x - px) ** 2 + (y - py) ** 2) : 0
       px = x
       py = y
     }
     arcs.push(s)
   })
-  return { frames, arcs, pointFrames }
+  return { frames, arcs, stepFrames }
 }
 
 function windowed(
@@ -729,7 +789,7 @@ function windowMean(
     sumW[i + 1] = sumW[i]! + w
     sumWV[i + 1] = sumWV[i]! + w * v[i]!
   }
-  const out = new Array<number>(n)
+  const out = new Float64Array(n)
   let lo = 0
   let hi = 0
   for (let i = 0; i < n; i++) {
@@ -926,20 +986,28 @@ export function walkThreads(
 }
 
 export function bandSpans(
-  lanes: LaneRuns,
+  runs: readonly LaneRun[],
   arcs: readonly ArrayLike<number>[],
   spans: readonly ReadonlyMap<string, number>[],
   { reach, taper }: { reach: number; taper: number },
 ) {
   const out = new Map<string, { slot: number[]; held: number[] }>()
-  lanes.runs.forEach((run, r) => {
+  runs.forEach((run, r) => {
     const s = arcs[r]!
-    const mids = run.flatMap((p, i) => (p.middle ? [i] : []))
-    const along = mids.map(i => s[i]!)
-    const owned = mids.map(i => lanes.owned[r]![i]!)
-    for (const [lo, hi] of ownedWindows(along, owned, reach / 2 + taper / 2)) {
+    const along = run.ids.map((_, i) => {
+      const length = run.starts[i + 1]! - run.starts[i]!
+      const middle = Math.floor(length / 2)
+      return s[
+        run.starts[i]! + (run.forward[i] ? middle : length - 1 - middle)
+      ]!
+    })
+    for (const [lo, hi] of ownedWindows(
+      along,
+      run.owned,
+      reach / 2 + taper / 2,
+    )) {
       const at = along.slice(lo, hi + 1)
-      const ids = mids.slice(lo, hi + 1).map(i => run[i]!.id)
+      const ids = run.ids.slice(lo, hi + 1)
       const eased = spans.map(own => {
         const raw = ids.map(id => own.get(id) ?? 0)
         return raw.every(v => v === raw[0])
@@ -950,7 +1018,7 @@ export function bandSpans(
             }
       })
       ids.forEach((id, i) => {
-        if (owned[lo + i]) {
+        if (run.owned[lo + i]) {
           out.set(id, {
             slot: eased.map(e => e.slot[i]!),
             held: eased.map(e => e.held[i]!),
@@ -967,8 +1035,8 @@ export function bandSpans(
 // smoothly where the band gains or loses a walk or the thread changes place,
 // rather than stepping sideways at whichever node boundary the change falls on
 function easeOffsets(
-  lanes: LaneRuns,
-  pointFrames: readonly (readonly VisitFrame[])[],
+  runs: readonly LaneRun[],
+  stepFrames: readonly (readonly VisitFrame[])[],
   arcs: readonly ArrayLike<number>[],
   spans: ReadonlyMap<string, { slot: number[]; held: number[] }>,
   passes: readonly number[],
@@ -986,27 +1054,24 @@ function easeOffsets(
     }
     return centres
   }
-  const placeOf = (walk: number, id: string, visit: number) => {
+  runs.forEach((run, r) => {
+    const { walk, ids, visits, starts, stepOf } = run
     const { threadPasses, threadAt } = threads[walk]!
-    const thread = Math.max(0, threadPasses.get(id)?.indexOf(visit) ?? 0)
-    return threadAt.get(id)?.[thread] ?? thread
-  }
-  lanes.runs.forEach((run, r) => {
-    const walk = lanes.walkOf[r]!
-    const frames = pointFrames[r]!
-    const raw = new Float64Array(run.length)
-    let value = 0
-    run.forEach(({ id, visit }, i) => {
-      if (i === 0 || frames[i] !== frames[i - 1]) {
-        value =
-          centresAt(id)[walk]! + placeOf(walk, id, visit) * THREAD_PITCH_PX
-      }
-      raw[i] = value
+    const raw = new Float64Array(run.xs.length)
+    ids.forEach((id, i) => {
+      const thread = Math.max(0, threadPasses.get(id)?.indexOf(visits[i]!) ?? 0)
+      const place = threadAt.get(id)?.[thread] ?? thread
+      raw.fill(
+        centresAt(id)[walk]! + place * THREAD_PITCH_PX,
+        starts[i],
+        starts[i + 1],
+      )
     })
     const eased = windowMean(arcs[r]!, raw, half)
-    run.forEach(({ index }, i) => {
-      frames[i]!.offsets[index] = eased[i]
-    })
+    const frames = stepFrames[r]!
+    for (let p = 0; p < raw.length; p++) {
+      frames[stepOf[p]!]!.offsets[pointIndex(run, p)] = eased[p]
+    }
   })
 }
 
@@ -1015,21 +1080,19 @@ export function liftLanes(
   nodePositions: Record<string, NodeSegment[]>,
   yToX: number,
   worldPerScreenPx: number,
+  steps = walkSteps(
+    walks.map(w => w.route),
+    nodePositions,
+  ),
 ) {
   const threaded = threadsPasses(walks)
   const passes = walks.map(w => w.mostPasses)
   const reach = THREAD_REACH_PX * worldPerScreenPx
-  const runs = laneRuns(
-    walks.map(w => w.route),
-    nodePositions,
-    yToX,
-    LANE_SMOOTHING_PX * worldPerScreenPx,
-  )
+  const runs = laneRuns(steps, yToX, LANE_SMOOTHING_PX * worldPerScreenPx)
   const band =
     bandWidthPx(passes) * (threaded ? bandScale(passes) : 1) * worldPerScreenPx
   const lines = laneLines(
     runs,
-    nodePositions,
     yToX,
     LANE_SMOOTHING_PX * worldPerScreenPx,
     band,
@@ -1049,7 +1112,7 @@ export function liftLanes(
   if (spans && threads) {
     easeOffsets(
       runs,
-      lines.pointFrames,
+      lines.stepFrames,
       lines.arcs,
       spans,
       passes,
@@ -1058,19 +1121,16 @@ export function liftLanes(
     )
   }
   const furthestShift = { dx: 0, dy: 0 }
-  for (const walk of lines.frames) {
-    for (const visits of walk.values()) {
-      for (const { shifts } of visits) {
-        for (const shift of shifts) {
-          furthestShift.dx = Math.max(
-            furthestShift.dx,
-            Math.abs(shift?.dx ?? 0),
-          )
-          furthestShift.dy = Math.max(
-            furthestShift.dy,
-            Math.abs(shift?.dy ?? 0),
-          )
-        }
+  const seenShifts = new Set<VisitFrame['shifts']>()
+  for (const byWalk of lines.frames.values()) {
+    for (const { shifts } of byWalk.flat()) {
+      if (seenShifts.has(shifts)) {
+        continue
+      }
+      seenShifts.add(shifts)
+      for (const shift of shifts) {
+        furthestShift.dx = Math.max(furthestShift.dx, Math.abs(shift?.dx ?? 0))
+        furthestShift.dy = Math.max(furthestShift.dy, Math.abs(shift?.dy ?? 0))
       }
     }
   }

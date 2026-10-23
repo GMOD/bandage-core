@@ -577,7 +577,7 @@ test('every visit a walk makes to a node gets a frame at every point', () => {
   walks.forEach((walk, w) => {
     for (const [id, passes] of walk.passes) {
       for (let visit = 0; visit < passes; visit++) {
-        const frame = lines.frames[w]!.get(id)![visit]!
+        const frame = lines.frames.get(id)![w]![visit]!
         at[id]!.forEach((_, k) => {
           expect(frame.normals[k]).toBeDefined()
           expect(frame.shifts[k]).toBeDefined()

@@ -9,6 +9,7 @@ import {
   liftLanes,
   slotCentres,
   threadsPasses,
+  walkSteps,
 } from './walkLanes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
 import { meanDepth, nodeWidthPx, walkLaneWidthPx } from '../nodeWidths'
@@ -842,6 +843,7 @@ function pathSlotsOf(graph: Graph): ReadonlyMap<string, number[]> {
 }
 
 const lanesCache = weakMemo<WalkLift, ReturnType<typeof liftLanes>>()
+const stepsCache = weakMemo<WalkLift, ReturnType<typeof walkSteps>>()
 
 const linksCache = new WeakMap<Graph, Map<string, Set<string>>>()
 
@@ -934,7 +936,19 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       ? lanesCache(
           highlight,
           [nodePositions, version, axis.scaleX, axis.scaleY],
-          () => liftLanes(liftedWalks, nodePositions, yToX, worldPerScreenPx),
+          () =>
+            liftLanes(
+              liftedWalks,
+              nodePositions,
+              yToX,
+              worldPerScreenPx,
+              stepsCache(highlight, [nodePositions, version], () =>
+                walkSteps(
+                  liftedWalks.map(w => w.route),
+                  nodePositions,
+                ),
+              ),
+            ),
         )
       : undefined
   const lines = fields?.lines
@@ -975,8 +989,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
   const plainNormals = new Map<string, Normal[]>()
   const visitNormals = new WeakMap<VisitFrame['normals'], Normal[]>()
-  const frameOf = (lane: number, nodeId: string, visit: number) =>
-    lines?.frames[lane]?.get(nodeId)?.[visit]
   const visitOf = (lane: number, nodeId: string, thread: number) =>
     threads?.[lane]?.threadPasses.get(nodeId)?.[thread] ?? 0
   const plainNormalsOf = (nodeId: string, segments: NodeSegment[]) => {
@@ -1019,26 +1031,27 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
     return width
   }
+  // where a lane's thread leaves or enters a node, from the node's frames
+  // by walk and visit
   const laneEndOf = (
     id: string,
+    frames: VisitFrame[][] | undefined,
     segments: NodeSegment[],
     atStart: boolean,
     lane: number,
     thread: number,
   ) => {
     const at = atStart ? 0 : segments.length - 1
-    const frame = frameOf(lane, id, visitOf(lane, id, thread))
-    const laneWidth = laneWidthOf(id)
+    const frame = frames?.[lane]?.[visitOf(lane, id, thread)]
+    const eased = frame?.offsets[at]
     return {
-      id,
-      laneWidth,
-      normal: laneNormalsOf(id, segments, frame)[at] ?? { nx: 0, ny: 0 },
+      normal: frame?.normals[at] ??
+        plainNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
       shift: frame?.shifts[at] ?? NO_SHIFT,
-      offset: threadOffsetAt(
-        frame,
-        at,
-        laneOffset(id, laneWidth, lane, thread),
-      ),
+      offset:
+        eased === undefined
+          ? laneOffset(id, laneWidthOf(id), lane, thread)
+          : eased * thinned,
     }
   }
   const lanesMayShow = (curves: BezierCurve[], fromId: string) => {
@@ -1277,6 +1290,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       )
       const single = laneWalks.length === 1
       const thickness = laneHalfWidth(laneWidthOf(edge.from))
+      const fromFrames = lines?.frames.get(edge.from)
+      const toFrames = lines?.frames.get(edge.to)
       for (let lane = 0; lane < laneWalks.length; lane++) {
         const walk = laneWalks[lane]!
         if (!walk.edgeIndexes.has(ei)) {
@@ -1285,13 +1300,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         for (const [pass, toPass] of threadPairs(lane, edge.from, edge.to)) {
           const from = laneEndOf(
             edge.from,
+            fromFrames,
             fromSegments,
             fromAtStart,
             lane,
             pass,
           )
           const to = threaded
-            ? laneEndOf(edge.to, toSegments, toAtStart, lane, toPass)
+            ? laneEndOf(edge.to, toFrames, toSegments, toAtStart, lane, toPass)
             : from
           const offsetX = single ? 0 : from.offset * worldPerScreenPx
           const endOffsetX = threaded ? to.offset * worldPerScreenPx : offsetX
@@ -1427,6 +1443,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     if (drawable && lanes) {
       const laneWidth = walkLaneWidthPx(width, lanes.length)
       const thickness = laneHalfWidth(laneWidth)
+      const frames = lines?.frames.get(nodeId)
       for (let lane = 0; lane < lanes.length; lane++) {
         const laneColor = lanes[lane]!.colors.get(nodeId)
         if (laneColor === undefined) {
@@ -1445,7 +1462,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             })
             continue
           }
-          const frame = frameOf(lane, nodeId, visitOf(lane, nodeId, pass))
+          const frame = frames?.[lane]?.[visitOf(lane, nodeId, pass)]
           const normals = laneNormalsOf(nodeId, segments, frame)
           const points = lanePointsOf(segments, frame)
           const plain = laneOffset(nodeId, laneWidth, lane, pass)
