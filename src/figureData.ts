@@ -6,6 +6,12 @@ import { parseRegion } from './gbzCut'
 import { genePins } from './genes/genePins'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
+import {
+  frequencyKey,
+  haplotypeCount,
+  nodeFrequency,
+  withFrequencies,
+} from './nodeWidths'
 import { referenceVisitStarts } from './pathAnchoring'
 import {
   engineSettingsOf,
@@ -422,6 +428,7 @@ export function figureData(
 
   const startsOf = referenceVisitStarts(graph)
   const positions = referencePositions(graph)
+  const haplotypes = haplotypeCount(graph)
   return {
     meta: {
       generator: `@jbrowse/bandage-core@${version}`,
@@ -453,6 +460,11 @@ export function figureData(
               : 'these walks',
           )
         : null,
+      // the widths a key shows where nodes are as wide as their frequency
+      frequencyKey:
+        o.nodeWidth === 'frequency'
+          ? frequencyKey(o.contigThickness ?? FIGURE_DEFAULTS.contigThickness)
+          : null,
     },
     panels: {
       panel: panels.map(p => p.name),
@@ -472,6 +484,7 @@ export function figureData(
       name: graph.nodes.map(n => n.name),
       length: graph.nodes.map(n => n.length),
       depth: graph.nodes.map(n => n.depth),
+      frequency: graph.nodes.map(n => nodeFrequency(n, haplotypes) ?? null),
       backbone: graph.nodes.map(n => isBackbone(n)),
       referenceVisits: graph.nodes.map(n =>
         isBackbone(n) ? startsOf(n).length : 0,
@@ -500,6 +513,9 @@ export interface GfaFigureSpec extends Omit<
   engine?: LayoutEngineKind
   spacing?: number
   componentSeparation?: number
+  // passes per haplotype by segment name, which override an AF tag and what
+  // the walks give; `nodeWidth: 'frequency'` draws them
+  frequencies?: Record<string, number>
 }
 
 // A graph laid out as a spec asks: by its layout mode, or by the force engine
@@ -510,7 +526,10 @@ export async function laidOutGraph(
   region: FigureOptions['region'],
   spec: GfaFigureSpec,
 ) {
-  const graph = loadGraph(text, name, { referencePath: spec.referencePath })
+  const graph = withFrequencies(
+    loadGraph(text, name, { referencePath: spec.referencePath }),
+    spec.frequencies,
+  )
   const layout =
     layoutModeByValue(spec.layout ?? 'force').run(graph, region) ??
     (await forceLayout(graph, engineSettingsOf(spec), layoutEngine)).result

@@ -40,10 +40,15 @@ export { COLOR_SCHEMES, resolveColorScheme } from './colorSchemes'
 export type { ColorScheme, ResolvedColorScheme } from './colorSchemes'
 export {
   NODE_WIDTHS,
+  frequencyKey,
+  haplotypeCount,
   maxNodeWidthPx,
   meanDepth,
+  nodeFrequency,
   nodeInk,
   nodeWidthPx,
+  widthNorm,
+  withFrequencies,
 } from './nodeWidths'
 export type { NodeWidth } from './nodeWidths'
 export { EDGE_WIDTHS, busiestEdge, edgeWidthFactor } from './edgeWidths'

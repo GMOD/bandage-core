@@ -8,6 +8,9 @@ export interface GraphNode {
   name: string
   length: number
   depth: number
+  // passes per haplotype, from an AF tag or a figure spec's `frequencies`; a
+  // graph with walks derives it from depth where this is absent
+  frequency?: number
   // where this segment sits on a stable sequence: stated per-segment by rGFA's
   // SN/SO/SR, derived from the P/W lines otherwise (pathAnchoring.ts)
   stable?: StableCoordinate

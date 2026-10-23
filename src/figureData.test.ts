@@ -225,3 +225,27 @@ test('walks lifted together where one repeats key a thread per pass, apart from 
   }
   expect(Math.hypot(end[0]!, end[1]!)).toBeGreaterThan(0)
 })
+
+test('the node table gives each node its share of the haplotypes', async () => {
+  const d = await gfaFigureData(read('ecoli_pggb_subgraph.gfa'), 'ecoli', {
+    layout: 'auto',
+    nodeWidth: 'frequency',
+  })
+  const frequency = d.nodeInfo.frequency as number[]
+  expect(frequency.every(f => f > 0)).toBe(true)
+  expect(Math.max(...frequency)).toBeGreaterThanOrEqual(1)
+  expect(Math.min(...frequency)).toBeLessThan(1)
+})
+
+test('a frequency table names segments over what the walks give', async () => {
+  const text = read('ecoli_pggb_subgraph.gfa')
+  const name = text
+    .split('\n')
+    .find(l => l.startsWith('S\t'))!
+    .split('\t')[1]!
+  const d = await gfaFigureData(text, 'ecoli', {
+    layout: 'auto',
+    frequencies: { [name]: 0.125 },
+  })
+  expect(d.nodeInfo.frequency[d.nodeInfo.name.indexOf(name)]).toBe(0.125)
+})

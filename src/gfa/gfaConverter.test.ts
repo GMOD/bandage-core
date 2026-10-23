@@ -422,3 +422,9 @@ test('a path measures a segment declared twice by its first declaration', () => 
   expect(graph.anchorPaths![0]!.length).toBe(6)
   expect(graph.pathVisits!.get('2')![0]!.start).toBe(4)
 })
+
+test('an AF tag is the segment frequency, apart from its depth', () => {
+  const graph = convertGFAToGraph(parseGFA('S\t1\tACGT\tAF:f:0.25\nS\t2\tACGT'))
+  expect(graph.nodes.map(n => n.frequency)).toEqual([0.25, undefined])
+  expect(graph.nodes[0]!.depth).toBe(1)
+})

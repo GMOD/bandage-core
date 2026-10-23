@@ -126,11 +126,13 @@ function makeNode(
   strand: '+' | '-',
   depth: number,
 ): GraphNode {
+  const frequency = gfaNode.tags.AF
   return {
     id: `${gfaNode.id}${strand}`,
     name: gfaNode.id,
     length: gfaNode.length,
     depth,
+    ...(typeof frequency === 'number' && frequency >= 0 ? { frequency } : {}),
     stable: stableCoordinate(gfaNode),
     samples: carriedSamples(gfaNode),
   }

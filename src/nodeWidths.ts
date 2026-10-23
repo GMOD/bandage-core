@@ -1,18 +1,28 @@
-import type { Graph, GraphNode } from './types'
+import { panSNHaplotype } from './pansn'
+
+import type { Graph, GraphNode, GraphPath } from './types'
 import type { NodeInk } from './util/hitDetection'
 
 // How thick a node draws. Bandage widens a node by its depth, the square root
 // of its depth against the graph's mean, so a contig every read covers is fat
 // and a spurious one is a hair. In a pangenome cut depth is carriage, how many
 // walks go through the node, and the same rule makes the reference thick and a
-// private allele thin. One table drives the persisted enum and the dropdown,
-// the way BUBBLE_SPREADS does.
+// private allele thin. The frequency mode draws carriage on a fixed scale, so
+// a node every haplotype passes once is `contigThickness` wide in any graph.
+// One table drives the persisted enum and the dropdown, the way BUBBLE_SPREADS
+// does.
 export const NODE_WIDTHS = [
   {
     value: 'depth',
     label: 'By depth',
     description:
       'Thicker the more paths carry a node, on the square root of its depth against the mean. A graph with one depth everywhere draws uniform.',
+  },
+  {
+    value: 'frequency',
+    label: 'By frequency',
+    description:
+      'As wide as the share of haplotypes that pass a node, or its AF tag: full width at 100%, half at 50%, and wider where a haplotype passes it more than once.',
   },
   {
     value: 'uniform',
@@ -25,6 +35,8 @@ export type NodeWidth = (typeof NODE_WIDTHS)[number]['value']
 
 const MIN_FACTOR = 0.3
 const MAX_FACTOR = 3
+// a hairline, so a 1% allele still draws, and 10% still draws wider
+const MIN_FREQUENCY_FACTOR = 0.05
 
 // Length-weighted, as Bandage's mean depth is, so a cut's long reference nodes
 // set the norm and the alleles read against it.
@@ -36,6 +48,69 @@ export function meanDepth(graph: Graph) {
     length += node.length
   }
   return length > 0 ? weighted / length : 0
+}
+
+function haplotypeOf(path: GraphPath) {
+  return path.sample === undefined
+    ? (panSNHaplotype(path.name) ?? path.name)
+    : `${path.sample}#${path.haplotype ?? 0}`
+}
+
+// How many haplotypes the graph's walks belong to, a contig split into several
+// records counted once
+export function haplotypeCount(graph: Graph) {
+  return new Set((graph.paths ?? []).map(haplotypeOf)).size
+}
+
+// The node's passes per haplotype: its AF tag, or its depth over the
+// haplotypes. Above 1 where a haplotype passes the node more than once, as
+// through a repeat's copies; undefined with neither.
+export function nodeFrequency(node: GraphNode, haplotypes: number) {
+  return (
+    node.frequency ?? (haplotypes > 0 ? node.depth / haplotypes : undefined)
+  )
+}
+
+// The graph with each segment `frequencies` names taking that frequency, as an
+// AF tag would give it
+export function withFrequencies(
+  graph: Graph,
+  frequencies: Readonly<Record<string, number>> | undefined,
+): Graph {
+  if (!frequencies) {
+    return graph
+  }
+  const nodes = graph.nodes.map(node => {
+    const frequency = frequencies[node.name]
+    return frequency === undefined ? node : { ...node, frequency }
+  })
+  return { ...graph, nodes }
+}
+
+// What a width is measured against: the mean depth, or the haplotype count
+export function widthNorm(graph: Graph, nodeWidth: NodeWidth) {
+  return nodeWidth === 'depth'
+    ? meanDepth(graph)
+    : nodeWidth === 'frequency'
+      ? haplotypeCount(graph)
+      : 0
+}
+
+function frequencyFactor(f: number) {
+  return Math.min(MAX_FACTOR, Math.max(MIN_FREQUENCY_FACTOR, f))
+}
+
+function frequencyWidthFactor(node: GraphNode, haplotypes: number) {
+  const f = nodeFrequency(node, haplotypes)
+  return f === undefined ? 1 : frequencyFactor(f)
+}
+
+// The widths a key for `nodeWidth: 'frequency'` shows, each with its share
+export function frequencyKey(contigThickness: number) {
+  return [1, 0.5, 0.1].map(f => ({
+    label: `${f * 100}%`,
+    widthPx: contigThickness * frequencyFactor(f),
+  }))
 }
 
 function depthWidthFactor(node: GraphNode, mean: number) {
@@ -50,19 +125,25 @@ function depthWidthFactor(node: GraphNode, mean: number) {
 
 // How wide a node is drawn, in screen px. One function for the geometry and
 // for the hit test, so the pointer finds a node exactly where its ink is.
+// `norm` is widthNorm's.
 export function nodeWidthPx(
   node: GraphNode,
   contigThickness: number,
   nodeWidth: NodeWidth,
-  mean: number,
+  norm: number,
 ) {
   return (
-    contigThickness * (nodeWidth === 'depth' ? depthWidthFactor(node, mean) : 1)
+    contigThickness *
+    (nodeWidth === 'depth'
+      ? depthWidthFactor(node, norm)
+      : nodeWidth === 'frequency'
+        ? frequencyWidthFactor(node, norm)
+        : 1)
   )
 }
 
 export function maxNodeWidthPx(contigThickness: number, nodeWidth: NodeWidth) {
-  return contigThickness * (nodeWidth === 'depth' ? MAX_FACTOR : 1)
+  return contigThickness * (nodeWidth === 'uniform' ? 1 : MAX_FACTOR)
 }
 
 // A lifted walk's lane is never thinner than this, so a node carrying three
@@ -85,7 +166,7 @@ export function nodeInk(
   nodeWidth: NodeWidth,
   lanes = 0,
 ): NodeInk {
-  const mean = graph ? meanDepth(graph) : 0
+  const norm = graph ? widthNorm(graph, nodeWidth) : 0
   const reach = (width: number) =>
     lanes > 0 ? (walkLaneWidthPx(width, lanes) * lanes) / 2 : width / 2
   return {
@@ -94,7 +175,7 @@ export function nodeInk(
       const node = nodeById?.get(id)
       return reach(
         node
-          ? nodeWidthPx(node, contigThickness, nodeWidth, mean)
+          ? nodeWidthPx(node, contigThickness, nodeWidth, norm)
           : contigThickness,
       )
     },

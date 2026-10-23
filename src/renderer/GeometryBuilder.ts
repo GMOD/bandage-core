@@ -12,7 +12,7 @@ import {
   walkSteps,
 } from './walkLanes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
-import { meanDepth, nodeWidthPx, walkLaneWidthPx } from '../nodeWidths'
+import { nodeWidthPx, walkLaneWidthPx, widthNorm } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
   PATH_SATURATION,
@@ -384,7 +384,8 @@ export interface BuildOptions {
   // the stripes, the ribbons and the key together. Same contract as
   // `colorScheme` above, which arrives with 'auto' already resolved.
   drawPaths: boolean
-  // thicker by depth, or every node at `contigThickness`; see nodeWidths.ts
+  // thicker by depth or frequency, or every node at `contigThickness`; see
+  // nodeWidths.ts
   nodeWidth?: NodeWidth
   // thicker by the walks taking a link, or every link at
   // `connectorThickness`; see edgeWidths.ts
@@ -886,7 +887,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     hiddenEdges,
     version = 0,
   } = options
-  const depthNorm = nodeWidth === 'depth' ? meanDepth(graph) : 0
+  const widthScale = widthNorm(graph, nodeWidth)
   const busiest = edgeWidth === 'walks' ? busiestEdge(graph) : 0
   const scale = axis.scaleX
   const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
@@ -1023,7 +1024,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const node = nodeById.get(id)
       width = walkLaneWidthPx(
         node
-          ? nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
+          ? nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
           : contigThickness,
         liftedWalks.length,
       )
@@ -1168,7 +1169,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const toNode = nodeById.get(edge.to)
     const intoHalfWidth =
       (toNode
-        ? nodeWidthPx(toNode, contigThickness, nodeWidth, depthNorm)
+        ? nodeWidthPx(toNode, contigThickness, nodeWidth, widthScale)
         : contigThickness) / 2
     const inView = (curves: BezierCurve[]) =>
       !viewportBounds || isBezierInBounds(curves, viewportBounds)
@@ -1419,7 +1420,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           colorRange,
         )
     const color = faded ? fadeAbgr(own, FADED_ALPHA) : own
-    const width = nodeWidthPx(node, contigThickness, nodeWidth, depthNorm)
+    const width = nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
     const nodeThickness = width / 2
 
     const start = nodeStrokes.length
