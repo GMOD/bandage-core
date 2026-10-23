@@ -358,6 +358,75 @@ function rounded(run: readonly { x: number; y: number }[], half: number) {
   return out
 }
 
+// The point `at` along a polyline whose arc lengths are `s`
+function pointAlong(
+  line: readonly { x: number; y: number }[],
+  s: ArrayLike<number>,
+  at: number,
+) {
+  let lo = 0
+  let hi = line.length - 1
+  if (at <= 0) {
+    return line[0]!
+  }
+  if (at >= s[hi]!) {
+    return line[hi]!
+  }
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1
+    if (s[mid]! <= at) {
+      lo = mid
+    } else {
+      hi = mid
+    }
+  }
+  const span = s[hi]! - s[lo]!
+  const f = span > 0 ? (at - s[lo]!) / span : 0
+  const a = line[lo]!
+  const b = line[hi]!
+  return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
+}
+
+// The line smoothed again wherever it turns tighter than `radius`, the
+// furthest a thread runs from it, so the band's inner thread rounds a hairpin
+// rather than folding back on itself at the tip
+function loosened(line: readonly { x: number; y: number }[], radius: number) {
+  let out = line
+  for (let pass = 0; pass < 8; pass++) {
+    const s = arcOf(out)
+    const end = s[s.length - 1]!
+    const tight = out.map((p, i) => {
+      if (s[i]! < radius || end - s[i]! < radius) {
+        return false
+      }
+      const a = pointAlong(out, s, s[i]! - radius)
+      const b = pointAlong(out, s, s[i]! + radius)
+      const ab = gapOf(a, b)
+      const twice = Math.abs(
+        (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x),
+      )
+      return (
+        twice > 0 && (ab * gapOf(a, p) * gapOf(p, b)) / (2 * twice) < radius
+      )
+    })
+    if (!tight.includes(true)) {
+      return out
+    }
+    const weight = windowMean(
+      Array.from(s),
+      tight.map(t => (t ? 1 : 0)),
+      radius,
+    ).map(w => Math.min(1, 3 * w))
+    const smoother = rounded(out, radius)
+    out = out.map((p, i) => {
+      const w = weight[i]!
+      const q = smoother[i]!
+      return w > 0 ? { x: p.x + (q.x - p.x) * w, y: p.y + (q.y - p.y) * w } : p
+    })
+  }
+  return out
+}
+
 export interface VisitFrame {
   normals: (Normal | undefined)[]
   shifts: (Shift | undefined)[]
@@ -450,7 +519,7 @@ export function laneLines(
     const walk = lanes.walkOf[r]!
     const owned = lanes.owned[r]!
     const line: readonly { x: number; y: number }[] = smooth
-      ? rounded(cutCurls(run, band / 2, curl), band / 2)
+      ? loosened(rounded(cutCurls(run, band / 2, curl), band / 2), band / 2)
       : run
     const own = smoothedNormals(line, turn)
     const s = arcOf(line)
