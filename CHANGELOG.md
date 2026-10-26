@@ -1,3 +1,9 @@
+## [11.19.0](https://github.com/GMOD/bandage-core/compare/v11.18.0...v11.19.0) (2026-10-26)
+
+### Other Changes
+
+- Key an exported figure's walk-row boxes by the host's annotation noun too ([f8cfc47](https://github.com/GMOD/bandage-core/commit/f8cfc471048779f10639377bfc84cfc0a227197d))
+
 ## [11.18.0](https://github.com/GMOD/bandage-core/compare/v11.17.0...v11.18.0) (2026-10-26)
 
 ### Other Changes
