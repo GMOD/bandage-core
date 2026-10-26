@@ -107,6 +107,8 @@ export interface FigureOptions {
   // each row's genes as offsets along its bar, and the rows read none
   rowGenes?: Map<string, RowGene[]>
   rowGeneGaps?: GeneGaps
+  // what the rows' boxes are, singular, for the key: 'gene' unless named
+  rowAnnotation?: string
   // walk rows in a strip under a layout that draws nodes, with their genes
   walkStrip?: {
     rows: WalkRows
@@ -459,6 +461,7 @@ export function figureSvg(
       const entries = walkRowsKey(rows, {
         ramp: rampInterval,
         genes: o.rowGenes?.size ? o.rowGeneGaps : undefined,
+        annotation: o.rowAnnotation,
       })
       entries.forEach((entry, i) => {
         keys.push((x, y) => {
@@ -522,6 +525,7 @@ export function figureSvg(
       walkRowsKey(strip.rows, {
         ramp: rampInterval,
         genes: stripGeneGaps(frame, strip.rowGenes, strip.rowGeneGaps),
+        annotation: o.rowAnnotation,
       }),
       6,
       height + frame.height,

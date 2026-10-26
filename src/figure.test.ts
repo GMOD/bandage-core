@@ -205,6 +205,21 @@ test('walk rows in a strip sit under the drawing, labelled and keyed', () => {
   expect(svg).toMatch(/>gene<\/text>/)
 })
 
+test('the walk-rows key names the boxes by the annotation given', () => {
+  const rows = walkRows(graph, undefined)!
+  const svg = figureSvg(graph, layout, {
+    width: 600,
+    walkRows: rows,
+    rowGenes: new Map([
+      [rows.rows[0]!.name, [{ name: 'ALTTE', start: 0, end: 6, exons: [] }]],
+    ]),
+    rowGeneGaps: { untracked: 1, unread: 0 },
+    rowAnnotation: 'TE',
+  })
+  expect(svg).toMatch(/>TE<\/text>/)
+  expect(svg).toMatch(/>no TE track for 1 row<\/text>/)
+})
+
 test('the SVG names the version that drew it and the spec it drew', () => {
   const spec = { gfa: 'walks.gfa', layout: 'ordered' }
   const svg = figureSvg(graph, layout, { width: 600, spec })
