@@ -1,3 +1,9 @@
+## [11.18.0](https://github.com/GMOD/bandage-core/compare/v11.17.0...v11.18.0) (2026-10-26)
+
+### Other Changes
+
+- Name walk-row annotation boxes by the host's noun, 'gene' unless it names another ([759706f](https://github.com/GMOD/bandage-core/commit/759706f0a5fefd0efcbbc944a81fe0558667f234))
+
 ## [11.17.0](https://github.com/GMOD/bandage-core/compare/v11.16.0...v11.17.0) (2026-10-23)
 
 ### Other Changes
