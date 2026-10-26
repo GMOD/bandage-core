@@ -382,8 +382,11 @@ export function walkRowsKey(
     ramp?: { start: number; end: number }
     rampCss?: string
     genes?: GeneGaps
+    // what a row's boxes are, singular: 'gene' unless the host names another
+    annotation?: string
   } = {},
 ): KeyEntry[] {
+  const noun = o.annotation ?? 'gene'
   const entries: KeyEntry[] = [
     {
       swatch: o.ramp
@@ -412,18 +415,18 @@ export function walkRowsKey(
   if (o.genes?.crowded) {
     entries.push({
       swatch: { kind: 'gene' },
-      label: 'genes left out: too many rows to box them in',
+      label: `${noun}s left out: too many rows to box them in`,
       note: true,
     })
   } else if (o.genes) {
     entries.push({
       swatch: { kind: 'gene' },
-      label: 'gene',
+      label: noun,
     })
     if (o.genes.untracked) {
       entries.push({
         swatch: { kind: 'gene' },
-        label: `no gene track for ${rowsText(o.genes.untracked)}`,
+        label: `no ${noun} track for ${rowsText(o.genes.untracked)}`,
         note: true,
       })
     }
@@ -437,7 +440,7 @@ export function walkRowsKey(
     if (o.genes.unread) {
       entries.push({
         swatch: { kind: 'gene' },
-        label: `genes not read for the last ${rowsText(o.genes.unread)}`,
+        label: `${noun}s not read for the last ${rowsText(o.genes.unread)}`,
         note: true,
       })
     }

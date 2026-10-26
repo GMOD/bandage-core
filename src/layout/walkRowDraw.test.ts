@@ -206,6 +206,18 @@ test('the key says the colours are the graph’s alignment', () => {
   ])
 })
 
+test('the key names the boxes by the annotation the host read', () => {
+  const key = walkRowsKey(rows(), {
+    genes: { untracked: 2, unread: 1 },
+    annotation: 'TE',
+  })
+  expect(key.slice(-3).map(e => e.label)).toEqual([
+    'TE',
+    'no TE track for 2 rows',
+    'TEs not read for the last 1 row',
+  ])
+})
+
 test('the SVG draws every row with its genes', () => {
   const bars = rows()
   const svg = serializeEl(
