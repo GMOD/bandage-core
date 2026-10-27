@@ -105,12 +105,21 @@ test('a domain puts the walks, or the samples, it lists first', () => {
 })
 
 test('a facet setting reads a bare field, drops one the pane cannot split on, and keeps its members', () => {
-  expect(facetSettingOf('walk')).toEqual({ field: 'walk', domain: [] })
-  expect(facetSettingOf('none')).toEqual({ field: '', domain: [] })
-  expect(facetSettingOf(undefined)).toEqual({ field: '', domain: [] })
+  expect(facetSettingOf('walk')).toEqual({ field: 'walk', sort: [] })
+  expect(facetSettingOf('none')).toEqual({ field: '', sort: [] })
+  expect(facetSettingOf(undefined)).toEqual({ field: '', sort: [] })
+  expect(facetSettingOf({ field: 'sample', sort: ['B'], columns: 2 })).toEqual({
+    field: 'sample',
+    sort: ['B'],
+    columns: 2,
+  })
+})
+
+test('a facet written with the 11.x domain reads it as the sort', () => {
+  expect(facetSettingOf({ field: 'walk', domain: ['c'] }).sort).toEqual(['c'])
   expect(
-    facetSettingOf({ field: 'sample', domain: ['B'], columns: 2 }),
-  ).toEqual({ field: 'sample', domain: ['B'], columns: 2 })
+    facetSettingOf({ field: 'walk', sort: ['a'], domain: ['c'] }).sort,
+  ).toEqual(['a'])
 })
 
 test('the fields a picker offers lead with none, as a JBrowse menu does', () => {

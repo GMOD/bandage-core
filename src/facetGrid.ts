@@ -90,7 +90,7 @@ export type FacetBy = 'walk' | 'sample'
 export interface FacetSetting {
   field: '' | FacetBy
   /** The walks, or under `sample` the samples, whose panels come first, in order. */
-  domain: string[]
+  sort: string[]
   /** How many panels go across; unset takes whichever count draws each largest. */
   columns?: number
 }
@@ -119,7 +119,14 @@ export const FACET_FIELDS: {
 
 /** What a session or a spec may write for the facet: the field bare, or the setting's members. */
 export type FacetInput =
-  string | { field?: string; domain?: readonly string[]; columns?: number }
+  | string
+  | {
+      field?: string
+      sort?: readonly string[]
+      /** @deprecated `sort` through 11.x */
+      domain?: readonly string[]
+      columns?: number
+    }
 
 /** A facet written bare is its field, and a field the pane cannot split on is none. */
 export function facetSettingOf(facet: FacetInput | undefined): FacetSetting {
@@ -127,15 +134,15 @@ export function facetSettingOf(facet: FacetInput | undefined): FacetSetting {
   const field = raw.field === 'walk' || raw.field === 'sample' ? raw.field : ''
   return {
     field,
-    domain: [...(raw.domain ?? [])],
+    sort: [...(raw.sort ?? raw.domain ?? [])],
     ...(raw.columns === undefined ? {} : { columns: raw.columns }),
   }
 }
 
-// The listed names first, in the domain's order, then the rest as they came
-function domainFirst(names: readonly string[], domain: readonly string[]) {
-  const rank = new Map(domain.map((name, i) => [name, i]))
-  const listed = (name: string) => rank.get(name) ?? domain.length
+// The listed names first, in the sort's order, then the rest as they came
+function sortedFirst(names: readonly string[], sort: readonly string[]) {
+  const rank = new Map(sort.map((name, i) => [name, i]))
+  const listed = (name: string) => rank.get(name) ?? sort.length
   return names
     .map((name, i) => ({ name, i }))
     .sort((a, b) => listed(a.name) - listed(b.name) || a.i - b.i)
@@ -148,13 +155,13 @@ function domainFirst(names: readonly string[], domain: readonly string[]) {
 // haplotype) lays out a plot, so a sample's haplotypes read across its row and
 // a haploid reference sits in the first column. Names that are not
 // `sample#haplotype#contig`, or two walks landing in one cell, wrap instead.
-// A `domain` puts the walks, or the samples, it lists first.
+// A `sort` puts the walks, or the samples, it lists first.
 export function facetCells(
   names: string[],
   by: FacetBy,
-  domain: readonly string[] = [],
+  sort: readonly string[] = [],
 ) {
-  const wrapOrder = domainFirst(names, domain)
+  const wrapOrder = sortedFirst(names, sort)
   const wrap = {
     columns: undefined,
     count: names.length,
@@ -169,9 +176,9 @@ export function facetCells(
       ? { sample: fields.sample, column: Math.max(0, fields.haplotype - 1) }
       : undefined
   })
-  const rows = domainFirst(
+  const rows = sortedFirst(
     [...new Set(places.flatMap(p => (p ? [p.sample] : [])))],
-    domain,
+    sort,
   )
   const columns = Math.max(1, ...places.map(p => (p ? p.column + 1 : 1)))
   const cells = places.map(p =>

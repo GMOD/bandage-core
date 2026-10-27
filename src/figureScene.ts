@@ -84,7 +84,7 @@ export function figureScene(
           place: facetCells(
             panels.map(p => p.walks[0]!.name),
             facet.field,
-            facet.domain,
+            facet.sort,
           ),
         }
       : undefined
