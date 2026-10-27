@@ -1,3 +1,9 @@
+## [12.0.0](https://github.com/GMOD/bandage-core/compare/v11.19.0...v12.0.0) (2026-10-27)
+
+### Other Changes
+
+- Spell a facet's panel order sort, as a JBrowse display's facet does ([51a413a](https://github.com/GMOD/bandage-core/commit/51a413a6e989c2400debf3d922974d011af4274b))
+
 ## [11.19.0](https://github.com/GMOD/bandage-core/compare/v11.18.0...v11.19.0) (2026-10-26)
 
 ### Other Changes
