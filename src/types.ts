@@ -21,6 +21,10 @@ export interface GraphNode {
   // where a backbone segment clipToWindow cut back lies in full, so a link
   // from its cut end is measured from where the segment really ends
   unclipped?: { start: number; length: number }
+  // a segment of a component too large for the index to file under the
+  // reference (gfa-to-tabix --max-component), which an indexed cut reaches
+  // only through the links into it: graph-walks tags it `mv:i:1`
+  moved?: true
 }
 
 export interface GraphEdge {

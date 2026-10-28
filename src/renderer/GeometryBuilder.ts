@@ -81,6 +81,8 @@ const DELETION_THICKNESS_FACTOR = 2.2
 // background.
 export const LIFT_BACKDROP_COLOR = packAbgr(160, 160, 160, 255)
 export const FADED_ALPHA = 0.18
+// a moved component's stub: paler than its colour, and plainer than a fade
+const MOVED_ALPHA = 0.45
 // The same fade as css, for what paints outside the batch: the strip, the
 // keys, a tube map's tubes
 export const LIFT_BACKDROP_CSS = abgrToCssRgba(
@@ -1426,7 +1428,11 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           colorScheme,
           colorRange,
         )
-    const color = faded ? fadeAbgr(own, FADED_ALPHA) : own
+    const color = faded
+      ? fadeAbgr(own, FADED_ALPHA)
+      : node.moved
+        ? fadeAbgr(own, MOVED_ALPHA)
+        : own
     const width = nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
     const nodeThickness = width / 2
 

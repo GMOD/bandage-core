@@ -984,3 +984,30 @@ test('endTangent reads the first control point when the last is degenerate', () 
     }),
   ).toBeCloseTo(Math.PI / 2, 6)
 })
+
+test('a stub of a moved component draws paler than the same node unmoved', () => {
+  const moved = { ...simpleGraph.nodes[1]!, moved: true as const }
+  const opts = {
+    axis: iso(),
+    nodePositions: simplePositions,
+    colorScheme: 'uniform' as const,
+    contigThickness: 5,
+    connectorThickness: 1.5,
+    drawPaths: false,
+  }
+  const plain = buildGeometry({
+    ...opts,
+    graph: simpleGraph,
+    nodeById: simpleNodeById,
+  })
+  const stub = buildGeometry({
+    ...opts,
+    graph: { ...simpleGraph, nodes: [simpleGraph.nodes[0]!, moved] },
+    nodeById: new Map([...simpleNodeById, ['B+', moved]]),
+  })
+  expect(nodeColor(stub, 'A+')).toBe(nodeColor(plain, 'A+'))
+  const alpha = (c: number) => c >>> 24
+  expect(alpha(nodeColor(stub, 'B+'))).toBeLessThan(
+    alpha(nodeColor(plain, 'B+')),
+  )
+})

@@ -135,6 +135,7 @@ function makeNode(
     ...(typeof frequency === 'number' && frequency >= 0 ? { frequency } : {}),
     stable: stableCoordinate(gfaNode),
     samples: carriedSamples(gfaNode),
+    ...(gfaNode.tags.mv === 1 ? { moved: true as const } : {}),
   }
 }
 
