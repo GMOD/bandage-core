@@ -53,6 +53,13 @@ export interface GraphTables {
     abridgedSteps?: Float64Array
     abridgedBp?: Float64Array
   }
+  // haplotypes with no walk in a walk-file cut that jump over the window, each
+  // with the stretch of the reference it leaves out, from skip rows
+  skips?: {
+    names: string[]
+    starts: Float64Array
+    ends: Float64Array
+  }
 }
 
 // A P line states a walk's start only as a range on its name

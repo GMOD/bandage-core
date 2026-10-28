@@ -338,3 +338,51 @@ test('gaps between loaded pieces leave out the bp an abridged row drew', () => {
     walkRows(loadGraph(interleaved, 'cut'), region),
   )
 })
+
+// F's walk-file skip row: it jumps from 1500 to 3500 over the repeat
+test('a haplotype that jumps over the window draws as a deletion under it', () => {
+  const skips = {
+    names: ['F#1#f', 'A#1#a'],
+    starts: Float64Array.of(1500, 0),
+    ends: Float64Array.of(3500, 5000),
+  }
+  const { rows } = rowsOf({ ...tables, skips })
+  const f = rows.find(r => r.label === 'F#1')!
+  expect(f).toMatchObject({
+    name: 'F#1#f',
+    sample: 'F',
+    haplotype: 1,
+    bp: 0,
+    gapBp: 1000,
+    complete: true,
+  })
+  expect(f.runs).toEqual([
+    expect.objectContaining({
+      start: 0,
+      bp: 1000,
+      gap: true,
+      cause: 'deleted',
+    }),
+  ])
+  // A has a walk in the cut, which says more than its skip row
+  expect(rows.filter(r => r.label === 'A#1')).toHaveLength(1)
+})
+
+test('a cut whose only other haplotypes jump over the window still has rows', () => {
+  const reference: GraphTables = {
+    ...tables,
+    walks: {
+      ...tables.walks,
+      names: tables.walks.names.slice(0, 1),
+      starts: tables.walks.starts.slice(0, 1),
+      ends: tables.walks.ends.slice(0, 1),
+      offsets: tables.walks.offsets.slice(0, 2),
+    },
+    skips: {
+      names: ['F#1#f'],
+      starts: Float64Array.of(1500),
+      ends: Float64Array.of(3500),
+    },
+  }
+  expect(rowsOf(reference).rows.map(r => r.label)).toEqual(['F#1'])
+})

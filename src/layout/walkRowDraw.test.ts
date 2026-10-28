@@ -1,4 +1,7 @@
 import {
+  MISSING_INK,
+  MISSING_PX,
+  gapStyle,
   genesOnRow,
   placeRowGenes,
   rowGeneBoxes,
@@ -366,4 +369,21 @@ test("an abridged walk's readout counts the steps and bp not loaded", () => {
       { bp: 2_100_000 },
     ),
   ).toBe('2100 kb · 140 k steps, 2100 kb not loaded')
+})
+
+test('a haplotype that jumps over the window reads as a deletion', () => {
+  const runs = [
+    { start: 0, bp: 2000, gap: true, onReference: false, cause: 'deleted' },
+  ] as const
+  expect(
+    walkRowReadout(
+      { bp: 0, gapBp: 2000, complete: true, runs: [...runs] },
+      { bp: 2000 },
+    ),
+  ).toBe('0.0 kb (−2.0 kb) · 2.0 kb deleted in this haplotype')
+  expect(gapStyle('deleted')).toEqual({
+    fill: MISSING_INK,
+    px: MISSING_PX,
+    label: 'deleted in this haplotype',
+  })
 })
