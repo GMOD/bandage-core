@@ -74,6 +74,21 @@ export class PathVisits {
     return -1
   }
 
+  // the visit of `slot` on the path first in name order, at its lowest offset
+  // there: where gfa-to-tabix places a segment the reference doesn't visit, so
+  // both place it alike whatever order the file lists its paths in
+  firstByName(slot: number): number {
+    let best = this.offsets[slot]!
+    for (let i = best + 1; i < this.offsets[slot + 1]!; i++) {
+      const a = this.paths[this.path[i]!]!
+      const b = this.paths[this.path[best]!]!
+      if (a < b || (a === b && this.start[i]! < this.start[best]!)) {
+        best = i
+      }
+    }
+    return best
+  }
+
   // Paths' steps replayed in walk order against their visits: the k-th call
   // for one path and segment answers that path's k-th visit there, -1 past
   // its last. A walk in pieces lists its pieces in path order, so replaying

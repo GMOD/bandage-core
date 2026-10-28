@@ -104,8 +104,8 @@ const OFF_REFERENCE_RANK = 1
 
 // A segment the reference path visits sits on the backbone at the offset that
 // visit reaches it. One it never visits is an alternate allele, placed on the
-// coordinates of the first path that does carry it — the same asymmetry rGFA
-// has, where a rank>0 segment's SO is an offset on the assembly that
+// coordinates of the path first in name order that carries it, as gfa-to-tabix
+// places it — the same asymmetry rGFA has, where a rank>0 segment's SO is an offset on the assembly that
 // contributed the sequence rather than on the reference.
 //
 // **First visit wins** when a path reaches the same segment more than once, and
@@ -127,7 +127,7 @@ function anchorNode(
     return node
   }
   const own = visits.firstBy(slot, reference)
-  const anchor = own >= 0 ? own : visits.offsets[slot]!
+  const anchor = own >= 0 ? own : visits.firstByName(slot)
   return {
     ...node,
     stable: {

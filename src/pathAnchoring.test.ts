@@ -222,6 +222,29 @@ test('a repeated segment takes its first visit', () => {
   expect(nodeNamed(graph, 'b').stable!.start).toBe(15)
 })
 
+// An allele takes the coordinates of the path first in name order that carries
+// it, as gfa-to-tabix places it, so a file listing Sakai before IAI39 still
+// places a segment both carry on IAI39.
+test('an allele sits on the path first in name order', () => {
+  const gfa =
+    'S\ta\tACGTA\n' +
+    'S\tx\tGG\n' +
+    'S\tb\tTTTT\n' +
+    'L\ta\t+\tx\t+\t0M\n' +
+    'L\tx\t+\tb\t+\t0M\n' +
+    'L\ta\t+\tb\t+\t0M\n' +
+    'P\tK12#1#chr\ta+,b+\t*\n' +
+    'P\tSakai#1#chr:100-111\ta+,x+,b+\t*\n' +
+    'P\tIAI39#1#chr:200-211\ta+,x+,b+\t*\n'
+  const graph = anchorGraph(convertGFAToGraph(parseGFA(gfa)), 'K12')
+
+  expect(nodeNamed(graph, 'x').stable).toMatchObject({
+    refName: 'IAI39#1#chr',
+    start: 205,
+    rank: 1,
+  })
+})
+
 // A path may read a segment in either orientation, and the interval has to come
 // from the path's own offset accumulation rather than from segment order.
 // IAI39 is the strain this matters for in the E. coli graph: 350 of its ~1,074
