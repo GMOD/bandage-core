@@ -136,6 +136,56 @@ test('a link drawn by walks is thicker the more walks take it', () => {
   expect(thickness('walks', 1)).toBe(0.5 + 3.5 * 0.5)
 })
 
+test('a deletion drawn by walks widens with them, no thinner than a link', () => {
+  const graph = {
+    name: 'test',
+    nodes: [
+      { id: 'A+', name: 'A', length: 100, depth: 1 },
+      { id: 'B+', name: 'B', length: 200, depth: 1 },
+      { id: 'C+', name: 'C', length: 100, depth: 1 },
+    ],
+    edges: [
+      { from: 'A+', to: 'B+', pathIds: ['w1'] },
+      { from: 'B+', to: 'C+', pathIds: ['w1'] },
+      {
+        from: 'A+',
+        to: 'C+',
+        pathIds: Array.from({ length: 64 }, (_, i) => `d${i}`),
+      },
+    ],
+  }
+  const positions = {
+    ...simplePositions,
+    'C+': [
+      { x: 40, y: 0 },
+      { x: 50, y: 0 },
+    ],
+  }
+  const thickness = (edgeWidth: 'uniform' | 'walks', edge: number) => {
+    const batch = buildGeometry({
+      nodePositions: positions,
+      graph,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      axis: iso(),
+      contigThickness: 5,
+      connectorThickness: 2,
+      drawPaths: false,
+      edgeWidth,
+      deletions: new Map([
+        [0, ['B']],
+        [2, ['B']],
+      ]),
+    })
+    return batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
+  }
+  expect(thickness('uniform', 2)).toBe(2.2)
+  expect(thickness('walks', 2)).toBe(4)
+  // one walk of 64 would draw 0.5 + 3.5 / 8, under a plain link
+  expect(thickness('walks', 0)).toBe(1)
+  expect(thickness('walks', 1)).toBe(0.5 + 3.5 / 8)
+})
+
 test('handles empty node positions gracefully', () => {
   const batch = buildGeometry({
     nodePositions: {},

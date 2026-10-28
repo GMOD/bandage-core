@@ -1140,9 +1140,16 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // link drawn alone widens by its walks
     const ribbonThickness =
       (connectorThickness / 2) * (isDeletion ? DELETION_THICKNESS_FACTOR : 1)
-    const edgeThickness = isDeletion
-      ? ribbonThickness
-      : (connectorThickness / 2) * edgeWidthFactor(numPaths, busiest, edgeWidth)
+    const walkFactor = edgeWidthFactor(numPaths, busiest, edgeWidth)
+    // a deletion by walks keeps a plain link's width at least, so its dashes
+    // stay legible when few walks take it
+    const edgeThickness =
+      (connectorThickness / 2) *
+      (!isDeletion
+        ? walkFactor
+        : edgeWidth === 'walks' && busiest > 0
+          ? Math.max(1, walkFactor)
+          : DELETION_THICKNESS_FACTOR)
     // One stroke per path crossing the edge, fanned off it: the shared curve
     // slid sideways, which is also what the hit index tests against. Rebuilding
     // the curve at each offset was 40% of a striped build and differed from a
