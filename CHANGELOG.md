@@ -1,3 +1,9 @@
+## [12.0.1](https://github.com/GMOD/bandage-core/compare/v12.0.0...v12.0.1) (2026-10-28)
+
+### Other Changes
+
+- Draw a deletion by its walks when links are ([99ffbf0](https://github.com/GMOD/bandage-core/commit/99ffbf0e185e1cab7568d3ec21415dd4ad9b94d4))
+
 ## [12.0.0](https://github.com/GMOD/bandage-core/compare/v11.19.0...v12.0.0) (2026-10-27)
 
 ### Other Changes
