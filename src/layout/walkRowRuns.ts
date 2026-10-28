@@ -1,6 +1,6 @@
 import { tableNodeIds, tablePath } from '../gfa/graphTables'
 import { gapParts } from '../gfa/walkStops'
-import { panSNContig, panSNHaplotype, panSNSample } from '../pansn'
+import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
 
@@ -26,6 +26,7 @@ const GAP_CAUSES = [
   'elsewhere',
   'unknown',
   'abridged',
+  'deleted',
 ] as const
 const CAUSE_SHIFT = 3
 
@@ -289,7 +290,8 @@ export function walkRowRuns(
     .sort(byStart)
   const first = referencePieces[0]
   const others = pieceIds.filter(p => nameOf(p) !== reference)
-  if (first === undefined || others.length === 0) {
+  const skips = 'walks' in source ? source.skips : undefined
+  if (first === undefined || (others.length === 0 && !skips?.names.length)) {
     return undefined
   }
   // a cut hands a walk back as one record per piece inside its nodes
@@ -637,11 +639,51 @@ export function walkRowRuns(
     }
   }
 
+  // A haplotype that jumps over the window draws as a hairline under the
+  // stretch of the window it leaves out, and states the bp
+  const skipRowOf = (name: string, start: number, end: number): WalkRowMeta => {
+    const from = cut ? Math.max(start, cut.start) : start
+    const bp = (cut ? Math.min(end, cut.end) : end) - from
+    runs.push(
+      from - (cut ? cut.start : start),
+      bp,
+      Number.NaN,
+      RUN_GAP | causeFlags('deleted'),
+      -1,
+    )
+    runs.endRow()
+    visits?.endRow()
+    const head: PieceHead = { name, ...panSNFields(name) }
+    return {
+      name,
+      label: labelOf(head),
+      sample: sampleOf(head),
+      haplotype: head.haplotype,
+      bp: 0,
+      offReferenceBp: 0,
+      gapBp: bp,
+      complete: true,
+      stop: undefined,
+      axis: undefined,
+    }
+  }
+
   const referenceRow = rowOf(referencePieces)
   const rows = [...walks.values()].map((pieces, i) => ({
     meta: rowOf(pieces),
     row: i + 1,
   }))
+  const drawn = new Set(walks.keys())
+  skips?.names.forEach((name, k) => {
+    const contig = pathOrigin(name).name
+    if (!drawn.has(contig)) {
+      drawn.add(contig)
+      rows.push({
+        meta: skipRowOf(contig, skips.starts[k]!, skips.ends[k]!),
+        row: rows.length + 1,
+      })
+    }
+  })
   // two haplotypes of one sample named by P lines widen every label, as a
   // legend's do
   const metas = [referenceRow, ...rows.map(r => r.meta)]

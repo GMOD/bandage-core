@@ -95,6 +95,7 @@ function gapsText(
       `on nodes filed near ${places[0]}${places.length > 1 ? ` and ${places.length - 1} more place${places.length > 2 ? 's' : ''}` : ''}`,
     ],
     [bpOf('unknown'), GAP_CAUSE_TEXT.unknown],
+    [bpOf('deleted'), GAP_CAUSE_TEXT.deleted],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
   const abridged = bpOf('abridged')
@@ -171,15 +172,18 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
 // How a gap draws, and the key's words for it: graph sequence outside the
 // extracted subgraph as a band, bases the graph lacks as a hairline the walk
 // jumps along, a gap the stops leave open as a pale band, and an abridged
-// walk's steps the cut did not load as an amber band
+// walk's steps the cut did not load as an amber band. A deletion is a hairline
+// too, the reference it leaves out being bases the haplotype lacks.
 export function gapStyle(cause: GapCause | undefined) {
   return cause === 'missing'
     ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.missing }
-    : cause === 'unknown'
-      ? { fill: UNKNOWN_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.unknown }
-      : cause === 'abridged'
-        ? { fill: ABRIDGED_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.abridged }
-        : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
+    : cause === 'deleted'
+      ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.deleted }
+      : cause === 'unknown'
+        ? { fill: UNKNOWN_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.unknown }
+        : cause === 'abridged'
+          ? { fill: ABRIDGED_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.abridged }
+          : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
 }
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues
@@ -406,7 +410,13 @@ export function walkRowsKey(
     row.runs.filter(run => run.gap),
   )
   const labels = new Set(gaps.map(run => gapStyle(run.cause).label))
-  for (const cause of [undefined, 'missing', 'unknown', 'abridged'] as const) {
+  for (const cause of [
+    undefined,
+    'missing',
+    'deleted',
+    'unknown',
+    'abridged',
+  ] as const) {
     const { fill, px, label } = gapStyle(cause)
     if (labels.has(label)) {
       entries.push({ swatch: { kind: 'gap', fill, px }, label })
