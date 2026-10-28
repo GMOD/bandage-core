@@ -1,3 +1,9 @@
+## [12.0.2](https://github.com/GMOD/bandage-core/compare/v12.0.1...v12.0.2) (2026-10-28)
+
+### Other Changes
+
+- Count an abridged walk's bp once in its walk row ([063ed78](https://github.com/GMOD/bandage-core/commit/063ed789fcc3558bd5f8ad2d644033c2f80216b7))
+
 ## [12.0.1](https://github.com/GMOD/bandage-core/compare/v12.0.0...v12.0.1) (2026-10-28)
 
 ### Other Changes
