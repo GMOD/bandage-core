@@ -1,3 +1,11 @@
+## [12.1.0](https://github.com/GMOD/bandage-core/compare/v12.0.2...v12.1.0) (2026-10-28)
+
+### Other Changes
+
+- Place an allele on the path first in name order, as gfa-to-tabix does ([dca83e3](https://github.com/GMOD/bandage-core/commit/dca83e3b39dc4aa8e1b8078b8124c877712fafd3))
+- Draw a haplotype that jumps over the window as a deletion row ([9439170](https://github.com/GMOD/bandage-core/commit/943917009b19fd828f038fcb9192bfba0d8307dd))
+- Draw the stub of a moved component paler, from graph-walks' mv:i:1 tag ([4450b39](https://github.com/GMOD/bandage-core/commit/4450b397dacbf271bbe5ab0cca4ee3414882706f))
+
 ## [12.0.2](https://github.com/GMOD/bandage-core/compare/v12.0.1...v12.0.2) (2026-10-28)
 
 ### Other Changes
