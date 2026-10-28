@@ -428,3 +428,14 @@ test('an AF tag is the segment frequency, apart from its depth', () => {
   expect(graph.nodes.map(n => n.frequency)).toEqual([0.25, undefined])
   expect(graph.nodes[0]!.depth).toBe(1)
 })
+
+// graph-walks' anchored cut tags a segment of a component gfa-to-tabix moved
+test('an mv tag marks the node a stub of a moved component', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(
+      'S\ts1\t*\tLN:i:8\tSN:Z:chr1\tSO:i:0\tSR:i:0\n' +
+        'S\ts3\t*\tLN:i:3\tSN:Z:b#1#c\tSO:i:100\tSR:i:1\tmv:i:1',
+    ),
+  )
+  expect(graph.nodes.map(n => n.moved)).toEqual([undefined, true])
+})
