@@ -1,10 +1,13 @@
+import { walkRowReadout } from './walkRowDraw'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
 import { gfaTables } from '../gfa/gfaTables'
+import { StopColumns } from '../gfa/walkStops'
 import { loadGraph } from '../pipeline'
 
 import type { WalkRow } from './walkRows'
 import type { GraphTables } from '../gfa/graphTables'
+import type { PathStop } from '../types'
 
 // GRCh38 runs 0..4 over chr1:0-5000, a kb a node, with node 5 (300 bp) an
 // expansion off it. The repeat is node 2, chr1:2000-3000. A has the
@@ -251,5 +254,87 @@ test("an abridged walk's two steps bound a gap of the bp it left out", () => {
   ])
   expect(walkRowsOf(walkRowRuns(abridged)!)).toEqual(
     walkRows(loadGraph(abridged, 'cut')),
+  )
+})
+
+// H runs 7.5 kb between the flanks at nodes 0 and 6: abridged pieces of 3, 2
+// and 1 kb, leaving the reference at node 1 and rejoining at node 5, alternate
+// with loaded 500 bp pieces on nodes 7 and 8, then 500 bp filed elsewhere
+test('gaps between loaded pieces leave out the bp an abridged row drew', () => {
+  const chunk = { refName: 'GRCh38#0#chr1', start: 65536 }
+  const elsewhere = (bp: number): PathStop => ({ kind: 'elsewhere', chunk, bp })
+  const end: PathStop = { kind: 'end' }
+  const stops = (list: PathStop[]) => {
+    const columns = new StopColumns()
+    list.forEach(stop => {
+      columns.push(stop)
+    })
+    return columns.table()
+  }
+  const lengths = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 500, 500]
+  const interleaved: GraphTables = {
+    ...abridged,
+    nodes: {
+      names: lengths.map((_, i) => `${i}`),
+      lengths: Int32Array.from(lengths),
+      refs: Int32Array.of(0, 0, 0, 0, 0, 0, 0, -1, -1),
+      starts: Float64Array.of(0, 1000, 2000, 3000, 4000, 5000, 6000, 0, 0),
+      ranks: Int32Array.of(0, 0, 0, 0, 0, 0, 0, -1, -1),
+      refNames: ['chr1'],
+    },
+    walks: {
+      names: ['GRCh38#0#chr1', ...Array(5).fill('H#1#h')],
+      starts: Float64Array.of(0, 0, 1000, 4000, 6500, 8500),
+      ends: Float64Array.of(7000, 1000, 7000, 4500, 7000, 9500),
+      offsets: Int32Array.of(0, 7, 8, 10, 11, 12, 13),
+      steps: Int32Array.of(...[0, 1, 2, 3, 4, 5, 6], 0, 1, 5, 7, 8, 6),
+      reversed: new Uint8Array(13),
+      before: stops([
+        end,
+        end,
+        elsewhere(0),
+        elsewhere(-3000),
+        elsewhere(2000),
+        elsewhere(1500),
+      ]),
+      after: stops([
+        end,
+        elsewhere(0),
+        elsewhere(-3000),
+        elsewhere(2000),
+        elsewhere(1500),
+        end,
+      ]),
+      abridgedSteps: Float64Array.of(...Array(6).fill(Number.NaN)),
+      abridgedBp: Float64Array.of(...Array(6).fill(Number.NaN)),
+    },
+  }
+  interleaved.walks.abridgedSteps![2] = 14_000
+  interleaved.walks.abridgedBp![2] = 6000
+  const region = { start: 1000, end: 6000 }
+  const h = rowsOf(interleaved, region).rows[0]!
+  expect(h).toMatchObject({
+    label: 'H#1',
+    bp: 7500,
+    gapBp: 4500,
+    complete: true,
+  })
+  expect(h.runs.filter(r => r.gap)).toEqual([
+    { start: 1000, bp: 4000, onReference: false, gap: true, cause: 'abridged' },
+    {
+      start: 7000,
+      bp: 500,
+      onReference: false,
+      gap: true,
+      cause: 'elsewhere',
+      chunk,
+    },
+  ])
+  expect(h.runs.reduce((sum, r) => sum + r.bp, 0)).toBe(h.bp)
+  expect(walkRowReadout(h, { bp: 5000 })).toBe(
+    '7.5 kb (+2.5 kb) · 14 k steps, 4.0 kb not loaded · 0.5 kb on nodes filed near chr1:66 kb',
+  )
+  expect(walkRowsOf(walkRowRuns(interleaved, region)!)).toEqual(
+    walkRows(loadGraph(interleaved, 'cut'), region),
   )
 })

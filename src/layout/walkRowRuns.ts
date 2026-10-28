@@ -373,22 +373,33 @@ export function walkRowRuns(
     let end: number | undefined
     let previous: number | undefined
     const partsAt = new Map<number, GapPart[]>()
+    // An abridged row's bp covers all its pieces, so its bar runs past the
+    // loaded pieces between them, and the jumps between those pieces cover
+    // the bp it already drew
+    let owed = 0
     for (const piece of ordered) {
       const start = startOf(piece)
-      if (start === undefined || (end !== undefined && start < end)) {
+      const jump = start === undefined || end === undefined ? 0 : start - end
+      if (start === undefined || jump < 0) {
         unplaced = true
       }
-      if (end !== undefined && start !== undefined && start > end) {
+      if (jump < 0 && heads[previous!]!.abridged) {
+        owed -= jump
+      }
+      const covered = Math.min(owed, Math.max(jump, 0))
+      owed -= covered
+      const gap = jump - covered
+      if (gap > 0) {
         partsAt.set(
           length,
           gapParts(
-            start - end,
+            gap,
             previous === undefined ? undefined : heads[previous]!.after,
             heads[piece]!.before,
           ),
         )
-        steps[length] = -(start - end)
-        stepStart[length++] = end
+        steps[length] = -gap
+        stepStart[length++] = end!
       }
       let pos = start ?? 0
       const abridged = heads[piece]!.abridged
