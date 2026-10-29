@@ -19,6 +19,7 @@ import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
 import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
+import { withoutStrayHandles } from './layout/strayHandles'
 import { anchorGraph } from './pathAnchoring'
 
 import type { BubbleSpread } from './bubbleSpreads'
@@ -189,10 +190,11 @@ export function engineKey(graph: Graph, settings: EngineSettings) {
 // keeps only its coarsest level's seeds, and the matched turn carried a
 // curled reference's angle forward, to 45 degrees by 125 kb at bovine DEFB.
 export async function forceLayout(
-  graph: Graph,
+  cut: Graph,
   settings: EngineSettings,
   engine: LayoutEngine,
 ) {
+  const graph = withoutStrayHandles(cut)
   const spread = spreadFor(settings.bubbleSpread)
   const { shown: deletions, hidden: dropped } = deletionDrawing(
     graph,

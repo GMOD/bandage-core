@@ -2,6 +2,7 @@ import { isBackbone, isOffReference } from './anchoredNodes'
 import { anchoredLayout } from './layout/anchoredLayout'
 import { orderedLayout } from './layout/orderedLayout'
 import { sampleRowLayout } from './layout/sampleRowLayout'
+import { withoutStrayHandles } from './layout/strayHandles'
 import {
   hasTubeMapBackbone,
   hasTubeMapPaths,
@@ -81,7 +82,7 @@ export const LAYOUT_MODES = [
     label: 'Anchored',
     description:
       'x is reference bp, one row per stable rank. Needs rGFA tags or a reference path.',
-    run: anchoredLayout,
+    run: (graph, region) => anchoredLayout(withoutStrayHandles(graph), region),
     cutMargins: true,
     wholeWalks: false,
     available: hasBackbone,
@@ -93,7 +94,8 @@ export const LAYOUT_MODES = [
     label: 'Sample rows',
     description:
       'x is reference bp, one row per contributing assembly. Needs rGFA tags or a reference path.',
-    run: sampleRowLayout,
+    run: (graph, region, keepRows) =>
+      sampleRowLayout(withoutStrayHandles(graph), region, keepRows),
     cutMargins: true,
     wholeWalks: false,
     available: hasAlleles,
@@ -117,7 +119,7 @@ export const LAYOUT_MODES = [
     label: 'Ordered',
     description:
       'x is reference order, not bp: every node gets room, bubbles read as lenses. Needs rGFA tags or a reference path.',
-    run: orderedLayout,
+    run: graph => orderedLayout(withoutStrayHandles(graph)),
     cutMargins: false,
     wholeWalks: false,
     available: hasBackbone,
