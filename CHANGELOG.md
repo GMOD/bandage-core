@@ -1,3 +1,10 @@
+## [12.2.0](https://github.com/GMOD/bandage-core/compare/v12.1.2...v12.2.0) (2026-10-29)
+
+### Other Changes
+
+- Draw a lifted walk's deletion as a solid lane, and key the dash only where one is drawn ([ce635b1](https://github.com/GMOD/bandage-core/commit/ce635b1ab3d0646bed7b254521e9a16d93fe2252))
+- Pin a lifted walk's lane over a deletion as one solid stroke ([7f675a4](https://github.com/GMOD/bandage-core/commit/7f675a4b01b23e09733cb7568cb8ecb3539763ac))
+
 ## [12.1.2](https://github.com/GMOD/bandage-core/compare/v12.1.1...v12.1.2) (2026-10-29)
 
 ### Other Changes
