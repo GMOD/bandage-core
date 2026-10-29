@@ -1,4 +1,4 @@
-import { deletionKey } from './deletionEdges'
+import { dashedDeletions, deletionKey } from './deletionEdges'
 import { escapeAttr, serializeEl } from './el'
 import {
   FACET_GAP_PX,
@@ -490,7 +490,7 @@ export function figureSvg(
         ),
       )
     }
-    if (drawnDeletions.shown.length > 0) {
+    if (dashedDeletions(drawnDeletions.shown, lift).length > 0) {
       keys.push((x, y) =>
         deletionKeySvg(
           x,

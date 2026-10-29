@@ -5,7 +5,6 @@ import {
   THREAD_PX,
   bandScale,
   bandWidthPx,
-  laneSlideAt,
   liftLanes,
   slotCentres,
   threadsPasses,
@@ -47,7 +46,6 @@ import type { WalkLift } from '../walkHighlight'
 import type {
   Arrowhead,
   EdgeCurveBatch,
-  LaneSlide,
   NodeStroke,
   RenderBatch,
   Run,
@@ -1191,6 +1189,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // ~5,000 px of arc). Hue cannot separate them either, since hue means
     // reference position and charcoal means off the reference. A broken line is
     // available, unused, and says what it draws: sequence that is not there.
+    // A lifted walk's lane stays solid: its thread on the bypass and its
+    // absence from the bypassed nodes already say it.
     const dashesOf = (curves: BezierCurve[]) =>
       dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
@@ -1217,41 +1217,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       endNormal: Normal,
       endOffsetX: number,
     ) => {
-      if (!isDeletion) {
-        edgeCurves.push({
-          curves,
-          thickness,
-          color,
-          walk,
-          pass,
-          normal,
-          offsetX,
-          endNormal,
-          endOffsetX,
-        })
-        return
-      }
-      const start: LaneSlide = { normal, offsetX }
-      const end: LaneSlide = { normal: endNormal, offsetX: endOffsetX }
-      for (const dash of dashesOf(curves)) {
-        const a =
-          dash.startAlong === 0
-            ? start
-            : laneSlideAt(start, end, dash.startAlong)
-        const b =
-          dash.endAlong === 1 ? end : laneSlideAt(start, end, dash.endAlong)
-        edgeCurves.push({
-          curves: dash.curves,
-          thickness,
-          color,
-          walk,
-          pass,
-          normal: a.normal,
-          offsetX: a.offsetX,
-          endNormal: b.normal,
-          endOffsetX: b.offsetX,
-        })
-      }
+      edgeCurves.push({
+        curves,
+        thickness,
+        color,
+        walk,
+        pass,
+        normal,
+        offsetX,
+        endNormal,
+        endOffsetX,
+      })
     }
     const arrowOn = (curves: BezierCurve[]) => {
       const head = showArrows

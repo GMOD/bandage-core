@@ -357,6 +357,17 @@ export interface DeletionDrawing {
   hidden: ReadonlySet<number>
 }
 
+// The shown deletions the drawing dashes: all of them, less those a lifted
+// walk takes, whose lane draws the skip solid
+export function dashedDeletions(
+  shown: DeletionEdge[],
+  lift?: { walks: readonly unknown[]; edgeIndexes: ReadonlySet<number> },
+) {
+  return lift?.walks.length
+    ? shown.filter(d => !lift.edgeIndexes.has(d.edgeIndex))
+    : shown
+}
+
 const drawings = new WeakMap<DeletionEdge[], Map<boolean, DeletionDrawing>>()
 
 // How a drawing shows a graph's deletions, the same object for the same

@@ -205,7 +205,7 @@ test("a lifted walk's link fans out across the end it leaves from", () => {
   expect(lane.y0).not.toBeCloseTo(0)
 })
 
-test('a lifted walk taking a deletion draws it dashed, with its head', () => {
+test('a lifted walk taking a deletion draws it solid, with its head', () => {
   const skip = convertGFAToGraph(
     parseGFA(`${GFA}
 L\tv1\t+\tv3\t+\t0M
@@ -224,7 +224,7 @@ W\tdel\t1\tchr\t0\t7\t>v1>v3`),
     deletions: new Map([[deletion, ['v2+']]]),
     highlight: walkLift(skip, [{ walk: 'del#1#chr' }]),
   })
-  expect(batch.edgeCurveRuns.get(deletion)!.count).toBeGreaterThan(1)
+  expect(batch.edgeCurveRuns.get(deletion)!.count).toBe(1)
   expect(batch.arrowRuns.get(deletion)?.count).toBe(1)
 })
 
