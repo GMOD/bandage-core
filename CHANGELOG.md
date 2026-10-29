@@ -1,3 +1,13 @@
+## [12.2.1](https://github.com/GMOD/bandage-core/compare/v12.2.0...v12.2.1) (2026-10-29)
+
+### Other Changes
+
+- Regenerate the KIV-2 figure with 12.2.0 ([f00e920](https://github.com/GMOD/bandage-core/commit/f00e9206df30e5103aac7a5c9b04021c82f39443))
+- Key the dashed deletion links above a figure split into panels ([c0fa51d](https://github.com/GMOD/bandage-core/commit/c0fa51d430ffc28ea3e642319ba6e3226b84c867))
+- Hand hosts the deletion key only when a deletion stays dashed ([bfbcebe](https://github.com/GMOD/bandage-core/commit/bfbcebe5e86f089b2ac357af3cb81105575dd142))
+- Leave an abridged walk's stray handle out of the node layouts ([26e3b35](https://github.com/GMOD/bandage-core/commit/26e3b35b0a0806f247f13c78bf679c91faedc2f7))
+- The sample-row layout mode's keepRows stays optional ([953d6ec](https://github.com/GMOD/bandage-core/commit/953d6ecd917ef8e22977c2ba808cf8d4bb560158))
+
 ## [12.2.0](https://github.com/GMOD/bandage-core/compare/v12.1.2...v12.2.0) (2026-10-29)
 
 ### Other Changes
