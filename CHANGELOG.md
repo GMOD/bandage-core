@@ -1,3 +1,9 @@
+## [12.1.2](https://github.com/GMOD/bandage-core/compare/v12.1.1...v12.1.2) (2026-10-29)
+
+### Other Changes
+
+- Flank an abridged walk by a handle past the cut's reference ([c870715](https://github.com/GMOD/bandage-core/commit/c870715ce82260c7c5d5e1cddeb6f9ee7906c6b6))
+
 ## [12.1.1](https://github.com/GMOD/bandage-core/compare/v12.1.0...v12.1.1) (2026-10-29)
 
 ### Other Changes
