@@ -395,24 +395,38 @@ export function figureSvg(
     return markup() + overlays(highlight, t, w, h)
   }
 
+  const deletionKeyAt: KeyAt = (x, y) =>
+    deletionKeySvg(
+      x,
+      y,
+      deletionKey(referenceName),
+      lift ? FADED : DELETION_INK,
+    )
   const parts: string[] = []
   let height: number
   if (facets) {
     const { panels, place } = facets
+    const dashed = panels.some(
+      panel => dashedDeletions(drawnDeletions.shown, panel).length > 0,
+    )
+    const keyed = keyLines(dashed ? [deletionKeyAt] : [], width)
+    parts.push(...keyed.markup)
+    const header = dashed ? keyed.height + FACET_GAP_PX : 0
     const grid = facetGrid({
       count: place.count,
       bounds,
       pixelRows,
       width,
-      room,
+      room: room - header,
       columns: place.columns ?? facet.columns,
     })
     panels.forEach((panel, i) => {
       const cell = place.cells[i]!
       const x = (cell % grid.columns) * (grid.width + FACET_GAP_PX)
       const y =
+        header +
         Math.floor(cell / grid.columns) *
-        (grid.height + FACET_TITLE_PX + FACET_GAP_PX)
+          (grid.height + FACET_TITLE_PX + FACET_GAP_PX)
       const walk = panel.walks[0]!
       parts.push(
         walkKeySvg(
@@ -426,7 +440,7 @@ export function figureSvg(
         `<svg x="${x}" y="${y + FACET_TITLE_PX}" width="${grid.width}" height="${grid.height}">${drawing(panel, grid.width, grid.height)}</svg>`,
       )
     })
-    height = grid.total
+    height = header + grid.total
   } else {
     const keys: KeyAt[] = []
     if (lift) {
@@ -491,14 +505,7 @@ export function figureSvg(
       )
     }
     if (dashedDeletions(drawnDeletions.shown, lift).length > 0) {
-      keys.push((x, y) =>
-        deletionKeySvg(
-          x,
-          y,
-          deletionKey(referenceName),
-          lift ? FADED : DELETION_INK,
-        ),
-      )
+      keys.push(deletionKeyAt)
     }
     if (pins.some(pin => pin.exonsByNode.length > 0)) {
       keys.push((x, y) => exonKeySvg(x, y))

@@ -1,3 +1,4 @@
+import { FACET_TITLE_PX } from './facetGrid'
 import { figureSvg } from './figure'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
@@ -257,4 +258,40 @@ test('a figure keys the dashed links it draws as skipped reference sequence', ()
     /skips \S.* sequence \(a deletion\)/,
   )
   expect(figureSvg(graph, layout, { width: 600 })).not.toContain('(a deletion)')
+})
+
+test('a figure split into panels keys the dashed links once, above the grid, only when a panel draws one', () => {
+  const skipped = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        `${GFA}\nL\tv1\t+\tv3\t+\t0M\nW\tdel\t1\tchr\t0\t7\t>v1>v3\nW\tdel\t2\tchr\t0\t7\t>v1>v3`,
+      ),
+    ),
+    'ref',
+  )
+  const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
+  const svg = figureSvg(skipped, skippedLayout, {
+    width: 600,
+    walks: [{ walk: 'ref#0#chr' }, { walk: 'del#1#chr' }],
+    facet: 'sample',
+  })
+  expect(svg.match(/\(a deletion\)/g)).toHaveLength(1)
+  const keyAt = svg.indexOf('(a deletion)')
+  expect(keyAt).toBeLessThan(svg.indexOf('<svg x="'))
+  expect(
+    Math.min(
+      ...[...svg.matchAll(/<svg x="\d+" y="(\d+)"/g)].map(m => Number(m[1])),
+    ),
+  ).toBeGreaterThan(FACET_TITLE_PX)
+
+  const allTake = figureSvg(skipped, skippedLayout, {
+    width: 600,
+    walks: [{ walk: 'del#1#chr' }, { walk: 'del#2#chr' }],
+    facet: 'walk',
+  })
+  expect(allTake).toContain('<svg x="')
+  expect(allTake).not.toContain('(a deletion)')
+  expect(
+    figureSvg(graph, layout, { width: 600, walks, facet: 'sample' }),
+  ).not.toContain('(a deletion)')
 })
