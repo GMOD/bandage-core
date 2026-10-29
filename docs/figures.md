@@ -44,7 +44,7 @@ lifts four walks through it, one panel each:
 Each panel shades its walk yellow where it starts and red where it ends, on the
 same layout, so the panels show which loops each walk takes. GRCh38 takes the
 small ones; HG00097 adds one (+22.2 kb); HG01960 skips most of GRCh38's for the
-big one (+49.9 kb); HG00133 takes both (+116.4 kb).
+big one (+49.9 kb); HG00133 takes both (+116 kb).
 
 ## The spec
 
