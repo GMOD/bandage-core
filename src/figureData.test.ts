@@ -249,3 +249,21 @@ test('a frequency table names segments over what the walks give', async () => {
   })
   expect(d.nodeInfo.frequency[d.nodeInfo.name.indexOf(name)]).toBe(0.125)
 })
+
+test('the dashed key is there only when a drawn deletion stays dashed', async () => {
+  const gfa = [
+    ...[100, 10, 100].map((n, id) => `S\t${id}\t${'A'.repeat(n)}`),
+    'P\tref#0#chr\t0+,1+,2+\t*',
+    'P\ta#1#c\t0+,2+\t*',
+    ...['0 1', '1 2', '0 2'].map(pair => {
+      const [from, to] = pair.split(' ')
+      return `L\t${from}\t+\t${to}\t+\t0M`
+    }),
+  ].join('\n')
+  const keyOf = async (walks?: string[]) =>
+    (await gfaFigureData(gfa, 'skip', { engine: 'stress', walks })).meta
+      .deletionKey
+  expect(await keyOf()).toMatch(/\(a deletion\)/)
+  expect(await keyOf(['ref#0#chr'])).toMatch(/\(a deletion\)/)
+  expect(await keyOf(['a#1#c'])).toBeNull()
+})
