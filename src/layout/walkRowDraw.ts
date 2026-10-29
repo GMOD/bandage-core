@@ -112,9 +112,13 @@ function gapsText(
 
 // The text at the end of a bar: its length, what it carries against the
 // reference row, and what the cut left out, by cause where its gaps state
-// one. A walk reaching one flank states a lower bound and why it stops.
+// one. A walk reaching one flank states a lower bound and why it stops, and
+// one whose abridged block runs past the window an estimate.
 export function walkRowReadout(
-  row: Pick<WalkRow, 'bp' | 'gapBp' | 'complete' | 'stop' | 'abridgedSteps'> & {
+  row: Pick<
+    WalkRow,
+    'bp' | 'gapBp' | 'complete' | 'stop' | 'abridgedSteps' | 'estimated'
+  > & {
     runs?: WalkRun[]
   },
   reference: Pick<WalkRow, 'bp'> | undefined,
@@ -132,7 +136,8 @@ export function walkRowReadout(
   if (complete) {
     const delta = bp - reference.bp
     const against = delta === 0 ? '' : ` (${signedLength(delta)})`
-    return `${kb(bp)}${units(bp, unit)}${against}${outside}${called}`
+    const about = row.estimated ? '≈ ' : ''
+    return `${about}${kb(bp)}${units(bp, unit)}${against}${outside}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   if (stop?.contigEnds && bp === 0) {
@@ -410,6 +415,7 @@ export function walkRowsKey(
     row.runs.filter(run => run.gap),
   )
   const labels = new Set(gaps.map(run => gapStyle(run.cause).label))
+  const estimated = bars.rows.some(row => row.estimated)
   for (const cause of [
     undefined,
     'missing',
@@ -419,7 +425,13 @@ export function walkRowsKey(
   ] as const) {
     const { fill, px, label } = gapStyle(cause)
     if (labels.has(label)) {
-      entries.push({ swatch: { kind: 'gap', fill, px }, label })
+      entries.push({
+        swatch: { kind: 'gap', fill, px },
+        label:
+          cause === 'abridged' && estimated
+            ? `${label}; ≈ length takes the reference's bp past the window`
+            : label,
+      })
     }
   }
   if (o.genes?.crowded) {

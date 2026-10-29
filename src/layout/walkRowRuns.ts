@@ -303,8 +303,10 @@ export function walkRowRuns(
   // every visit's start for a node the reference walks more than once, as a
   // collapsed repeat makes it
   const revisits = new Map<number, number[]>()
-  let reachesBefore = false
-  let reachesAfter = false
+  // the last reference node before the window ends at flankEnd, and the first
+  // after it starts at flankStart
+  let flankEnd = -Infinity
+  let flankStart = Infinity
   const cut = region && region.end > region.start ? region : undefined
   for (const piece of referencePieces) {
     let pos = startOf(piece) ?? 0
@@ -322,8 +324,12 @@ export function walkRowRuns(
         spanStart[node] = pos
         spanEnd[node] = pos + len
         if (cut) {
-          reachesBefore ||= pos + len <= cut.start
-          reachesAfter ||= pos >= cut.end
+          if (pos + len <= cut.start) {
+            flankEnd = Math.max(flankEnd, pos + len)
+          }
+          if (pos >= cut.end) {
+            flankStart = Math.min(flankStart, pos)
+          }
         }
       }
       pos += len
@@ -331,7 +337,8 @@ export function walkRowRuns(
   }
   // A cut that stops at the window carries no flanking reference for anyone,
   // so every walk is whole and the slice is the walk.
-  const flanked = cut === undefined || (reachesBefore && reachesAfter)
+  const flanked =
+    cut === undefined || (flankEnd > -Infinity && flankStart < Infinity)
 
   const runs = new Columns(5)
   const chunks: StopChunk[] = []
@@ -481,6 +488,25 @@ export function walkRowRuns(
     let flankTo = -1
     let axisStart: number | undefined
     let stop: WalkStop | undefined
+    // An abridged block that ends on a flank past the reference's own holds
+    // walk bp beyond the window, so it gives up the reference's bp between the
+    // two flanks, an estimate
+    const trimAbridged = (inner: number, bp: number) => {
+      const parts = partsAt.get(inner)
+      const gap = parts?.[0]
+      if (bp <= 0 || gap?.cause !== 'abridged') {
+        return 0
+      }
+      const trimmed = Math.min(bp, gap.bp)
+      partsAt.set(
+        inner,
+        gap.bp > trimmed ? [{ ...gap, bp: gap.bp - trimmed }] : [],
+      )
+      steps[inner]! += trimmed
+      return trimmed
+    }
+    let leftTrim = 0
+    let rightTrim = 0
     if (cut && flanked) {
       let i0 = -1
       let i1 = -1
@@ -511,6 +537,12 @@ export function walkRowRuns(
         backward = i0 > i1
         flankFrom = i0
         flankTo = i1
+        const inward = backward ? -1 : 1
+        leftTrim = trimAbridged(i0 + inward, flankEnd - spanEnd[steps[i0]!]!)
+        rightTrim = trimAbridged(
+          i1 - inward,
+          spanStart[steps[i1]!]! - flankStart,
+        )
       }
     }
     const contig = head.contig ?? panSNContig(pathOrigin(head.name).name)
@@ -522,8 +554,16 @@ export function walkRowRuns(
           : flankFrom < 0
             ? { contig, start: stepStart[0]!, reversed: false }
             : flankFrom < flankTo
-              ? { contig, start: stepEnd(flankFrom), reversed: false }
-              : { contig, start: stepStart[flankFrom]!, reversed: true }
+              ? {
+                  contig,
+                  start: stepEnd(flankFrom) + leftTrim,
+                  reversed: false,
+                }
+              : {
+                  contig,
+                  start: stepStart[flankFrom]! - leftTrim,
+                  reversed: true,
+                }
 
     let bp = 0
     let offReferenceBp = 0
@@ -569,8 +609,8 @@ export function walkRowRuns(
     for (let k = lo; k < hi; k++) {
       const index = backward ? hi - 1 - (k - lo) : k
       const id = steps[index]!
-      if (id < 0) {
-        const parts = partsAt.get(index)!
+      const parts = partsAt.get(index)
+      if (parts) {
         // a row read backwards meets a gap's parts last first
         for (const part of backward ? [...parts].reverse() : parts) {
           runs.push(
@@ -636,6 +676,7 @@ export function walkRowRuns(
       stop,
       axis,
       ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
+      ...(leftTrim + rightTrim > 0 ? { estimated: true } : {}),
     }
   }
 

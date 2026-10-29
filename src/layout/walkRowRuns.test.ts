@@ -1,4 +1,4 @@
-import { walkRowReadout } from './walkRowDraw'
+import { walkRowReadout, walkRowsKey } from './walkRowDraw'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
 import { gfaTables } from '../gfa/gfaTables'
@@ -241,7 +241,7 @@ const abridged: GraphTables = {
 }
 
 test("an abridged walk's two steps bound a gap of the bp it left out", () => {
-  const [h] = rowsOf(abridged, { start: 2000, end: 5000 }).rows
+  const [h] = rowsOf(abridged, { start: 1000, end: 6000 }).rows
   expect(h).toMatchObject({
     label: 'H#1',
     bp: 7000,
@@ -249,11 +249,107 @@ test("an abridged walk's two steps bound a gap of the bp it left out", () => {
     complete: true,
     abridgedSteps: 140_000,
   })
-  expect(h.runs).toEqual([
+  expect(h!.estimated).toBeUndefined()
+  expect(h!.runs).toEqual([
     { start: 0, bp: 7000, onReference: false, gap: true, cause: 'abridged' },
   ])
   expect(walkRowsOf(walkRowRuns(abridged)!)).toEqual(
     walkRows(loadGraph(abridged, 'cut')),
+  )
+})
+
+// The reference runs nodes 0..6, a kb each, and the window is chr1:2000-4000.
+// Inside the window, E visits node 7's 2.5 kb, and its abridged block ends at
+// node 6, past the window. L's abridged block starts at node 0, before the
+// window, and includes node 8's 500 bp, and V walks L backwards. Outside the
+// window each walk follows the reference, so the trim is exact.
+function walkTables(
+  walks: { name: string; start: number; steps: number[]; bp?: number }[],
+): GraphTables {
+  const lengths = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 2500, 500]
+  const all = [
+    { name: 'GRCh38#0#chr1', start: 0, steps: [0, 1, 2, 3, 4, 5, 6] },
+    ...walks,
+  ]
+  const offsets = [0]
+  for (const w of all) {
+    offsets.push(offsets.at(-1)! + w.steps.length)
+  }
+  return {
+    nodes: {
+      names: lengths.map((_, i) => `${i}`),
+      lengths: Int32Array.from(lengths),
+      refs: Int32Array.from(lengths, (_, i) => (i < 7 ? 0 : -1)),
+      starts: Float64Array.from(lengths, (_, i) => (i < 7 ? i * 1000 : 0)),
+      ranks: Int32Array.from(lengths, (_, i) => (i < 7 ? 0 : -1)),
+      refNames: ['chr1'],
+    },
+    links: abridged.links,
+    walks: {
+      names: all.map(w => w.name),
+      starts: Float64Array.from(all, w => w.start),
+      ends: Float64Array.from(
+        all,
+        w =>
+          w.start +
+          ('bp' in w && w.bp !== undefined
+            ? w.bp
+            : w.steps.reduce((sum, n) => sum + lengths[n]!, 0)),
+      ),
+      offsets: Int32Array.from(offsets),
+      steps: Int32Array.from(all.flatMap(w => w.steps)),
+      reversed: new Uint8Array(offsets.at(-1)!),
+      abridgedSteps: Float64Array.from(all, w =>
+        'bp' in w && w.bp !== undefined ? 10_000 : Number.NaN,
+      ),
+      abridgedBp: Float64Array.from(all, w =>
+        'bp' in w && w.bp !== undefined ? w.bp : Number.NaN,
+      ),
+    },
+  }
+}
+
+test('an abridged block past the window gives up the reference bp there, an estimate', () => {
+  const region = { start: 2000, end: 4000 }
+  const rows = (t: GraphTables) =>
+    Object.fromEntries(rowsOf(t, region).rows.map(r => [r.label, r]))
+  const abridgedCut = walkTables([
+    { name: 'E#1#e', start: 0, steps: [0, 1, 2] },
+    { name: 'E#1#e', start: 3000, steps: [3, 6], bp: 6500 },
+    { name: 'L#1#l', start: 0, steps: [0, 3], bp: 4500 },
+    { name: 'L#1#l', start: 4500, steps: [4, 5, 6] },
+    { name: 'V#1#v', start: 0, steps: [6, 5, 4] },
+    { name: 'V#1#v', start: 3000, steps: [3, 0], bp: 4500 },
+  ])
+  const cut = rows(abridgedCut)
+  const full = rows(
+    walkTables([
+      { name: 'E#1#e', start: 0, steps: [0, 1, 2, 3, 7, 4, 5, 6] },
+      { name: 'L#1#l', start: 0, steps: [0, 1, 2, 8, 3, 4, 5, 6] },
+      { name: 'V#1#v', start: 0, steps: [6, 5, 4, 3, 8, 2, 1, 0] },
+    ]),
+  )
+  for (const label of ['E#1', 'L#1', 'V#1']) {
+    expect(cut[label]).toMatchObject({
+      bp: full[label]!.bp,
+      complete: true,
+      estimated: true,
+      axis: full[label]!.axis,
+    })
+    expect(full[label]!.estimated).toBeUndefined()
+  }
+  expect(cut['E#1']!.runs.filter(r => r.gap)).toEqual([
+    { start: 2000, bp: 2500, onReference: false, gap: true, cause: 'abridged' },
+  ])
+  expect(walkRowReadout(cut['E#1']!, { bp: 2000 })).toBe(
+    '≈ 4.5 kb (+2.5 kb) · 10 k steps, 2.5 kb not loaded',
+  )
+  expect(
+    walkRowsKey(walkRowsOf(walkRowRuns(abridgedCut, region)!)).map(
+      e => e.label,
+    ),
+  ).toContain(
+    "abridged: steps not loaded; ≈ length takes the reference's bp past the window",
   )
 })
 
