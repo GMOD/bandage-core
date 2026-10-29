@@ -1,3 +1,9 @@
+## [12.1.1](https://github.com/GMOD/bandage-core/compare/v12.1.0...v12.1.1) (2026-10-29)
+
+### Other Changes
+
+- Estimate a walk row whose abridged block runs past the window ([3b538ff](https://github.com/GMOD/bandage-core/commit/3b538ff7b2ff27fb6b283fd153c7e84b7dc9a3b3))
+
 ## [12.1.0](https://github.com/GMOD/bandage-core/compare/v12.0.2...v12.1.0) (2026-10-28)
 
 ### Other Changes
