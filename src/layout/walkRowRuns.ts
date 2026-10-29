@@ -82,6 +82,8 @@ interface Pieces {
   lengths: Int32Array
   names: ArrayLike<string>
   reference: string | undefined
+  // a node's rank 0 position on the reference, NaN off it
+  stableStart: (node: number) => number
 }
 
 // The reference walk's name, stripped of the range suffix odgi leaves on a P
@@ -111,6 +113,14 @@ export function referenceWalkName(
   )
 }
 
+// whether a stable tag's sequence name is the reference walk, by its name or
+// its contig's
+const namesReference = (reference: string | undefined) => {
+  const contig = reference && panSNContig(reference)
+  return (name: string | undefined) =>
+    name !== undefined && (name === reference || name === contig)
+}
+
 function graphPieces(graph: Graph): Pieces {
   const index = new Map<string, number>()
   const names: string[] = []
@@ -125,8 +135,15 @@ function graphPieces(graph: Graph): Pieces {
     }
     return i
   }
+  const reference = referenceWalkName(graph)
+  const onReferenceContig = namesReference(reference)
+  const stable = new Map<number, number>()
   for (const node of graph.nodes) {
-    lengths[indexOf(node.id)] = node.length
+    const i = indexOf(node.id)
+    lengths[i] = node.length
+    if (node.stable?.rank === 0 && onReferenceContig(node.stable.refName)) {
+      stable.set(i, node.stable.start)
+    }
   }
   const heads = graph.paths ?? []
   const from = new Int32Array(heads.length)
@@ -146,7 +163,8 @@ function graphPieces(graph: Graph): Pieces {
     steps: Int32Array.from(steps),
     lengths: Int32Array.from(lengths),
     names,
-    reference: referenceWalkName(graph),
+    reference,
+    stableStart: node => stable.get(node) ?? Number.NaN,
   }
 }
 
@@ -170,6 +188,12 @@ function tablePieces(
       rankZero.add(n.refNames[n.refs[i]!]!)
     }
   }
+  const reference = referenceOf(
+    heads.map(h => pathOrigin(h.name).name),
+    referencePath,
+    rankZero,
+  )
+  const onReferenceContig = namesReference(reference)
   return {
     heads,
     from: Int32Array.from(kept, p => w.offsets[p]!),
@@ -179,11 +203,13 @@ function tablePieces(
     // a visit names its node as the Graph does, which costs a pass over the
     // steps
     names: visits ? tableNodeIds(tables) : n.names,
-    reference: referenceOf(
-      heads.map(h => pathOrigin(h.name).name),
-      referencePath,
-      rankZero,
-    ),
+    reference,
+    stableStart: node =>
+      node < n.lengths.length &&
+      n.ranks[node] === 0 &&
+      onReferenceContig(n.refNames[n.refs[node]!])
+        ? n.starts[node]!
+        : Number.NaN,
   }
 }
 
@@ -273,6 +299,7 @@ export function walkRowRuns(
     lengths,
     names,
     reference,
+    stableStart,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
     : graphPieces(source)
@@ -505,6 +532,19 @@ export function walkRowRuns(
       steps[inner]! += trimmed
       return trimmed
     }
+    const abridgedAt = (i: number) => partsAt.get(i)?.[0]?.cause === 'abridged'
+    // The cut's reference walk places step i, or for an abridged block's
+    // handle past that walk, the handle's rank 0 position does
+    const placeStart = (i: number) => {
+      const id = steps[i]!
+      if (id < 0 || partsAt.has(i)) {
+        return Number.NaN
+      }
+      return Number.isNaN(spanStart[id]!) &&
+        (abridgedAt(i - 1) || abridgedAt(i + 1))
+        ? stableStart(id)
+        : spanStart[id]!
+    }
     let leftTrim = 0
     let rightTrim = 0
     if (cut && flanked) {
@@ -513,14 +553,15 @@ export function walkRowRuns(
       let bestEnd = -Infinity
       let bestStart = Infinity
       for (let i = 0; i < length; i++) {
-        const id = steps[i]!
-        if (id >= 0 && !Number.isNaN(spanStart[id]!)) {
-          if (spanEnd[id]! <= cut.start && spanEnd[id]! > bestEnd) {
-            bestEnd = spanEnd[id]!
+        const start = placeStart(i)
+        if (!Number.isNaN(start)) {
+          const end = start + lengthOf(steps[i]!)
+          if (end <= cut.start && end > bestEnd) {
+            bestEnd = end
             i0 = i
           }
-          if (spanStart[id]! >= cut.end && spanStart[id]! < bestStart) {
-            bestStart = spanStart[id]!
+          if (start >= cut.end && start < bestStart) {
+            bestStart = start
             i1 = i
           }
         }
@@ -538,11 +579,8 @@ export function walkRowRuns(
         flankFrom = i0
         flankTo = i1
         const inward = backward ? -1 : 1
-        leftTrim = trimAbridged(i0 + inward, flankEnd - spanEnd[steps[i0]!]!)
-        rightTrim = trimAbridged(
-          i1 - inward,
-          spanStart[steps[i1]!]! - flankStart,
-        )
+        leftTrim = trimAbridged(i0 + inward, flankEnd - bestEnd)
+        rightTrim = trimAbridged(i1 - inward, bestStart - flankStart)
       }
     }
     const contig = head.contig ?? panSNContig(pathOrigin(head.name).name)

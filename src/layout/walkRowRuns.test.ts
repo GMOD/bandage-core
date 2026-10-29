@@ -265,12 +265,10 @@ test("an abridged walk's two steps bound a gap of the bp it left out", () => {
 // window each walk follows the reference, so the trim is exact.
 function walkTables(
   walks: { name: string; start: number; steps: number[]; bp?: number }[],
+  reference = { start: 0, steps: [0, 1, 2, 3, 4, 5, 6] },
 ): GraphTables {
   const lengths = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 2500, 500]
-  const all = [
-    { name: 'GRCh38#0#chr1', start: 0, steps: [0, 1, 2, 3, 4, 5, 6] },
-    ...walks,
-  ]
+  const all = [{ name: 'GRCh38#0#chr1', ...reference }, ...walks]
   const offsets = [0]
   for (const w of all) {
     offsets.push(offsets.at(-1)! + w.steps.length)
@@ -481,4 +479,45 @@ test('a cut whose only other haplotypes jump over the window still has rows', ()
     },
   }
   expect(rowsOf(reference).rows.map(r => r.label)).toEqual(['F#1'])
+})
+
+// In a hosted KIV-2 cut the reference walk visits the nodes near the
+// window, here 1..4. E's abridged block rejoins at node 6 and L's leaves at
+// node 0, both past it, so their rank 0 positions place them.
+test("an abridged block's handle past the cut's reference still flanks it", () => {
+  const region = { start: 2000, end: 3000 }
+  const reference = { start: 1000, steps: [1, 2, 3, 4] }
+  const abridgedCut = walkTables(
+    [
+      { name: 'E#1#e', start: 0, steps: [1] },
+      { name: 'E#1#e', start: 1000, steps: [2, 6], bp: 7500 },
+      { name: 'L#1#l', start: 0, steps: [0, 2], bp: 3500 },
+      { name: 'L#1#l', start: 3500, steps: [3, 4] },
+    ],
+    reference,
+  )
+  const fullCut = walkTables(
+    [
+      { name: 'E#1#e', start: 0, steps: [1, 2, 7, 3, 4] },
+      { name: 'L#1#l', start: 0, steps: [0, 1, 8, 2, 3, 4] },
+    ],
+    reference,
+  )
+  const rows = (t: GraphTables) =>
+    Object.fromEntries(rowsOf(t, region).rows.map(r => [r.label, r]))
+  const cut = rows(abridgedCut)
+  const full = rows(fullCut)
+  expect(full['E#1']).toMatchObject({ bp: 3500, complete: true })
+  expect(full['L#1']).toMatchObject({ bp: 1500, complete: true })
+  for (const label of ['E#1', 'L#1']) {
+    expect(cut[label]).toMatchObject({
+      bp: full[label]!.bp,
+      complete: true,
+      estimated: true,
+      axis: full[label]!.axis,
+    })
+  }
+  expect(walkRowsOf(walkRowRuns(abridgedCut, region)!)).toEqual(
+    walkRows(loadGraph(abridgedCut, 'cut'), region),
+  )
 })
