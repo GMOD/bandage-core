@@ -358,7 +358,7 @@ test("lanes keep to a loop wide enough for the band's inner thread", () => {
   expect(centre('c20+').y).toBeGreaterThan(15)
 })
 
-test('a dashed link eases its lane offset dash by dash from where it leaves to where it arrives', () => {
+test('a lifted walk over a deletion draws one solid lane, eased as on any link', () => {
   const bent: Record<string, NodeSegment[]> = {
     ...flat,
     'v2+': [
@@ -366,33 +366,20 @@ test('a dashed link eases its lane offset dash by dash from where it leaves to w
       { x: 60, y: 60 },
     ],
   }
-  const solid = drawn(DUP, ['ref#0#chr', 'dup#1#chr'], bent, { scale: 4 })
-  const dashed = drawn(DUP, ['ref#0#chr', 'dup#1#chr'], bent, {
+  const plain = drawn(DUP, ['ref#0#chr', 'dup#1#chr'], bent, { scale: 4 })
+  const deletion = drawn(DUP, ['ref#0#chr', 'dup#1#chr'], bent, {
     scale: 4,
     deletions: [0],
   })
-  const whole = solid.links(0).find(c => c.walk === 1 && c.pass === 0)!
-  const dashes = dashed.links(0).filter(c => c.walk === 1 && c.pass === 0)
-  const vector = (normal = { nx: 0, ny: 0 }, offsetX = 0) => [
-    normal.nx * offsetX,
-    normal.ny * offsetX,
-  ]
-  const from = vector(whole.normal, whole.offsetX)
-  const to = vector(whole.endNormal, whole.endOffsetX)
-  expect(Math.hypot(from[0]! - to[0]!, from[1]! - to[1]!)).toBeGreaterThan(0.1)
-  expect(dashes.length).toBeGreaterThan(2)
-  const first = vector(dashes[0]!.normal, dashes[0]!.offsetX)
-  const last = vector(dashes.at(-1)!.endNormal, dashes.at(-1)!.endOffsetX)
-  expect(first[0]).toBeCloseTo(from[0]!)
-  expect(first[1]).toBeCloseTo(from[1]!)
-  expect(last[0]).toBeCloseTo(to[0]!)
-  expect(last[1]).toBeCloseTo(to[1]!)
-  const gone = dashes.map(d => {
-    const [x, y] = vector(d.normal, d.offsetX)
-    return Math.hypot(x! - from[0]!, y! - from[1]!)
-  })
-  expect(gone).toEqual([...gone].sort((a, b) => a - b))
-  expect(gone.at(-1)).toBeGreaterThan(gone[1]!)
+  const lane = (d: typeof plain) =>
+    d.links(0).filter(c => c.walk === 1 && c.pass === 0)
+  expect(lane(deletion)).toHaveLength(1)
+  const [a] = lane(deletion)
+  const [b] = lane(plain)
+  expect(a!.normal).toEqual(b!.normal)
+  expect(a!.endNormal).toEqual(b!.endNormal)
+  expect(a!.offsetX).toBeCloseTo(b!.offsetX!)
+  expect(a!.endOffsetX).toBeCloseTo(b!.endOffsetX!)
 })
 
 test('a viewport only a thread reaches still draws that thread, as an unculled build does', () => {
