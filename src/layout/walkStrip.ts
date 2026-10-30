@@ -1,4 +1,4 @@
-import { alongRow, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
+import { alongRow, barEnd, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
 import { READOUT_ROOM, longestBar } from './walkRowLayout'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
@@ -236,7 +236,7 @@ export function stripRowAt(
   const i = Math.round((y - frame.translateY) / frame.rowPx)
   const row = [bars.reference, ...bars.rows][i]
   const offset = (x - frame.translateX) / frame.scaleX - bars.origin
-  return row && i >= 0 && offset >= 0 && offset <= row.bp
+  return row && i >= 0 && offset >= 0 && offset <= barEnd(row)
     ? { index: i, row, offset }
     : undefined
 }

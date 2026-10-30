@@ -1,4 +1,5 @@
 import { coalesceRuns } from './walkRowDraw'
+import { longestBar } from './walkRowLayout'
 import { walkRows } from './walkRows'
 import {
   LABELLED_ROW_PX,
@@ -199,5 +200,44 @@ test('a crowded strip says its genes are left out, even with no rows untracked',
     untracked: 0,
     unread: 0,
     crowded: true,
+  })
+})
+
+// a haplotype that jumps over the window has no bp, only its hairline
+test('a point along a deletion row finds it, and the bars reach as far as it', () => {
+  const { bars } = setup()
+  const deletion = {
+    name: 'HG4#1#ctg4',
+    label: 'HG4#1',
+    sample: 'HG4',
+    haplotype: 1,
+    bp: 0,
+    offReferenceBp: 0,
+    gapBp: 60,
+    complete: true,
+    deletionBp: 60,
+    runs: [
+      {
+        start: 0,
+        bp: 60,
+        onReference: false,
+        gap: true as const,
+        cause: 'deleted' as const,
+      },
+    ],
+  }
+  const withDeletion = { ...bars, rows: [...bars.rows, deletion] }
+  expect(longestBar(withDeletion)).toBe(60)
+  const frame = walkStripFrame(withDeletion, {
+    width: 800,
+    maxHeight: 400,
+    labelPx: 90,
+  })
+  const i = withDeletion.rows.length
+  const x = (bars.origin + 40) * frame.scaleX + frame.translateX
+  const y = i * frame.rowPx + frame.translateY
+  expect(stripRowAt(withDeletion, frame, x, y)).toMatchObject({
+    index: i,
+    offset: expect.closeTo(40, 5),
   })
 })

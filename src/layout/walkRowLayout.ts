@@ -5,6 +5,7 @@ import {
   backbonePositions,
   overlapsWindow,
 } from '../anchoredNodes'
+import { barEnd } from './walkRowDraw'
 
 import type { RowPitch } from './walkRowDraw'
 import type { WalkRows } from './walkRows'
@@ -19,7 +20,7 @@ import type { Graph, LayoutResult, RowLabel } from '../types'
 export const READOUT_ROOM = 1.3
 
 export function longestBar(walks: WalkRows) {
-  return Math.max(walks.reference.bp, ...walks.rows.map(r => r.bp))
+  return Math.max(barEnd(walks.reference), ...walks.rows.map(barEnd))
 }
 
 // How far the bars reach, so the fit and the pane height include them. The
