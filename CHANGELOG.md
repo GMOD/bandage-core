@@ -1,3 +1,9 @@
+## [12.3.0](https://github.com/GMOD/bandage-core/compare/v12.2.1...v12.3.0) (2026-10-30)
+
+### Other Changes
+
+- A gene's name goes above its pin where nothing under the pin may hold it ([2c5752b](https://github.com/GMOD/bandage-core/commit/2c5752b7126b9e90ca8bbeb7fbfd982b099955fb))
+
 ## [12.2.1](https://github.com/GMOD/bandage-core/compare/v12.2.0...v12.2.1) (2026-10-29)
 
 ### Other Changes
