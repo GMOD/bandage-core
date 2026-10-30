@@ -1,3 +1,9 @@
+## [12.5.1](https://github.com/GMOD/bandage-core/compare/v12.5.0...v12.5.1) (2026-10-30)
+
+### Other Changes
+
+- A deletion row takes the strip's pointer along its hairline ([e382262](https://github.com/GMOD/bandage-core/commit/e3822625899ea3fda798bd854fd4861f3d89d812))
+
 ## [12.5.0](https://github.com/GMOD/bandage-core/compare/v12.4.0...v12.5.0) (2026-10-30)
 
 ### Other Changes
