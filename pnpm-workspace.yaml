@@ -4,6 +4,6 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@gmod/gbz-base@7.0.0'
   - '@jbrowse/tubemap-core'
-  - '@gmod/tabix@3.9.0'
+  - '@gmod/tabix@3.9.0 || 3.13.1'
   - '@jbrowse/graph-stress-layout@0.1.0 || 0.1.1 || 0.2.0 || 1.0.0'
   - '@jbrowse/graph-fmmm-layout@1.0.2'
