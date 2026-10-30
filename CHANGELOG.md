@@ -1,3 +1,9 @@
+## [12.5.0](https://github.com/GMOD/bandage-core/compare/v12.4.0...v12.5.0) (2026-10-30)
+
+### Other Changes
+
+- A deletion row's readout names the deletion it lies inside ([4d9cb6e](https://github.com/GMOD/bandage-core/commit/4d9cb6e632f93840fc01e2bf1c4b24bea8abebb2))
+
 ## [12.4.0](https://github.com/GMOD/bandage-core/compare/v12.3.0...v12.4.0) (2026-10-30)
 
 ### Other Changes
