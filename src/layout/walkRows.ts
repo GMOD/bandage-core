@@ -89,6 +89,9 @@ export interface WalkRow {
   // true where an abridged block runs past the window, so `bp` takes the
   // reference's bp for the part outside it
   estimated?: boolean
+  // a row of deletion from a skip row: bp of the whole stretch the haplotype
+  // leaves out, which runs past the window
+  deletionBp?: number
   runs: WalkRun[]
   // walkRows fills it only when asked, since an object per step costs a big
   // cut far more than its runs

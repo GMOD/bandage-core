@@ -749,6 +749,7 @@ export function walkRowRuns(
       complete: true,
       stop: undefined,
       axis: undefined,
+      deletionBp: end - start,
     }
   }
 

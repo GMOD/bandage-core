@@ -449,6 +449,7 @@ test('a haplotype that jumps over the window draws as a deletion under it', () =
     bp: 0,
     gapBp: 1000,
     complete: true,
+    deletionBp: 2000,
   })
   expect(f.runs).toEqual([
     expect.objectContaining({
