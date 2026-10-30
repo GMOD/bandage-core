@@ -86,9 +86,10 @@ export function geneCoverageNote(pin: GenePin) {
   return `${amount(pin.covered * length)} of ${amount(length)} ${unit}`
 }
 
-// Each gene's name under its pin, the longest gene first, with how much of
-// it the cut carries where that is not all of it. A name over a node the gene
-// does not lie on reads as that node's, so it moves or goes.
+// Each gene's name under its pin, or above it where the gene's node runs on
+// under the pin, the longest gene first, with how much of the gene the cut
+// covers where it covers less than all. A name over a node the gene does not
+// lie on reads as that node's, so it moves or goes.
 export function geneLabelCandidates(
   pins: GenePin[],
   screen: (p: { x: number; y: number }) => { x: number; y: number },
@@ -103,6 +104,7 @@ export function geneLabelCandidates(
       item: pin,
       x,
       y: y + contigThickness + GENE_PIN_DROP_PX,
+      flipY: y - contigThickness - GENE_PIN_DROP_PX + LABEL_PX,
       text: note ? `${pin.gene.name} · ${note}` : pin.gene.name,
       fallback: note ? `${pin.gene.name} …` : undefined,
       stack: GENE_STACK,
@@ -117,6 +119,18 @@ export function geneLabelCandidates(
         ].every(id => pin.nodeIds.has(id)),
     }
   })
+}
+
+// The line from a gene's name to the edge of its pin's node nearer the name,
+// with `pinY` the pin's screen y
+export function geneLeader(
+  label: { y: number },
+  pinY: number,
+  contigThickness: number,
+) {
+  return label.y > pinY
+    ? { y1: label.y - LABEL_PX - 2, y2: pinY + contigThickness / 2 }
+    : { y1: label.y + LABEL_PAD, y2: pinY - contigThickness / 2 }
 }
 
 function byExtent<T>(items: T[], extent: (item: T) => number) {

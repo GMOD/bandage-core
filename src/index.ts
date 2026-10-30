@@ -272,6 +272,7 @@ export {
   HALO_FACTOR,
   LEGEND_INSET_PX,
   geneCoverageNote,
+  geneLeader,
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'

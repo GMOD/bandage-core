@@ -25,6 +25,9 @@ export interface LabelCandidate<T> {
   // a shorter text to try where `text` does not fit, such as against the
   // pane's edge
   fallback?: string
+  // where to try when no row from `y` is inside the pane and `fits`, such as
+  // above a pin whose node runs on under it; its rows stack away from `y`
+  flipY?: number
   // whether the label may stand in a box, beyond its being free
   fits?: (box: Box) => boolean
 }
@@ -84,12 +87,18 @@ export function placeLabels<T>(
 ): PlacedLabel<T>[] {
   const out: PlacedLabel<T>[] = []
   const row = LABEL_PX + LABEL_PAD * 2
-  // a stack grows away from the nearer edge of the pane
-  const place = (c: LabelCandidate<T>, text: string) => {
+  // the label on the first free row from `from`, and whether another label
+  // took a row it could otherwise stand on
+  const stackFrom = (
+    c: LabelCandidate<T>,
+    text: string,
+    from: number,
+    direction: number,
+  ) => {
     const w = labelWidth(text)
-    const direction = c.y > frame.height / 2 ? -1 : 1
+    let crowded = false
     for (let tries = 0; tries <= (c.stack ?? 0); tries++) {
-      const y = c.y + direction * tries * row
+      const y = from + direction * tries * row
       const box = {
         x0: c.x - w / 2,
         x1: c.x + w / 2,
@@ -97,13 +106,28 @@ export function placeLabels<T>(
         y1: y + LABEL_PAD,
       }
       if (offFrame(box, frame)) {
-        return undefined
+        break
       }
-      if (insideFrame(box, frame) && (c.fits?.(box) ?? true) && take(box)) {
-        return { ...c, text, y, w }
+      if (insideFrame(box, frame) && (c.fits?.(box) ?? true)) {
+        if (take(box)) {
+          return { placed: { ...c, text, y, w }, crowded }
+        }
+        crowded = true
       }
     }
-    return undefined
+    return { placed: undefined, crowded }
+  }
+  // a stack grows away from the nearer edge of the pane. A label moves to flipY
+  // when `fits` or the pane refused every row, and stays put when another
+  // label took one, which keeps a dense gene track to one lane
+  const place = (c: LabelCandidate<T>, text: string) => {
+    const first = stackFrom(c, text, c.y, c.y > frame.height / 2 ? -1 : 1)
+    return (
+      first.placed ??
+      (c.flipY === undefined || first.crowded
+        ? undefined
+        : stackFrom(c, text, c.flipY, c.flipY < c.y ? -1 : 1).placed)
+    )
   }
   for (const c of candidates) {
     const placed =

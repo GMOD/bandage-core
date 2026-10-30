@@ -76,6 +76,35 @@ test('a stack near the bottom edge grows upward', () => {
   ])
 })
 
+test('a label no row under it fits stacks away from it at flipY', () => {
+  const fits = (box: { y0: number }) => box.y0 < 80
+  const placed = placeLabels(
+    [
+      { item: 'a', x: 100, y: 100, text: 'flipped', stack: 1, flipY: 70, fits },
+      { item: 'b', x: 100, y: 100, text: 'flipped', stack: 1, flipY: 70, fits },
+    ],
+    frame,
+    occupancy(frame),
+  )
+  expect(placed.map(p => [p.item, p.y])).toEqual([
+    ['a', 70],
+    ['b', 51],
+  ])
+})
+
+test('a label crowded out by other labels does not flip', () => {
+  const placed = placeLabels(
+    [
+      { item: 'a', x: 100, y: 100, text: 'taken', stack: 1 },
+      { item: 'b', x: 100, y: 100, text: 'taken', stack: 1 },
+      { item: 'c', x: 100, y: 100, text: 'crowded', stack: 1, flipY: 70 },
+    ],
+    frame,
+    occupancy(frame),
+  )
+  expect(placed.map(p => p.item)).toEqual(['a', 'b'])
+})
+
 test('a chip the pane edge would cut is dropped', () => {
   const placed = placeLabels(
     [

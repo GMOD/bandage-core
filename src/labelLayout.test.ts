@@ -1,4 +1,4 @@
-import { geneCoverageNote, layoutLabels } from './labelLayout'
+import { geneCoverageNote, geneLeader, layoutLabels } from './labelLayout'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
@@ -242,6 +242,32 @@ test("a gene's name never covers a node the gene does not lie on", () => {
     }),
   )
   expect(own.genes.map(l => l.y)).toEqual([pinY])
+})
+
+// HPRC's KIV-2 cut lost its `LPA …` once the layout turned LPA's end node to
+// run down from its pin. Every row under the pin crossed a SNP allele drawn
+// beside that node, and placement never tried the free space above.
+test("a gene's name goes above its pin when its node runs on under it", () => {
+  const at = { x: 300, y: 100 }
+  const nodePositions = {
+    bb: [at, { x: 300, y: 300 }],
+    snp: [
+      { x: 304, y: 100 },
+      { x: 304, y: 300 },
+    ],
+  }
+  const [label] = layoutLabels(
+    source({ genePins: [pin(at)], nodePositions }),
+  ).genes
+  expect(label!.y).toBeLessThan(at.y)
+  expect(geneLeader(label!, at.y, 6)).toEqual({
+    y1: label!.y + 4,
+    y2: at.y - 3,
+  })
+})
+
+test("a gene's leader runs from the chip's top down to a pin above it", () => {
+  expect(geneLeader({ y: 130 }, 100, 6)).toEqual({ y1: 117, y2: 103 })
 })
 
 test('a small variant stands as a tick above its nodes, with no chip', () => {

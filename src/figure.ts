@@ -10,7 +10,7 @@ import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
-import { geneLabelCandidates } from './labelLayout'
+import { geneLabelCandidates, geneLeader } from './labelLayout'
 import {
   walkRowsKey,
   walkRowsKeyTree,
@@ -330,9 +330,9 @@ export function figureSvg(
       frame,
       occupancy(frame),
     )) {
-      const pinY = screen(pin.at).y + contigThickness / 2
+      const { y1, y2 } = geneLeader({ y }, screen(pin.at).y, contigThickness)
       out.push(
-        `<line x1="${x}" x2="${x}" y1="${y - LABEL_PX - 2}" y2="${pinY}" stroke="${GENE_INK}" stroke-width="0.8" stroke-opacity="0.6"/>`,
+        `<line x1="${x}" x2="${x}" y1="${y1}" y2="${y2}" stroke="${GENE_INK}" stroke-width="0.8" stroke-opacity="0.6"/>`,
         chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
       )
     }
