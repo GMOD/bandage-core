@@ -462,6 +462,24 @@ test('a haplotype that jumps over the window draws as a deletion under it', () =
   expect(rows.filter(r => r.label === 'A#1')).toHaveLength(1)
 })
 
+// The window starts and ends inside the repeat's node, so the reference's bar
+// runs out to its flanks, 2000..3000, and F's deletion runs under all of it
+test("a skip row's deletion lines up under the reference's bar", () => {
+  const skips = {
+    names: ['F#1#f'],
+    starts: Float64Array.of(1500),
+    ends: Float64Array.of(3500),
+  }
+  const { reference, rows } = rowsOf(
+    { ...tables, skips },
+    { start: 2200, end: 2800 },
+  )
+  expect(reference.bp).toBe(1000)
+  expect(rows.find(r => r.label === 'F#1')!.runs).toEqual([
+    expect.objectContaining({ start: 0, bp: 1000, cause: 'deleted' }),
+  ])
+})
+
 test('loadGraph keeps the skip rows, so walk rows of the Graph draw them too', () => {
   const skipping = {
     ...tables,

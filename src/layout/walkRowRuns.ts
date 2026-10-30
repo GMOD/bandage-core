@@ -719,12 +719,17 @@ export function walkRowRuns(
   }
 
   // A haplotype that jumps over the window draws as a hairline under the
-  // stretch of the window it leaves out, and states the bp
-  const skipRowOf = (name: string, start: number, end: number): WalkRowMeta => {
-    const from = cut ? Math.max(start, cut.start) : start
-    const bp = (cut ? Math.min(end, cut.end) : end) - from
+  // stretch of the reference row's bar it leaves out, and states the bp
+  const skipRowOf = (
+    name: string,
+    start: number,
+    end: number,
+    bar: { start: number; end: number } | undefined,
+  ): WalkRowMeta => {
+    const from = bar ? Math.max(start, bar.start) : start
+    const bp = Math.max((bar ? Math.min(end, bar.end) : end) - from, 0)
     runs.push(
-      from - (cut ? cut.start : start),
+      from - (bar ? bar.start : start),
       bp,
       Number.NaN,
       RUN_GAP | causeFlags('deleted'),
@@ -753,12 +758,19 @@ export function walkRowRuns(
     row: i + 1,
   }))
   const drawn = new Set(walks.keys())
+  const { axis } = referenceRow
+  const bar = axis
+    ? {
+        start: axis.start,
+        end: axis.start + referenceRow.bp + referenceRow.gapBp,
+      }
+    : cut
   skips?.names.forEach((name, k) => {
     const contig = pathOrigin(name).name
     if (!drawn.has(contig)) {
       drawn.add(contig)
       rows.push({
-        meta: skipRowOf(contig, skips.starts[k]!, skips.ends[k]!),
+        meta: skipRowOf(contig, skips.starts[k]!, skips.ends[k]!, bar),
         row: rows.length + 1,
       })
     }
