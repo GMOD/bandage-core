@@ -1,3 +1,13 @@
+## [12.4.0](https://github.com/GMOD/bandage-core/compare/v12.3.0...v12.4.0) (2026-10-30)
+
+### Other Changes
+
+- Bump @gmod/tabix to 3.13.1 ([99e995e](https://github.com/GMOD/bandage-core/commit/99e995edf96ec8ecb191aeba1a8fbccab43973b0))
+- Exempt @gmod/tabix 3.13.1 from the minimum release age ([730e500](https://github.com/GMOD/bandage-core/commit/730e500a8611f6a6175da36c7633d32a488f7793))
+- LoadGraph keeps a walk cut's skip rows on the Graph ([27ae20f](https://github.com/GMOD/bandage-core/commit/27ae20fca12342236055da4a8bf6f5da476ecb92))
+- A skip row's deletion lines up under the reference's bar ([96a7547](https://github.com/GMOD/bandage-core/commit/96a7547e0b36f837df0bb8fd4ccc862f8221f17f))
+- A deletion row's readout goes past its deletion ([9fa4b5f](https://github.com/GMOD/bandage-core/commit/9fa4b5f638b9dadb4d6efebee839f2b775f89e00))
+
 ## [12.3.0](https://github.com/GMOD/bandage-core/compare/v12.2.1...v12.3.0) (2026-10-30)
 
 ### Other Changes
