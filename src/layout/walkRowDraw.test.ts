@@ -1,6 +1,7 @@
 import {
   MISSING_INK,
   MISSING_PX,
+  barEnd,
   gapStyle,
   genesOnRow,
   placeRowGenes,
@@ -386,4 +387,10 @@ test('a haplotype that jumps over the window reads as a deletion', () => {
     px: MISSING_PX,
     label: 'deleted in this haplotype',
   })
+})
+
+test("a deletion row's bar ends past its deletion, which it carries no bp of", () => {
+  const run = { start: 0, bp: 1000, gap: true, cause: 'deleted' as const }
+  expect(barEnd({ bp: 0, runs: [run] })).toBe(1000)
+  expect(barEnd({ bp: 1500, runs: [{ ...run, bp: 1500 }] })).toBe(1500)
 })

@@ -214,6 +214,7 @@ export {
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,
   UNBACKED_TICK as WALK_UNBACKED_TICK,
   alongRow,
+  barEnd,
   callTickInk,
   coalesceRuns,
   gapStyle,

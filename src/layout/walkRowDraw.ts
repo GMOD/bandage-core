@@ -161,6 +161,15 @@ export function readoutPlacement(text: string, endX: number, width: number) {
     : { x: endX - 6, anchor: 'end' as const, halo: true }
 }
 
+// Where a row's bar ends: its bp, or past its deletion for a row that carries
+// none
+export function barEnd(row: Pick<WalkRow, 'bp' | 'runs'>) {
+  return row.runs.reduce(
+    (end, run) => Math.max(end, run.start + run.bp),
+    row.bp,
+  )
+}
+
 // Bar offsets one unit apart, so copies are countable, none where a unit is
 // under a few px
 export function unitTicks(bp: number, unit: number, pxPerBp: number) {
@@ -780,7 +789,7 @@ export function walkRowsTree(
           }
         : undefined
     const at =
-      readout && readoutPlacement(readout.text, along(row.bp), frame.width)
+      readout && readoutPlacement(readout.text, along(barEnd(row)), frame.width)
     return el(
       'g',
       {
