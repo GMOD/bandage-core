@@ -302,6 +302,7 @@ export type {
   NodeSegment,
   PathStop,
   StopChunk,
+  WalkSkips,
 } from './types'
 
 export {

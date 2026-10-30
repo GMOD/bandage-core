@@ -127,6 +127,16 @@ export interface Graph {
   referencePath?: string
   // reads aligned to the graph, which the tube map draws under its paths
   reads?: GafRecord[]
+  // the walk-file cut's skip rows, which loadGraph keeps from its tables
+  skips?: WalkSkips
+}
+
+// Haplotypes with no walk in a walk-file cut that jump over the window, each
+// with the stretch of the reference it leaves out
+export interface WalkSkips {
+  names: string[]
+  starts: Float64Array
+  ends: Float64Array
 }
 
 export interface NodeSegment {

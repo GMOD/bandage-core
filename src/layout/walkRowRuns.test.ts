@@ -462,6 +462,22 @@ test('a haplotype that jumps over the window draws as a deletion under it', () =
   expect(rows.filter(r => r.label === 'A#1')).toHaveLength(1)
 })
 
+test('loadGraph keeps the skip rows, so walk rows of the Graph draw them too', () => {
+  const skipping = {
+    ...tables,
+    skips: {
+      names: ['F#1#f'],
+      starts: Float64Array.of(1500),
+      ends: Float64Array.of(3500),
+    },
+  }
+  const ofGraph = walkRows(loadGraph(skipping, 'cut'), repeat)!
+  expect(ofGraph).toEqual(rowsOf(skipping))
+  expect(ofGraph.rows.find(r => r.label === 'F#1')).toMatchObject({
+    gapBp: 1000,
+  })
+})
+
 test('a cut whose only other haplotypes jump over the window still has rows', () => {
   const reference: GraphTables = {
     ...tables,

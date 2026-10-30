@@ -317,7 +317,7 @@ export function walkRowRuns(
     .sort(byStart)
   const first = referencePieces[0]
   const others = pieceIds.filter(p => nameOf(p) !== reference)
-  const skips = 'walks' in source ? source.skips : undefined
+  const { skips } = source
   if (first === undefined || (others.length === 0 && !skips?.names.length)) {
     return undefined
   }

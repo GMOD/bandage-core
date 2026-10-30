@@ -9,6 +9,7 @@ import type {
   GraphNode,
   GraphPath,
   PathOrigin,
+  WalkSkips,
 } from '../types'
 
 /**
@@ -53,13 +54,7 @@ export interface GraphTables {
     abridgedSteps?: Float64Array
     abridgedBp?: Float64Array
   }
-  // haplotypes with no walk in a walk-file cut that jump over the window, each
-  // with the stretch of the reference it leaves out, from skip rows
-  skips?: {
-    names: string[]
-    starts: Float64Array
-    ends: Float64Array
-  }
+  skips?: WalkSkips
 }
 
 // A P line states a walk's start only as a range on its name
@@ -162,10 +157,11 @@ export function tableNodeIds(
 /**
  * The Graph `convertGFAToGraph` builds from `graphTablesGFA(tables)`, deep
  * equal, built by index: a step costs a few array reads and its visit, where
- * the text costs a string and several map lookups.
+ * the text costs a string and several map lookups. GFA has no line for a skip
+ * row, so only this Graph keeps the tables' `skips`.
  */
 export function graphFromTables(
-  { nodes: n, links: l, walks: w }: GraphTables,
+  { nodes: n, links: l, walks: w, skips }: GraphTables,
   name = 'Imported GFA',
 ): Graph {
   const count = n.names.length
@@ -375,6 +371,7 @@ export function graphFromTables(
         })
       : undefined,
     anchoredBy: nodes.some(node => node.stable) ? 'tags' : undefined,
+    ...(skips?.names.length ? { skips } : {}),
   }
 }
 
