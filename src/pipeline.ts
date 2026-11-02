@@ -10,6 +10,7 @@ import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
 import { parseGFA } from './gfa-core/index'
 import {
+  archRoutes,
   routeNodes,
   takeRoutes,
   withDeletionRoutes,
@@ -201,7 +202,8 @@ export async function forceLayout(
   const graph = withoutStrayHandles(cut)
   const spread = spreadFor(settings.bubbleSpread)
   const loose = closableLinks(graph, offReferenceLinks(graph))
-  const kept = deletionEdges(graph).filter(d => !loose.has(d.edgeIndex))
+  const deletions = deletionEdges(graph)
+  const kept = deletions.filter(d => !loose.has(d.edgeIndex))
   const routed = withDeletionRoutes(graph, kept, loose)
   const merged = mergeRuns(routed.graph, routed.ids)
   const runs = {
@@ -241,18 +243,27 @@ export async function forceLayout(
     ]),
   )
   const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
-  const { nodePositions, deletionRoutes } = takeRoutes(
+  const taken = takeRoutes(
     graph.nodes.some(isBackbone)
       ? orientToReference(graph, positions)
       : positions,
     routed.routes,
   )
+  const { nodePositions } = taken
+  const deletionRoutes = {
+    ...taken.deletionRoutes,
+    ...archRoutes(
+      graph,
+      deletions.filter(d => loose.has(d.edgeIndex)),
+      nodePositions,
+    ),
+  }
   return {
     result: {
       ...result,
       nodePositions,
       stranded: true,
-      ...(kept.length
+      ...(deletions.length
         ? { deletionRoutes, extent: layoutExtent(deletionRoutes) }
         : {}),
     },

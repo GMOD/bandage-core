@@ -61,13 +61,28 @@ test('a link back along the reference is off the reference too', () => {
 test('a force layout leaves out a deletion the rest of the graph bridges', async () => {
   const { result, request } = await laidOut(graph)
   expect(request.graph.edges).not.toContainEqual(joining('1+', '3+'))
-  expect(result.deletionRoutes).toBeUndefined()
   expect(Object.keys(result.nodePositions).sort()).toEqual(
     graph.nodes.map(n => n.id).sort(),
   )
   const x = (id: string) => result.nodePositions[id]![0]!.x
   expect(x('1+')).toBeLessThan(x('2+'))
   expect(x('2+')).toBeLessThan(x('3+'))
+  // drawn as a shallow arch from 1's end to 3's start, rising at most a
+  // quarter of its chord
+  const arch = result.deletionRoutes![2]!
+  const a = result.nodePositions['1+']!.at(-1)!
+  const b = result.nodePositions['3+']![0]!
+  const chord = Math.hypot(b.x - a.x, b.y - a.y)
+  const rise = arch.reduce(
+    (most, p) =>
+      Math.max(
+        most,
+        Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / chord,
+      ),
+    0,
+  )
+  expect(rise).toBeGreaterThan(0)
+  expect(rise).toBeLessThanOrEqual(Math.min(chord / 4, 150) + 1e-6)
 })
 
 test('a duplication is left out of the layout like a deletion', async () => {

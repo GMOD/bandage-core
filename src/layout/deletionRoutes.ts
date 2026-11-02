@@ -1,5 +1,7 @@
 import { ROUTE_ID } from '@jbrowse/graph-stress-layout'
 
+import { strandSides } from '../util/geometry'
+
 import type { BandageScaleOpts } from './drawnScale'
 import type { DeletionEdge } from '../deletionEdges'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
@@ -110,4 +112,51 @@ export function takeRoutes(
     }
   }
   return { nodePositions, deletionRoutes }
+}
+
+// How deep an arch rises per unit of its chord, and at most, as the stress
+// engine arches a route over the backbone
+const ARCH = 0.25
+const ARCH_CAP = 150
+
+// A deletion the layout left out, its ends laid along the reference, draws as
+// a shallow arch from end to end, on the side the stress engine arches a
+// route: bowed round the reference it skips instead, as an anchored layout
+// draws it, it swung far off the drawing.
+export function archRoutes(
+  graph: Graph,
+  deletions: DeletionEdge[],
+  nodePositions: Record<string, NodeSegment[]>,
+) {
+  const starts = new Map(
+    graph.nodes.flatMap(n => (n.stable ? [[n.id, n.stable.start]] : [])),
+  )
+  const end = (segments: NodeSegment[], side: 'start' | 'end') =>
+    side === 'start' ? segments[0]! : segments.at(-1)!
+  const routes: DeletionRoutes = {}
+  for (const d of deletions) {
+    const from = nodePositions[d.from]
+    const to = nodePositions[d.to]
+    if (from?.length && to?.length) {
+      const sides = strandSides(graph.edges[d.edgeIndex]!)
+      const a = end(from, sides.from)
+      const b = end(to, sides.to)
+      const chord = Math.hypot(b.x - a.x, b.y - a.y)
+      if (chord > 0) {
+        const downstream =
+          (starts.get(d.from) ?? 0) <= (starts.get(d.to) ?? 0) ? 1 : -1
+        const rise = Math.min(ARCH * chord, ARCH_CAP) * downstream
+        const n = { x: -(b.y - a.y) / chord, y: (b.x - a.x) / chord }
+        routes[d.edgeIndex] = [1, 2, 3, 4, 5, 6, 7].map(k => {
+          const t = k / 8
+          const lift = 4 * t * (1 - t) * rise
+          return {
+            x: a.x + (b.x - a.x) * t - n.x * lift,
+            y: a.y + (b.y - a.y) * t - n.y * lift,
+          }
+        })
+      }
+    }
+  }
+  return routes
 }
