@@ -1,3 +1,11 @@
+## [12.6.0](https://github.com/GMOD/bandage-core/compare/v12.5.1...v12.6.0) (2026-11-02)
+
+### Other Changes
+
+- Judge each reference visit by its own strand, and lay out without off-reference links ([a69b585](https://github.com/GMOD/bandage-core/commit/a69b585727385a8379d7fbdf8757086e4fc07443))
+- Say a skip row has no step on the reference, not that it is deleted ([1f53c24](https://github.com/GMOD/bandage-core/commit/1f53c24c3df2138d3b86a174bb4f4c57df586fbf))
+- Route a deletion the layout has to keep, within a budget ([57d99c4](https://github.com/GMOD/bandage-core/commit/57d99c4f85a973e23db67b9554fde1328e4db740))
+
 ## [12.5.1](https://github.com/GMOD/bandage-core/compare/v12.5.0...v12.5.1) (2026-10-30)
 
 ### Other Changes
