@@ -1,3 +1,9 @@
+## [12.6.2](https://github.com/GMOD/bandage-core/compare/v12.6.1...v12.6.2) (2026-11-02)
+
+### Other Changes
+
+- Lay deletions out as bubbles again, keeping only the route budget ([fffaf40](https://github.com/GMOD/bandage-core/commit/fffaf40360b83360c2a06475c126e2fb68a3fb54))
+
 ## [12.6.1](https://github.com/GMOD/bandage-core/compare/v12.6.0...v12.6.1) (2026-11-02)
 
 ### Other Changes
