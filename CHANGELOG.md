@@ -1,3 +1,9 @@
+## [12.6.1](https://github.com/GMOD/bandage-core/compare/v12.6.0...v12.6.1) (2026-11-02)
+
+### Other Changes
+
+- Arch a deletion the layout left out, rather than bowing it off the drawing ([0c34456](https://github.com/GMOD/bandage-core/commit/0c3445613efe7cf0561288bd413ff606d9e9b65b))
+
 ## [12.6.0](https://github.com/GMOD/bandage-core/compare/v12.5.1...v12.6.0) (2026-11-02)
 
 ### Other Changes
