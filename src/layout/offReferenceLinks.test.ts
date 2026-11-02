@@ -75,17 +75,6 @@ test('a duplication is left out of the layout like a deletion', async () => {
   expect(request.graph.edges).not.toContainEqual(joining('3+', '1+'))
 })
 
-test('a deletion whose skipped reference the cut lost stays in the layout', async () => {
-  const cut = graphOf(
-    RGFA.split('\n')
-      .filter(l => !/^S\t[24]\t|\t[24]\t/.test(l))
-      .join('\n'),
-  )
-  // kept, the link makes 1 and 3 one unbranching run
-  const { request } = await laidOut(cut)
-  expect(request.graph.nodes).toHaveLength(1)
-})
-
 test('a deletion keeps its link when the cut lost a link it skips', () => {
   // 2 is in the graph but nothing links 1 to it, and no allele 4 joins 1 to 3
   const cut = graphOf(

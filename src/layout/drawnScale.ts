@@ -193,6 +193,18 @@ export function layoutScaling(
   }
 }
 
+// What `bp` of sequence draws as under `layoutScaling(graph, spread)`.
+export function drawnLengthOf(
+  graph: Graph,
+  spread: NodeLengthSpread = PROPORTIONAL_SPREAD,
+) {
+  if (isProportional(spread.law)) {
+    const opts = bandageAutoScale(graph, spread.minNodeLength)
+    return (bp: number) => drawnNodeLength(opts, bp)
+  }
+  return drawnLengthFor(graph, spread.law)
+}
+
 // The mean drawn node length `bandageAutoScale` targets, exported so
 // BUBBLE_SPREADS can state its laws against it rather than against unanchored
 // constants.
