@@ -261,15 +261,21 @@ export function trimOrigins(
   })
 }
 
-// Where the reference starts each visit to a node, for a node it walks more
-// than once: a collapsed repeat's stable start is only its first visit.
-export function referenceVisitStarts(graph: Graph) {
+export interface ReferenceVisit {
+  start: number
+  strand: '+' | '-'
+}
+
+// Where the reference starts each visit to a node and which way it reads the
+// node there, for a node it walks more than once: a collapsed repeat's stable
+// start is only its first visit, and an inverted copy reads it backwards.
+export function referenceVisits(graph: Graph) {
   const { pathVisits } = graph
-  const cache = new Map<string, number[]>()
+  const cache = new Map<string, ReferenceVisit[]>()
   return (node: AnchoredNode) => {
-    let starts = cache.get(node.id)
-    if (!starts) {
-      starts = []
+    let visits = cache.get(node.id)
+    if (!visits) {
+      visits = []
       const slot = pathVisits ? pathVisits.slot(node.name) : -1
       const p = slot >= 0 ? pathVisits!.pathIndex(node.stable.refName) : -1
       if (p >= 0) {
@@ -279,15 +285,25 @@ export function referenceVisitStarts(graph: Graph) {
           i++
         ) {
           if (pathVisits!.path[i] === p) {
-            starts.push(pathVisits!.start[i]!)
+            visits.push({
+              start: pathVisits!.start[i]!,
+              strand: pathVisits!.strand(i),
+            })
           }
         }
       }
-      if (starts.length < 2) {
-        starts = [node.stable.start]
+      if (visits.length < 2) {
+        visits = [
+          { start: node.stable.start, strand: node.stable.strand ?? '+' },
+        ]
       }
-      cache.set(node.id, starts)
+      cache.set(node.id, visits)
     }
-    return starts
+    return visits
   }
+}
+
+export function referenceVisitStarts(graph: Graph) {
+  const visitsOf = referenceVisits(graph)
+  return (node: AnchoredNode) => visitsOf(node).map(v => v.start)
 }

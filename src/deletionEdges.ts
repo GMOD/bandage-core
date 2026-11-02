@@ -1,6 +1,6 @@
 import { firstNodeAtOrAfter, isBackbone } from './anchoredNodes'
 import { unclipped } from './layout/trimToWindow'
-import { referenceVisitStarts } from './pathAnchoring'
+import { referenceVisits } from './pathAnchoring'
 import {
   computeEdgeCurves,
   edgeJoinOf,
@@ -11,6 +11,7 @@ import { groupBy } from './util/groups'
 import { partitionPoint } from './util/partitionPoint'
 
 import type { AnchoredNode } from './anchoredNodes'
+import type { ReferenceVisit } from './pathAnchoring'
 import type { Graph, GraphEdge, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
@@ -152,9 +153,10 @@ function bypassedNodes(
 }
 
 // A link leaves the END of `from` as it reads it and arrives at the START of
-// `to`. Read the way the reference reads a node, its end is its right side, so
-// a link leaves `from` on the right when the two readings agree and arrives at
-// `to` on the left when they do.
+// `to`. Read the way the reference reads a node at a visit, its end is its
+// right side, so a link leaves `from` on the right when the two readings agree
+// and arrives at `to` on the left when they do. An inverted copy reads the node
+// the other way, so each visit is judged by its own reading.
 //
 // A deletion joins the right side of the left node to the left side of the
 // right one, from whichever strand the file states it: `L 1 + 3 +`, or the
@@ -167,16 +169,16 @@ function bypassedNodes(
 // A link stating no strands is judged by its coordinates, as all once were.
 function skipsBetween(
   edge: GraphEdge,
-  from: AnchoredNode,
-  to: AnchoredNode,
+  from: ReferenceVisit,
+  to: ReferenceVisit,
   forwards: boolean,
 ) {
   const { fromStrand, toStrand } = edge
   if (fromStrand === undefined || toStrand === undefined) {
     return true
   }
-  const leavesRight = fromStrand === (from.stable.strand ?? '+')
-  const arrivesLeft = toStrand === (to.stable.strand ?? '+')
+  const leavesRight = fromStrand === from.strand
+  const arrivesLeft = toStrand === to.strand
   return forwards ? leavesRight && arrivesLeft : !leavesRight && !arrivesLeft
 }
 
@@ -188,17 +190,17 @@ function skippedSpan(
   edge: GraphEdge,
   from: AnchoredNode,
   to: AnchoredNode,
-  startsOf: (node: AnchoredNode) => number[],
+  visitsOf: (node: AnchoredNode) => ReferenceVisit[],
 ) {
   let best: { start: number; end: number } | undefined
-  for (const a of startsOf(from)) {
-    for (const b of startsOf(to)) {
-      const forwards = a <= b
+  for (const a of visitsOf(from)) {
+    for (const b of visitsOf(to)) {
+      const forwards = a.start <= b.start
       const span = forwards
-        ? { start: a + from.length, end: b }
-        : { start: b + to.length, end: a }
+        ? { start: a.start + from.length, end: b.start }
+        : { start: b.start + to.length, end: a.start }
       if (
-        skipsBetween(edge, from, to, forwards) &&
+        skipsBetween(edge, a, b, forwards) &&
         (!best ||
           Math.abs(span.end - span.start) < Math.abs(best.end - best.start))
       ) {
@@ -218,12 +220,12 @@ const COPY_SWITCH_SHARE = 0.01
 // of a collapsed repeat that visit starts
 function repeatCopies(
   backbone: Map<string, AnchoredNode[]>,
-  startsOf: (node: AnchoredNode) => number[],
+  visitsOf: (node: AnchoredNode) => ReferenceVisit[],
 ) {
   const bySequence = new Map<string, { at: number; copy: number }[]>()
   for (const [refName, nodes] of backbone) {
     const copies = nodes.flatMap(node => {
-      const starts = startsOf(node)
+      const starts = visitsOf(node).map(v => v.start)
       return starts.slice(1).map((next, i) => ({
         at: starts[i]!,
         copy: next - starts[i]!,
@@ -262,63 +264,86 @@ function switchesCopy(
   )
 }
 
-// Every edge that skips reference sequence, in graph.edges order. A segment
-// cut back to a window is measured in full: its cut end is no gap.
-export function deletionEdges(cut: Graph): DeletionEdge[] {
+// Every link between two backbone segments on one sequence, with the span it
+// skips where it joins facing sides of some pair of reference visits. Which
+// endpoint is upstream comes from the coordinates, since a file may state a
+// link from either strand; whether it skips what lies between comes from its
+// sides at those visits. A segment cut back to a window is measured in full:
+// its cut end is no gap.
+function backboneLinks(cut: Graph) {
   const graph = unclipped(cut)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const backbone = backboneBySequence(graph)
-  const startsOf = referenceVisitStarts(graph)
-  const copies = repeatCopies(backbone, startsOf)
-  const found: DeletionEdge[] = []
-  for (let edgeIndex = 0; edgeIndex < graph.edges.length; edgeIndex++) {
-    const edge = graph.edges[edgeIndex]!
+  const visitsOf = referenceVisits(graph)
+  const links = graph.edges.flatMap((edge, edgeIndex) => {
     const from = byId.get(edge.from)
     const to = byId.get(edge.to)
-    if (
-      !edge.foldBridge &&
+    return !edge.foldBridge &&
       from !== undefined &&
       to !== undefined &&
       isBackbone(from) &&
       isBackbone(to) &&
       from.stable.refName === to.stable.refName
-    ) {
-      // Which endpoint is upstream comes from the coordinates, since a file
-      // may state a link from either strand. Whether it SKIPS what lies
-      // between comes from its sides: a deletion leaves the right side of the
-      // left node and arrives at the left side of the right one.
-      const span = skippedSpan(edge, from, to, startsOf)
-      const refName = from.stable.refName
-      const bp = span ? span.end - span.start : 0
-      if (
-        span &&
-        bp >= MIN_DELETION_BP &&
-        !switchesCopy(copies.get(refName), span.start, bp)
-      ) {
-        const { start, end } = span
-        found.push({
-          edgeIndex,
-          from: edge.from,
-          to: edge.to,
-          ...(edge.fromStrand ? { fromStrand: edge.fromStrand } : {}),
-          ...(edge.toStrand ? { toStrand: edge.toStrand } : {}),
-          refName,
-          start,
-          end,
-          bp,
-          bypassed: bypassedNodes(backbone.get(refName), start, end),
-        })
-      }
-    }
-  }
-  return found
+      ? [
+          {
+            edgeIndex,
+            edge,
+            refName: from.stable.refName,
+            span: skippedSpan(edge, from, to, visitsOf),
+          },
+        ]
+      : []
+  })
+  return { links, backbone, copies: repeatCopies(backbone, visitsOf) }
 }
 
-// The deletions a layout without them can leave out: every one whose ends the
+// Every edge that skips reference sequence, in graph.edges order
+export function deletionEdges(cut: Graph): DeletionEdge[] {
+  const { links, backbone, copies } = backboneLinks(cut)
+  return links.flatMap(({ edgeIndex, edge, refName, span }) => {
+    const bp = span ? span.end - span.start : 0
+    return span &&
+      bp >= MIN_DELETION_BP &&
+      !switchesCopy(copies.get(refName), span.start, bp)
+      ? [
+          {
+            edgeIndex,
+            from: edge.from,
+            to: edge.to,
+            ...(edge.fromStrand ? { fromStrand: edge.fromStrand } : {}),
+            ...(edge.toStrand ? { toStrand: edge.toStrand } : {}),
+            refName,
+            start: span.start,
+            end: span.end,
+            bp,
+            bypassed: bypassedNodes(
+              backbone.get(refName),
+              span.start,
+              span.end,
+            ),
+          },
+        ]
+      : []
+  })
+}
+
+// Every backbone link that joins no two neighbouring reference visits, by
+// edge index: a deletion, a duplication, an inversion or a step between repeat
+// copies, whatever a drawing calls it. A force layout leaves these out, since
+// each would pull together reference the layout lays apart
+export function offReferenceLinks(cut: Graph) {
+  return backboneLinks(cut)
+    .links.filter(
+      ({ span }) => !span || span.end - span.start >= MIN_DELETION_BP,
+    )
+    .map(({ edgeIndex }) => edgeIndex)
+}
+
+// The links a layout can leave out, by edge index: every one whose ends the
 // rest of the graph still joins. A cut window can keep a deletion's ends but
 // lose a link in the reference between them, and dropping that deletion would
 // split the graph.
-export function closableDeletions(graph: Graph, deletions: DeletionEdge[]) {
+export function closableLinks(graph: Graph, edgeIndexes: number[]) {
   const parent = new Map<string, string>()
   const root = (id: string) => {
     let r = id
@@ -337,14 +362,17 @@ export function closableDeletions(graph: Graph, deletions: DeletionEdge[]) {
     }
     return ra !== rb
   }
-  const candidates = new Set(deletions.map(d => d.edgeIndex))
+  const candidates = new Set(edgeIndexes)
   graph.edges.forEach((e, ei) => {
     if (!candidates.has(ei)) {
       join(e.from, e.to)
     }
   })
   return new Set(
-    deletions.filter(d => !join(d.from, d.to)).map(d => d.edgeIndex),
+    edgeIndexes.filter(ei => {
+      const edge = graph.edges[ei]!
+      return !join(edge.from, edge.to)
+    }),
   )
 }
 
@@ -387,7 +415,10 @@ export function deletionDrawing(
   if (!drawing) {
     const hidden = show
       ? new Set<number>()
-      : closableDeletions(graph, deletions)
+      : closableLinks(
+          graph,
+          deletions.map(d => d.edgeIndex),
+        )
     drawing = {
       shown: deletions.filter(d => !hidden.has(d.edgeIndex)),
       bypassed: new Map(deletions.map(d => [d.edgeIndex, d.bypassed])),

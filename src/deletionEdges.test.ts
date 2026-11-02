@@ -75,6 +75,70 @@ test('a link from one copy of a collapsed repeat to the next is no deletion', ()
   expect(found.map(d => [d.from, d.to, d.bp])).toEqual([['1+', '2+', 10]])
 })
 
+test('a link the reference walks at an inverted copy is no deletion', () => {
+  // the reference reads 1 and 2 forwards in the first copy, with 5 between,
+  // and backwards in the second, where 2- -> 1- is the link 1+ -> 2+
+  const lengths = [100, 10, 20, 100, 0, 5, 0, 0, 0, 50]
+  const gfa = [
+    ...lengths.flatMap((n, id) => (n ? [`S\t${id}\t${'A'.repeat(n)}`] : [])),
+    'P\tref#0#chr\t0+,1+,5+,2+,9+,2-,1-,3+\t*',
+    'P\ta#1#c\t0+,1+,2+,9+\t*',
+    ...[
+      '0 + 1 +',
+      '1 + 5 +',
+      '5 + 2 +',
+      '2 + 9 +',
+      '9 + 2 -',
+      '1 + 2 +',
+      '1 - 3 +',
+    ].map(link => {
+      const [from, fromStrand, to, toStrand] = link.split(' ')
+      return `L\t${from}\t${fromStrand}\t${to}\t${toStrand}\t0M`
+    }),
+  ].join('\n')
+  const found = deletionEdges(anchorGraph(graphOf(gfa), 'ref'))
+  expect(found).toEqual([])
+})
+
+test.each([false, true])(
+  'only a link joining the facing sides skips, however it is written (reference reversed: %s)',
+  reversed => {
+    // 1 and 2 face each other across 5; of the four ways to join a side of 1
+    // to a side of 2, written either way round, only 1's right to 2's left
+    // skips, whichever way the reference reads them
+    const flip = (s: string) => (s === '+' ? '-' : '+')
+    const steps = ['0+', '1+', '5+', '2+', '3+']
+    const ref = reversed
+      ? [...steps].reverse().map(t => `${t.slice(0, -1)}${flip(t.slice(-1))}`)
+      : steps
+    const joins = [
+      ['+', '+', true],
+      ['+', '-', false],
+      ['-', '+', false],
+      ['-', '-', false],
+    ] as const
+    for (const [fromStrand, toStrand, skips] of joins) {
+      for (const link of [
+        ['1', fromStrand, '2', toStrand],
+        ['2', flip(toStrand), '1', flip(fromStrand)],
+      ]) {
+        const gfa = [
+          ...[100, 10, 20, 100, 0, 5].flatMap((n, id) =>
+            n ? [`S\t${id}\t${'A'.repeat(n)}`] : [],
+          ),
+          `P\tref#0#chr\t${ref.join(',')}\t*`,
+          `L\t${link.join('\t')}\t0M`,
+        ].join('\n')
+        const found = deletionEdges(anchorGraph(graphOf(gfa), 'ref'))
+        expect(
+          found.map(d => d.bp),
+          link.join(' '),
+        ).toEqual(skips ? [5] : [])
+      }
+    }
+  },
+)
+
 test('adjacent backbone segments are not a deletion', () => {
   // 1 -> 2 abut exactly; a zero gap must not light up, or every link on the
   // backbone would draw as an event

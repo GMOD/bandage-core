@@ -1,20 +1,11 @@
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
-import { deletionDrawing, deletionEdges } from './deletionEdges'
+import { closableLinks, offReferenceLinks } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
 import { parseGFA } from './gfa-core/index'
-import {
-  routeNodes,
-  takeRoutes,
-  withDeletionRoutes,
-} from './layout/deletionRoutes'
-import {
-  drawnLengthOf,
-  drawnNodeLength,
-  layoutScaling,
-} from './layout/drawnScale'
+import { drawnNodeLength, layoutScaling } from './layout/drawnScale'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
 import { seededNodes } from './layout/referenceSeeds'
@@ -196,36 +187,13 @@ export async function forceLayout(
 ) {
   const graph = withoutStrayHandles(cut)
   const spread = spreadFor(settings.bubbleSpread)
-  const { shown: deletions, hidden: dropped } = deletionDrawing(
-    graph,
-    deletionEdges(graph),
-    settings.showDeletionEdges !== false,
-  )
-  const routed = withDeletionRoutes(graph, deletions, dropped)
-  const merged = mergeRuns(routed.graph, routed.ids)
-  const runs = {
-    ...merged.graph,
-    nodes: merged.graph.nodes.filter(n => !routed.ids.has(n.id)),
-  }
-  const engineScaling = layoutScaling(runs, spread)
+  const loose = closableLinks(graph, offReferenceLinks(graph))
+  const merged = mergeRuns({
+    ...graph,
+    edges: graph.edges.filter((_, ei) => !loose.has(ei)),
+  })
   const { result, duration } = await engine(
-    engineRequest(
-      merged.graph,
-      {
-        ...engineScaling,
-        nodes: [
-          ...engineScaling.nodes,
-          ...routeNodes(
-            graph,
-            deletions,
-            routed.routes,
-            drawnLengthOf(runs, spread),
-            engineScaling.opts,
-          ),
-        ],
-      },
-      settings,
-    ),
+    engineRequest(merged.graph, layoutScaling(merged.graph, spread), settings),
   )
   const scaling = layoutScaling(graph, spread)
   const drawn = new Map(
@@ -238,20 +206,13 @@ export async function forceLayout(
     ]),
   )
   const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
-  const { nodePositions, deletionRoutes } = takeRoutes(
-    graph.nodes.some(isBackbone)
-      ? orientToReference(graph, positions)
-      : positions,
-    routed.routes,
-  )
   return {
     result: {
       ...result,
-      nodePositions,
+      nodePositions: graph.nodes.some(isBackbone)
+        ? orientToReference(graph, positions)
+        : positions,
       stranded: true,
-      ...(deletions.length
-        ? { deletionRoutes, extent: layoutExtent(deletionRoutes) }
-        : {}),
     },
     duration,
   }
