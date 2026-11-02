@@ -110,7 +110,7 @@ function gapsText(
   )
 }
 
-// Two significant figures, as JBrowse's synteny lane header states a deletion
+// Two significant figures, as JBrowse's synteny lane header states a stretch
 // a lane lies inside
 function roughBp(bp: number) {
   return bp >= 1_000_000
@@ -123,8 +123,8 @@ function roughBp(bp: number) {
 // The text at the end of a bar: its length, what it carries against the
 // reference row, and what the cut left out, by cause where its gaps state
 // one. A walk reaching one flank states a lower bound and why it stops, one
-// whose abridged block runs past the window an estimate, and a row of
-// deletion the whole deletion it lies inside.
+// whose abridged block runs past the window an estimate, and a skip row the
+// whole stretch it has no step on.
 export function walkRowReadout(
   row: Pick<
     WalkRow,
@@ -147,7 +147,7 @@ export function walkRowReadout(
     return `${kb(bp)}${units(bp, unit)}`
   }
   if (row.deletionBp !== undefined) {
-    return `inside a ${roughBp(row.deletionBp)} deletion`
+    return `no step on the reference across ${roughBp(row.deletionBp)}`
   }
   const outside = gapsText(gapBp, row.runs, row.abridgedSteps)
   const called = call
@@ -181,7 +181,7 @@ export function readoutPlacement(text: string, endX: number, width: number) {
     : { x: endX - 6, anchor: 'end' as const, halo: true }
 }
 
-// Where a row's bar ends: past its runs, since a row of deletion has no bp
+// Where a row's bar ends: past its runs, since a skip row has no bp
 export function barEnd(row: Pick<WalkRow, 'bp' | 'runs'>) {
   return row.runs.reduce(
     (end, run) => Math.max(end, run.start + run.bp),
@@ -205,8 +205,8 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
 // How a gap draws, and the key's words for it: graph sequence outside the
 // extracted subgraph as a band, bases the graph lacks as a hairline the walk
 // jumps along, a gap the stops leave open as a pale band, and an abridged
-// walk's steps the cut did not load as an amber band. A deletion is a hairline
-// too, the reference it leaves out being bases the haplotype lacks.
+// walk's steps the cut did not load as an amber band. A stretch the haplotype
+// has no step on is a hairline too.
 export function gapStyle(cause: GapCause | undefined) {
   return cause === 'missing'
     ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.missing }

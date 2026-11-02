@@ -373,8 +373,8 @@ test("an abridged walk's readout counts the steps and bp not loaded", () => {
 })
 
 // HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 skip 50 kb of
-// window inside deletions of about 150 kb and 490 kb
-test('a haplotype that jumps over the window reads as the deletion it lies inside', () => {
+// window inside stretches of about 150 kb and 490 kb with no step on GRCh38
+test('a haplotype that jumps over the window reads as the stretch it has no step on', () => {
   const runs = [
     { start: 0, bp: 50_000, gap: true, onReference: false, cause: 'deleted' },
   ] as const
@@ -383,18 +383,18 @@ test('a haplotype that jumps over the window reads as the deletion it lies insid
       { bp: 0, gapBp: 50_000, complete: true, deletionBp, runs: [...runs] },
       { bp: 50_000 },
     )
-  expect(readout(150_412)).toBe('inside a 150 kb deletion')
-  expect(readout(487_960)).toBe('inside a 490 kb deletion')
-  expect(readout(1_234_567)).toBe('inside a 1.2 Mb deletion')
-  expect(readout(850)).toBe('inside a 850 bp deletion')
+  expect(readout(150_412)).toBe('no step on the reference across 150 kb')
+  expect(readout(487_960)).toBe('no step on the reference across 490 kb')
+  expect(readout(1_234_567)).toBe('no step on the reference across 1.2 Mb')
+  expect(readout(850)).toBe('no step on the reference across 850 bp')
   expect(gapStyle('deleted')).toEqual({
     fill: MISSING_INK,
     px: MISSING_PX,
-    label: 'deleted in this haplotype',
+    label: 'no step on the reference',
   })
 })
 
-test("a deletion row's bar ends past its deletion, since it has no bp", () => {
+test("a skip row's bar ends past its stretch, since it has no bp", () => {
   const run = { start: 0, bp: 1000, gap: true, cause: 'deleted' as const }
   expect(barEnd({ bp: 0, runs: [run] })).toBe(1000)
   expect(barEnd({ bp: 1500, runs: [{ ...run, bp: 1500 }] })).toBe(1500)

@@ -17,8 +17,9 @@ export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
   elsewhere: 'on nodes filed elsewhere',
   unknown: 'gap, cause unknown',
   abridged: 'abridged: steps not loaded',
-  // a walk file's skip row: the haplotype jumps over the window
-  deleted: 'deleted in this haplotype',
+  // a walk file's skip row: the haplotype has no step on the reference
+  // across the window, which says nothing of what it carries instead
+  deleted: 'no step on the reference',
 }
 
 // a gap with no cause: graph sequence the cut did not keep
