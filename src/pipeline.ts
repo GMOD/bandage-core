@@ -1,16 +1,11 @@
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
-import {
-  closableLinks,
-  deletionEdges,
-  offReferenceLinks,
-} from './deletionEdges'
+import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
 import { parseGFA } from './gfa-core/index'
 import {
-  archRoutes,
   routeNodes,
   takeRoutes,
   withDeletionRoutes,
@@ -201,10 +196,12 @@ export async function forceLayout(
 ) {
   const graph = withoutStrayHandles(cut)
   const spread = spreadFor(settings.bubbleSpread)
-  const loose = closableLinks(graph, offReferenceLinks(graph))
-  const deletions = deletionEdges(graph)
-  const kept = deletions.filter(d => !loose.has(d.edgeIndex))
-  const routed = withDeletionRoutes(graph, kept, loose)
+  const { shown: deletions, hidden: dropped } = deletionDrawing(
+    graph,
+    deletionEdges(graph),
+    settings.showDeletionEdges !== false,
+  )
+  const routed = withDeletionRoutes(graph, deletions, dropped)
   const merged = mergeRuns(routed.graph, routed.ids)
   const runs = {
     ...merged.graph,
@@ -221,7 +218,7 @@ export async function forceLayout(
           ...engineScaling.nodes,
           ...routeNodes(
             graph,
-            kept,
+            deletions,
             routed.routes,
             drawnOf,
             engineScaling.opts,
@@ -243,21 +240,12 @@ export async function forceLayout(
     ]),
   )
   const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
-  const taken = takeRoutes(
+  const { nodePositions, deletionRoutes } = takeRoutes(
     graph.nodes.some(isBackbone)
       ? orientToReference(graph, positions)
       : positions,
     routed.routes,
   )
-  const { nodePositions } = taken
-  const deletionRoutes = {
-    ...taken.deletionRoutes,
-    ...archRoutes(
-      graph,
-      deletions.filter(d => loose.has(d.edgeIndex)),
-      nodePositions,
-    ),
-  }
   return {
     result: {
       ...result,

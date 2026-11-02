@@ -327,18 +327,6 @@ export function deletionEdges(cut: Graph): DeletionEdge[] {
   })
 }
 
-// Every backbone link that joins no two neighbouring reference visits, by
-// edge index: a deletion, a duplication, an inversion or a step between repeat
-// copies, whatever a drawing calls it. A force layout leaves these out, since
-// each would pull together reference the layout lays apart
-export function offReferenceLinks(cut: Graph) {
-  return backboneLinks(cut)
-    .links.filter(
-      ({ span }) => !span || span.end - span.start >= MIN_DELETION_BP,
-    )
-    .map(({ edgeIndex }) => edgeIndex)
-}
-
 // The links a layout can leave out, by edge index: every one whose ends the
 // rest of the graph still joins. A cut window can keep a deletion's ends but
 // lose a link in the reference between them, and dropping that deletion would
