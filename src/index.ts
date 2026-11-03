@@ -277,6 +277,12 @@ export {
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
+export { inkUnder, legendBox, legendCorner } from './legendCorner'
+export type {
+  LegendCorner,
+  LegendCornerSource,
+  LegendFrame,
+} from './legendCorner'
 export { formatBp } from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'

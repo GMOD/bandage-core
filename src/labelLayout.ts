@@ -1,4 +1,5 @@
 import { graphLabels, rowLabelBox } from './graphLabels'
+import { legendBox } from './legendCorner'
 import {
   LABEL_CHAR_PX,
   LABEL_PAD,
@@ -13,12 +14,13 @@ import type { DeletionEdge } from './deletionEdges'
 import type { GenePin } from './genes/genePins'
 import type { GraphLabel } from './graphLabels'
 import type { DeletionRoutes } from './layout/deletionRoutes'
+import type { LegendCorner } from './legendCorner'
 import type { Box, PlacedLabel } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
 export const HALO_FACTOR = 3.4
-export const LEGEND_INSET_PX = 6
+export { LEGEND_INSET_PX } from './legendCorner'
 const GENE_PIN_DROP_PX = 18
 // a gene's name drops a row or two rather than vanish under a bubble's
 const GENE_STACK = 2
@@ -36,6 +38,8 @@ export interface LabelLayoutSource {
   translateY: number
   contigThickness: number
   legendSize: { width: number; height: number }
+  // where the key sits, top right unless it says otherwise
+  legendCorner?: LegendCorner
   // the band along the top a reference strip draws in
   referenceStripZonePx?: number
   drawnRowLabels: { label: string; y: number }[]
@@ -155,12 +159,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     reserved.push({ x0: 0, x1: width, y0: 0, y1: stripPx })
   }
   if (m.legendSize.width > 0) {
-    reserved.push({
-      x0: width - LEGEND_INSET_PX - m.legendSize.width,
-      x1: width,
-      y0: 0,
-      y1: stripPx + LEGEND_INSET_PX + m.legendSize.height,
-    })
+    reserved.push(legendBox(m.legendCorner ?? 'top-right', m))
   }
   if (m.poppedFrom) {
     reserved.push({

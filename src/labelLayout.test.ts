@@ -191,6 +191,26 @@ test('the legend holds its own box, and no box when none is drawn', () => {
   ).toEqual([])
 })
 
+test('a key moved to the bottom left holds that box instead', () => {
+  const key = { legendSize: { width: 170, height: 40 } }
+  const corner = {
+    nodePositions: {
+      s1: [
+        { x: 10, y: 380 },
+        { x: 100, y: 380 },
+      ],
+    },
+    nodeLengths: new Map([['s1', 700]]),
+  }
+  expect(
+    layoutLabels(source({ ...corner, ...key })).sizes.map(l => l.text),
+  ).toEqual(['700 bp'])
+  expect(
+    layoutLabels(source({ ...corner, ...key, legendCorner: 'bottom-left' }))
+      .sizes,
+  ).toEqual([])
+})
+
 test('a gene the cut carries only part of says how much, in its own unit', () => {
   const at = { x: 300, y: 200 }
   const lpa = {
