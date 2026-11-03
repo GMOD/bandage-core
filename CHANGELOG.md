@@ -1,3 +1,9 @@
+## [12.7.0](https://github.com/GMOD/bandage-core/compare/v12.6.2...v12.7.0) (2026-11-03)
+
+### Other Changes
+
+- Move the key to the bottom left where the drawing runs under the top right ([963cf52](https://github.com/GMOD/bandage-core/commit/963cf520dff2a750dac138ab2f652b19d8994b8f))
+
 ## [12.6.2](https://github.com/GMOD/bandage-core/compare/v12.6.1...v12.6.2) (2026-11-02)
 
 ### Other Changes
