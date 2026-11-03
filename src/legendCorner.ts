@@ -1,3 +1,5 @@
+import { HALO_FACTOR } from './halo'
+
 import type { Box } from './overlayLabels'
 import type { NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
@@ -20,6 +22,7 @@ export interface LegendCornerSource extends LegendFrame {
   axisScale: AxisScale
   translateX: number
   translateY: number
+  contigThickness: number
   nodePositions?: Record<string, NodeSegment[]>
   drawnRowLabels: { label: string; y: number }[]
   // false where the drawing is not the nodes' lines (the tube map), whose
@@ -72,14 +75,17 @@ function clippedFraction(a: NodeSegment, b: NodeSegment, box: Box) {
   return Math.max(0, leave - enter)
 }
 
-// The screen px of node line inside `box`
+// The screen px of node line inside `box` or within half a halo of it: a
+// line is drawn that thick and haloed, so one whose centre passes just outside
+// still runs under the key
 export function inkUnder(box: Box, m: LegendCornerSource) {
   const { scaleX, scaleY } = m.axisScale
+  const clearance = (m.contigThickness * HALO_FACTOR) / 2
   const layoutBox = {
-    x0: (box.x0 - m.translateX) / scaleX,
-    x1: (box.x1 - m.translateX) / scaleX,
-    y0: (box.y0 - m.translateY) / scaleY,
-    y1: (box.y1 - m.translateY) / scaleY,
+    x0: (box.x0 - clearance - m.translateX) / scaleX,
+    x1: (box.x1 + clearance - m.translateX) / scaleX,
+    y0: (box.y0 - clearance - m.translateY) / scaleY,
+    y1: (box.y1 + clearance - m.translateY) / scaleY,
   }
   let ink = 0
   for (const points of Object.values(m.nodePositions ?? {})) {

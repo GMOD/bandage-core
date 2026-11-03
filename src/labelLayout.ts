@@ -1,4 +1,5 @@
 import { graphLabels, rowLabelBox } from './graphLabels'
+import { HALO_FACTOR } from './halo'
 import { legendBox } from './legendCorner'
 import {
   LABEL_CHAR_PX,
@@ -19,7 +20,7 @@ import type { Box, PlacedLabel } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
-export const HALO_FACTOR = 3.4
+export { HALO_FACTOR } from './halo'
 export { LEGEND_INSET_PX } from './legendCorner'
 const GENE_PIN_DROP_PX = 18
 // a gene's name drops a row or two rather than vanish under a bubble's

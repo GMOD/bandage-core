@@ -12,6 +12,7 @@ const pane = {
   translateY: 0,
   drawnRowLabels: [],
   labelsNodeSizes: true,
+  contigThickness: 0,
 }
 
 function drawing(nodes: Record<string, NodeSegment[]>): LegendCornerSource {
@@ -143,5 +144,21 @@ test('a bottom left with less ink than the top right still keeps the key', () =>
 test('a tube map, whose ink is not its node lines, keeps the key top right', () => {
   expect(legendCorner({ ...kiv2Like, labelsNodeSizes: false })).toBe(
     'top-right',
+  )
+})
+
+// LPA at 1000 px: the backbone's centre ran 4 px under the key's box while its
+// stroke and halo ran under the key's last rows
+test('a line whose halo reaches the box counts as under it', () => {
+  const box = { x0: 100, x1: 200, y0: 0, y1: 200 }
+  const justBelow = drawing({
+    a: [
+      { x: 0, y: 204 },
+      { x: 1000, y: 204 },
+    ],
+  })
+  expect(inkUnder(box, justBelow)).toBe(0)
+  expect(inkUnder(box, { ...justBelow, contigThickness: 5 })).toBeGreaterThan(
+    100,
   )
 })
