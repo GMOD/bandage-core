@@ -1,3 +1,9 @@
+## [12.7.1](https://github.com/GMOD/bandage-core/compare/v12.7.0...v12.7.1) (2026-11-03)
+
+### Other Changes
+
+- Count a line within half a halo of the key as under it ([c811d1d](https://github.com/GMOD/bandage-core/commit/c811d1d0f911adba6bfaf4cac1aa8bf66609f8ee))
+
 ## [12.7.0](https://github.com/GMOD/bandage-core/compare/v12.6.2...v12.7.0) (2026-11-03)
 
 ### Other Changes
