@@ -7,6 +7,7 @@ import {
   departureSpan,
   departureText,
   placementChoice,
+  roughBp,
 } from '../gfa/departures'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { panSNContig } from '../pansn'
@@ -145,9 +146,11 @@ function steplessText(
 
 // The text at the end of a bar: its length, what it carries against the
 // reference row, and what the cut left out, by cause where its gaps state
-// one. A walk reaching one flank states a lower bound and why it stops, one
-// whose abridged block runs past the window an estimate, and a stepless row
-// its departures' facts. A row with a departure the writer placed says so.
+// one. A walk reaching one flank states a lower bound and why it stops, or
+// where on the reference and by how much of its own it goes on by a
+// departure; one whose abridged block runs past the window an estimate, and a
+// stepless row its departures' facts. A row with a departure the writer
+// placed says so.
 export function walkRowReadout(
   row: Pick<
     WalkRow,
@@ -193,7 +196,9 @@ export function walkRowReadout(
     ? 'partial walk'
     : stop.contigEnds
       ? `contig ends inside the ${region}`
-      : 'does not rejoin the reference within the extracted subgraph'
+      : stop.goesOn
+        ? `goes on near ${near(reference.name, stop.goesOn.near)} · ${roughBp(stop.goesOn.departure.ownBp)} of its own`
+        : 'does not rejoin the reference within the extracted subgraph'
   return `≥ ${kb(bp)}${units(bp, unit)} · ${why}${outside}${called}`
 }
 

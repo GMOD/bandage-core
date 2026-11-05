@@ -289,9 +289,13 @@ const float64 = (n: number) => new Float64Array(n)
  *
  * Each walk is cut at the nearest reference nodes IT visits on either side of
  * the region, so a walk that skips one flanking node at a SNP is still
- * measured between flanks rather than whole. A walk with one flank, whose
- * contig ends inside the window, is the steps past that flank read in the
- * reference's direction, a lower bound.
+ * measured between flanks rather than whole. A walk with one flank is the
+ * steps past that flank read in the reference's direction, a lower bound.
+ * Its contig ends at its last step there only where that step is on the
+ * reference, the walk has no departure leaving or rejoining at it, and the
+ * cut trimmed none of its bp past it; else it goes on (`WalkStop`). A walk
+ * file's fragment always ends on the reference, so its end alone says
+ * nothing.
  */
 export function walkRowRuns(
   source: Graph | GraphTables,
@@ -484,7 +488,14 @@ export function walkRowRuns(
         near > flank === spanStart[steps[near]!]! > spanStart[steps[flank]!]!
       const after = forward === (flank === i0)
       const last = after ? length - 1 : 0
-      const contigEnds = onReference(last)
+      const edge = after ? stepEnd(last) : stepStart[last]!
+      const departure = own.find(d =>
+        after ? d.hapStart === edge : d.hapStart + d.ownBp === edge,
+      )
+      const trimmed = after
+        ? heads[ordered.at(-1)!]!.trimmedAfter
+        : heads[ordered[0]!]!.trimmedBefore
+      const contigEnds = onReference(last) && !departure && !trimmed
       const stop: WalkStop = {
         contigEnds,
         shortBp: contigEnds
@@ -494,6 +505,14 @@ export function walkRowRuns(
               spanStart[steps[last]!]! - cut!.end,
             )
           : 0,
+        ...(departure
+          ? {
+              goesOn: {
+                departure,
+                near: after ? departure.rejoinPos : departure.leavePos,
+              },
+            }
+          : {}),
       }
       return {
         stop,

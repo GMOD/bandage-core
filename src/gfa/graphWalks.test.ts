@@ -9,7 +9,7 @@ import { walkRows } from '../layout/walkRows'
 // Format 6 walk files from @jbrowse/graph-walks' test data, built by its
 // test_data/build.sh from the GFAs beside them, cut by graph-walks 5 as the
 // plugin and BandageJS cut them
-async function rowsOf(name: string, start: number, end: number) {
+async function rowsOf(name: string, start: number, end: number, context = 0) {
   const path = `test_data/walks6/${name}.walks.bed.gz`
   const reader = new WalkReader(
     new TabixIndexedFile({ path, tbiPath: `${path}.tbi` }),
@@ -17,7 +17,7 @@ async function rowsOf(name: string, start: number, end: number) {
   const { graph, kept, fragments, departures } = await reader.cut(
     'GRCh38#0#chr1',
     { start, end },
-    { context: 0 },
+    { context },
   )
   const tables = graph.tables(kept, fragments, departures)
   const region = { start, end }
@@ -91,4 +91,46 @@ test('a departure from a node the reference passes twice is a placement choice',
     { leavePos: 4500, leavePasses: 2, rejoinPos: 5000, ownBp: 500 },
   ])
   expect(hg002.readout).toMatch(/ · placement choice$/)
+})
+
+// rejoin.GRCh38.gfa is follow.GRCh38.gfa, its walk file in one 10 kb chunk as
+// the plugin's walks6_rejoin. With 500 bp of context, HG002#1 and HG003#1
+// reach chr1:1000-1500's left flank alone: HG002#1 leaves at 1500 for 4 kb of
+// its own and rejoins at 4000, and HG003#1's contig runs on 300 bp off the
+// reference. In records.GRCh38.gfa HG002's last W line ends on chr1:5500-6000
+test("a walk ending at the window's edge reads as a contig end only with no departure there and nothing trimmed past it", async () => {
+  const { row } = await rowsOf('rejoin.GRCh38', 1000, 1500, 500)
+  expect(row('HG002#1')).toMatchObject({
+    readout: '≥ 0.5 kb · goes on near chr1:4 kb · 4 kb of its own',
+    row: {
+      complete: false,
+      stop: {
+        contigEnds: false,
+        goesOn: { near: 4000, departure: { leavePos: 1500, ownBp: 4000 } },
+      },
+    },
+  })
+  expect(row('HG003#1')).toMatchObject({
+    readout:
+      '≥ 0.5 kb · does not rejoin the reference within the extracted subgraph',
+    row: { complete: false, stop: { contigEnds: false, shortBp: 0 } },
+  })
+  const ends = await rowsOf('records.GRCh38', 5500, 6500, 500)
+  expect(ends.row('HG002#1')).toMatchObject({
+    readout: '≥ 0.5 kb · contig ends inside the window',
+    row: { complete: false, stop: { contigEnds: true, shortBp: 0 } },
+  })
+})
+
+// HG002#1 reaches chr1:4000-4500's right flank alone, by the departure that
+// rejoins at 4000 from 1500
+test('a walk that comes into the window by a departure goes on where that one leaves', async () => {
+  const { row } = await rowsOf('rejoin.GRCh38', 4000, 4500, 500)
+  expect(row('HG002#1')).toMatchObject({
+    readout: '≥ 0.5 kb · goes on near chr1:2 kb · 4 kb of its own',
+    row: {
+      complete: false,
+      stop: { contigEnds: false, goesOn: { near: 1500 } },
+    },
+  })
 })

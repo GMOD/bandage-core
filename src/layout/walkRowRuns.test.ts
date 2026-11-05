@@ -106,6 +106,32 @@ test('a walk that ends inside the repeat measures from the flank it enters by', 
   })
 })
 
+// D's contig ending on the repeat's node and E's on the left flank, with D
+// leaving there for 500 bp of its own and E trimmed of 700 bp past it
+test('a walk goes on past its last step by a departure there or the bp the cut trimmed past it', () => {
+  const leaves = departure('D#1#d', {
+    hapStart: 3000,
+    ownBp: 500,
+    leavePos: 3000,
+    rejoinPos: 4000,
+  })
+  const goesOn: GraphTables = {
+    ...tables,
+    walks: {
+      ...tables.walks,
+      trimmedAfter: Float64Array.of(0, 0, 0, 0, 0, 700),
+    },
+    departures: departureTable([leaves]),
+  }
+  const byLabel = Object.fromEntries(rowsOf(goesOn).rows.map(r => [r.label, r]))
+  expect(byLabel['D#1']!.stop).toEqual({
+    contigEnds: false,
+    shortBp: 0,
+    goesOn: { departure: leaves, near: 4000 },
+  })
+  expect(byLabel['E#1']!.stop).toEqual({ contigEnds: false, shortBp: 0 })
+})
+
 test('a walk forward along the reference that reaches only the right flank reads toward it', () => {
   const rightOnly: GraphTables = {
     ...tables,

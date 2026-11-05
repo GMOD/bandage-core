@@ -55,12 +55,17 @@ export interface WalkAxis {
   reversed: boolean
 }
 
-// How a walk that reaches one flank stops: on a reference node, where its
-// contig ends (`shortBp` short of the region when it never enters it), or off
-// the reference, where it does not rejoin within the cut
+// How a walk that reaches one flank stops past its last step inside. Its
+// contig ends there (`shortBp` short of the region when it never enters it)
+// only where that step is on the reference, no departure of the walk leaves
+// or rejoins at it, and the cut trimmed none of the walk's bp past it.
+// Otherwise it goes on: by the departure at that step, `goesOn`, to `near` on
+// the reference, the departure's far end; else past what the cut kept, not
+// rejoining the reference within it.
 export interface WalkStop {
   contigEnds: boolean
   shortBp: number
+  goesOn?: { departure: Departure; near: number }
 }
 
 // A step of a row's bar through a graph node: its bp offset from the bar's
