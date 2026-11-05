@@ -1,3 +1,10 @@
+## [13.0.0](https://github.com/GMOD/bandage-core/compare/v12.7.1...v13.0.0) (2026-11-05)
+
+### Other Changes
+
+- Read graph-walks 5's departures in place of format 5's skips and stops ([240b9e8](https://github.com/GMOD/bandage-core/commit/240b9e8971f3821d4957641ce7e8fc506829f9d3))
+- Departures, stepless rows and the required GraphTables hand-off ([caebf1a](https://github.com/GMOD/bandage-core/commit/caebf1a63bf5904bfcaaf83f9faa7b471926322c))
+
 ## [12.7.1](https://github.com/GMOD/bandage-core/compare/v12.7.0...v12.7.1) (2026-11-03)
 
 ### Other Changes
