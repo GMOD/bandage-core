@@ -1,3 +1,12 @@
+## [13.0.1](https://github.com/GMOD/bandage-core/compare/v13.0.0...v13.0.1) (2026-11-05)
+
+### Other Changes
+
+- Test against graph-walks 5.0.2 ([86b65d4](https://github.com/GMOD/bandage-core/commit/86b65d4054da2202c84804481daa2316a9274c7f))
+- Read a walk that departs or was trimmed past its last step as going on ([23169a2](https://github.com/GMOD/bandage-core/commit/23169a29a989d2679218c4e9f8942ed21d574c57))
+- Read a walk that stops inside a window with no flanks, or on a flank alone ([899ee29](https://github.com/GMOD/bandage-core/commit/899ee29b3aa9f032424ef767ce23c4ee81da5751))
+- Let the source decide whether a walk with no flank can end inside the window ([e4e5c10](https://github.com/GMOD/bandage-core/commit/e4e5c101233c245f37c6472dcc2ce8619540db02))
+
 ## [13.0.0](https://github.com/GMOD/bandage-core/compare/v12.7.1...v13.0.0) (2026-11-05)
 
 ### Other Changes
