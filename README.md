@@ -15,18 +15,41 @@ npm install @jbrowse/bandage-core
 
 - `loadGraph` reads GFA or rGFA text. The caller decompresses a `.gfa.gz` first
 - `loadGraph` also takes `GraphTables`, the typed arrays that
-  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) cuts from a
-  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file
-  (`.walks.bed.gz` beside its `.tbi`) for a region on the reference. A worker
-  can transfer them without copying, and `graphTablesGFA` writes them as GFA
+  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) 5 cuts from a
+  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) 3 walk file, format 6
+  (`.walks.bed.gz` beside its `.tbi`), for a region on the reference. A worker
+  can transfer them without copying, and `graphTablesGFA` writes their nodes,
+  links and walks as GFA
 - `openGbz` and `cutGbzRegion` cut a window from a
   [gbz-base](https://github.com/jltsiren/gbz-base) database (`.gbz.db`) to GFA
   text
-- In a walk-file cut, the `ws:Z:` and `we:Z:` tags on each W line record what
-  lies past the fragment's start and end, such as `break,bp=19021` or
-  `elsewhere,trimmed=400,chunk=GRCh38#0#chr22:20316160`
-  (`src/gfa/walkStops.ts`). Walk rows split each gap at those stops and label
-  each part with its cause
+
+### Departures
+
+A walk-file cut's tables carry `departures`: every place over the window where a
+haplotype's consecutive steps on the reference are not adjacent there, with the
+breakpoint and strand of each end, the haplotype's own bp between them (`ownBp`,
+from `hapStart` on its contig), the part of that the graph lacks (`missingBp`)
+and how many times the reference passes each end's node. `src/gfa/departures.ts`
+reads them.
+
+- Walk rows draw the facts and make no call on what a departure is. A haplotype
+  with no step in the window is a `stepless` row, a hairline under the reference
+  between its departure's ends:
+  `no step on GRCh38 across 54 kb · 120 kb of its own`
+- A gap between two pieces of a walk splits into the bp the cut trimmed
+  (`outside the extracted subgraph`), the bp the departures inside it say the
+  graph lacks (`not in the graph`), and the rest: the walk's own sequence the
+  cut did not read (`of its own, not read`), or, where the walk goes back to the
+  reference, `on nodes filed near chr22:20.3 Mb`, where it rejoins
+- A row whose departure has an end on a node the reference passes more than once
+  says `placement choice`: the file's writer chose that pass
+- Each row's `departures` lists those its runs do not draw as steps, for a
+  host's hover
+- `GraphTables` mirrors graph-walks 5's, and `typecheck/graphWalks.ts` holds the
+  two equal. `departures` is required, so tables from a reader that states none
+  fail to compile; a source with none, such as GFA text or a gbz-base cut,
+  passes `departureTable()`
 
 ## Laying out and drawing
 
