@@ -58,7 +58,8 @@ export interface GraphPath {
   // walks it stands for, its own first
   members?: string[]
   // set on a walk-file cut's walk from its tables: the bp of the walk the cut
-  // read but kept out, before its first step and after its last
+  // read but kept out, before its first step and after its last, 0 where it
+  // kept all; absent where the source states none, as GFA text does
   trimmedBefore?: number
   trimmedAfter?: number
   // set on a walk-file cut's abridged walk: its two steps are where it leaves

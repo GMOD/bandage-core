@@ -8,14 +8,14 @@ import { walkRows } from '../layout/walkRows'
 
 // Format 6 walk files from @jbrowse/graph-walks' test data, built by its
 // test_data/build.sh from the GFAs beside them, cut by graph-walks 5 as the
-// plugin and BandageJS cut them
+// plugin and BandageJS cut them, on chr1 of the reference the name ends in
 async function rowsOf(name: string, start: number, end: number, context = 0) {
   const path = `test_data/walks6/${name}.walks.bed.gz`
   const reader = new WalkReader(
     new TabixIndexedFile({ path, tbiPath: `${path}.tbi` }),
   )
   const { graph, kept, fragments, departures } = await reader.cut(
-    'GRCh38#0#chr1',
+    `${name.split('.').at(-1)}#0#chr1`,
     { start, end },
     { context },
   )
@@ -193,5 +193,32 @@ test('a walk whose only step is a flank has no bp in the window and says how it 
   expect(ends.row('HG002#1')).toMatchObject({
     readout: 'contig ends at the window',
     row: { bp: 0, complete: false, stop: { contigEnds: true, shortBp: 0 } },
+  })
+})
+
+// clip.REF.gfa, built by gfa-to-tabix 3.0 with --walks --refs REF --chunk
+// 1000: five 100 bp REF nodes over chr1:0-500, and two contigs that end on
+// the third, CLIP along REF and CLIPSNP through node 6 in place of 2, a
+// departure between its steps. The cut holds all of REF, so has no flank at
+// any context. Walk-file controls: rejoin.GRCh38's HG002#2 walks the whole of
+// chr1:1000-2000
+test("a walk file's contig that ends inside the window with no departure reads as ending there", async () => {
+  for (const [start, end, context] of [
+    [0, 500, 0],
+    [0, 500, 100],
+    [50, 450, 0],
+  ] as const) {
+    const { row } = await rowsOf('clip.REF', start, end, context)
+    for (const label of ['CLIP#1', 'CLIPSNP#1']) {
+      expect(row(label)).toMatchObject({
+        readout: '≥ 0.3 kb · contig ends inside the window',
+        row: { complete: false, stop: { contigEnds: true, shortBp: 0 } },
+      })
+    }
+  }
+  const whole = await rowsOf('rejoin.GRCh38', 1000, 2000)
+  expect(whole.row('HG002#2')).toMatchObject({
+    readout: '1.0 kb',
+    row: { complete: true },
   })
 })

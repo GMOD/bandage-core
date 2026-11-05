@@ -52,7 +52,8 @@ export interface GraphTables {
     offsets: Int32Array
     steps: Int32Array
     reversed: Uint8Array
-    // bp of each walk a walk-file cut read but kept out, before and after it
+    // bp of each walk a walk-file cut read but kept out, before and after it;
+    // absent where the source states none, so a walk's ends say nothing
     trimmedBefore?: Float64Array
     trimmedAfter?: Float64Array
     // an abridged walk's steps and bp in all, NaN for any other walk
@@ -100,15 +101,15 @@ export function tablePath(
   const abridged = Number.isNaN(steps)
     ? {}
     : { abridged: { steps, bp: w.abridgedBp?.[p] ?? 0 } }
-  const trimmedBefore = w.trimmedBefore?.[p] ?? 0
-  const trimmedAfter = w.trimmedAfter?.[p] ?? 0
+  const trimmedBefore = w.trimmedBefore?.[p]
+  const trimmedAfter = w.trimmedAfter?.[p]
   return fields
     ? {
         name: `${fields.sample}#${fields.haplotype}#${fields.contig}`,
         start,
         ...fields,
-        ...(trimmedBefore > 0 ? { trimmedBefore } : {}),
-        ...(trimmedAfter > 0 ? { trimmedAfter } : {}),
+        ...(trimmedBefore === undefined ? {} : { trimmedBefore }),
+        ...(trimmedAfter === undefined ? {} : { trimmedAfter }),
         ...abridged,
       }
     : { name: pLineName(walkName, start, w.ends[p]!), start }

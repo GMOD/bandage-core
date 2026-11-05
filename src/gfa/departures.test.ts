@@ -191,14 +191,15 @@ test("a walk-file cut's departures and trimmed bp stay off the GFA it writes", (
   const tables = twoFragments([departure({ missingBp: 600 })], { after: 400 })
   const graph = graphFromTables(tables, 'cut')
   expect(graph.departures).toBe(tables.departures)
-  expect(graph.paths![1]).toMatchObject({ trimmedAfter: 400 })
-  expect(graph.paths![1]!.trimmedBefore).toBeUndefined()
+  expect(graph.paths![1]).toMatchObject({ trimmedBefore: 0, trimmedAfter: 400 })
   const written = graphTablesGFA(tables)
   expect(written.split('\n').at(-2)).toBe('W\tHG002\t1\tchr1\t0\t2000\t>1>2')
   const { departures: _, ...plain } = graph
   expect(convertGFAToGraph(parseGFA(written), 'cut')).toEqual({
     ...plain,
-    paths: plain.paths!.map(({ trimmedAfter: __, ...path }) => path),
+    paths: plain.paths!.map(
+      ({ trimmedBefore: _b, trimmedAfter: _a, ...path }) => path,
+    ),
   })
 })
 

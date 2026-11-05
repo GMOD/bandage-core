@@ -307,9 +307,12 @@ const float64 = (n: number) => new Float64Array(n)
  * A cut with no flanking reference stands the reference's outermost nodes in
  * the cut in for the flanks, counted inside the window. A walk on both is
  * whole; on one, it stops inside as a walk with one flank does, measured from
- * that node; on neither, it is partial. A walk the cut trimmed no bp of and
- * states no departure for, as every GFA walk, is the slice whole: an extract
- * clips its paths at the subgraph's edge, so where they end says nothing.
+ * that node; on neither, it is partial. The source decides whether a walk
+ * is read so: a walk file's tables state each walk's trimmed bp, 0 included,
+ * so there a side with none and no departure is where the contig ends. A
+ * source that states no trimmed bp, GFA text or a gbz-base extract, clips its
+ * paths at the subgraph's edge, so where they end says nothing and each walk
+ * is the slice whole.
  */
 export function walkRowRuns(
   source: Graph | GraphTables,
@@ -653,8 +656,11 @@ export function walkRowRuns(
       }
     } else if (
       cut &&
-      (own.length > 0 ||
-        ordered.some(p => heads[p]!.trimmedBefore || heads[p]!.trimmedAfter))
+      ordered.some(
+        p =>
+          heads[p]!.trimmedBefore !== undefined ||
+          heads[p]!.trimmedAfter !== undefined,
+      )
     ) {
       let i0 = -1
       let i1 = -1
