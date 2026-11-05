@@ -146,11 +146,11 @@ function steplessText(
 
 // The text at the end of a bar: its length, what it carries against the
 // reference row, and what the cut left out, by cause where its gaps state
-// one. A walk reaching one flank states a lower bound and why it stops, or
-// where on the reference and by how much of its own it goes on by a
-// departure; one whose abridged block runs past the window an estimate, and a
-// stepless row its departures' facts. A row with a departure the writer
-// placed says so.
+// one. A walk reaching one flank states a lower bound, none where it has no
+// bp in the window, and why it stops, or where on the reference and by how
+// much of its own it goes on by a departure; one whose abridged block runs
+// past the window an estimate, and a stepless row its departures' facts. A
+// row with a departure the writer placed says so.
 export function walkRowReadout(
   row: Pick<
     WalkRow,
@@ -199,7 +199,8 @@ export function walkRowReadout(
       : stop.goesOn
         ? `goes on near ${near(reference.name, stop.goesOn.near)} · ${roughBp(stop.goesOn.departure.ownBp)} of its own`
         : 'does not rejoin the reference within the extracted subgraph'
-  return `≥ ${kb(bp)}${units(bp, unit)} · ${why}${outside}${called}`
+  const bound = bp === 0 ? '' : `≥ ${kb(bp)}${units(bp, unit)} · `
+  return `${bound}${why}${outside}${called}`
 }
 
 // A readout right of its bar's end, or inside it where it would leave the pane

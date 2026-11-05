@@ -45,7 +45,12 @@ reads them.
 - A walk reaching one flank reads as a lower bound. Its contig ends inside the
   window only where its last step there is on the reference, with no departure
   at that step and nothing the cut trimmed past it. A departure there says where
-  the walk goes on: `≥ 0.5 kb · goes on near chr1:4 kb · 4 kb of its own`
+  the walk goes on: `≥ 0.5 kb · goes on near chr1:4 kb · 4 kb of its own`. A
+  walk whose only step is a flank has no bp in the window and says just how it
+  goes on or that its contig ends at the window. A cut with no context stands
+  the reference's outermost nodes in for the flanks, so a walk that stops inside
+  reads the same way there rather than as a whole walk shorter than the
+  reference
 - A row whose departure has an end on a node the reference passes more than once
   says `placement choice`: the file's writer chose that pass
 - Each row's `departures` lists those its runs do not draw as steps, for a

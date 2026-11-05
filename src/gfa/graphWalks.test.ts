@@ -134,3 +134,64 @@ test('a walk that comes into the window by a departure goes on where that one le
     },
   })
 })
+
+// With no context the cut has no flanks, so the reference's outermost nodes
+// in it, chr1:1000-1500 and 1500-2000, stand in for them: HG002#1 and HG003#1
+// stop past the first, HG002#2 walks both. In records.GRCh38.gfa HG002's
+// contig ends on chr1:5500-6000, and HG003 walks it and 6000-6500
+test('with no context, a walk that stops inside the window states how, and a whole one reads complete', async () => {
+  const { row } = await rowsOf('rejoin.GRCh38', 1000, 2000)
+  expect(row('HG002#1')).toMatchObject({
+    readout: '≥ 0.5 kb · goes on near chr1:4 kb · 4 kb of its own',
+    row: { bp: 500, complete: false, stop: { goesOn: { near: 4000 } } },
+  })
+  expect(row('HG003#1')).toMatchObject({
+    readout:
+      '≥ 0.5 kb · does not rejoin the reference within the extracted subgraph',
+    row: { bp: 500, complete: false, stop: { contigEnds: false } },
+  })
+  expect(row('HG002#2')).toMatchObject({
+    readout: '1.0 kb',
+    row: { complete: true },
+  })
+  const ends = await rowsOf('records.GRCh38', 5500, 6500)
+  expect(ends.row('HG002#1')).toMatchObject({
+    readout: '≥ 0.5 kb · contig ends inside the window',
+    row: { complete: false, stop: { contigEnds: true, shortBp: 0 } },
+  })
+  expect(ends.row('HG003#1')).toMatchObject({
+    readout: '1.0 kb',
+    row: { complete: true },
+  })
+})
+
+// With 500 bp of context, chr1:1500-2000's left flank, chr1:1000-1500, is
+// HG002#1's and HG003#1's only step on the cut, and HG002#1 leaves it for
+// 4 kb of its own. At chr1:3500-4000 HG002#1 comes into the right flank,
+// 4000-4500, from 1500. In records.GRCh38.gfa HG002's contig ends on
+// chr1:6000-6500's left flank
+test('a walk whose only step is a flank has no bp in the window and says how it goes on from there', async () => {
+  const { row } = await rowsOf('rejoin.GRCh38', 1500, 2000, 500)
+  expect(row('HG002#1')).toMatchObject({
+    readout: 'goes on near chr1:4 kb · 4 kb of its own',
+    row: { bp: 0, complete: false, stop: { goesOn: { near: 4000 } } },
+  })
+  expect(row('HG003#1')).toMatchObject({
+    readout: 'does not rejoin the reference within the extracted subgraph',
+    row: { bp: 0, complete: false, stop: { contigEnds: false } },
+  })
+  expect(row('HG002#2')).toMatchObject({
+    readout: '0.5 kb',
+    row: { complete: true },
+  })
+  const back = await rowsOf('rejoin.GRCh38', 3500, 4000, 500)
+  expect(back.row('HG002#1')).toMatchObject({
+    readout: 'goes on near chr1:2 kb · 4 kb of its own',
+    row: { bp: 0, stop: { goesOn: { near: 1500 } } },
+  })
+  const ends = await rowsOf('records.GRCh38', 6000, 6500, 500)
+  expect(ends.row('HG002#1')).toMatchObject({
+    readout: 'contig ends at the window',
+    row: { bp: 0, complete: false, stop: { contigEnds: true, shortBp: 0 } },
+  })
+})

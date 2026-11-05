@@ -296,6 +296,20 @@ const float64 = (n: number) => new Float64Array(n)
  * cut trimmed none of its bp past it; else it goes on (`WalkStop`). A walk
  * file's fragment always ends on the reference, so its end alone says
  * nothing.
+ *
+ * The window's side of a lone flank is the way the walk runs along the
+ * reference there, read from its nearest other step on it. Where the flank is
+ * the walk's only step, it is read from a departure at that step, whose strand
+ * there is the walk's; else from the bp the cut trimmed off one side alone,
+ * the side the walk came from; and with both sides trimmed or neither, both
+ * say the same. Nothing past the flank is in the window, so the row has no bp.
+ *
+ * A cut with no flanking reference stands the reference's outermost nodes in
+ * the cut in for the flanks, counted inside the window. A walk on both is
+ * whole; on one, it stops inside as a walk with one flank does, measured from
+ * that node; on neither, it is partial. A walk the cut trimmed no bp of and
+ * states no departure for, as every GFA walk, is the slice whole: an extract
+ * clips its paths at the subgraph's edge, so where they end says nothing.
  */
 export function walkRowRuns(
   source: Graph | GraphTables,
@@ -346,6 +360,9 @@ export function walkRowRuns(
   // after it starts at flankStart
   let flankEnd = -Infinity
   let flankStart = Infinity
+  // where the reference's nodes in the cut start and end
+  let referenceLo = Infinity
+  let referenceHi = -Infinity
   const cut = region && region.end > region.start ? region : undefined
   for (const piece of referencePieces) {
     let pos = startOf(piece) ?? 0
@@ -362,6 +379,8 @@ export function walkRowRuns(
       } else {
         spanStart[node] = pos
         spanEnd[node] = pos + len
+        referenceLo = Math.min(referenceLo, pos)
+        referenceHi = Math.max(referenceHi, pos + len)
         if (cut) {
           if (pos + len <= cut.start) {
             flankEnd = Math.max(flankEnd, pos + len)
@@ -374,8 +393,7 @@ export function walkRowRuns(
       pos += len
     }
   }
-  // A cut that stops at the window carries no flanking reference for anyone,
-  // so every walk is whole and the slice is the walk.
+  // a cut that stops at the window carries no flanking reference for anyone
   const flanked =
     cut === undefined || (flankEnd > -Infinity && flankStart < Infinity)
 
@@ -473,28 +491,50 @@ export function walkRowRuns(
       const id = steps[i]!
       return stepStart[i]! + (id < 0 ? -id : lengthOf(id))
     }
-    // Which side of a lone flank is inside the window follows the walk's
-    // direction along the reference there, from the nearest other step on it.
-    const partialSide = (i0: number, i1: number) => {
-      const flank = i0 >= 0 ? i0 : i1
+    // The walk's contig past its last step (`after`) or before its first: the
+    // departure leaving or rejoining at that step, and the bp the cut trimmed
+    // off that side
+    const endOf = (after: boolean) => {
+      const last = after ? length - 1 : 0
+      const edge = after ? stepEnd(last) : stepStart[last]!
+      return {
+        last,
+        departure: own.find(d =>
+          after ? d.hapStart === edge : d.hapStart + d.ownBp === edge,
+        ),
+        trimmed: after
+          ? heads[ordered.at(-1)!]!.trimmedAfter
+          : heads[ordered[0]!]!.trimmedBefore,
+      }
+    }
+    // Whether the walk runs rightward along the reference at a lone flank,
+    // the window on its right or not, as walkRowRuns' comment reads it;
+    // undefined where nothing says
+    const flankForward = (flank: number, rightward: boolean) => {
       let near = -1
       for (let d = 1; near < 0 && d < length; d++) {
         near = [flank - d, flank + d].find(onReference) ?? -1
       }
-      if (near < 0) {
-        return undefined
-      }
-      const forward =
-        near > flank === spanStart[steps[near]!]! > spanStart[steps[flank]!]!
-      const after = forward === (flank === i0)
-      const last = after ? length - 1 : 0
-      const edge = after ? stepEnd(last) : stepStart[last]!
-      const departure = own.find(d =>
-        after ? d.hapStart === edge : d.hapStart + d.ownBp === edge,
-      )
-      const trimmed = after
-        ? heads[ordered.at(-1)!]!.trimmedAfter
-        : heads[ordered[0]!]!.trimmedBefore
+      const tail = endOf(true)
+      const lead = endOf(false)
+      return near >= 0
+        ? near > flank === spanStart[steps[near]!]! > spanStart[steps[flank]!]!
+        : length > 1
+          ? undefined
+          : tail.departure
+            ? !tail.departure.leaveReversed
+            : lead.departure
+              ? !lead.departure.rejoinReversed
+              : (!tail.trimmed || !!lead.trimmed) === rightward
+    }
+    // The steps on the window's side of a lone flank, the flank among them
+    // where it is `inside` the window, and how the walk stops past them
+    const partialSide = (i0: number, i1: number, inside: boolean) => {
+      const flank = i0 >= 0 ? i0 : i1
+      const rightward = flank === i0
+      const forward = flankForward(flank, rightward)
+      const after = forward === rightward
+      const { last, departure, trimmed } = endOf(after)
       const contigEnds = onReference(last) && !departure && !trimmed
       const stop: WalkStop = {
         contigEnds,
@@ -514,19 +554,23 @@ export function walkRowRuns(
             }
           : {}),
       }
-      return {
-        stop,
-        lo: after ? flank + 1 : 0,
-        hi: after ? length : flank,
-        backward: !forward,
-        axisStart: forward
-          ? after
-            ? stepEnd(flank)
-            : stepStart[0]!
-          : after
-            ? stepEnd(length - 1)
-            : stepStart[flank]!,
-      }
+      const skip = inside ? 0 : 1
+      const from = after === inside ? stepStart[flank]! : stepEnd(flank)
+      return forward === undefined
+        ? undefined
+        : {
+            stop,
+            lo: after ? flank + skip : 0,
+            hi: after ? length : flank + 1 - skip,
+            backward: !forward,
+            axisStart: forward
+              ? after
+                ? from
+                : stepStart[0]!
+              : after
+                ? stepEnd(length - 1)
+                : from,
+          }
     }
 
     let lo = 0
@@ -567,6 +611,13 @@ export function walkRowRuns(
         ? stableStart(id)
         : spanStart[id]!
     }
+    const stopsInside = (i0: number, i1: number, inside: boolean) => {
+      complete = false
+      const side = i0 >= 0 || i1 >= 0 ? partialSide(i0, i1, inside) : undefined
+      if (side) {
+        ;({ lo, hi, backward, axisStart, stop } = side)
+      }
+    }
     let leftTrim = 0
     let rightTrim = 0
     if (cut && flanked) {
@@ -589,11 +640,7 @@ export function walkRowRuns(
         }
       }
       if (i0 < 0 || i1 < 0) {
-        complete = false
-        const inside = i0 >= 0 || i1 >= 0 ? partialSide(i0, i1) : undefined
-        if (inside) {
-          ;({ lo, hi, backward, axisStart, stop } = inside)
-        }
+        stopsInside(i0, i1, false)
       } else {
         lo = Math.min(i0, i1) + 1
         hi = Math.max(i0, i1)
@@ -603,6 +650,25 @@ export function walkRowRuns(
         const inward = backward ? -1 : 1
         leftTrim = trimAbridged(i0 + inward, flankEnd - bestEnd)
         rightTrim = trimAbridged(i1 - inward, bestStart - flankStart)
+      }
+    } else if (
+      cut &&
+      (own.length > 0 ||
+        ordered.some(p => heads[p]!.trimmedBefore || heads[p]!.trimmedAfter))
+    ) {
+      let i0 = -1
+      let i1 = -1
+      for (let i = 0; i < length; i++) {
+        const start = placeStart(i)
+        if (i0 < 0 && start === referenceLo) {
+          i0 = i
+        }
+        if (i1 < 0 && start + lengthOf(steps[i]!) === referenceHi) {
+          i1 = i
+        }
+      }
+      if (i0 < 0 || i1 < 0) {
+        stopsInside(i0, i1, true)
       }
     }
     const contig = head.contig ?? panSNContig(pathOrigin(head.name).name)
