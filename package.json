@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@jbrowse/graph-walks": "^5.0.0",
+    "@jbrowse/graph-walks": "^5.0.2",
     "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
