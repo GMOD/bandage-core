@@ -17,6 +17,8 @@ import { walkRows } from './walkRows'
 import { serializeEl } from '../el'
 import { loadGraph } from '../pipeline'
 
+import type { Departure } from '../gfa/departures'
+
 // Five 10 bp reference nodes on chr1 from 1000, and a 5 bp node no reference
 // walk visits
 const GFA = [
@@ -372,30 +374,79 @@ test("an abridged walk's readout counts the steps and bp not loaded", () => {
   ).toBe('2100 kb · 140 k steps, 2100 kb not loaded')
 })
 
-// HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 skip 50 kb of
-// window inside stretches of about 150 kb and 490 kb with no step on GRCh38
-test('a haplotype that jumps over the window reads as the stretch it has no step on', () => {
+// HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 have no step on
+// 50 kb of window, inside stretches of about 150 kb and 490 kb between the
+// ends of a departure
+test("a stepless row reads as its departure's facts", () => {
   const runs = [
-    { start: 0, bp: 50_000, gap: true, onReference: false, cause: 'deleted' },
+    {
+      start: 0,
+      bp: 50_000,
+      gap: true,
+      onReference: false,
+      cause: 'departure',
+    },
   ] as const
-  const readout = (deletionBp: number) =>
+  const readout = (
+    d: Partial<Departure>,
+    reference: { bp: number; sample?: string } = {
+      bp: 50_000,
+      sample: 'GRCh38',
+    },
+  ) =>
     walkRowReadout(
-      { bp: 0, gapBp: 50_000, complete: true, deletionBp, runs: [...runs] },
-      { bp: 50_000 },
+      {
+        bp: 0,
+        gapBp: 50_000,
+        complete: true,
+        stepless: true,
+        departures: [
+          {
+            name: 'HG002#2#chr22',
+            hapStart: 0,
+            ownBp: 0,
+            missingBp: 0,
+            leavePos: 22_780_000,
+            leaveReversed: false,
+            leavePasses: 1,
+            rejoinPos: 22_780_000,
+            rejoinReversed: false,
+            rejoinPasses: 1,
+            fromSteps: false,
+            ...d,
+          },
+        ],
+        runs: [...runs],
+      },
+      reference,
     )
-  expect(readout(150_412)).toBe('no step on the reference across 150 kb')
-  expect(readout(487_960)).toBe('no step on the reference across 490 kb')
-  expect(readout(1_234_567)).toBe('no step on the reference across 1.2 Mb')
-  expect(readout(850)).toBe('no step on the reference across 850 bp')
-  expect(gapStyle('deleted')).toEqual({
+  expect(readout({ rejoinPos: 22_930_412 })).toBe(
+    'no step on GRCh38 across 150 kb · 0 bp of its own',
+  )
+  expect(readout({ rejoinPos: 23_267_960, ownBp: 120_000 })).toBe(
+    'no step on GRCh38 across 490 kb · 120 kb of its own',
+  )
+  expect(readout({ rejoinPos: 24_014_567 }, { bp: 50_000 })).toBe(
+    'no step on the reference across 1.2 Mb · 0 bp of its own',
+  )
+  expect(readout({ rejoinPos: 22_780_850, missingBp: 40, ownBp: 40 })).toBe(
+    'no step on GRCh38 across 850 bp · 40 bp of its own · 40 bp not in the graph',
+  )
+  expect(gapStyle('departure')).toEqual({
     fill: MISSING_INK,
     px: MISSING_PX,
     label: 'no step on the reference',
   })
 })
 
-test("a skip row's bar ends past its stretch, since it has no bp", () => {
-  const run = { start: 0, bp: 1000, gap: true, cause: 'deleted' as const }
+test("a stepless row's bar ends past its stretch, since it has no bp", () => {
+  const run = {
+    start: 0,
+    bp: 1000,
+    onReference: false,
+    gap: true as const,
+    cause: 'departure' as const,
+  }
   expect(barEnd({ bp: 0, runs: [run] })).toBe(1000)
   expect(barEnd({ bp: 1500, runs: [{ ...run, bp: 1500 }] })).toBe(1500)
 })

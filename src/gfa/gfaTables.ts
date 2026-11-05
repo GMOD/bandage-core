@@ -1,13 +1,7 @@
-import {
-  END_STOP_TAG,
-  START_STOP_TAG,
-  StopColumns,
-  parseStopTag,
-} from './walkStops'
+import { departureTable } from './departures'
 import { Column } from '../pathVisits'
 
 import type { GraphTables } from './graphTables'
-import type { PathStop } from '../types'
 
 const GT = 62 // '>'
 const LT = 60 // '<'
@@ -134,7 +128,6 @@ function readWalkBody(
     }
   }
   finish(i)
-  return i
 }
 
 // The first six tab-separated fields of a W line and where its body starts
@@ -207,8 +200,6 @@ export function gfaTables(text: string): GraphTables | undefined {
   const walkEnds: number[] = []
   const offsets = [0]
   const steps = stepColumns()
-  const before = new StopColumns()
-  const after = new StopColumns()
   for (const raw of lines) {
     if (raw.startsWith('L\t')) {
       const [, source, strand1, target, strand2] = trimCR(raw).split('\t')
@@ -224,17 +215,7 @@ export function gfaTables(text: string): GraphTables | undefined {
         names.push(`${w.sample}#${w.haplotype}#${w.contig}`)
         walkStarts.push(w.start === '*' ? 0 : +w.start)
         walkEnds.push(w.end === '*' ? -1 : +w.end)
-        const end = readWalkBody(line, w.body, segments, steps)
-        const tags = walkTags(line, end)
-        if (tags === undefined) {
-          return undefined
-        }
-        if (tags.before) {
-          before.push(tags.before)
-        }
-        if (tags.after) {
-          after.push(tags.after)
-        }
+        readWalkBody(line, w.body, segments, steps)
         // a stepless walk is still a path to the text route, and no row here
         if (steps.nodes.length === offsets.at(-1)) {
           return undefined
@@ -244,15 +225,6 @@ export function gfaTables(text: string): GraphTables | undefined {
     }
   }
 
-  // a column only some W lines state is left to the text route, which keeps
-  // each walk's own
-  if (
-    [before.kinds.length, after.kinds.length].some(
-      n => n > 0 && n < names.length,
-    )
-  ) {
-    return undefined
-  }
   return {
     nodes: {
       names: segments.names,
@@ -274,43 +246,7 @@ export function gfaTables(text: string): GraphTables | undefined {
       offsets: Int32Array.from(offsets),
       steps: steps.nodes.data.slice(0, steps.nodes.length),
       reversed: steps.reversed.data.slice(0, steps.reversed.length),
-      ...stopColumns(names.length, before, after),
     },
-  }
-}
-
-// A W line's stop tags from `from` on, undefined where one states a kind this
-// reader does not know; other tags are ignored, as the text route's paths drop
-// them
-function walkTags(line: string, from: number) {
-  const out: { before?: PathStop; after?: PathStop } = {}
-  for (const tag of from < line.length
-    ? line.slice(from + 1).split('\t')
-    : []) {
-    const value = tag.slice(5)
-    if (tag.startsWith(`${START_STOP_TAG}:Z:`)) {
-      out.before = parseStopTag(value)
-      if (!out.before) {
-        return undefined
-      }
-    } else if (tag.startsWith(`${END_STOP_TAG}:Z:`)) {
-      out.after = parseStopTag(value)
-      if (!out.after) {
-        return undefined
-      }
-    }
-  }
-  return out
-}
-
-// The stop columns every W line states
-function stopColumns(walks: number, before: StopColumns, after: StopColumns) {
-  return {
-    ...(before.kinds.length === walks && walks > 0
-      ? { before: before.table() }
-      : {}),
-    ...(after.kinds.length === walks && walks > 0
-      ? { after: after.table() }
-      : {}),
+    departures: departureTable(),
   }
 }

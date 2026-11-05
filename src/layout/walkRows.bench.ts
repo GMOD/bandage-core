@@ -2,6 +2,7 @@ import { describe, test } from 'vitest'
 
 import { walkRowRuns } from './walkRowRuns'
 import { walkRows } from './walkRows'
+import { departureTable } from '../gfa/departures'
 import { graphFromTables } from '../gfa/graphTables'
 
 import type { GraphTables } from '../gfa/graphTables'
@@ -64,6 +65,7 @@ function cut(n: number, h: number): GraphTables {
       steps: Int32Array.from(steps),
       reversed: new Uint8Array(steps.length),
     },
+    departures: departureTable(),
   }
 }
 

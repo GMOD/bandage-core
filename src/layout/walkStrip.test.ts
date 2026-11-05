@@ -203,10 +203,10 @@ test('a crowded strip says its genes are left out, even with no rows untracked',
   })
 })
 
-// a haplotype that jumps over the window has no bp, only its hairline
-test('a point along a deletion row finds it, and the bars reach as far as it', () => {
+// a haplotype with no step in the window has no bp, only its hairline
+test('a point along a stepless row finds it, and the bars reach as far as it', () => {
   const { bars } = setup()
-  const deletion = {
+  const stepless = {
     name: 'HG4#1#ctg4',
     label: 'HG4#1',
     sample: 'HG4',
@@ -215,28 +215,28 @@ test('a point along a deletion row finds it, and the bars reach as far as it', (
     offReferenceBp: 0,
     gapBp: 60,
     complete: true,
-    deletionBp: 60,
+    stepless: true as const,
     runs: [
       {
         start: 0,
         bp: 60,
         onReference: false,
         gap: true as const,
-        cause: 'deleted' as const,
+        cause: 'departure' as const,
       },
     ],
   }
-  const withDeletion = { ...bars, rows: [...bars.rows, deletion] }
-  expect(longestBar(withDeletion)).toBe(60)
-  const frame = walkStripFrame(withDeletion, {
+  const withStepless = { ...bars, rows: [...bars.rows, stepless] }
+  expect(longestBar(withStepless)).toBe(60)
+  const frame = walkStripFrame(withStepless, {
     width: 800,
     maxHeight: 400,
     labelPx: 90,
   })
-  const i = withDeletion.rows.length
+  const i = withStepless.rows.length
   const x = (bars.origin + 40) * frame.scaleX + frame.translateX
   const y = i * frame.rowPx + frame.translateY
-  expect(stripRowAt(withDeletion, frame, x, y)).toMatchObject({
+  expect(stripRowAt(withStepless, frame, x, y)).toMatchObject({
     index: i,
     offset: expect.closeTo(40, 5),
   })

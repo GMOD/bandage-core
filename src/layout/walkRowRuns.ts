@@ -1,5 +1,10 @@
+import {
+  departureAt,
+  departureSpan,
+  gapParts,
+  placementChoice,
+} from '../gfa/departures'
 import { tableNodeIds, tablePath } from '../gfa/graphTables'
-import { gapParts } from '../gfa/walkStops'
 import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
@@ -12,9 +17,9 @@ import type {
   WalkStop,
   WalkVisit,
 } from './walkRows'
-import type { GraphTables } from '../gfa/graphTables'
-import type { GapCause, GapPart } from '../gfa/walkStops'
-import type { Graph, GraphPath, StopChunk } from '../types'
+import type { Departure, GapCause, GapPart } from '../gfa/departures'
+import type { DepartureTable, GraphTables } from '../gfa/graphTables'
+import type { Graph, GraphPath } from '../types'
 
 const RUN_ON_REFERENCE = 1
 const RUN_REVERSED = 2
@@ -24,9 +29,9 @@ const GAP_CAUSES = [
   undefined,
   'missing',
   'elsewhere',
-  'unknown',
+  'own',
   'abridged',
-  'deleted',
+  'departure',
 ] as const
 const CAUSE_SHIFT = 3
 
@@ -63,9 +68,8 @@ export interface WalkRowRuns {
   // NaN for a run off the reference
   referenceStart: Float64Array
   flags: Uint8Array
-  // a gap's chunk elsewhere, as an index into `chunks`, -1 for none
-  chunk: Int32Array
-  chunks: StopChunk[]
+  // an `elsewhere` gap's reference position, NaN for none
+  near: Float64Array
   visits?: WalkVisitColumns
 }
 
@@ -84,6 +88,7 @@ interface Pieces {
   reference: string | undefined
   // a node's rank 0 position on the reference, NaN off it
   stableStart: (node: number) => number
+  departures: DepartureTable | undefined
 }
 
 // The reference walk's name, stripped of the range suffix odgi leaves on a P
@@ -165,6 +170,7 @@ function graphPieces(graph: Graph): Pieces {
     names,
     reference,
     stableStart: node => stable.get(node) ?? Number.NaN,
+    departures: graph.departures,
   }
 }
 
@@ -210,6 +216,7 @@ function tablePieces(
       onReferenceContig(n.refNames[n.refs[node]!])
         ? n.starts[node]!
         : Number.NaN,
+    departures: tables.departures,
   }
 }
 
@@ -300,6 +307,7 @@ export function walkRowRuns(
     names,
     reference,
     stableStart,
+    departures,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
     : graphPieces(source)
@@ -317,8 +325,8 @@ export function walkRowRuns(
     .sort(byStart)
   const first = referencePieces[0]
   const others = pieceIds.filter(p => nameOf(p) !== reference)
-  const { skips } = source
-  if (first === undefined || (others.length === 0 && !skips?.names.length)) {
+  const departuresOf = departuresByWalk(departures, reference)
+  if (first === undefined || (others.length === 0 && departuresOf.size === 0)) {
     return undefined
   }
   // a cut hands a walk back as one record per piece inside its nodes
@@ -368,21 +376,6 @@ export function walkRowRuns(
     cut === undefined || (flankEnd > -Infinity && flankStart < Infinity)
 
   const runs = new Columns(5)
-  const chunks: StopChunk[] = []
-  const chunkIndex = new Map<string, number>()
-  const chunkOf = (chunk: StopChunk | undefined) => {
-    if (!chunk) {
-      return -1
-    }
-    const key = `${chunk.refName}:${chunk.start}`
-    let i = chunkIndex.get(key)
-    if (i === undefined) {
-      i = chunks.length
-      chunkIndex.set(key, i)
-      chunks.push(chunk)
-    }
-    return i
-  }
   const visits = o.visits ? new Columns(4) : undefined
   // the walk's steps, each gap between its pieces a step of -bp; reused
   // across rows
@@ -391,6 +384,9 @@ export function walkRowRuns(
 
   const rowOf = (pieces: number[]): WalkRowMeta => {
     const head = heads[pieces[0]!]!
+    const own = departuresOf.get(nameOf(pieces[0]!)) ?? []
+    // where each placed piece runs on the contig
+    const extents: [number, number][] = []
     const ordered = [...pieces].sort(byStart)
     let count = ordered.length - 1
     let abridgedSteps = 0
@@ -429,9 +425,13 @@ export function walkRowRuns(
         partsAt.set(
           length,
           gapParts(
-            gap,
-            previous === undefined ? undefined : heads[previous]!.after,
-            heads[piece]!.before,
+            start! - gap,
+            start!,
+            {
+              after: heads[previous!]!.trimmedAfter,
+              before: heads[piece]!.trimmedBefore,
+            },
+            own,
           ),
         )
         steps[length] = -gap
@@ -455,6 +455,9 @@ export function walkRowRuns(
         pos += lengthOf(node)
       }
       end = start === undefined ? undefined : pos
+      if (start !== undefined) {
+        extents.push([start, pos])
+      }
       previous = piece
     }
     const onReference = (i: number) =>
@@ -656,7 +659,7 @@ export function walkRowRuns(
             part.bp,
             Number.NaN,
             RUN_GAP | causeFlags(part.cause),
-            chunkOf(part.chunk),
+            part.near ?? Number.NaN,
           )
           bp += part.bp
         }
@@ -689,7 +692,7 @@ export function walkRowRuns(
       } else {
         lastFlags = on ? RUN_ON_REFERENCE : 0
         lastRef = on ? at : Number.NaN
-        runs.push(bp, len, lastRef, lastFlags, -1)
+        runs.push(bp, len, lastRef, lastFlags, Number.NaN)
         last = runs.length - 1
         step = 0
       }
@@ -702,6 +705,11 @@ export function walkRowRuns(
     }
     runs.endRow()
     visits?.endRow()
+    // a departure between two steps of one piece is drawn by its runs
+    const undrawn = own.filter(
+      d =>
+        !extents.some(([a, b]) => d.hapStart > a && d.hapStart + d.ownBp < b),
+    )
     return {
       name: head.name,
       label: labelOf(head),
@@ -715,26 +723,45 @@ export function walkRowRuns(
       axis,
       ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
       ...(leftTrim + rightTrim > 0 ? { estimated: true } : {}),
+      ...(undrawn.length > 0 ? { departures: undrawn } : {}),
+      ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
     }
   }
 
-  // A haplotype that jumps over the window draws as a hairline under the
-  // stretch of the reference row's bar it leaves out, and states the bp
-  const skipRowOf = (
+  // A haplotype with no step in the cut draws each departure as a hairline
+  // under the stretch of the reference row's bar between its ends, and
+  // states the own bp between them
+  const steplessRowOf = (
     name: string,
-    start: number,
-    end: number,
+    own: Departure[],
     bar: { start: number; end: number } | undefined,
   ): WalkRowMeta => {
-    const from = bar ? Math.max(start, bar.start) : start
-    const bp = Math.max((bar ? Math.min(end, bar.end) : end) - from, 0)
-    runs.push(
-      from - (bar ? bar.start : start),
-      bp,
-      Number.NaN,
-      RUN_GAP | causeFlags('deleted'),
-      -1,
-    )
+    const spans = own.map(departureSpan).sort((a, b) => a.start - b.start)
+    const base = bar?.start ?? spans[0]?.start ?? 0
+    const merged: { start: number; end: number }[] = []
+    for (const span of spans) {
+      const start = bar ? Math.max(span.start, bar.start) : span.start
+      const end = bar ? Math.min(span.end, bar.end) : span.end
+      const last = merged.at(-1)
+      if (end > start) {
+        if (last && start <= last.end) {
+          last.end = Math.max(last.end, end)
+        } else {
+          merged.push({ start, end })
+        }
+      }
+    }
+    let gapBp = 0
+    for (const { start, end } of merged) {
+      runs.push(
+        start - base,
+        end - start,
+        Number.NaN,
+        RUN_GAP | causeFlags('departure'),
+        Number.NaN,
+      )
+      gapBp += end - start
+    }
     runs.endRow()
     visits?.endRow()
     const head: PieceHead = { name, ...panSNFields(name) }
@@ -744,12 +771,14 @@ export function walkRowRuns(
       sample: sampleOf(head),
       haplotype: head.haplotype,
       bp: 0,
-      offReferenceBp: 0,
-      gapBp: bp,
+      offReferenceBp: own.reduce((sum, d) => sum + d.ownBp, 0),
+      gapBp,
       complete: true,
       stop: undefined,
       axis: undefined,
-      deletionBp: end - start,
+      departures: own,
+      stepless: true,
+      ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
     }
   }
 
@@ -766,16 +795,14 @@ export function walkRowRuns(
         end: axis.start + referenceRow.bp + referenceRow.gapBp,
       }
     : cut
-  skips?.names.forEach((name, k) => {
-    const contig = pathOrigin(name).name
-    if (!drawn.has(contig)) {
-      drawn.add(contig)
+  for (const [name, own] of departuresOf) {
+    if (!drawn.has(name)) {
       rows.push({
-        meta: skipRowOf(contig, skips.starts[k]!, skips.ends[k]!, bar),
+        meta: steplessRowOf(name, own, bar),
         row: rows.length + 1,
       })
     }
-  })
+  }
   // two haplotypes of one sample named by P lines widen every label, as a
   // legend's do
   const metas = [referenceRow, ...rows.map(r => r.meta)]
@@ -796,14 +823,14 @@ export function walkRowRuns(
     float64,
     float64,
     n => new Uint8Array(n),
-    n => new Int32Array(n),
+    float64,
   ])
-  const [start, bp, referenceStart, flags, chunk] = columns as [
+  const [start, bp, referenceStart, flags, near] = columns as [
     Float64Array,
     Float64Array,
     Float64Array,
     Uint8Array,
-    Int32Array,
+    Float64Array,
   ]
   return {
     origin: cut ? cut.start : (startOf(first) ?? 0),
@@ -813,10 +840,36 @@ export function walkRowRuns(
     bp,
     referenceStart,
     flags,
-    chunk,
-    chunks,
+    near,
     visits: visits && visitColumns(visits, order, names),
   }
+}
+
+// Each walk's departures over the cut by its name, in contig order, the
+// reference's left out
+function departuresByWalk(
+  table: DepartureTable | undefined,
+  reference: string | undefined,
+) {
+  const byWalk = new Map<string, Departure[]>()
+  if (table) {
+    for (let k = 0; k < table.names.length; k++) {
+      const d = departureAt(table, k)
+      const name = pathOrigin(d.name).name
+      if (name !== reference) {
+        const list = byWalk.get(name)
+        if (list) {
+          list.push(d)
+        } else {
+          byWalk.set(name, [d])
+        }
+      }
+    }
+  }
+  for (const list of byWalk.values()) {
+    list.sort((a, b) => a.hapStart - b.hapStart)
+  }
+  return byWalk
 }
 
 function visitColumns(
@@ -852,9 +905,9 @@ export function runAt(t: WalkRowRuns, k: number): WalkRun {
     if (cause) {
       run.cause = cause
     }
-    const chunk = t.chunks[t.chunk[k]!]
-    if (chunk) {
-      run.chunk = chunk
+    const near = t.near[k]!
+    if (!Number.isNaN(near)) {
+      run.near = near
     }
   } else {
     run.referenceStart = Number.isNaN(t.referenceStart[k]!)

@@ -1,23 +1,26 @@
 import { panSNFields, panSNSample } from '../pansn'
 import { PathVisits } from '../pathVisits'
-import { stopAt, stopFields, walkStopTags } from './walkStops'
 
-import type { WalkStopTable } from './walkStops'
 import type {
   Graph,
   GraphEdge,
   GraphNode,
   GraphPath,
   PathOrigin,
-  WalkSkips,
 } from '../types'
 
 /**
  * A graph as typed arrays, the shape a worker can hand across postMessage
  * without copying: what a GFA of S lines tagged LN/SN/SO/SR, L lines and W
  * lines states, with every link end and walk step an index into the node
- * table. `graphFromTables` builds the Graph that converting that GFA builds,
- * and `graphTablesGFA` writes the GFA.
+ * table, and the departures from the reference over the cut, which no GFA
+ * line states. `graphFromTables` builds the Graph that converting that GFA
+ * builds, and `graphTablesGFA` writes the GFA.
+ *
+ * @jbrowse/graph-walks 5's `WalkGraph.tables` returns this shape, which
+ * typecheck/graphWalks.ts holds equal to its `GraphTables`. `departures` is
+ * required, so tables from a reader that states none fail to compile rather
+ * than draw no departure; a source with none passes `departureTable()`.
  */
 export interface GraphTables {
   nodes: {
@@ -30,6 +33,9 @@ export interface GraphTables {
     starts: Float64Array
     ranks: Int32Array
     refNames: string[]
+    // how many times the reference's paths pass each node, 0 for a node
+    // placed off the reference; absent from tables another source builds
+    passes?: Int32Array
   }
   links: {
     from: Int32Array
@@ -46,15 +52,35 @@ export interface GraphTables {
     offsets: Int32Array
     steps: Int32Array
     reversed: Uint8Array
-    // what lies past either end of each walk, from a walk-file cut; W lines
-    // write them as tags (gfa/walkStops.ts)
-    before?: WalkStopTable
-    after?: WalkStopTable
+    // bp of each walk a walk-file cut read but kept out, before and after it
+    trimmedBefore?: Float64Array
+    trimmedAfter?: Float64Array
     // an abridged walk's steps and bp in all, NaN for any other walk
     abridgedSteps?: Float64Array
     abridgedBp?: Float64Array
   }
-  skips?: WalkSkips
+  // every departure from the reference over the cut, each once
+  departures: DepartureTable
+}
+
+// A Departure per row (gfa/departures.ts), each strand and `fromSteps` 1 for
+// true, and its own steps the cut holds as node indices at `offsets[k]` to
+// `offsets[k + 1]` of `steps`
+export interface DepartureTable {
+  names: string[]
+  hapStarts: Float64Array
+  ownBp: Float64Array
+  missingBp: Float64Array
+  leavePos: Float64Array
+  leaveReversed: Uint8Array
+  leavePasses: Int32Array
+  rejoinPos: Float64Array
+  rejoinReversed: Uint8Array
+  rejoinPasses: Int32Array
+  fromSteps: Uint8Array
+  offsets: Int32Array
+  steps: Int32Array
+  reversed: Uint8Array
 }
 
 // A P line states a walk's start only as a range on its name
@@ -74,15 +100,15 @@ export function tablePath(
   const abridged = Number.isNaN(steps)
     ? {}
     : { abridged: { steps, bp: w.abridgedBp?.[p] ?? 0 } }
+  const trimmedBefore = w.trimmedBefore?.[p] ?? 0
+  const trimmedAfter = w.trimmedAfter?.[p] ?? 0
   return fields
     ? {
         name: `${fields.sample}#${fields.haplotype}#${fields.contig}`,
         start,
         ...fields,
-        ...stopFields(
-          w.before && stopAt(w.before, p),
-          w.after && stopAt(w.after, p),
-        ),
+        ...(trimmedBefore > 0 ? { trimmedBefore } : {}),
+        ...(trimmedAfter > 0 ? { trimmedAfter } : {}),
         ...abridged,
       }
     : { name: pLineName(walkName, start, w.ends[p]!), start }
@@ -127,7 +153,7 @@ function namesByList(
  * `traversals` when given one.
  */
 export function tableNodeIds(
-  { nodes: n, links: l, walks: w }: GraphTables,
+  { nodes: n, links: l, walks: w }: Omit<GraphTables, 'departures'>,
   traversals?: Int32Array,
 ) {
   // 0 unclaimed, 1 forward, 2 reversed
@@ -157,11 +183,12 @@ export function tableNodeIds(
 /**
  * The Graph `convertGFAToGraph` builds from `graphTablesGFA(tables)`, deep
  * equal, built by index: a step costs a few array reads and its visit, where
- * the text costs a string and several map lookups. GFA has no line for a skip
- * row, so only this Graph keeps the tables' `skips`.
+ * the text costs a string and several map lookups. GFA has no line for a
+ * departure or a trimmed walk's bp, so only this Graph keeps the tables'
+ * `departures` and each walk's trimmed bp.
  */
 export function graphFromTables(
-  { nodes: n, links: l, walks: w, skips }: GraphTables,
+  { nodes: n, links: l, walks: w, departures }: GraphTables,
   name = 'Imported GFA',
 ): Graph {
   const count = n.names.length
@@ -371,7 +398,7 @@ export function graphFromTables(
         })
       : undefined,
     anchoredBy: nodes.some(node => node.stable) ? 'tags' : undefined,
-    ...(skips?.names.length ? { skips } : {}),
+    ...(departures.names.length > 0 ? { departures } : {}),
   }
 }
 
@@ -380,7 +407,11 @@ export function graphFromTables(
  * line per walk, or a P line for a walk whose name has fewer than three PanSN
  * parts
  */
-export function graphTablesGFA({ nodes, links, walks }: GraphTables) {
+export function graphTablesGFA({
+  nodes,
+  links,
+  walks,
+}: Pick<GraphTables, 'nodes' | 'links' | 'walks'>) {
   const { names } = nodes
   const lines = ['H\tVN:Z:1.1']
   for (let i = 0; i < nodes.lengths.length; i++) {
@@ -408,7 +439,7 @@ export function graphTablesGFA({ nodes, links, walks }: GraphTables) {
     }
     lines.push(
       fields
-        ? `W\t${fields.sample}\t${fields.haplotype}\t${fields.contig}\t${start}\t${end}\t${steps.map(([id, rev]) => (rev ? '<' : '>') + id).join('')}${walkStopTags(walks, p)}`
+        ? `W\t${fields.sample}\t${fields.haplotype}\t${fields.contig}\t${start}\t${end}\t${steps.map(([id, rev]) => (rev ? '<' : '>') + id).join('')}`
         : `P\t${pLineName(name, start, end)}\t${steps.map(([id, rev]) => id + (rev ? '-' : '+')).join(',')}\t*`,
     )
   }

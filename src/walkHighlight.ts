@@ -1,5 +1,5 @@
 import { isBackbone } from './anchoredNodes'
-import { gapParts } from './gfa/walkStops'
+import { departureAt, gapParts } from './gfa/departures'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { rampFraction } from './renderer/GeometryBuilder'
@@ -32,10 +32,11 @@ export interface WalkHighlight {
   // where the walk's stretch of the cut sits on its own contig, from its W or
   // P record: its start where it begins and its end where it ends
   range?: { contig: string; start: number; end: number }
-  // bp of the gaps between its pieces that a walk-file cut's stops say the
-  // graph lacks, or leave open (gfa/walkStops.ts gapParts)
+  // bp of the gaps between its pieces that a walk-file cut's departures say
+  // the graph lacks, or are its own sequence the cut did not read
+  // (gfa/departures.ts gapParts)
   missingBp: number
-  unknownBp: number
+  ownBp: number
 }
 
 export interface LiftedWalk extends WalkHighlight {
@@ -172,18 +173,20 @@ function highlightOf(
       before += length
     })
   }
+  const departures = departuresOf(graph, name)
   let missingBp = 0
-  let unknownBp = 0
+  let ownBp = 0
   let end: number | undefined
   pieces.forEach((piece, p) => {
     if (end !== undefined && piece.start !== undefined && piece.start > end) {
       for (const part of gapParts(
-        piece.start - end,
-        pieces[p - 1]!.after,
-        piece.before,
+        end,
+        piece.start,
+        { after: pieces[p - 1]!.trimmedAfter, before: piece.trimmedBefore },
+        departures,
       )) {
         missingBp += part.cause === 'missing' ? part.bp : 0
-        unknownBp += part.cause === 'unknown' ? part.bp : 0
+        ownBp += part.cause === 'own' ? part.bp : 0
       }
     }
     end = piece.start === undefined ? undefined : piece.start + bpOf(piece)
@@ -217,8 +220,22 @@ function highlightOf(
     bp,
     referenceBp: referenceSpan(),
     missingBp,
-    unknownBp,
+    ownBp,
   }
+}
+
+// A walk's departures over a walk-file cut
+function departuresOf(graph: Graph, name: string) {
+  const table = graph.departures
+  const out = []
+  if (table) {
+    for (let k = 0; k < table.names.length; k++) {
+      if (pathOrigin(table.names[k]!).name === name) {
+        out.push(departureAt(table, k))
+      }
+    }
+  }
+  return out
 }
 
 // Each visit's value for the walk's field, through its scheme

@@ -1,5 +1,6 @@
 import { withoutStrayHandles } from './strayHandles'
 import { walkRows } from './walkRows'
+import { departureTable } from '../gfa/departures'
 import { graphFromTables } from '../gfa/graphTables'
 import { layoutModeByValue } from '../layoutModes'
 
@@ -39,6 +40,7 @@ function cut(walks: { name: string; steps: number[]; abridged?: number }[]) {
         w.abridged ? 59_000 : Number.NaN,
       ),
     },
+    departures: departureTable(),
   }
   return graphFromTables(tables)
 }

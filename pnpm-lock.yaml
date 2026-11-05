@@ -27,6 +27,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0)
+      '@jbrowse/graph-walks':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -366,6 +369,10 @@ packages:
 
   '@jbrowse/graph-stress-layout@1.0.0':
     resolution: {integrity: sha512-Yw0aMopfOIvHftmHnTP+jPL0uINCt+fdWxHQvrGeektL5KOAvrMBrUyBB1FcNizQZCSnAtYplIoXCL5K0qN7og==}
+    engines: {node: '>=20'}
+
+  '@jbrowse/graph-walks@5.0.0':
+    resolution: {integrity: sha512-9HoFUtZ9RNseTNObbOcA9MUnAlD8KSVTZC7UQpEZPoN6Hix5yOz++g8vP5QYHnnGffnD7XM199lBvjC36HjR/Q==}
     engines: {node: '>=20'}
 
   '@jbrowse/quick-lru@8.0.0':
@@ -1711,6 +1718,8 @@ snapshots:
   '@jbrowse/graph-fmmm-layout@1.0.2': {}
 
   '@jbrowse/graph-stress-layout@1.0.0': {}
+
+  '@jbrowse/graph-walks@5.0.0': {}
 
   '@jbrowse/quick-lru@8.0.0': {}
 

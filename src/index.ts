@@ -307,9 +307,6 @@ export type {
   GraphNode,
   LayoutResult,
   NodeSegment,
-  PathStop,
-  StopChunk,
-  WalkSkips,
 } from './types'
 
 export {
@@ -325,17 +322,25 @@ export type { GbzWindowOptions } from './gbzWindow'
 
 export { gfaTables } from './gfa/gfaTables'
 export { graphFromTables, graphTablesGFA } from './gfa/graphTables'
-export type { GraphTables } from './gfa/graphTables'
+export type { DepartureTable, GraphTables } from './gfa/graphTables'
 export {
-  END_STOP_TAG,
   GAP_CAUSE_TEXT,
   OUTSIDE_TEXT,
-  START_STOP_TAG,
+  PLACEMENT_CHOICE_TEXT,
+  departureAt,
+  departureKind,
+  departureSpan,
+  departureTable,
+  departureText,
   gapParts,
-  parseStopTag,
-  stopTag,
-} from './gfa/walkStops'
-export type { GapCause, GapPart, WalkStopTable } from './gfa/walkStops'
+  placementChoice,
+} from './gfa/departures'
+export type {
+  Departure,
+  DepartureKind,
+  GapCause,
+  GapPart,
+} from './gfa/departures'
 export { PathVisits, PathVisitsBuilder } from './pathVisits'
 
 export { engineKey } from './pipeline'

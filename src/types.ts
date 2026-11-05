@@ -1,4 +1,5 @@
 import type { GafRecord } from './gaf/parseGaf'
+import type { DepartureTable } from './gfa/graphTables'
 import type { StableCoordinate } from './gfa-core/index'
 import type { TubeMapDrawing } from './layout/tubeMapLayout'
 import type { PathVisits } from './pathVisits'
@@ -56,35 +57,14 @@ export interface GraphPath {
   // set on a record bundleRoutes kept for a route several walks take: the
   // walks it stands for, its own first
   members?: string[]
-  // set on a walk-file cut's W records (gfa/walkStops.ts): what lies past
-  // the fragment's start and its end
-  before?: PathStop
-  after?: PathStop
+  // set on a walk-file cut's walk from its tables: the bp of the walk the cut
+  // read but kept out, before its first step and after its last
+  trimmedBefore?: number
+  trimmedAfter?: number
   // set on a walk-file cut's abridged walk: its two steps are where it leaves
   // and rejoins the reference, around `steps` steps and `bp` the cut did not
   // load
   abridged?: { steps: number; bp: number }
-}
-
-// What lies past one end of a walk-file cut's fragment, as
-// @jbrowse/graph-walks states it. `trimmed` bp come first, which the cut read
-// but did not keep, then:
-// - `elsewhere`: the walk goes on through nodes filed under `chunk`, which the
-//   cut did not read, and comes back `bp` on when the cut holds where
-// - `break`: the walk's record ends, and the contig's next record starts `bp`
-//   on: the graph lacks those bases
-// - `end`: no record of the contig in the graph lies past it
-export type PathStop = (
-  | { kind: 'elsewhere'; chunk: StopChunk; bp?: number }
-  | { kind: 'break'; bp: number; chunk?: StopChunk }
-  | { kind: 'end' }
-) & { trimmed?: number }
-
-// a walk file's chunk: the reference sequence and the start of the bp range
-// whose rows file a piece of the walk
-export interface StopChunk {
-  refName: string
-  start: number
 }
 
 // One P or W record, named the way a coordinate is named: the range suffix
@@ -127,16 +107,9 @@ export interface Graph {
   referencePath?: string
   // reads aligned to the graph, which the tube map draws under its paths
   reads?: GafRecord[]
-  // the walk-file cut's skip rows, which loadGraph keeps from its tables
-  skips?: WalkSkips
-}
-
-// Haplotypes with no walk in a walk-file cut that jump over the window, each
-// with the stretch of the reference it leaves out
-export interface WalkSkips {
-  names: string[]
-  starts: Float64Array
-  ends: Float64Array
+  // every departure from the reference over a walk-file cut, which
+  // loadGraph keeps from its tables
+  departures?: DepartureTable
 }
 
 export interface NodeSegment {

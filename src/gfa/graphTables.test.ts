@@ -1,3 +1,4 @@
+import { departureTable } from './departures'
 import { convertGFAToGraph } from './gfaConverter'
 import { graphFromTables, graphTablesGFA } from './graphTables'
 import { parseGFA } from '../gfa-core/index'
@@ -54,6 +55,7 @@ function tables({
       steps: Int32Array.from(steps, s => s[0]),
       reversed: Uint8Array.from(steps, s => (s[1] ? 1 : 0)),
     },
+    departures: departureTable(),
   }
 }
 

@@ -1,4 +1,4 @@
-import { GAP_CAUSE_TEXT, OUTSIDE_TEXT } from './gfa/walkStops'
+import { GAP_CAUSE_TEXT, OUTSIDE_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
@@ -36,10 +36,10 @@ export function walkKey(
         : undefined
   // what the walk spans on its contig, which its pieces may not all show
   const spanned = walk.range ? walk.range.end - walk.range.start : walk.bp
-  const outside = spanned - walk.bp - walk.missingBp - walk.unknownBp
+  const outside = spanned - walk.bp - walk.missingBp - walk.ownBp
   const gaps = [
     [walk.missingBp, GAP_CAUSE_TEXT.missing],
-    [walk.unknownBp, GAP_CAUSE_TEXT.unknown],
+    [walk.ownBp, GAP_CAUSE_TEXT.own],
     [outside, OUTSIDE_TEXT],
   ] as const
   return {

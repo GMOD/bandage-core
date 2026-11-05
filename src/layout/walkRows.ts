@@ -1,7 +1,7 @@
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 
-import type { GapCause } from '../gfa/walkStops'
-import type { Graph, StopChunk } from '../types'
+import type { Departure, GapCause } from '../gfa/departures'
+import type { Graph } from '../types'
 
 export { referenceWalkName } from './walkRowRuns'
 
@@ -35,14 +35,16 @@ export interface WalkRun {
   // bases of the walk's contig between two pieces the cut returned, which the
   // cut holds nothing of
   gap?: true
-  // why, where a walk-file cut's stops bounding the gap say: `missing`, the
-  // walk's record ends and the contig's next starts past it, so the graph
-  // lacks those bases; `elsewhere`, the walk goes on through nodes filed under
-  // `chunk`, which the cut did not read; `unknown`, the stops leave it open,
-  // as between two breaks with records this reference never visits. A gap
-  // with no cause is graph sequence outside the extracted subgraph
+  // why, where a walk-file cut's departures inside the gap say: `missing`,
+  // bases between the contig's W lines, which the graph lacks; `own`, the
+  // walk's own sequence between one departure's ends that the cut did not
+  // read; `elsewhere`, the walk goes on along the reference near `near`
+  // (gfa/departures.ts gapParts). A row of departures alone draws each one's
+  // stretch of the reference as a `departure` gap. A gap with no cause is
+  // graph sequence outside the extracted subgraph
   cause?: GapCause
-  chunk?: StopChunk
+  // a reference position on the reference row's sequence
+  near?: number
 }
 
 // Where a row's bar lies on the walk's own contig: the contig position at the
@@ -77,6 +79,8 @@ export interface WalkRow {
   sample: string
   haplotype?: number
   bp: number
+  // bp of its runs off the reference walk's path; for a stepless row, the
+  // haplotype's own bp between its departures' ends, which it draws no bar of
   offReferenceBp: number
   // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
   gapBp: number
@@ -89,9 +93,15 @@ export interface WalkRow {
   // true where an abridged block runs past the window, so `bp` takes the
   // reference's bp for the part outside it
   estimated?: boolean
-  // a row of deletion from a skip row: bp of the whole stretch the haplotype
-  // leaves out, which runs past the window
-  deletionBp?: number
+  // the walk's departures from the reference over the cut that its runs do
+  // not draw as steps: those its gaps stand for, and for a stepless row every
+  // one
+  departures?: Departure[]
+  // set where one of the walk's departures over the cut is the writer's
+  // placement choice, an end on a node the reference passes more than once
+  placementChoice?: true
+  // set on a row with no step in the cut, drawn from its departures alone
+  stepless?: true
   runs: WalkRun[]
   // walkRows fills it only when asked, since an object per step costs a big
   // cut far more than its runs

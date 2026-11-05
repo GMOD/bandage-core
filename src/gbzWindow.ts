@@ -1,6 +1,7 @@
 import { isReverse, nodeId } from '@gmod/gbz-base'
 
 import { joinCuts } from './gbzJoin.ts'
+import { departureTable } from './gfa/departures'
 import { gfaTables } from './gfa/gfaTables'
 import { panSNMatchesPrefix, panSNSample } from './pansn.ts'
 import { wellKnownSample } from './reference.ts'
@@ -334,5 +335,6 @@ export function compactTables(cut: CompactSubgraph): GraphTables {
       steps,
       reversed,
     },
+    departures: departureTable(),
   }
 }
