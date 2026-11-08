@@ -1,3 +1,9 @@
+## [13.3.1](https://github.com/GMOD/bandage-core/compare/v13.3.0...v13.3.1) (2026-11-08)
+
+### Other Changes
+
+- Keep a lifted walk's range to what it draws ([442b498](https://github.com/GMOD/bandage-core/commit/442b4980fbd16e14468dc999eed95d5a604cb8b7))
+
 ## [13.3.0](https://github.com/GMOD/bandage-core/compare/v13.2.0...v13.3.0) (2026-11-08)
 
 ### Other Changes
