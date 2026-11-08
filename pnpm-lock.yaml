@@ -28,8 +28,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0)
       '@jbrowse/graph-walks':
-        specifier: ^6.1.0
-        version: 6.1.0
+        specifier: ^6.2.0
+        version: 6.2.0
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -374,8 +374,8 @@ packages:
     resolution: {integrity: sha512-Yw0aMopfOIvHftmHnTP+jPL0uINCt+fdWxHQvrGeektL5KOAvrMBrUyBB1FcNizQZCSnAtYplIoXCL5K0qN7og==}
     engines: {node: '>=20'}
 
-  '@jbrowse/graph-walks@6.1.0':
-    resolution: {integrity: sha512-bRrY23UWptS5zAyrWd3ifRZcFxtw54bXQFU6gu/1SM9YindiXxPNGXP6L4RVBIRrVZ1J9ha2u4tVTg0/K35dhw==}
+  '@jbrowse/graph-walks@6.2.0':
+    resolution: {integrity: sha512-jhH2o7j3VZjynRRoWmJ3MtTXSBDaFejz57uQFCGynoeUwrJhBaSvRWH/90jUqBRWITVUpyaMqQqiitDpUIe0og==}
     engines: {node: '>=20'}
 
   '@jbrowse/quick-lru@8.0.0':
@@ -1719,7 +1719,7 @@ snapshots:
 
   '@jbrowse/graph-stress-layout@1.0.0': {}
 
-  '@jbrowse/graph-walks@6.1.0':
+  '@jbrowse/graph-walks@6.2.0':
     dependencies:
       '@gmod/bgzf-filehandle': 6.8.2
       generic-filehandle2: 2.5.1
