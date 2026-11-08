@@ -114,6 +114,7 @@
     "typescript/restrict-plus-operands": "error",
     "typescript/restrict-template-expressions": "error",
     "typescript/return-await": ["error", "error-handling-correctness-only"],
+    "typescript/consistent-return": "off",
     "typescript/strict-boolean-expressions": "off",
     "typescript/switch-exhaustiveness-check": [
       "error",
