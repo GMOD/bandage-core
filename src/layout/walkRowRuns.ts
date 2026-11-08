@@ -407,7 +407,68 @@ export function walkRowRuns(
   let steps = new Int32Array(0)
   let stepStart = new Float64Array(0)
 
-  const rowOf = (pieces: number[]): WalkRowMeta => {
+  // Each of a stepless row's departures as a hairline under the stretch of
+  // the reference row's bar between its ends; the bp of those runs
+  const departureRuns = (
+    own: Departure[],
+    bar: { start: number; end: number } | undefined,
+  ) => {
+    const spans = own.map(departureSpan).sort((a, b) => a.start - b.start)
+    const base = bar?.start ?? spans[0]?.start ?? 0
+    const merged: { start: number; end: number }[] = []
+    for (const span of spans) {
+      const start = bar ? Math.max(span.start, bar.start) : span.start
+      const end = bar ? Math.min(span.end, bar.end) : span.end
+      const last = merged.at(-1)
+      if (end > start) {
+        if (last && start <= last.end) {
+          last.end = Math.max(last.end, end)
+        } else {
+          merged.push({ start, end })
+        }
+      }
+    }
+    let gapBp = 0
+    for (const { start, end } of merged) {
+      runs.push(
+        start - base,
+        end - start,
+        Number.NaN,
+        RUN_GAP | causeFlags('departure'),
+        Number.NaN,
+      )
+      gapBp += end - start
+    }
+    return gapBp
+  }
+
+  // A row with no step on the window's reference draws no bar: its departures
+  // alone, and the own bp between their ends
+  const steplessMeta = (
+    head: PieceHead,
+    own: Departure[],
+    gapBp: number,
+  ): WalkRowMeta => ({
+    name: head.name,
+    label: labelOf(head),
+    sample: sampleOf(head),
+    haplotype: head.haplotype,
+    bp: 0,
+    offReferenceBp: own.reduce((sum, d) => sum + d.ownBp, 0),
+    gapBp,
+    complete: true,
+    stop: undefined,
+    axis: undefined,
+    departures: own,
+    stepless: true,
+    ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
+  })
+
+  // `bar` is the reference row's, which the walks' rows are read against
+  const rowOf = (
+    pieces: number[],
+    bar?: { start: number; end: number },
+  ): WalkRowMeta => {
     const head = heads[pieces[0]!]!
     const own = departuresOf.get(nameOf(pieces[0]!)) ?? []
     // where each placed piece runs on the contig
@@ -677,6 +738,17 @@ export function walkRowRuns(
         stopsInside(i0, i1, true)
       }
     }
+    // A walk with no step between its flanks, or past its lone one, whose
+    // departure crosses the window has no step on the window's reference
+    // whatever the cut holds of it outside, and is read as a walk with no
+    // step in the cut is
+    const stepless =
+      bar !== undefined &&
+      lo >= hi &&
+      own.some(d => {
+        const span = departureSpan(d)
+        return span.start < bar.end && span.end > bar.start
+      })
     const contig = head.contig ?? panSNContig(pathOrigin(head.name).name)
     const axis: WalkAxis | undefined =
       unplaced || length === 0
@@ -794,6 +866,7 @@ export function walkRowRuns(
         offReferenceBp += len
       }
     }
+    const departureGapBp = stepless ? departureRuns(own, bar) : 0
     runs.endRow()
     visits?.endRow()
     // a departure between two steps of one piece is drawn by its runs
@@ -801,84 +874,41 @@ export function walkRowRuns(
       d =>
         !extents.some(([a, b]) => d.hapStart > a && d.hapStart + d.ownBp < b),
     )
-    return {
-      name: head.name,
-      label: labelOf(head),
-      sample: sampleOf(head),
-      haplotype: head.haplotype,
-      bp,
-      offReferenceBp,
-      gapBp,
-      complete,
-      stop,
-      axis,
-      ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
-      ...(leftTrim + rightTrim > 0 ? { estimated: true } : {}),
-      ...(undrawn.length > 0 ? { departures: undrawn } : {}),
-      ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
-    }
+    return stepless
+      ? steplessMeta(head, own, departureGapBp)
+      : {
+          name: head.name,
+          label: labelOf(head),
+          sample: sampleOf(head),
+          haplotype: head.haplotype,
+          bp,
+          offReferenceBp,
+          gapBp,
+          complete,
+          stop,
+          axis,
+          ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
+          ...(leftTrim + rightTrim > 0 ? { estimated: true } : {}),
+          ...(undrawn.length > 0 ? { departures: undrawn } : {}),
+          ...(own.some(placementChoice)
+            ? { placementChoice: true as const }
+            : {}),
+        }
   }
 
-  // A haplotype with no step in the cut draws each departure as a hairline
-  // under the stretch of the reference row's bar between its ends, and
-  // states the own bp between them
+  // a haplotype with no step in the cut is a row of its departures alone
   const steplessRowOf = (
     name: string,
     own: Departure[],
     bar: { start: number; end: number } | undefined,
-  ): WalkRowMeta => {
-    const spans = own.map(departureSpan).sort((a, b) => a.start - b.start)
-    const base = bar?.start ?? spans[0]?.start ?? 0
-    const merged: { start: number; end: number }[] = []
-    for (const span of spans) {
-      const start = bar ? Math.max(span.start, bar.start) : span.start
-      const end = bar ? Math.min(span.end, bar.end) : span.end
-      const last = merged.at(-1)
-      if (end > start) {
-        if (last && start <= last.end) {
-          last.end = Math.max(last.end, end)
-        } else {
-          merged.push({ start, end })
-        }
-      }
-    }
-    let gapBp = 0
-    for (const { start, end } of merged) {
-      runs.push(
-        start - base,
-        end - start,
-        Number.NaN,
-        RUN_GAP | causeFlags('departure'),
-        Number.NaN,
-      )
-      gapBp += end - start
-    }
+  ) => {
+    const gapBp = departureRuns(own, bar)
     runs.endRow()
     visits?.endRow()
-    const head: PieceHead = { name, ...panSNFields(name) }
-    return {
-      name,
-      label: labelOf(head),
-      sample: sampleOf(head),
-      haplotype: head.haplotype,
-      bp: 0,
-      offReferenceBp: own.reduce((sum, d) => sum + d.ownBp, 0),
-      gapBp,
-      complete: true,
-      stop: undefined,
-      axis: undefined,
-      departures: own,
-      stepless: true,
-      ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
-    }
+    return steplessMeta({ name, ...panSNFields(name) }, own, gapBp)
   }
 
   const referenceRow = rowOf(referencePieces)
-  const rows = [...walks.values()].map((pieces, i) => ({
-    meta: rowOf(pieces),
-    row: i + 1,
-  }))
-  const drawn = new Set(walks.keys())
   const { axis } = referenceRow
   const bar = axis
     ? {
@@ -886,6 +916,11 @@ export function walkRowRuns(
         end: axis.start + referenceRow.bp + referenceRow.gapBp,
       }
     : cut
+  const rows = [...walks.values()].map((pieces, i) => ({
+    meta: rowOf(pieces, bar),
+    row: i + 1,
+  }))
+  const drawn = new Set(walks.keys())
   for (const [name, own] of departuresOf) {
     if (!drawn.has(name)) {
       rows.push({
