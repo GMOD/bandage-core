@@ -28,8 +28,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0)
       '@jbrowse/graph-walks':
-        specifier: file:/home/cdiesh/src/vendor/walks6-pack/jbrowse-graph-walks-6.0.0.tgz
-        version: file:../vendor/walks6-pack/jbrowse-graph-walks-6.0.0.tgz
+        specifier: ^6.0.0
+        version: 6.0.0
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -374,9 +374,8 @@ packages:
     resolution: {integrity: sha512-Yw0aMopfOIvHftmHnTP+jPL0uINCt+fdWxHQvrGeektL5KOAvrMBrUyBB1FcNizQZCSnAtYplIoXCL5K0qN7og==}
     engines: {node: '>=20'}
 
-  '@jbrowse/graph-walks@file:../vendor/walks6-pack/jbrowse-graph-walks-6.0.0.tgz':
-    resolution: {integrity: sha512-LuDbMk0cNrm/R4iYezTzPisY6ySutFi39GE8FeqTcOgPUiD9vs5DT0p2yXp6+p/u1tafJ0I2SSOQu9+8chcbWQ==, tarball: file:../vendor/walks6-pack/jbrowse-graph-walks-6.0.0.tgz}
-    version: 6.0.0
+  '@jbrowse/graph-walks@6.0.0':
+    resolution: {integrity: sha512-LuDbMk0cNrm/R4iYezTzPisY6ySutFi39GE8FeqTcOgPUiD9vs5DT0p2yXp6+p/u1tafJ0I2SSOQu9+8chcbWQ==}
     engines: {node: '>=20'}
 
   '@jbrowse/quick-lru@8.0.0':
@@ -1720,7 +1719,7 @@ snapshots:
 
   '@jbrowse/graph-stress-layout@1.0.0': {}
 
-  '@jbrowse/graph-walks@file:../vendor/walks6-pack/jbrowse-graph-walks-6.0.0.tgz':
+  '@jbrowse/graph-walks@6.0.0':
     dependencies:
       '@gmod/bgzf-filehandle': 6.8.2
       generic-filehandle2: 2.5.1

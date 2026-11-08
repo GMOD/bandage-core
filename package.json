@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@jbrowse/graph-walks": "file:/home/cdiesh/src/vendor/walks6-pack/jbrowse-graph-walks-6.0.0.tgz",
+    "@jbrowse/graph-walks": "^6.0.0",
     "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
