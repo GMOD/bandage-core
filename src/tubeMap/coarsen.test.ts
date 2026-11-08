@@ -1,11 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 
+import { tubeMapLayout } from '../layout/tubeMapLayout'
+import { loadGraph } from '../pipeline'
 import { bundleRoutes } from './bundle'
 import { coarsenTubeMap } from './coarsen'
 import { deviationMarks } from './deviations'
-import { tubeMapLayout } from '../layout/tubeMapLayout'
-import { loadGraph } from '../pipeline'
 
 import type { Graph } from '../types'
 

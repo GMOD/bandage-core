@@ -1,5 +1,3 @@
-import { placeOffReference } from './placeOffReference'
-import { ROW_HEIGHT_PX } from './rowSpacing'
 import {
   backboneNodes,
   backbonePositions,
@@ -7,6 +5,8 @@ import {
   referenceSpan,
 } from '../anchoredNodes'
 import { panSNSample } from '../pansn'
+import { placeOffReference } from './placeOffReference'
+import { ROW_HEIGHT_PX } from './rowSpacing'
 
 import type { Graph, LayoutResult, RowLabel } from '../types'
 

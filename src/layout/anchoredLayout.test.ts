@@ -1,8 +1,8 @@
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { anchorGraph } from '../pathAnchoring'
 import { anchoredLayout } from './anchoredLayout'
 import { ROW_HEIGHT_PX } from './rowSpacing'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
-import { anchorGraph } from '../pathAnchoring'
 
 // The worked example from gfatools/doc/rGFA.md: chr1 runs v1->v2->v3->v4, and
 // foo carries an alternate allele (v5,v6) that leaves and rejoins it.

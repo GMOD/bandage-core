@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 
+import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from './gfaConverter'
 import { gfaTables } from './gfaTables'
 import { graphFromTables } from './graphTables'
-import { parseGFA } from '../gfa-core/index'
 
 function expectSameGraph(text: string) {
   const tables = gfaTables(text)

@@ -1,6 +1,6 @@
-import { bubbleHalos, coversGraph } from './bubbleHalos'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { bubbleHalos, coversGraph } from './bubbleHalos'
 
 // v1 -> v2 -> v3 on chr1, a1 replacing v2: the bubble's row names all four,
 // and the halo covers v2 and a1 only.

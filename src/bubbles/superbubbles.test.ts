@@ -3,15 +3,15 @@ import { join } from 'path'
 
 import { describe, expect, it } from 'vitest'
 
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { bubbleKey, sameBubble } from './bubbleLine'
 import { bubbleSegmentIds, classifyBubble } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
 import { graphBubbles, superbubblesFromGraph } from './superbubbles'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
 
-import type { MinigraphBubble } from './bubbleLine'
 import type { Graph, GraphEdge, GraphNode } from '../types'
+import type { MinigraphBubble } from './bubbleLine'
 
 function node(name: string, length: number, start?: number): GraphNode {
   return {

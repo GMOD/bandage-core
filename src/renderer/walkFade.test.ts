@@ -1,9 +1,9 @@
-import { buildGeometry } from './GeometryBuilder'
-import { abgrAlpha } from './colorBits'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
+import { buildGeometry } from './GeometryBuilder'
+import { abgrAlpha } from './colorBits'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3. Lifting alt out fades v2 and the
 // links it alone uses; lifting both gives each a lane of its own.

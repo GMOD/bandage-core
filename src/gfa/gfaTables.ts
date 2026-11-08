@@ -1,5 +1,5 @@
-import { departureTable } from './departures'
 import { Column } from '../pathVisits'
+import { departureTable } from './departures'
 
 import type { GraphTables } from './graphTables'
 

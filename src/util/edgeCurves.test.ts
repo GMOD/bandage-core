@@ -1,6 +1,6 @@
+import { buildGeometry } from '../renderer/GeometryBuilder'
 import { EdgeSpatialIndex } from './SpatialIndex'
 import { baseEdgeCurves } from './edgeCurves'
-import { buildGeometry } from '../renderer/GeometryBuilder'
 
 import type { Graph, GraphNode, NodeSegment } from '../types'
 

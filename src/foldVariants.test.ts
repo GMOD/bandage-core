@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs'
 
 import { deletionEdges } from './deletionEdges'
 import { foldVariants } from './foldVariants'
+import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { writeRgfa } from './gfa/writeRgfa'
-import { parseGFA } from './gfa-core/index'
 import { loadGraph } from './pipeline'
 
 import type { Graph } from './types'

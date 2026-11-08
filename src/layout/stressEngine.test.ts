@@ -1,10 +1,10 @@
 import { stressLayout } from '@jbrowse/graph-stress-layout'
 
-import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { isBackbone } from '../anchoredNodes'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { engineRequest, forceLayout } from '../pipeline'
 import { layoutScaling } from './drawnScale'
-import { isBackbone } from '../anchoredNodes'
 
 import type { EngineRequest } from '../pipeline'
 

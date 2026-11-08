@@ -1,8 +1,8 @@
-import { withoutStrayHandles } from './strayHandles'
-import { walkRows } from './walkRows'
 import { departureTable } from '../gfa/departures'
 import { graphFromTables } from '../gfa/graphTables'
 import { layoutModeByValue } from '../layoutModes'
+import { withoutStrayHandles } from './strayHandles'
+import { walkRows } from './walkRows'
 
 import type { GraphTables } from '../gfa/graphTables'
 

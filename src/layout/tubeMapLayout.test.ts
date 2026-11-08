@@ -1,17 +1,17 @@
 import fs from 'fs'
 import path from 'path'
 
+import { parseGaf, parseGafLine } from '../gaf/parseGaf'
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { anchorGraph } from '../pathAnchoring'
+import { buildNeighbors, nodeReferenceSpan } from '../referenceSpan'
+import { referenceBoxes, rulerBoxes } from '../tubeMap/axis'
 import {
   tubeMapLayout,
   tubeMapReferenceLayout,
   tubeMapTracks,
 } from './tubeMapLayout'
-import { parseGaf, parseGafLine } from '../gaf/parseGaf'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
-import { anchorGraph } from '../pathAnchoring'
-import { buildNeighbors, nodeReferenceSpan } from '../referenceSpan'
-import { referenceBoxes, rulerBoxes } from '../tubeMap/axis'
 
 import type { Graph } from '../types'
 

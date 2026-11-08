@@ -1,8 +1,8 @@
 import { tubeSpan } from './axis'
 
+import type { GeneModel } from '../genes/genePins'
 import type { ReferenceBoxes } from './axis'
 import type { TubeMapFrame } from './draw'
-import type { GeneModel } from '../genes/genePins'
 
 // A gene over the tube map, in tube x, mapped through the reference's boxes
 // (axis.ts)

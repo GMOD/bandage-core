@@ -1,13 +1,13 @@
-import { boxX, referenceBoxes } from './axis'
-import { lastAtMost } from './coarsen'
 import { pathOrigin } from '../pathAnchoring'
 import { pushTo } from '../util/groups'
+import { boxX, referenceBoxes } from './axis'
+import { lastAtMost } from './coarsen'
 
+import type { TubeMapDrawing } from '../layout/tubeMapLayout'
+import type { Graph } from '../types'
 import type { ReferenceBox } from './axis'
 import type { Deviation } from './coarsen'
 import type { TubeMapFrame } from './draw'
-import type { TubeMapDrawing } from '../layout/tubeMapLayout'
-import type { Graph } from '../types'
 
 // A folded variant on the tube of the walk that carries it, in tube
 // coordinates. Placed by bp through the box that holds it, since tubemap-core

@@ -1,3 +1,6 @@
+import { isBackbone } from '../anchoredNodes'
+import { strandSides } from '../util/geometry'
+import { pushTo } from '../util/groups'
 import { coversGraph } from './bubbleHalos'
 import {
   bubblesFromGraph,
@@ -8,13 +11,10 @@ import {
 } from './bubblesFromGraph'
 import { bubbleSegmentIds } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
-import { isBackbone } from '../anchoredNodes'
-import { strandSides } from '../util/geometry'
-import { pushTo } from '../util/groups'
 
+import type { Graph, GraphNode } from '../types'
 import type { MinigraphBubble } from './bubbleLine'
 import type { Routes } from './bubblesFromGraph'
-import type { Graph, GraphNode } from '../types'
 
 // Superbubbles (Onodera et al. 2013) as BubbleGun finds them
 // (find_bubbles.py's find_sb_alg): from one side of a source, take a node once

@@ -1,7 +1,7 @@
-import { backboneGenes } from './backboneGenes'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
+import { backboneGenes } from './backboneGenes'
 
 import type { IndexedGeneFile } from './backboneGenes'
 

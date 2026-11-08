@@ -1,6 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 
+import { parseGaf } from '../gaf/parseGaf'
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { tubeMapLayout } from '../layout/tubeMapLayout'
+import { anchorGraph } from '../pathAnchoring'
 import {
   drawTubeMap,
   drawTubeMapHighlight,
@@ -10,11 +15,6 @@ import {
   tubeMapTrackAt,
 } from './draw'
 import { FORWARD_READ_COLORS, REVERSE_READ_COLORS } from './reads'
-import { parseGaf } from '../gaf/parseGaf'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
-import { tubeMapLayout } from '../layout/tubeMapLayout'
-import { anchorGraph } from '../pathAnchoring'
 
 import type { parsePath } from './draw'
 

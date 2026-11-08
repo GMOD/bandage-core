@@ -1,6 +1,6 @@
-import { convertGFAToGraph } from './gfaConverter'
 import { parseGFA } from '../gfa-core/index'
 import { pathLegend } from '../pathColors'
+import { convertGFAToGraph } from './gfaConverter'
 
 test('converts simple GFA to graph with strand-specific nodes', () => {
   const gfa = parseGFA(`S\t1\tACGT

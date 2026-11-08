@@ -1,3 +1,5 @@
+import { serializeEl } from '../el'
+import { loadGraph } from '../pipeline'
 import { coalesceRuns } from './walkRowDraw'
 import { longestBar } from './walkRowLayout'
 import { walkRows } from './walkRows'
@@ -10,8 +12,6 @@ import {
   walkMarksTree,
   walkStripFrame,
 } from './walkStrip'
-import { serializeEl } from '../el'
-import { loadGraph } from '../pipeline'
 
 // Five 10 bp reference nodes on chr1 from 1000; HG1 passes `c` twice, a
 // collapsed repeat; HG2 walks the reference backwards; HG3 comes in two pieces

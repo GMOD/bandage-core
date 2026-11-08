@@ -1,11 +1,11 @@
 import { readFileSync } from 'fs'
 
-import { anchoredLayout } from './anchoredLayout'
 import { projectAlleles } from '../alleleProjection/projectAlleles'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
 import { computeEdgeCurves } from '../util/geometry'
+import { anchoredLayout } from './anchoredLayout'
 
 import type { ProjectedAllele } from '../alleleProjection/projectAlleles'
 import type { Graph, GraphEdge, NodeSegment } from '../types'

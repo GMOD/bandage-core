@@ -1,10 +1,10 @@
-import { SATURATED_PATH_COUNT } from './bubbleLine'
 import { isBackbone } from '../anchoredNodes'
 import { referenceOrder } from '../layout/orderedLayout'
 import { addTo } from '../util/groups'
+import { SATURATED_PATH_COUNT } from './bubbleLine'
 
-import type { BubbleRoute, MinigraphBubble } from './bubbleLine'
 import type { Graph, GraphNode } from '../types'
+import type { BubbleRoute, MinigraphBubble } from './bubbleLine'
 
 // Bubbles from the graph alone, off the reference order the ordered layout is
 // also drawn from (referenceOrder): a backbone node no link reaches across is a

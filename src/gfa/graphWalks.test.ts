@@ -1,10 +1,10 @@
 import { WalkReader } from '@jbrowse/graph-walks'
 import { LocalFile } from 'generic-filehandle2'
 
-import { graphFromTables } from './graphTables'
 import { walkRowReadout } from '../layout/walkRowDraw'
 import { walkRowRuns, walkRowsOf } from '../layout/walkRowRuns'
 import { walkRows } from '../layout/walkRows'
+import { graphFromTables } from './graphTables'
 
 // Walk format 7 files built by test_data/walks7/build.sh from the GFAs beside
 // them, cut by graph-walks 6 as the plugin and BandageJS cut them, on chr1 of

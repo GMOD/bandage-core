@@ -1,10 +1,10 @@
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
+import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
-import { parseGFA } from './gfa-core/index'
 import {
   routeNodes,
   takeRoutes,

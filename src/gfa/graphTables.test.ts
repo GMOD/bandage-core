@@ -1,8 +1,8 @@
+import { parseGFA } from '../gfa-core/index'
+import { loadGraph } from '../pipeline'
 import { departureTable } from './departures'
 import { convertGFAToGraph } from './gfaConverter'
 import { graphFromTables, graphTablesGFA } from './graphTables'
-import { parseGFA } from '../gfa-core/index'
-import { loadGraph } from '../pipeline'
 
 import type { GraphTables } from './graphTables'
 

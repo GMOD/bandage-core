@@ -1,7 +1,7 @@
 import type { GafRecord } from './gaf/parseGaf'
+import type { StableCoordinate } from './gfa-core/index'
 import type { GraphGap } from './gfa/departures'
 import type { DepartureTable } from './gfa/graphTables'
-import type { StableCoordinate } from './gfa-core/index'
 import type { TubeMapDrawing } from './layout/tubeMapLayout'
 import type { PathVisits } from './pathVisits'
 

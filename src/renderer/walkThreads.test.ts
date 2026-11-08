@@ -1,3 +1,6 @@
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { walkLift } from '../walkHighlight'
 import { buildGeometry } from './GeometryBuilder'
 import {
   MAX_BAND_PX,
@@ -6,9 +9,6 @@ import {
   passesKey,
   threadsPasses,
 } from './walkLanes'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
-import { walkLift } from '../walkHighlight'
 
 import type { NodeSegment } from '../types'
 

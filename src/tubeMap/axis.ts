@@ -3,8 +3,8 @@ import { formatBp } from '../graphLabels'
 import { pushTo } from '../util/groups'
 import { partitionPoint } from '../util/partitionPoint'
 
-import type { TubeMapFrame } from './draw'
 import type { TubeMapDrawing } from '../layout/tubeMapLayout'
+import type { TubeMapFrame } from './draw'
 
 // The reference's boxes carry bp, so a reference coordinate maps into tube x
 // through the box that holds it. On the own axis a box is log-scaled, so bp

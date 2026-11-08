@@ -1,14 +1,14 @@
-import { alongRow, barEnd, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
-import { READOUT_ROOM, longestBar } from './walkRowLayout'
 import { el } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 import { partitionPoint } from '../util/partitionPoint'
+import { alongRow, barEnd, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
+import { READOUT_ROOM, longestBar } from './walkRowLayout'
 
-import type { GeneGaps, RowGene, WalkRowsFrame } from './walkRowDraw'
-import type { WalkRow, WalkRows } from './walkRows'
 import type { LayoutMode } from '../layoutModes'
 import type { Graph, GraphNode } from '../types'
+import type { GeneGaps, RowGene, WalkRowsFrame } from './walkRowDraw'
+import type { WalkRow, WalkRows } from './walkRows'
 
 export { LABELLED_ROW_PX } from './walkRowDraw'
 

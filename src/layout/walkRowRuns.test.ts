@@ -1,15 +1,15 @@
-import { walkRowReadout, walkRowsKey } from './walkRowDraw'
-import { walkRowRuns, walkRowsOf } from './walkRowRuns'
-import { walkRows } from './walkRows'
 import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
+import { walkRowReadout, walkRowsKey } from './walkRowDraw'
+import { walkRowRuns, walkRowsOf } from './walkRowRuns'
+import { walkRows } from './walkRows'
 
-import type { WalkRow } from './walkRows'
 import type { Departure } from '../gfa/departures'
 import type { GraphTables } from '../gfa/graphTables'
+import type { WalkRow } from './walkRows'
 
 // GRCh38 runs 0..4 over chr1:0-5000, a kb a node, with node 5 (300 bp) an
 // expansion off it. The repeat is node 2, chr1:2000-3000. A has the

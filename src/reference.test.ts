@@ -1,7 +1,7 @@
 import { backboneNodes, backbonePositions } from './anchoredNodes'
 import { genePins } from './genes/genePins'
-import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
+import { convertGFAToGraph } from './gfa/gfaConverter'
 import { anchorFromPaths, anchorGraph } from './pathAnchoring'
 import {
   assemblyWalk,

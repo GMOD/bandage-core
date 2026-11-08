@@ -1,9 +1,9 @@
 import { describe, test } from 'vitest'
 
-import { walkRowRuns } from './walkRowRuns'
-import { walkRows } from './walkRows'
 import { departureTable } from '../gfa/departures'
 import { graphFromTables } from '../gfa/graphTables'
+import { walkRowRuns } from './walkRowRuns'
+import { walkRows } from './walkRows'
 
 import type { GraphTables } from '../gfa/graphTables'
 

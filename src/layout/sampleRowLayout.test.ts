@@ -1,10 +1,10 @@
 import { readFileSync } from 'fs'
 
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { anchorGraph } from '../pathAnchoring'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { sampleRowLayout } from './sampleRowLayout'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
-import { anchorGraph } from '../pathAnchoring'
 
 function ecoliGraph() {
   const gfa = readFileSync(

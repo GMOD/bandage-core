@@ -1,9 +1,9 @@
 import { readFileSync } from 'fs'
 
-import { projectAlleles } from './projectAlleles'
 import { isOffReference } from '../anchoredNodes'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { projectAlleles } from './projectAlleles'
 
 // The real four-strain minigraph slice, not invented coordinates: K12 is the
 // rank-0 backbone, Sakai/CFT073/NCTC86 contribute ranks 1-3.

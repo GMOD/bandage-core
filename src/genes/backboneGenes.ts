@@ -1,9 +1,9 @@
-import { genesFromText } from './geneFiles'
 import { featuresOnBackbone, graphBackbone, refNameBinding } from '../reference'
+import { genesFromText } from './geneFiles'
 
+import type { Graph } from '../types'
 import type { GeneFormat } from './geneFiles'
 import type { GeneModel } from './genePins'
-import type { Graph } from '../types'
 
 // A gene file read through its index, as @gmod/tabix's TabixIndexedFile reads
 // one

@@ -1,8 +1,8 @@
 import { ROUTE_ID } from '@jbrowse/graph-stress-layout'
 
-import type { BandageScaleOpts } from './drawnScale'
 import type { DeletionEdge } from '../deletionEdges'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
+import type { BandageScaleOpts } from './drawnScale'
 
 // A deletion is a bubble whose own arm is a bare link. A force layout runs that
 // link through a node of its own, so the simulation makes room for the arm like

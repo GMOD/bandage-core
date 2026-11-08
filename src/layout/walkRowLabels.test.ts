@@ -2,9 +2,9 @@ import { expect, test } from 'vitest'
 
 import { walkRowLabels } from './walkRowLayout'
 
+import type { LayoutResult } from '../types'
 import type { RowPitch } from './walkRowDraw'
 import type { WalkRows } from './walkRows'
-import type { LayoutResult } from '../types'
 
 const ROWS = {
   reference: { name: 'chm13', label: 'CHM13' },

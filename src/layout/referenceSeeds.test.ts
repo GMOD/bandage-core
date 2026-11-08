@@ -1,8 +1,8 @@
+import { spreadFor } from '../bubbleSpreads'
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { drawnNodeLength, layoutScaling } from './drawnScale'
 import { referenceSeeds, seededNodes } from './referenceSeeds'
-import { spreadFor } from '../bubbleSpreads'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
 
 // chr1 runs v1->v2->v3->v4; a1 replaces v3 and hangs a2 off itself, which no
 // backbone node touches; lone is linked to nothing. Lengths span 1 bp to 7 kb so

@@ -1,8 +1,8 @@
-import { bundleRoutes } from './bundle'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { tubeMapReferenceLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
+import { bundleRoutes } from './bundle'
 
 // A's two haplotypes and C's first take the insertion; B and C's second skip
 // segment 3; the reference walks neither

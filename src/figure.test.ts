@@ -1,7 +1,7 @@
 import { FACET_TITLE_PX } from './facetGrid'
 import { figureSvg } from './figure'
-import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
+import { convertGFAToGraph } from './gfa/gfaConverter'
 import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'

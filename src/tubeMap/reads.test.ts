@@ -1,14 +1,14 @@
 import fs from 'fs'
 import path from 'path'
 
-import { tubeMapPicture } from './draw'
-import { tubeMapReads } from './reads'
 import { parseGaf, parseGafLine } from '../gaf/parseGaf'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
 import { pathCssColor, pathGreyCssColor } from '../pathColors'
+import { tubeMapPicture } from './draw'
+import { tubeMapReads } from './reads'
 
 // Nodes 240..280 of sequenceTubeMap's cactus example, a run of SNP bubbles,
 // with the NA12879 reads vg giraffe aligned over them. Node lengths used below:

@@ -1,8 +1,8 @@
-import { referenceKnots, warpX } from './warp'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { tubeMapReferenceLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
+import { referenceKnots, warpX } from './warp'
 
 import type { TubeMapColumn } from '../layout/tubeMapLayout'
 

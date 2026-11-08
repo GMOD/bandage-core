@@ -1,6 +1,6 @@
+import { loadGraph } from '../pipeline'
 import { sharedRowOrder, walkRowBlocks, walkRowLinks } from './walkRowLinks'
 import { walkRows } from './walkRows'
-import { loadGraph } from '../pipeline'
 
 // R runs 1, 2, 3 at a kb each, and the window is node 2. A and B swap it for
 // the same 1 kb expansion, 4 and 5; E walks that expansion inverted; C keeps

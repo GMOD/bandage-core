@@ -1,9 +1,9 @@
 import { describe, test } from 'vitest'
 
-import { buildGeometry } from './GeometryBuilder'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { walkLift } from '../walkHighlight'
+import { buildGeometry } from './GeometryBuilder'
 
 import type { NodeSegment } from '../types'
 

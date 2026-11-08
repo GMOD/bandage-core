@@ -1,5 +1,5 @@
-import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
+import { convertGFAToGraph } from './gfa/gfaConverter'
 import { buildNeighbors, nodeReferenceSpan } from './referenceSpan'
 
 // The worked example from gfatools/doc/rGFA.md, the same fixture the anchored

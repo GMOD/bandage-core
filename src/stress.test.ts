@@ -1,5 +1,5 @@
-import { convertGFAToGraph } from './gfa/gfaConverter'
 import { parseGFA } from './gfa-core/index'
+import { convertGFAToGraph } from './gfa/gfaConverter'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { recordingCanvas } from './renderer/recordingCanvas'

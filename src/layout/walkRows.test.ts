@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from 'fs'
 
-import { filterSamples, walkRows } from './walkRows'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph, pathOrigin } from '../pathAnchoring'
+import { filterSamples, walkRows } from './walkRows'
 
 function pggbGraph() {
   const gfa = readFileSync(

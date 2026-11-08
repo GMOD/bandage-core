@@ -1,15 +1,15 @@
-import { ROW_HEIGHT_PX } from './rowSpacing'
-import { walkRows } from './walkRows'
 import {
   backboneNodes,
   backbonePositions,
   overlapsWindow,
 } from '../anchoredNodes'
+import { ROW_HEIGHT_PX } from './rowSpacing'
 import { barEnd } from './walkRowDraw'
+import { walkRows } from './walkRows'
 
+import type { Graph, LayoutResult, RowLabel } from '../types'
 import type { RowPitch } from './walkRowDraw'
 import type { WalkRows } from './walkRows'
-import type { Graph, LayoutResult, RowLabel } from '../types'
 
 // The reference walk as the backbone on row 0, at its bp, and a row per other
 // walk below it. The rows themselves are not nodes: a node the renderer draws

@@ -1,13 +1,13 @@
 import fs from 'fs'
 import path from 'path'
 
-import { clipToWindow, trimToWindow } from './trimToWindow'
-import { tubeMapLayout } from './tubeMapLayout'
 import { isBackbone } from '../anchoredNodes'
 import { deletionEdges } from '../deletionEdges'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph, pathOrigin } from '../pathAnchoring'
+import { clipToWindow, trimToWindow } from './trimToWindow'
+import { tubeMapLayout } from './tubeMapLayout'
 
 import type { Graph } from '../types'
 

@@ -1,7 +1,7 @@
-import { bubblesFromGraph } from './bubblesFromGraph'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
+import { bubblesFromGraph } from './bubblesFromGraph'
 
 // ref walks v1 v2 v3; two haplotypes take a1 instead of v2 and one takes a2.
 const GFA = `S\tv1\tAAAA

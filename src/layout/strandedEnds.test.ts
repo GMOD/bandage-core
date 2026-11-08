@@ -1,12 +1,12 @@
 import { loadFmmm } from '@jbrowse/graph-fmmm-layout'
 
 import { deletionEdges } from '../deletionEdges'
-import { mergeRuns } from './mergeRuns'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { forceLayout } from '../pipeline'
 import { baseEdgeCurves } from '../util/edgeCurves'
 import { strandSides } from '../util/geometry'
+import { mergeRuns } from './mergeRuns'
 
 import type { LayoutEngine } from '../pipeline'
 import type { NodeSegment } from '../types'

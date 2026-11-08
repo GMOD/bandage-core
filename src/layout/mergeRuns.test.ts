@@ -1,6 +1,6 @@
-import { mergeRuns, splitRuns } from './mergeRuns'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { mergeRuns, splitRuns } from './mergeRuns'
 
 // chr1 runs v1->v2->v3->v4->v5; a1 replaces v3 and v4 between v2 and v5, so
 // v1+v2 is a run, v3+v4 is a run, and v5 and a1 stand alone. v5 loops back to

@@ -3,17 +3,6 @@ import {
   placementChoice as walksPlacementChoice,
 } from '@jbrowse/graph-walks'
 
-import {
-  departureAt,
-  departureKind,
-  departureTable,
-  departureText,
-  gapParts,
-  placementChoice,
-} from './departures'
-import { convertGFAToGraph } from './gfaConverter'
-import { gfaTables } from './gfaTables'
-import { graphFromTables, graphTablesGFA } from './graphTables'
 import { serializeEl } from '../el'
 import { parseGFA } from '../gfa-core/index'
 import {
@@ -31,6 +20,17 @@ import { walkRows } from '../layout/walkRows'
 import { loadGraph } from '../pipeline'
 import { walkLift } from '../walkHighlight'
 import { walkKey } from '../walkKey'
+import {
+  departureAt,
+  departureKind,
+  departureTable,
+  departureText,
+  gapParts,
+  placementChoice,
+} from './departures'
+import { convertGFAToGraph } from './gfaConverter'
+import { gfaTables } from './gfaTables'
+import { graphFromTables, graphTablesGFA } from './graphTables'
 
 import type { Departure } from './departures'
 import type { GraphTables } from './graphTables'

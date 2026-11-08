@@ -1,10 +1,10 @@
 import { readFileSync } from 'fs'
 
-import { walkRowLayout } from './walkRowLayout'
 import { backboneNodes } from '../anchoredNodes'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
+import { walkRowLayout } from './walkRowLayout'
 
 function pggbGraph() {
   const gfa = readFileSync(

@@ -1,9 +1,9 @@
 import { baseEdgeCurves } from './edgeCurves'
 import { curveBounds, pathRibbonOffsets } from './geometry'
 
-import type { EdgeCurves } from './edgeCurves'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'
+import type { EdgeCurves } from './edgeCurves'
 import type { AxisScale } from './geometry'
 
 interface CellEntry {

@@ -1,9 +1,9 @@
 import { expect, test } from 'vitest'
 
-import { smoothChain } from './smoothChains'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { engineSettingsOf, forceLayout } from '../pipeline'
+import { smoothChain } from './smoothChains'
 
 import type { LayoutEngine } from '../pipeline'
 import type { NodeSegment } from '../types'

@@ -1,11 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 
-import { tubeMapFrame, tubeMapNodeAt } from './frame'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { tubeMapLayout, tubeMapReferenceLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
+import { tubeMapFrame, tubeMapNodeAt } from './frame'
 
 const PGGB = fs.readFileSync(
   path.join(__dirname, '../../test_data/ecoli_pggb_subgraph.gfa'),

@@ -1,3 +1,5 @@
+import { serializeEl } from '../el'
+import { loadGraph } from '../pipeline'
 import {
   MISSING_INK,
   MISSING_PX,
@@ -14,8 +16,6 @@ import {
   walkRowsTree,
 } from './walkRowDraw'
 import { walkRows } from './walkRows'
-import { serializeEl } from '../el'
-import { loadGraph } from '../pipeline'
 
 import type { Departure } from '../gfa/departures'
 

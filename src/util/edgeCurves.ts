@@ -1,5 +1,5 @@
-import { weakMemo } from './weakMemo'
 import { edgeCurvesOf } from '../deletionEdges'
+import { weakMemo } from './weakMemo'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, NodeSegment } from '../types'

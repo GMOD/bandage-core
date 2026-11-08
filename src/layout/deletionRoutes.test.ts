@@ -1,11 +1,11 @@
 import { loadFmmm } from '@jbrowse/graph-fmmm-layout'
 
+import { closableLinks, deletionEdges } from '../deletionEdges'
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { forceLayout } from '../pipeline'
 import { routeNodes, withDeletionRoutes } from './deletionRoutes'
 import { mergeRuns } from './mergeRuns'
-import { closableLinks, deletionEdges } from '../deletionEdges'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
-import { forceLayout } from '../pipeline'
 
 import type { EngineRequest, LayoutEngine } from '../pipeline'
 

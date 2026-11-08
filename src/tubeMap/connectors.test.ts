@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 
-import { referenceBoxes, rulerBoxes } from './axis'
-import { connectorAt, tubeMapConnectors } from './connectors'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
+import { referenceBoxes, rulerBoxes } from './axis'
+import { connectorAt, tubeMapConnectors } from './connectors'
 
 import type { Connector } from './connectors'
 

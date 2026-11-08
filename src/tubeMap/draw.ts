@@ -1,15 +1,15 @@
 import { curvePaths, flattenPath, nodeOutlinePath } from '@jbrowse/tubemap-core'
 
-import { tubeMapMismatches } from './mismatches'
-import { readColor } from './reads'
-import { MAX_GAP_PX } from './warp'
 import { referenceWalkName } from '../layout/walkRows'
 import { pathOrigin } from '../pathAnchoring'
 import { pushTo } from '../util/groups'
+import { tubeMapMismatches } from './mismatches'
+import { readColor } from './reads'
+import { MAX_GAP_PX } from './warp'
 
+import type { TubeMapDrawing } from '../layout/tubeMapLayout'
 import type { TubeMapTransform } from './frame'
 import type { TubeMapMismatch } from './mismatches'
-import type { TubeMapDrawing } from '../layout/tubeMapLayout'
 import type { TrackType, TubeMapLayout } from '@jbrowse/tubemap-core'
 
 // Paints a tube map layout on a 2D canvas, in the order sequenceTubeMap's d3

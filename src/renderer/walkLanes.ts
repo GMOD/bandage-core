@@ -1,8 +1,8 @@
 import { slideAt } from '../util/geometry'
 
-import type { LaneSlide } from './types'
 import type { NodeSegment } from '../types'
 import type { LiftedWalk } from '../walkHighlight'
+import type { LaneSlide } from './types'
 
 export const THREAD_PX = 2
 export const THREAD_GAP_PX = 1.5

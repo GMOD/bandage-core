@@ -1,4 +1,3 @@
-import { ROW_HEIGHT_PX } from './rowSpacing'
 import { el } from '../el'
 import {
   GAP_CAUSE_TEXT,
@@ -18,11 +17,12 @@ import {
   rampStops,
 } from '../referenceRampCss'
 import { REFERENCE_RAMP_ALT_CSS } from '../renderer/GeometryBuilder'
+import { ROW_HEIGHT_PX } from './rowSpacing'
 
-import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
 import type { El } from '../el'
 import type { GeneModel } from '../genes/genePins'
 import type { GapCause } from '../gfa/departures'
+import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
 
 // What walk rows draw, shared by the hosts: walkRowsTree is the drawing as an
 // element tree, which the plugin renders as React elements, BandageJS as DOM

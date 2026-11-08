@@ -12,14 +12,6 @@ import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
 
 import type {
-  WalkAxis,
-  WalkRow,
-  WalkRows,
-  WalkRun,
-  WalkStop,
-  WalkVisit,
-} from './walkRows'
-import type {
   Departure,
   GapCause,
   GapPart,
@@ -27,6 +19,14 @@ import type {
 } from '../gfa/departures'
 import type { DepartureTable, GraphTables } from '../gfa/graphTables'
 import type { Graph, GraphPath } from '../types'
+import type {
+  WalkAxis,
+  WalkRow,
+  WalkRows,
+  WalkRun,
+  WalkStop,
+  WalkVisit,
+} from './walkRows'
 
 const RUN_ON_REFERENCE = 1
 const RUN_REVERSED = 2

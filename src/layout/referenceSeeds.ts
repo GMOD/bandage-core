@@ -2,8 +2,8 @@ import { isBackbone } from '../anchoredNodes'
 import { buildNeighbors } from '../referenceSpan'
 import { drawnNodeLength } from './drawnScale'
 
-import type { LayoutScaling } from './drawnScale'
 import type { Graph, GraphNode } from '../types'
+import type { LayoutScaling } from './drawnScale'
 
 // A node as the engine takes it: an optional `x`/`y` is where FMMM starts the
 // node's chain (`addToOgdfGraph`, graphlayout.cpp).

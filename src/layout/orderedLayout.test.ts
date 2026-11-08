@@ -1,7 +1,7 @@
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { orderedLayout, referenceOrder } from './orderedLayout'
 import { ROW_HEIGHT_PX } from './rowSpacing'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { parseGFA } from '../gfa-core/index'
 
 // chr1 runs v1->v2->v3->v4; two single-segment alleles, a1 (foo) and a2 (bar),
 // each replace v3 between the same anchors, so they share a layer and have to

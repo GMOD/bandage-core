@@ -1,15 +1,4 @@
-import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { isBackbone } from '../anchoredNodes'
-import {
-  THREAD_PITCH_PX,
-  THREAD_PX,
-  bandScale,
-  bandWidthPx,
-  liftLanes,
-  slotCentres,
-  threadsPasses,
-  walkSteps,
-} from './walkLanes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
 import { nodeWidthPx, walkLaneWidthPx, widthNorm } from '../nodeWidths'
 import {
@@ -36,12 +25,24 @@ import {
 } from '../util/geometry'
 import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
+import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
+import {
+  THREAD_PITCH_PX,
+  THREAD_PX,
+  bandScale,
+  bandWidthPx,
+  liftLanes,
+  slotCentres,
+  threadsPasses,
+  walkSteps,
+} from './walkLanes'
 
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
+import type { AxisScale, BezierCurve } from '../util/geometry'
 import type { WalkLift } from '../walkHighlight'
 import type {
   Arrowhead,
@@ -51,7 +52,6 @@ import type {
   Run,
 } from './types'
 import type { Normal, VisitFrame } from './walkLanes'
-import type { AxisScale, BezierCurve } from '../util/geometry'
 
 // Colors flow through the geometry builder as ABGR-in-u32 (see colorBits.ts),
 // so a brighten or fade is integer arithmetic and a batch of a hundred thousand

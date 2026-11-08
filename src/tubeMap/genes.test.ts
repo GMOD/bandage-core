@@ -1,16 +1,16 @@
 import fs from 'fs'
 import path from 'path'
 
-import { referenceBoxes, rulerBoxes, tubeX } from './axis'
-import { tubeMapGeneRows, tubeMapGenes } from './genes'
-import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
+import { referenceBoxes, rulerBoxes, tubeX } from './axis'
+import { tubeMapGeneRows, tubeMapGenes } from './genes'
 
+import type { GeneModel } from '../genes/genePins'
 import type { ReferenceBoxes } from './axis'
 import type { TubeMapGene } from './genes'
-import type { GeneModel } from '../genes/genePins'
 
 const GFA = fs.readFileSync(
   path.join(__dirname, '../../test_data/cactus/cactus_240_280.gfa'),

@@ -1,6 +1,6 @@
-import { ROW_HEIGHT_PX } from './rowSpacing'
 import { isBackbone } from '../anchoredNodes'
 import { buildNeighbors } from '../referenceSpan'
+import { ROW_HEIGHT_PX } from './rowSpacing'
 
 import type { AnchoredNode } from '../anchoredNodes'
 import type { Graph, GraphNode, LayoutResult, NodeSegment } from '../types'
