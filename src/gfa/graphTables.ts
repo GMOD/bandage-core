@@ -17,7 +17,7 @@ import type {
  * line states. `graphFromTables` builds the Graph that converting that GFA
  * builds, and `graphTablesGFA` writes the GFA.
  *
- * @jbrowse/graph-walks 5's `WalkGraph.tables` returns this shape, which
+ * @jbrowse/graph-walks 6's `WalkGraph.tables` returns this shape, which
  * typecheck/graphWalks.ts holds equal to its `GraphTables`. `departures` is
  * required, so tables from a reader that states none fail to compile rather
  * than draw no departure; a source with none passes `departureTable()`.

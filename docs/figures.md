@@ -9,7 +9,7 @@ write identical files.
 
 `bandage-figure` reads the graph from the GFA file a spec names under `gfa` or
 the gbz-base window it names under `gbz`. To draw a cut from a walk file
-(`.walks.bed.gz`), write the cut as GFA with `graphTablesGFA` and name that file
+(`.walks.gz`), write the cut as GFA with `graphTablesGFA` and name that file
 under `gfa`.
 
 ```console

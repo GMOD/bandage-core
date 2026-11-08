@@ -15,11 +15,11 @@ npm install @jbrowse/bandage-core
 
 - `loadGraph` reads GFA or rGFA text. The caller decompresses a `.gfa.gz` first
 - `loadGraph` also takes `GraphTables`, the typed arrays that
-  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) 5 cuts from a
-  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) 3 walk file, format 6
-  (`.walks.bed.gz` beside its `.tbi`), for a region on the reference. A worker
-  can transfer them without copying, and `graphTablesGFA` writes their nodes,
-  links and walks as GFA
+  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) 6 cuts from a
+  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) 4 walk file, format 7
+  (`.walks.gz` beside its `.idx` directory), for a region on the reference. A
+  worker can transfer them without copying, and `graphTablesGFA` writes their
+  nodes, links and walks as GFA
 - `openGbz` and `cutGbzRegion` cut a window from a
   [gbz-base](https://github.com/jltsiren/gbz-base) database (`.gbz.db`) to GFA
   text
@@ -55,7 +55,7 @@ reads them.
   says `placement choice`: the file's writer chose that pass
 - Each row's `departures` lists those its runs do not draw as steps, for a
   host's hover
-- `GraphTables` mirrors graph-walks 5's, and `typecheck/graphWalks.ts` holds the
+- `GraphTables` mirrors graph-walks 6's, and `typecheck/graphWalks.ts` holds the
   two equal. `departures` is required, so tables from a reader that states none
   fail to compile; a source with none, such as GFA text or a gbz-base cut,
   passes `departureTable()`
@@ -159,7 +159,7 @@ pnpm build         # dist/ with declarations
 - [BandageJS](https://github.com/cmdcolin/BandageJS) - browser viewer for GFA
   files, walk files and gbz-base databases
 - [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) - indexes a GFA by
-  reference position, writing the `.walks.bed.gz` walk files
+  reference position, writing the `.walks.gz` walk files
 - [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) - range-request
   reader for walk files
 - [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout) -

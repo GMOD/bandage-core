@@ -1,18 +1,18 @@
-import { TabixIndexedFile } from '@gmod/tabix'
 import { WalkReader } from '@jbrowse/graph-walks'
+import { LocalFile } from 'generic-filehandle2'
 
 import { graphFromTables } from './graphTables'
 import { walkRowReadout } from '../layout/walkRowDraw'
 import { walkRowRuns, walkRowsOf } from '../layout/walkRowRuns'
 import { walkRows } from '../layout/walkRows'
 
-// Format 6 walk files from @jbrowse/graph-walks' test data, built by its
-// test_data/build.sh from the GFAs beside them, cut by graph-walks 5 as the
-// plugin and BandageJS cut them, on chr1 of the reference the name ends in
+// Walk format 7 files built by test_data/walks7/build.sh from the GFAs beside
+// them, cut by graph-walks 6 as the plugin and BandageJS cut them, on chr1 of
+// the reference the name ends in
 async function rowsOf(name: string, start: number, end: number, context = 0) {
-  const path = `test_data/walks6/${name}.walks.bed.gz`
-  const reader = new WalkReader(
-    new TabixIndexedFile({ path, tbiPath: `${path}.tbi` }),
+  const reader = WalkReader.open(
+    `test_data/walks7/${name}.walks.gz`,
+    url => new LocalFile(url),
   )
   const { graph, kept, fragments, departures } = await reader.cut(
     `${name.split('.').at(-1)}#0#chr1`,
@@ -93,7 +93,7 @@ test('a departure from a node the reference passes twice is a placement choice',
   expect(hg002.readout).toMatch(/ · placement choice$/)
 })
 
-// rejoin.GRCh38.gfa is follow.GRCh38.gfa, its walk file in one 10 kb chunk as
+// rejoin.GRCh38.gfa is follow.GRCh38.gfa, its walk file in one 10 kb tile as
 // the plugin's walks6_rejoin. With 500 bp of context, HG002#1 and HG003#1
 // reach chr1:1000-1500's left flank alone: HG002#1 leaves at 1500 for 4 kb of
 // its own and rejoins at 4000, and HG003#1's contig runs on 300 bp off the
@@ -196,8 +196,8 @@ test('a walk whose only step is a flank has no bp in the window and says how it 
   })
 })
 
-// clip.REF.gfa, built by gfa-to-tabix 3.0 with --walks --refs REF --chunk
-// 1000: five 100 bp REF nodes over chr1:0-500, and two contigs that end on
+// clip.REF.gfa, built with --walks --refs REF --tile 1000: five 100 bp REF
+// nodes over chr1:0-500, and two contigs that end on
 // the third, CLIP along REF and CLIPSNP through node 6 in place of 2, a
 // departure between its steps. The cut holds all of REF, so has no flank at
 // any context. Walk-file controls: rejoin.GRCh38's HG002#2 walks the whole of

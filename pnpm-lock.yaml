@@ -28,8 +28,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.12.0)
       '@jbrowse/graph-walks':
-        specifier: ^5.0.2
-        version: 5.0.2
+        specifier: file:/tmp/claude-1001/-home-cdiesh-src-gfa-to-tabix/983bc272-31e0-41b6-9b35-db12eecbf447/scratchpad/pack/jbrowse-graph-walks-6.0.0.tgz
+        version: file:../../../../tmp/claude-1001/-home-cdiesh-src-gfa-to-tabix/983bc272-31e0-41b6-9b35-db12eecbf447/scratchpad/pack/jbrowse-graph-walks-6.0.0.tgz
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -42,6 +42,9 @@ importers:
       eslint-plugin-import-x:
         specifier: ^4.17.1
         version: 4.17.1(@typescript-eslint/utils@8.71.1(eslint@10.12.0)(typescript@6.0.3))(eslint@10.12.0)
+      generic-filehandle2:
+        specifier: ^2.5.1
+        version: 2.5.1
       git-cliff:
         specifier: ^2.14.2
         version: 2.14.2
@@ -371,8 +374,9 @@ packages:
     resolution: {integrity: sha512-Yw0aMopfOIvHftmHnTP+jPL0uINCt+fdWxHQvrGeektL5KOAvrMBrUyBB1FcNizQZCSnAtYplIoXCL5K0qN7og==}
     engines: {node: '>=20'}
 
-  '@jbrowse/graph-walks@5.0.2':
-    resolution: {integrity: sha512-SqoYz/bprezE5lwg8jP93EYE8IULWQFIYALmz+2K08SZQ8QjeVH+xlKy0ZTXn9wDr7Xunjdx3IgKs9eTC7dgRw==}
+  '@jbrowse/graph-walks@file:../../../../tmp/claude-1001/-home-cdiesh-src-gfa-to-tabix/983bc272-31e0-41b6-9b35-db12eecbf447/scratchpad/pack/jbrowse-graph-walks-6.0.0.tgz':
+    resolution: {integrity: sha512-bD4WCVd8l7Rz2v/EX8rgLaef/DzebmDiPxjpwTqW3m3tZVxFjD1sQCJxlGglLGrLHf7KkQTEFoIA+ryjUXnb7A==, tarball: file:../../../../tmp/claude-1001/-home-cdiesh-src-gfa-to-tabix/983bc272-31e0-41b6-9b35-db12eecbf447/scratchpad/pack/jbrowse-graph-walks-6.0.0.tgz}
+    version: 6.0.0
     engines: {node: '>=20'}
 
   '@jbrowse/quick-lru@8.0.0':
@@ -935,9 +939,6 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
-
-  generic-filehandle2@2.5.0:
-    resolution: {integrity: sha512-qrzjvxfFTswagFQRW7Gc8m5Fy+ra538mrXg4Ggtn+05PpeGYQ9QPkvQQ2O4poa2eGdUN/jAR49M5Y31Wvrr/xA==}
 
   generic-filehandle2@2.5.1:
     resolution: {integrity: sha512-+0F0k0xH4erZEB3xOVBdrlJi0hyURYb/CygF8QyqAjLsitmoZYl86pMfTZ91/w2Z1CPK610mBy93bxyiby1CHA==}
@@ -1688,7 +1689,7 @@ snapshots:
 
   '@gmod/gbz-base@7.4.0':
     dependencies:
-      generic-filehandle2: 2.5.0
+      generic-filehandle2: 2.5.1
 
   '@gmod/shared-read-cache@2.1.0': {}
 
@@ -1719,7 +1720,10 @@ snapshots:
 
   '@jbrowse/graph-stress-layout@1.0.0': {}
 
-  '@jbrowse/graph-walks@5.0.2': {}
+  '@jbrowse/graph-walks@file:../../../../tmp/claude-1001/-home-cdiesh-src-gfa-to-tabix/983bc272-31e0-41b6-9b35-db12eecbf447/scratchpad/pack/jbrowse-graph-walks-6.0.0.tgz':
+    dependencies:
+      '@gmod/bgzf-filehandle': 6.8.2
+      generic-filehandle2: 2.5.1
 
   '@jbrowse/quick-lru@8.0.0': {}
 
@@ -2240,8 +2244,6 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
-
-  generic-filehandle2@2.5.0: {}
 
   generic-filehandle2@2.5.1: {}
 
