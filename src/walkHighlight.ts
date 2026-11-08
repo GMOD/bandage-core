@@ -186,14 +186,7 @@ function highlightOf(
   if (walked.length === 0) {
     return undefined
   }
-  const counted = [...pieces.map((_, p) => between(p)), ...rowEnds].flatMap(
-    gap => (gap ? [gap] : []),
-  )
-  const walkedExtent = extentOf(walked)
-  const extent = walkedExtent && {
-    start: Math.min(walkedExtent.start, ...counted.map(g => g.start)),
-    end: Math.max(walkedExtent.end, ...counted.map(g => g.end)),
-  }
+  const extent = extentOf(walked)
   const range = extent && {
     contig: first?.contig ?? panSNContig(pathOrigin(name).name),
     ...extent,
@@ -253,12 +246,16 @@ function highlightOf(
   let readBp = 0
   let unreadBp = 0
   const countOwn = (gap: GraphGap) => {
+    let at = gap.start
     for (const x of gap.segments) {
-      const missing = x.kind === 'own' ? Math.min(x.missingBp, x.bp) : 0
+      const inRange = !extent || (at >= extent.start && at + x.bp <= extent.end)
+      const bp = inRange ? x.bp : 0
+      const missing = x.kind === 'own' ? Math.min(x.missingBp, bp) : 0
       missingBp += missing
-      ownBp += x.kind === 'own' ? x.bp - missing : 0
-      readBp += x.kind === 'read' ? x.bp : 0
-      unreadBp += x.kind === 'unread' ? x.bp : 0
+      ownBp += x.kind === 'own' ? bp - missing : 0
+      readBp += x.kind === 'read' ? bp : 0
+      unreadBp += x.kind === 'unread' ? bp : 0
+      at += x.bp
     }
   }
   let end: number | undefined

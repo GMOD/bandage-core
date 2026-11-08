@@ -681,8 +681,16 @@ test("a lifted walk takes a departure's attached steps outside its row at their 
   }
   const lift = walkHighlight(graphFromTables(far), 'A#1#a')!
   expect(lift.nodeIds.has('5+')).toBe(true)
-  expect(lift.range).toMatchObject({ start: 0, end: 10_500 })
-  expect(lift.progress.get('5+')).toBeCloseTo(10_200 / 10_500)
+  expect(lift.range).toMatchObject({ start: 0, end: 10_400 })
+  expect(lift.progress.get('5+')).toBeCloseTo(10_200 / 10_400)
+  expect(lift.readBp).toBe(0)
+})
+
+test("a lifted walk's range stops at its last drawn step, so a row end's read bp past it neither counts nor lengthens it", () => {
+  const lift = walkHighlight(graphFromTables(rowEndCut(2)), 'A#1#a')!
+  expect(lift.range).toMatchObject({ start: 0, end: 3400 })
+  expect(lift.readBp).toBe(0)
+  expect(lift.bp).toBe(3400)
 })
 
 test('a walk with no fragment lifts from its stated departures, and another walk’s attached steps are not faded as off every walk', () => {
