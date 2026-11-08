@@ -95,18 +95,32 @@ function gapsText(
   }
   const bpOf = (cause: GapCause | undefined) =>
     gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
-  const places = [
-    ...new Set(
-      gaps.flatMap(g => (g.near === undefined ? [] : [near(refName, g.near)])),
-    ),
-  ]
+  const mixedMissing = gaps
+    .filter(g => g.cause === 'mixed')
+    .reduce((sum, g) => sum + (g.missingBp ?? 0), 0)
+  const placesOf = (cause: GapCause) => {
+    const places = [
+      ...new Set(
+        gaps.flatMap(g =>
+          g.cause === cause && g.near !== undefined
+            ? [near(refName, g.near)]
+            : [],
+        ),
+      ),
+    ]
+    return places.length === 0
+      ? ''
+      : `${places[0]}${places.length > 1 ? ` and ${places.length - 1} more place${places.length > 2 ? 's' : ''}` : ''}`
+  }
+  const lastSeen = placesOf('unread')
   const parts = [
-    [bpOf('missing'), GAP_CAUSE_TEXT.missing],
+    [bpOf('missing') + mixedMissing, GAP_CAUSE_TEXT.missing],
+    [bpOf('elsewhere'), `on nodes filed near ${placesOf('elsewhere')}`],
+    [bpOf('own') + bpOf('mixed') - mixedMissing, GAP_CAUSE_TEXT.own],
     [
-      bpOf('elsewhere'),
-      `on nodes filed near ${places[0]}${places.length > 1 ? ` and ${places.length - 1} more place${places.length > 2 ? 's' : ''}` : ''}`,
+      bpOf('unread'),
+      `${GAP_CAUSE_TEXT.unread}${lastSeen ? `, last seen near ${lastSeen}` : ''}`,
     ],
-    [bpOf('own'), GAP_CAUSE_TEXT.own],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
   const abridged = bpOf('abridged')
@@ -245,9 +259,21 @@ export function gapStyle(cause: GapCause | undefined) {
       ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.departure }
       : cause === 'own'
         ? { fill: OWN_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.own }
-        : cause === 'abridged'
-          ? { fill: ABRIDGED_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.abridged }
-          : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
+        : cause === 'mixed'
+          ? { fill: OWN_GAP, px: MISSING_PX, label: GAP_CAUSE_TEXT.mixed }
+          : cause === 'unread'
+            ? {
+                fill: OUTSIDE_CUT,
+                px: MISSING_PX,
+                label: GAP_CAUSE_TEXT.unread,
+              }
+            : cause === 'abridged'
+              ? {
+                  fill: ABRIDGED_GAP,
+                  px: GAP_PX,
+                  label: GAP_CAUSE_TEXT.abridged,
+                }
+              : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
 }
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues
@@ -480,6 +506,8 @@ export function walkRowsKey(
     'missing',
     'departure',
     'own',
+    'mixed',
+    'unread',
     'abridged',
   ] as const) {
     const { fill, px, label } = gapStyle(cause)

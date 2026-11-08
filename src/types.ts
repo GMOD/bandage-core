@@ -1,4 +1,5 @@
 import type { GafRecord } from './gaf/parseGaf'
+import type { GraphGap } from './gfa/departures'
 import type { DepartureTable } from './gfa/graphTables'
 import type { StableCoordinate } from './gfa-core/index'
 import type { TubeMapDrawing } from './layout/tubeMapLayout'
@@ -111,6 +112,10 @@ export interface Graph {
   // every departure from the reference over a walk-file cut, which
   // loadGraph keeps from its tables
   departures?: DepartureTable
+  // what a walk-file cut states lies between each walk's fragments, past its
+  // ends and in its departures outside them, which loadGraph keeps from its
+  // tables
+  gaps?: GraphGap[]
 }
 
 export interface NodeSegment {

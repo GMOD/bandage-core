@@ -45,6 +45,8 @@ export interface WalkRun {
   cause?: GapCause
   // a reference position on the reference row's sequence
   near?: number
+  // for a `mixed` gap, its bp not in the graph
+  missingBp?: number
 }
 
 // Where a row's bar lies on the walk's own contig: the contig position at the

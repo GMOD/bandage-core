@@ -1,5 +1,6 @@
 import { panSNFields, panSNSample } from '../pansn'
 import { PathVisits } from '../pathVisits'
+import { stretchSegments } from './departures'
 
 import type {
   Graph,
@@ -62,6 +63,36 @@ export interface GraphTables {
   }
   // every departure from the reference over the cut, each once
   departures: DepartureTable
+  // what lies between each walk's fragments, past its ends and in its
+  // departures outside them, as graph-walks' ADR 0001 states it; absent from
+  // tables another source builds
+  gaps?: GapTable
+}
+
+// A stretch of a walk's contig per row: `walks` the walk the stretch follows,
+// or precedes for a row's start, -1 for a departure outside the row; `edges`
+// 0 between two fragments, 1 a row's start, 2 its end, 3 a departure outside
+// it; its segments at `segmentOffsets[g]` up to `segmentOffsets[g + 1]`, each
+// of a GAP_KINDS kind, a `steps` segment's steps as node indices at
+// `stepOffsets[k]` up to `stepOffsets[k + 1]`
+export interface GapTable {
+  names: string[]
+  walks: Int32Array
+  edges: Uint8Array
+  starts: Float64Array
+  ends: Float64Array
+  segmentOffsets: Int32Array
+  segments: {
+    kinds: Uint8Array
+    bp: Float64Array
+    missingBp: Float64Array
+    abridged: Uint8Array
+    before: Float64Array
+    after: Float64Array
+    stepOffsets: Int32Array
+    steps: Int32Array
+    reversed: Uint8Array
+  }
 }
 
 // A Departure per row (gfa/departures.ts), each strand and `fromSteps` 1 for
@@ -189,7 +220,7 @@ export function tableNodeIds(
  * `departures` and each walk's trimmed bp.
  */
 export function graphFromTables(
-  { nodes: n, links: l, walks: w, departures }: GraphTables,
+  { nodes: n, links: l, walks: w, departures, gaps }: GraphTables,
   name = 'Imported GFA',
 ): Graph {
   const count = n.names.length
@@ -400,7 +431,18 @@ export function graphFromTables(
       : undefined,
     anchoredBy: nodes.some(node => node.stable) ? 'tags' : undefined,
     ...(departures.names.length > 0 ? { departures } : {}),
+    ...(gaps && gaps.names.length > 0 ? { gaps: graphGaps(gaps, ids) } : {}),
   }
+}
+
+function graphGaps(t: GapTable, ids: ArrayLike<string>) {
+  return t.names.map((name, g) => ({
+    name,
+    edge: t.edges[g]!,
+    start: t.starts[g]!,
+    end: t.ends[g]!,
+    segments: stretchSegments(t, g, i => ids[i]!),
+  }))
 }
 
 /**

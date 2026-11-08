@@ -3,6 +3,8 @@ import {
   departureSpan,
   gapParts,
   placementChoice,
+  segmentPart,
+  stretchSegments,
 } from '../gfa/departures'
 import { tableNodeIds, tablePath } from '../gfa/graphTables'
 import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
@@ -17,8 +19,13 @@ import type {
   WalkStop,
   WalkVisit,
 } from './walkRows'
-import type { Departure, GapCause, GapPart } from '../gfa/departures'
-import type { DepartureTable, GraphTables } from '../gfa/graphTables'
+import type {
+  Departure,
+  GapCause,
+  GapPart,
+  GapSegment,
+} from '../gfa/departures'
+import type { DepartureTable, GapTable, GraphTables } from '../gfa/graphTables'
 import type { Graph, GraphPath } from '../types'
 
 const RUN_ON_REFERENCE = 1
@@ -32,6 +39,8 @@ const GAP_CAUSES = [
   'own',
   'abridged',
   'departure',
+  'mixed',
+  'unread',
 ] as const
 const CAUSE_SHIFT = 3
 
@@ -70,6 +79,8 @@ export interface WalkRowRuns {
   flags: Uint8Array
   // an `elsewhere` gap's reference position, NaN for none
   near: Float64Array
+  // a `mixed` gap's bp not in the graph, NaN for any other run
+  missing: Float64Array
   visits?: WalkVisitColumns
 }
 
@@ -89,7 +100,15 @@ interface Pieces {
   // a node's rank 0 position on the reference, NaN off it
   stableStart: (node: number) => number
   departures: DepartureTable | undefined
+  gapsBetween: (
+    name: string,
+    start: number,
+    end: number,
+  ) => GapSegment[] | undefined
 }
+
+const stretchKey = (name: string, start: number, end: number) =>
+  `${pathOrigin(name).name}\t${start}\t${end}`
 
 // The reference walk's name, stripped of the range suffix odgi leaves on a P
 // record's name: `referencePath`, else the walk a rank 0 segment's tag names,
@@ -161,6 +180,18 @@ function graphPieces(graph: Graph): Pieces {
     }
     to[p] = steps.length
   })
+  const between = new Map<string, GapSegment[]>()
+  for (const gap of graph.gaps ?? []) {
+    if (gap.edge === 0) {
+      between.set(
+        stretchKey(gap.name, gap.start, gap.end),
+        gap.segments.map(segment => ({
+          ...segment,
+          nodes: segment.nodes.map(indexOf),
+        })),
+      )
+    }
+  }
   return {
     heads,
     from,
@@ -171,6 +202,8 @@ function graphPieces(graph: Graph): Pieces {
     reference,
     stableStart: node => stable.get(node) ?? Number.NaN,
     departures: graph.departures,
+    gapsBetween: (name, start, end) =>
+      between.get(stretchKey(name, start, end)),
   }
 }
 
@@ -217,7 +250,22 @@ function tablePieces(
         ? n.starts[node]!
         : Number.NaN,
     departures: tables.departures,
+    gapsBetween: tableGaps(tables.gaps),
   }
+}
+
+function tableGaps(t: GapTable | undefined) {
+  const between = new Map<string, GapSegment[]>()
+  t?.names.forEach((name, g) => {
+    if (t.edges[g] === 0) {
+      between.set(
+        stretchKey(name, t.starts[g]!, t.ends[g]!),
+        stretchSegments(t, g, i => i),
+      )
+    }
+  })
+  return (name: string, start: number, end: number) =>
+    between.get(stretchKey(name, start, end))
 }
 
 function sampleOf(path: PieceHead) {
@@ -242,7 +290,7 @@ class Columns {
     return this.values[0]!.length
   }
 
-  push(a: number, b: number, c: number, d: number, e?: number) {
+  push(a: number, b: number, c: number, d: number, e?: number, f?: number) {
     const v = this.values
     v[0]!.push(a)
     v[1]!.push(b)
@@ -250,6 +298,9 @@ class Columns {
     v[3]!.push(d)
     if (e !== undefined) {
       v[4]!.push(e)
+    }
+    if (f !== undefined) {
+      v[5]!.push(f)
     }
   }
 
@@ -329,6 +380,7 @@ export function walkRowRuns(
     reference,
     stableStart,
     departures,
+    gapsBetween,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
     : graphPieces(source)
@@ -400,7 +452,7 @@ export function walkRowRuns(
   const flanked =
     cut === undefined || (flankEnd > -Infinity && flankStart < Infinity)
 
-  const runs = new Columns(5)
+  const runs = new Columns(6)
   const visits = o.visits ? new Columns(4) : undefined
   // the walk's steps, each gap between its pieces a step of -bp; reused
   // across rows
@@ -435,6 +487,7 @@ export function walkRowRuns(
         end - start,
         Number.NaN,
         RUN_GAP | causeFlags('departure'),
+        Number.NaN,
         Number.NaN,
       )
       gapBp += end - start
@@ -507,7 +560,62 @@ export function walkRowRuns(
       const covered = Math.min(owed, Math.max(jump, 0))
       owed -= covered
       const gap = jump - covered
-      if (gap > 0) {
+      const segments =
+        gap > 0 && covered === 0
+          ? gapsBetween(nameOf(previous!), end!, start!)
+          : undefined
+      const segmentsBp = segments?.reduce(
+        (sum, x) =>
+          sum +
+          (x.kind === 'steps'
+            ? x.nodes.reduce((bp, node) => bp + lengthOf(node), 0)
+            : x.bp),
+        0,
+      )
+      if (segments && segmentsBp === gap) {
+        const need = segments.reduce((n, x) => n + x.nodes.length + 1, count)
+        if (length + need > steps.length) {
+          const grownSteps = new Int32Array((length + need) * 2)
+          const grownStarts = new Float64Array((length + need) * 2)
+          grownSteps.set(steps.subarray(0, length))
+          grownStarts.set(stepStart.subarray(0, length))
+          steps = grownSteps
+          stepStart = grownStarts
+        }
+        let at = end!
+        let parts: GapPart[] = []
+        let partsBp = 0
+        const flush = () => {
+          if (partsBp > 0) {
+            partsAt.set(length, parts)
+            steps[length] = -partsBp
+            stepStart[length++] = at - partsBp
+          }
+          parts = []
+          partsBp = 0
+        }
+        for (const x of segments) {
+          if (x.kind === 'steps') {
+            flush()
+            for (const node of x.nodes) {
+              steps[length] = node
+              stepStart[length++] = at
+              at += lengthOf(node)
+            }
+          } else if (x.bp > 0) {
+            if (x.kind === 'abridged') {
+              flush()
+            }
+            parts.push(segmentPart(x))
+            partsBp += x.bp
+            at += x.bp
+            if (x.kind === 'abridged') {
+              flush()
+            }
+          }
+        }
+        flush()
+      } else if (gap > 0) {
         partsAt.set(
           length,
           gapParts(
@@ -823,6 +931,7 @@ export function walkRowRuns(
             Number.NaN,
             RUN_GAP | causeFlags(part.cause),
             part.near ?? Number.NaN,
+            part.missingBp ?? Number.NaN,
           )
           bp += part.bp
         }
@@ -855,7 +964,7 @@ export function walkRowRuns(
       } else {
         lastFlags = on ? RUN_ON_REFERENCE : 0
         lastRef = on ? at : Number.NaN
-        runs.push(bp, len, lastRef, lastFlags, Number.NaN)
+        runs.push(bp, len, lastRef, lastFlags, Number.NaN, Number.NaN)
         last = runs.length - 1
         step = 0
       }
@@ -950,12 +1059,14 @@ export function walkRowRuns(
     float64,
     n => new Uint8Array(n),
     float64,
+    float64,
   ])
-  const [start, bp, referenceStart, flags, near] = columns as [
+  const [start, bp, referenceStart, flags, near, missing] = columns as [
     Float64Array,
     Float64Array,
     Float64Array,
     Uint8Array,
+    Float64Array,
     Float64Array,
   ]
   return {
@@ -967,6 +1078,7 @@ export function walkRowRuns(
     referenceStart,
     flags,
     near,
+    missing,
     visits: visits && visitColumns(visits, order, names),
   }
 }
@@ -1034,6 +1146,10 @@ export function runAt(t: WalkRowRuns, k: number): WalkRun {
     const near = t.near[k]!
     if (!Number.isNaN(near)) {
       run.near = near
+    }
+    const missing = t.missing[k]!
+    if (!Number.isNaN(missing)) {
+      run.missingBp = missing
     }
   } else {
     run.referenceStart = Number.isNaN(t.referenceStart[k]!)

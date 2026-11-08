@@ -3,7 +3,9 @@ import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
 import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
+import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
+import { walkHighlight } from '../walkHighlight'
 
 import type { WalkRow } from './walkRows'
 import type { Departure } from '../gfa/departures'
@@ -281,6 +283,269 @@ test("a gap's parts keep their causes and where the walk goes on", () => {
       { bp: 300, cause: 'missing', near: undefined },
     ],
   })
+})
+
+// The gapped cut as a walk-file cut states its gaps: A's 400 bp past its
+// first W line are node 8, attached to its departure, then 600 bp the graph
+// lacks; B's first 600 bp lie in pieces the cut did not read, then 400 bp of
+// its own, 300 of them between W lines
+function statedCut(): GraphTables {
+  const t = gappedCut()
+  const names = [...t.nodes.names, '8']
+  const stretches = [
+    {
+      name: 'A#1#a',
+      segments: [
+        { kind: 0, bp: 400, missingBp: 0, before: NaN, after: NaN, steps: [7] },
+        {
+          kind: 3,
+          bp: 600,
+          missingBp: 600,
+          before: NaN,
+          after: NaN,
+          steps: [],
+        },
+      ],
+    },
+    {
+      name: 'B#1#b',
+      segments: [
+        {
+          kind: 4,
+          bp: 600,
+          missingBp: 0,
+          before: 20_316_160,
+          after: 20_316_900,
+          steps: [],
+        },
+        {
+          kind: 3,
+          bp: 400,
+          missingBp: 300,
+          before: NaN,
+          after: NaN,
+          steps: [],
+        },
+      ],
+    },
+  ]
+  const segments = stretches.flatMap(g => g.segments)
+  const stepOffsets = [0]
+  for (const x of segments) {
+    stepOffsets.push(stepOffsets.at(-1)! + x.steps.length)
+  }
+  return {
+    ...t,
+    nodes: {
+      ...t.nodes,
+      names,
+      lengths: Int32Array.from([...t.nodes.lengths, 400]),
+      refs: Int32Array.from([...t.nodes.refs, -1]),
+      starts: Float64Array.from([...t.nodes.starts, 0]),
+      ranks: Int32Array.from([...t.nodes.ranks, 0]),
+    },
+    gaps: {
+      names: stretches.map(g => g.name),
+      walks: Int32Array.of(1, 3),
+      edges: Uint8Array.of(0, 0),
+      starts: Float64Array.of(3000, 3000),
+      ends: Float64Array.of(4000, 4000),
+      segmentOffsets: Int32Array.of(0, 2, 4),
+      segments: {
+        kinds: Uint8Array.from(segments, x => x.kind),
+        bp: Float64Array.from(segments, x => x.bp),
+        missingBp: Float64Array.from(segments, x => x.missingBp),
+        abridged: new Uint8Array(segments.length),
+        before: Float64Array.from(segments, x => x.before),
+        after: Float64Array.from(segments, x => x.after),
+        stepOffsets: Int32Array.from(stepOffsets),
+        steps: Int32Array.from(segments.flatMap(x => x.steps)),
+        reversed: new Uint8Array(1),
+      },
+    },
+  }
+}
+
+test('a gap a walk-file cut states draws its attached steps as steps and its other segments as parts, from tables and from the Graph alike', () => {
+  const region = { start: 1000, end: 6000 }
+  const gapsOf = (rows: WalkRow[]) =>
+    Object.fromEntries(
+      rows.map(r => [
+        r.label,
+        r.runs
+          .filter(run => run.gap)
+          .map(({ bp, cause, near }) => ({ bp, cause, near })),
+      ]),
+    )
+  const fromTables = rowsOf(statedCut(), region).rows
+  expect(gapsOf(fromTables)).toEqual({
+    'A#1': [{ bp: 600, cause: 'missing', near: undefined }],
+    'B#1': [
+      { bp: 400, cause: 'mixed', near: undefined },
+      { bp: 600, cause: 'unread', near: 20_316_160 },
+    ],
+  })
+  const a = fromTables.find(r => r.label === 'A#1')!
+  expect(a.runs.filter(run => !run.gap && run.bp === 400)).toHaveLength(1)
+  const fromGraph = walkRowsOf(
+    walkRowRuns(graphFromTables(statedCut()), region)!,
+  ).rows
+  expect(gapsOf(fromGraph)).toEqual(gapsOf(fromTables))
+})
+
+test("a lifted walk counts a stated gap's attached steps as its own nodes and its missing bp as missing", () => {
+  const lift = walkHighlight(graphFromTables(statedCut()), 'A#1#a')!
+  expect(lift.nodeIds.has('8+')).toBe(true)
+  expect(lift.missingBp).toBe(600)
+  expect(lift.ownBp).toBe(0)
+  expect(lift.bp).toBe(6400)
+})
+
+test("a stated gap's readout gives a mixed part's amounts and where an unread walk was last seen", () => {
+  const rows = Object.fromEntries(
+    rowsOf(statedCut(), { start: 1000, end: 6000 }).rows.map(r => [r.label, r]),
+  )
+  const reference = { bp: 7000, name: 'GRCh38#0#chr1' }
+  expect(walkRowReadout(rows['A#1']!, reference)).toContain(
+    '0.6 kb not in the graph',
+  )
+  const b = walkRowReadout(rows['B#1']!, reference)
+  expect(b).toContain('0.3 kb not in the graph')
+  expect(b).toContain('0.1 kb of its own, not read')
+  expect(b).toContain('0.6 kb not read, last seen near')
+})
+
+// GRCh38 over five 1 kb nodes; A on node 0 at 0, then the stated stretch,
+// then A again
+function statedTables(
+  segments: {
+    kind: number
+    bp: number
+    missingBp?: number
+    steps?: number[]
+  }[],
+  stretch: { start: number; end: number },
+  walks: { steps: number[]; start: number; end: number }[],
+  abridged?: { steps: number; bp: number },
+): GraphTables {
+  const all = [{ steps: [0, 1, 2, 3, 4], start: 0, end: 5000 }, ...walks]
+  const offsets = [0]
+  for (const w of all) {
+    offsets.push(offsets.at(-1)! + w.steps.length)
+  }
+  const stepOffsets = [0]
+  for (const x of segments) {
+    stepOffsets.push(stepOffsets.at(-1)! + (x.steps ?? []).length)
+  }
+  return {
+    nodes: {
+      names: ['0', '1', '2', '3', '4', '5'],
+      lengths: Int32Array.of(1000, 1000, 1000, 1000, 1000, 400),
+      refs: Int32Array.of(0, 0, 0, 0, 0, -1),
+      starts: Float64Array.of(0, 1000, 2000, 3000, 4000, 0),
+      ranks: Int32Array.of(0, 0, 0, 0, 0, 1),
+      refNames: ['chr1'],
+    },
+    links: {
+      from: new Int32Array(0),
+      to: new Int32Array(0),
+      strands: new Uint8Array(0),
+    },
+    walks: {
+      names: ['GRCh38#0#chr1', ...walks.map(() => 'A#1#a')],
+      starts: Float64Array.from(all, w => w.start),
+      ends: Float64Array.from(all, w => w.end),
+      offsets: Int32Array.from(offsets),
+      steps: Int32Array.from(all.flatMap(w => w.steps)),
+      reversed: new Uint8Array(offsets.at(-1)!),
+      trimmedBefore: new Float64Array(all.length),
+      trimmedAfter: new Float64Array(all.length),
+      ...(abridged
+        ? {
+            abridgedSteps: Float64Array.of(NaN, abridged.steps, NaN),
+            abridgedBp: Float64Array.of(NaN, abridged.bp, NaN),
+          }
+        : {}),
+    },
+    departures: departureTable(),
+    gaps: {
+      names: ['A#1#a'],
+      walks: Int32Array.of(1),
+      edges: Uint8Array.of(0),
+      starts: Float64Array.of(stretch.start),
+      ends: Float64Array.of(stretch.end),
+      segmentOffsets: Int32Array.of(0, segments.length),
+      segments: {
+        kinds: Uint8Array.from(segments, x => x.kind),
+        bp: Float64Array.from(segments, x => x.bp),
+        missingBp: Float64Array.from(segments, x => x.missingBp ?? 0),
+        abridged: new Uint8Array(segments.length),
+        before: Float64Array.from(segments, () => NaN),
+        after: Float64Array.from(segments, () => NaN),
+        stepOffsets: Int32Array.from(stepOffsets),
+        steps: Int32Array.from(segments.flatMap(x => x.steps ?? [])),
+        reversed: new Uint8Array(stepOffsets.at(-1)!),
+      },
+    },
+  }
+}
+
+test('an abridged segment stays its own gap, so trimming it at a flank keeps the unread part beside it', () => {
+  const t = statedTables(
+    [
+      { kind: 2, bp: 600 },
+      { kind: 4, bp: 400 },
+    ],
+    { start: 1000, end: 2000 },
+    [
+      { steps: [0], start: 0, end: 1000 },
+      { steps: [2, 3, 4], start: 2000, end: 5000 },
+    ],
+  )
+  for (const source of [t, graphFromTables(t)]) {
+    const row = walkRowsOf(walkRowRuns(source, { start: 2000, end: 3000 })!)
+      .rows[0]!
+    expect(row.runs.reduce((sum, run) => sum + run.bp, 0)).toBe(row.bp)
+    expect(row.runs.filter(run => run.cause === 'unread')).toMatchObject([
+      { bp: 400 },
+    ])
+  }
+})
+
+test('a lifted walk finds a stated gap after an abridged piece, which ends its abridged bp past its start', () => {
+  const t = statedTables(
+    [
+      { kind: 0, bp: 400, steps: [5] },
+      { kind: 3, bp: 600, missingBp: 600 },
+    ],
+    { start: 3000, end: 4000 },
+    [
+      { steps: [0, 2], start: 0, end: 3000 },
+      { steps: [4], start: 4000, end: 5000 },
+    ],
+    { steps: 5, bp: 3000 },
+  )
+  const lift = walkHighlight(graphFromTables(t), 'A#1#a')!
+  expect(lift.nodeIds.has('5+')).toBe(true)
+  expect(lift.missingBp).toBe(600)
+})
+
+test("a lifted walk counts a stated row end's missing bp and steps, so none of it reads as outside", () => {
+  const t = statedTables(
+    [
+      { kind: 3, bp: 600, missingBp: 600 },
+      { kind: 0, bp: 400, steps: [5] },
+    ],
+    { start: 2000, end: 3000 },
+    [{ steps: [0, 1], start: 0, end: 2000 }],
+  )
+  const lift = walkHighlight(
+    graphFromTables({ ...t, gaps: { ...t.gaps!, edges: Uint8Array.of(2) } }),
+    'A#1#a',
+  )!
+  expect(lift.nodeIds.has('5+')).toBe(true)
+  expect(lift.range).toMatchObject({ start: 0, end: 3000 })
+  expect(lift.bp + lift.missingBp + lift.ownBp).toBe(3000)
 })
 
 // H leaves the reference after node 0 and rejoins at node 6, and the writer

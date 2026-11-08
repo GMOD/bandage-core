@@ -5,6 +5,7 @@ import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { rampFraction } from './renderer/GeometryBuilder'
 import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
 
+import type { GraphGap } from './gfa/departures'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { Graph, GraphNode, GraphPath } from './types'
 import type { WalkEncoding, WalkLayer } from './walkEncoding'
@@ -120,7 +121,50 @@ function highlightOf(
   const lengthOf = (id: string) => byId.get(id)?.length ?? 0
   const bpOf = (path: GraphPath) =>
     path.nodeIds.reduce((sum, id) => sum + lengthOf(id), 0)
-  const bp = pieces.reduce((sum, piece) => sum + bpOf(piece), 0)
+  const origin = pathOrigin(name).name
+  const stated = (graph.gaps ?? []).filter(
+    g => g.edge <= 2 && pathOrigin(g.name).name === origin,
+  )
+  const stretches = new Map(stated.map(g => [`${g.start}\t${g.end}`, g]))
+  const endOf = (piece: GraphPath) =>
+    (piece.start ?? 0) + (piece.abridged?.bp ?? bpOf(piece))
+  const drawnBp = (gap: GraphGap) =>
+    gap.segments.reduce(
+      (sum, x) =>
+        sum +
+        (x.kind === 'steps'
+          ? x.nodes.reduce((total, id) => total + lengthOf(id), 0)
+          : x.bp),
+      0,
+    )
+  const between = (p: number) => {
+    const a = pieces[p - 1]
+    const b = pieces[p]
+    const gap =
+      a?.start !== undefined && b?.start !== undefined
+        ? stretches.get(`${endOf(a)}\t${b.start}`)
+        : undefined
+    return gap && drawnBp(gap) === gap.end - gap.start ? gap : undefined
+  }
+  const rowEnds = stated.filter(
+    g => g.edge !== 0 && drawnBp(g) === g.end - g.start,
+  )
+  const attached = [...pieces.map((_, p) => between(p)), ...rowEnds].flatMap(
+    gap => {
+      let at = gap?.start ?? 0
+      return (gap?.segments ?? []).flatMap(x => {
+        const start = at
+        at += x.bp
+        return x.kind === 'steps' && x.nodes.length > 0
+          ? [{ name: first.name, nodeIds: x.nodes, start }]
+          : []
+      })
+    },
+  )
+  const walked = [...pieces, ...attached].sort(
+    (a, b) => (a.start ?? 0) - (b.start ?? 0),
+  )
+  const bp = walked.reduce((sum, piece) => sum + bpOf(piece), 0)
   // from the first piece's start to the furthest piece's end, gaps included
   const extentOf = (ps: GraphPath[]) => {
     const start = Math.min(...ps.map(p => p.start ?? Infinity))
@@ -128,7 +172,7 @@ function highlightOf(
       ? { start, end: Math.max(...ps.map(p => (p.start ?? 0) + bpOf(p))) }
       : undefined
   }
-  const extent = extentOf(pieces)
+  const extent = extentOf(walked)
   const range = extent && {
     contig: first.contig ?? panSNContig(pathOrigin(name).name),
     ...extent,
@@ -143,7 +187,7 @@ function highlightOf(
   const passes = new Map<string, number>()
   let mostPasses = 1
   let before = 0
-  for (const piece of pieces) {
+  for (const piece of walked) {
     if (range) {
       before = Math.max(before, (piece.start ?? 0) - range.start)
     }
@@ -176,9 +220,25 @@ function highlightOf(
   const departures = departuresOf(graph, name)
   let missingBp = 0
   let ownBp = 0
+  const countOwn = (gap: GraphGap) => {
+    for (const x of gap.segments) {
+      if (x.kind === 'own') {
+        const missing = Math.min(x.missingBp, x.bp)
+        missingBp += missing
+        ownBp += x.bp - missing
+      }
+    }
+  }
   let end: number | undefined
   pieces.forEach((piece, p) => {
-    if (end !== undefined && piece.start !== undefined && piece.start > end) {
+    const gap = between(p)
+    if (gap) {
+      countOwn(gap)
+    } else if (
+      end !== undefined &&
+      piece.start !== undefined &&
+      piece.start > end
+    ) {
       for (const part of gapParts(
         end,
         piece.start,
@@ -191,6 +251,7 @@ function highlightOf(
     }
     end = piece.start === undefined ? undefined : piece.start + bpOf(piece)
   })
+  rowEnds.forEach(countOwn)
   const reference = isReference(graph, name)
   // measured as `range` is, so a walk identical to a cut reference reads equal
   const referenceSpan = () => {
@@ -215,8 +276,8 @@ function highlightOf(
     passProgress,
     passes,
     mostPasses,
-    route: pieces.map(piece => piece.nodeIds),
-    steps: pieces.reduce((sum, piece) => sum + piece.nodeIds.length, 0),
+    route: walked.map(piece => piece.nodeIds),
+    steps: walked.reduce((sum, piece) => sum + piece.nodeIds.length, 0),
     bp,
     referenceBp: referenceSpan(),
     missingBp,

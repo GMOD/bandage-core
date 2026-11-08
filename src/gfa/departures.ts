@@ -1,4 +1,4 @@
-import type { DepartureTable } from './graphTables'
+import type { DepartureTable, GapTable } from './graphTables'
 
 // One departure from a walk-file cut's tables, as @jbrowse/graph-walks'
 // WalkDeparture states it less its own steps: where a haplotype's consecutive
@@ -146,13 +146,21 @@ export const PLACEMENT_CHOICE_TEXT = 'placement choice'
 
 // why a walk-row gap is empty (layout/walkRows.ts WalkRun)
 export type GapCause =
-  'missing' | 'elsewhere' | 'own' | 'abridged' | 'departure'
+  | 'missing'
+  | 'elsewhere'
+  | 'own'
+  | 'mixed'
+  | 'unread'
+  | 'abridged'
+  | 'departure'
 
 // What a gap's cause says of its bp, and the key's words for it
 export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
   missing: 'not in the graph',
   elsewhere: 'on nodes filed elsewhere',
   own: 'of its own, not read',
+  mixed: 'of its own, part not read and part not in the graph',
+  unread: 'not read',
   abridged: 'abridged: steps not loaded',
   // a row of departures alone: the haplotype has no step on the reference
   // across the window, which says nothing of what it carries instead
@@ -165,8 +173,90 @@ export const OUTSIDE_TEXT = 'outside the extracted subgraph'
 export interface GapPart {
   bp: number
   cause?: GapCause
-  // for an `elsewhere` part, the reference position the walk goes on near
+  // for an `elsewhere` or `unread` part, the reference position the walk
+  // goes on, or was last seen, near
   near?: number
+  missingBp?: number
+}
+
+export type GapKind = 'steps' | 'read' | 'abridged' | 'own' | 'unread'
+
+export const GAP_KINDS: GapKind[] = [
+  'steps',
+  'read',
+  'abridged',
+  'own',
+  'unread',
+]
+
+export interface GapSegment {
+  kind: GapKind
+  bp: number
+  missingBp: number
+  abridged: boolean
+  before: number
+  after: number
+  nodes: number[]
+}
+
+export interface GraphGap {
+  name: string
+  edge: number
+  start: number
+  end: number
+  segments: (Omit<GapSegment, 'nodes'> & { nodes: string[] })[]
+}
+
+/**
+ * The gap part a segment the cut did not keep steps of draws as: what it
+ * read and kept out, outside the extracted subgraph; an abridged run; a
+ * record's own sequence it did not read, not in the graph where all of it
+ * lies between W lines, else one part stating both amounts in no order; and
+ * pieces it did not read, near where the walk was last seen
+ */
+export function segmentPart(segment: GapSegment): GapPart {
+  const { kind, bp, missingBp, before } = segment
+  return kind === 'abridged'
+    ? { bp, cause: 'abridged' }
+    : kind === 'own'
+      ? missingBp >= bp
+        ? { bp, cause: 'missing' }
+        : missingBp > 0
+          ? { bp, cause: 'mixed', missingBp }
+          : { bp, cause: 'own' }
+      : kind === 'unread'
+        ? {
+            bp,
+            cause: 'unread',
+            ...(Number.isNaN(before) ? {} : { near: before }),
+          }
+        : { bp }
+}
+
+/** Stretch `g` of a gap table's segments, each step through `node` */
+export function stretchSegments<T>(
+  t: GapTable,
+  g: number,
+  node: (index: number) => T,
+) {
+  const s = t.segments
+  const out = []
+  for (let k = t.segmentOffsets[g]!; k < t.segmentOffsets[g + 1]!; k++) {
+    const nodes = []
+    for (let j = s.stepOffsets[k]!; j < s.stepOffsets[k + 1]!; j++) {
+      nodes.push(node(s.steps[j]!))
+    }
+    out.push({
+      kind: GAP_KINDS[s.kinds[k]!]!,
+      bp: s.bp[k]!,
+      missingBp: s.missingBp[k]!,
+      abridged: s.abridged[k] === 1,
+      before: s.before[k]!,
+      after: s.after[k]!,
+      nodes,
+    })
+  }
+  return out
 }
 
 /**
