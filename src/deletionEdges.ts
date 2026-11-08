@@ -48,7 +48,7 @@ const MIN_DELETION_BP = 1
 
 // What a legend calls the dashed links, in the words of the reference they skip
 export const deletionKey = (reference?: string) =>
-  `skips ${reference ?? 'the reference'} sequence (a deletion)`
+  `skips ${reference ?? 'the reference'} sequence`
 
 export interface DeletionEdge {
   // index into graph.edges, which is what the renderer keys its curve ranges by

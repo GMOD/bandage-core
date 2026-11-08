@@ -255,9 +255,11 @@ test('a figure keys the dashed links it draws as skipped reference sequence', ()
   )
   const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
   expect(figureSvg(skipped, skippedLayout, { width: 600 })).toMatch(
-    /skips \S.* sequence \(a deletion\)/,
+    /skips .+? sequence/,
   )
-  expect(figureSvg(graph, layout, { width: 600 })).not.toContain('(a deletion)')
+  expect(figureSvg(graph, layout, { width: 600 })).not.toMatch(
+    /skips .+? sequence/,
+  )
 })
 
 test('a figure split into panels keys the dashed links once, above the grid, only when a panel draws one', () => {
@@ -275,8 +277,8 @@ test('a figure split into panels keys the dashed links once, above the grid, onl
     walks: [{ walk: 'ref#0#chr' }, { walk: 'del#1#chr' }],
     facet: 'sample',
   })
-  expect(svg.match(/\(a deletion\)/g)).toHaveLength(1)
-  const keyAt = svg.indexOf('(a deletion)')
+  expect(svg.match(/skips .+? sequence/g)).toHaveLength(1)
+  const keyAt = svg.search(/skips .+? sequence/)
   expect(keyAt).toBeLessThan(svg.indexOf('<svg x="'))
   expect(
     Math.min(
@@ -290,8 +292,8 @@ test('a figure split into panels keys the dashed links once, above the grid, onl
     facet: 'walk',
   })
   expect(allTake).toContain('<svg x="')
-  expect(allTake).not.toContain('(a deletion)')
+  expect(allTake).not.toMatch(/skips .+? sequence/)
   expect(
     figureSvg(graph, layout, { width: 600, walks, facet: 'sample' }),
-  ).not.toContain('(a deletion)')
+  ).not.toMatch(/skips .+? sequence/)
 })

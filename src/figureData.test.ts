@@ -263,7 +263,7 @@ test('the dashed key is there only when a drawn deletion stays dashed', async ()
   const keyOf = async (walks?: string[]) =>
     (await gfaFigureData(gfa, 'skip', { engine: 'stress', walks })).meta
       .deletionKey
-  expect(await keyOf()).toMatch(/\(a deletion\)/)
-  expect(await keyOf(['ref#0#chr'])).toMatch(/\(a deletion\)/)
+  expect(await keyOf()).toMatch(/^skips .+? sequence$/)
+  expect(await keyOf(['ref#0#chr'])).toMatch(/^skips .+? sequence$/)
   expect(await keyOf(['a#1#c'])).toBeNull()
 })
