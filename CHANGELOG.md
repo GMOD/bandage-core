@@ -1,3 +1,9 @@
+## [13.1.1](https://github.com/GMOD/bandage-core/compare/v13.1.0...v13.1.1) (2026-11-08)
+
+### Other Changes
+
+- Key dashed links as the reference sequence they skip, without calling them deletions ([4261645](https://github.com/GMOD/bandage-core/commit/4261645522ac5acadfe731a1dbf1d8e0cc07fe5e))
+
 ## [13.1.0](https://github.com/GMOD/bandage-core/compare/v13.0.1...v13.1.0) (2026-11-08)
 
 ### Other Changes
