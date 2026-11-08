@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@jbrowse/graph-walks": "file:/tmp/claude-1001/-home-cdiesh-src-gfa-to-tabix/983bc272-31e0-41b6-9b35-db12eecbf447/scratchpad/pack/jbrowse-graph-walks-6.0.0.tgz",
+    "@jbrowse/graph-walks": "file:/home/cdiesh/src/vendor/walks6-pack/jbrowse-graph-walks-6.0.0.tgz",
     "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "eslint": "^10.11.0",
