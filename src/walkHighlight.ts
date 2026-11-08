@@ -187,17 +187,25 @@ function highlightOf(
   const passes = new Map<string, number>()
   let mostPasses = 1
   let before = 0
+  const steppedOn = new Set<GraphPath>(attached)
+  let previous: GraphPath | undefined
   for (const piece of walked) {
     if (range) {
       before = Math.max(before, (piece.start ?? 0) - range.start)
     }
+    const joins =
+      previous !== undefined &&
+      (steppedOn.has(previous) || steppedOn.has(piece)) &&
+      previous.start !== undefined &&
+      endOf(previous) === piece.start
+    const last = previous?.nodeIds.at(-1)
     piece.nodeIds.forEach((id, i) => {
       nodeIds.add(id)
       const passed = (passes.get(id) ?? 0) + 1
       passes.set(id, passed)
       mostPasses = Math.max(mostPasses, passed)
-      if (i > 0) {
-        const a = piece.nodeIds[i - 1]!
+      const a = i > 0 ? piece.nodeIds[i - 1] : joins ? last : undefined
+      if (a !== undefined) {
         const index = edgeAt.get(`${a}>${id}`) ?? edgeAt.get(`${id}>${a}`)
         if (index !== undefined) {
           edgeIndexes.add(index)
@@ -216,6 +224,7 @@ function highlightOf(
       }
       before += length
     })
+    previous = piece
   }
   const departures = departuresOf(graph, name)
   let missingBp = 0

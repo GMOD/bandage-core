@@ -548,6 +548,62 @@ test("a lifted walk counts a stated row end's missing bp and steps, so none of i
   expect(lift.bp + lift.missingBp + lift.ownBp).toBe(3000)
 })
 
+test('a lifted walk takes the link into attached steps that follow its piece on the contig, and not one across sequence it did not read', () => {
+  const t = statedTables(
+    [
+      { kind: 0, bp: 400, steps: [5] },
+      { kind: 3, bp: 600, missingBp: 600 },
+    ],
+    { start: 2000, end: 3000 },
+    [
+      { steps: [0, 1], start: 0, end: 2000 },
+      { steps: [3, 4], start: 3000, end: 5000 },
+    ],
+  )
+  const graph = graphFromTables({
+    ...t,
+    links: {
+      from: Int32Array.of(1, 5),
+      to: Int32Array.of(5, 3),
+      strands: new Uint8Array(2),
+    },
+  })
+  const lift = walkHighlight(graph, 'A#1#a')!
+  const linked = [...lift.edgeIndexes].map(
+    i => `${graph.edges[i]!.from}>${graph.edges[i]!.to}`,
+  )
+  expect(linked).toContain('1+>5+')
+  expect(linked).not.toContain('5+>3+')
+})
+
+test('two pieces that abut still draw a 0 bp step the cut attached between them', () => {
+  const t = statedTables(
+    [{ kind: 0, bp: 0, steps: [5] }],
+    { start: 1000, end: 1000 },
+    [
+      { steps: [0], start: 0, end: 1000 },
+      { steps: [1, 2, 3, 4], start: 1000, end: 5000 },
+    ],
+  )
+  const zero = {
+    ...t,
+    nodes: {
+      ...t.nodes,
+      lengths: Int32Array.of(1000, 1000, 1000, 1000, 1000, 0),
+    },
+  }
+  const runs = walkRowRuns(zero, { start: 1000, end: 2000 }, { visits: true })!
+  const v = runs.visits!
+  const row = Array.from({ length: v.offsets.length - 1 }, (_, i) => i).find(
+    i => runs.rows[i]!.label === 'A#1',
+  )!
+  const visited = []
+  for (let k = v.offsets[row]!; k < v.offsets[row + 1]!; k++) {
+    visited.push(v.names[v.node[k]!])
+  }
+  expect(visited).toContain('5+')
+})
+
 // H leaves the reference after node 0 and rejoins at node 6, and the writer
 // abridged the 140 k steps and 9 kb between
 const abridged: GraphTables = {

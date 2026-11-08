@@ -561,8 +561,12 @@ export function walkRowRuns(
       owed -= covered
       const gap = jump - covered
       const segments =
-        gap > 0 && covered === 0
-          ? gapsBetween(nameOf(previous!), end!, start!)
+        gap >= 0 &&
+        covered === 0 &&
+        previous !== undefined &&
+        start !== undefined &&
+        end !== undefined
+          ? gapsBetween(nameOf(previous), end, start)
           : undefined
       const segmentsBp = segments?.reduce(
         (sum, x) =>
