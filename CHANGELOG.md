@@ -1,3 +1,9 @@
+## [13.2.0](https://github.com/GMOD/bandage-core/compare/v13.1.1...v13.2.0) (2026-11-08)
+
+### Other Changes
+
+- Draw a walk-file cut's stated gaps: attached steps as steps, the rest as what the cut says ([29043e8](https://github.com/GMOD/bandage-core/commit/29043e8728bc6be54eb2ec1f5ba1d3e6a0ce63c3))
+
 ## [13.1.1](https://github.com/GMOD/bandage-core/compare/v13.1.0...v13.1.1) (2026-11-08)
 
 ### Other Changes
