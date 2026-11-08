@@ -1,3 +1,11 @@
+## [13.3.0](https://github.com/GMOD/bandage-core/compare/v13.2.0...v13.3.0) (2026-11-08)
+
+### Other Changes
+
+- Draw a 0 bp step between abutting pieces, and light the link from a piece into its attached steps ([03ef9a9](https://github.com/GMOD/bandage-core/commit/03ef9a992716078795675f5829d2fe1eef2b0c24))
+- Draw a partial row's stated ends, state its departures outside the row, and lift every stretch a walk-file cut states ([72315a4](https://github.com/GMOD/bandage-core/commit/72315a410d0e5c831354b6b73c59e7f474cdbc83))
+- Develop against graph-walks 6.2.0 ([882800c](https://github.com/GMOD/bandage-core/commit/882800c498124801b3374f21d19d610981f744f4))
+
 ## [13.2.0](https://github.com/GMOD/bandage-core/compare/v13.1.1...v13.2.0) (2026-11-08)
 
 ### Other Changes
