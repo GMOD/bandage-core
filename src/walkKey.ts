@@ -36,10 +36,15 @@ export function walkKey(
         : undefined
   // what the walk spans on its contig, which its pieces may not all show
   const spanned = walk.range ? walk.range.end - walk.range.start : walk.bp
-  const outside = spanned - walk.bp - walk.missingBp - walk.ownBp
+  const unstated = spanned - walk.bp - walk.missingBp - walk.ownBp
+  const outside = walk.readBp ?? unstated
   const gaps = [
     [walk.missingBp, GAP_CAUSE_TEXT.missing],
     [walk.ownBp, GAP_CAUSE_TEXT.own],
+    [
+      walk.readBp === undefined ? 0 : unstated - walk.readBp,
+      GAP_CAUSE_TEXT.unread,
+    ],
     [outside, OUTSIDE_TEXT],
   ] as const
   return {

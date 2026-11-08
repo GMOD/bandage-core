@@ -67,7 +67,7 @@ export interface WalkAxis {
 export interface WalkStop {
   contigEnds: boolean
   shortBp: number
-  goesOn?: { departure: Departure; near: number }
+  goesOn?: { departure: Departure; near: number; drawn?: true }
 }
 
 // A step of a row's bar through a graph node: its bp offset from the bar's
@@ -109,6 +109,9 @@ export interface WalkRow {
   placementChoice?: true
   // set on a row with no step in the cut, drawn from its departures alone
   stepless?: true
+  // the walk's departures a walk-file cut states outside the row, and the bp
+  // of their own steps it holds
+  outsideRow?: { count: number; stepsBp: number }
   runs: WalkRun[]
   // walkRows fills it only when asked, since an object per step costs a big
   // cut far more than its runs

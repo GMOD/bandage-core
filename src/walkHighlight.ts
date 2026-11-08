@@ -38,6 +38,10 @@ export interface WalkHighlight {
   // (gfa/departures.ts gapParts)
   missingBp: number
   ownBp: number
+  // where a walk-file cut states its stretches: bp it read and kept out, and
+  // bp of the contig it did not read
+  readBp?: number
+  unreadBp?: number
 }
 
 export interface LiftedWalk extends WalkHighlight {
@@ -74,6 +78,16 @@ export function fadedKey(graph: Graph, lift: WalkLift, walks: string) {
   for (const path of graph.paths ?? []) {
     for (const id of path.nodeIds) {
       onPaths.add(id)
+    }
+  }
+  const lifted = new Set([...lift.names].map(n => pathOrigin(n).name))
+  for (const gap of graph.gaps ?? []) {
+    if (!lifted.has(pathOrigin(gap.name).name)) {
+      for (const segment of gap.segments) {
+        for (const id of segment.nodes) {
+          onPaths.add(id)
+        }
+      }
     }
   }
   return graph.nodes.every(n => lift.nodeIds.has(n.id) || onPaths.has(n.id))
@@ -115,15 +129,12 @@ function highlightOf(
 ): WalkHighlight | undefined {
   const pieces = piecesOf(graph, name)
   const first = pieces[0]
-  if (!first) {
-    return undefined
-  }
   const lengthOf = (id: string) => byId.get(id)?.length ?? 0
   const bpOf = (path: GraphPath) =>
     path.nodeIds.reduce((sum, id) => sum + lengthOf(id), 0)
   const origin = pathOrigin(name).name
   const stated = (graph.gaps ?? []).filter(
-    g => g.edge <= 2 && pathOrigin(g.name).name === origin,
+    g => pathOrigin(g.name).name === origin,
   )
   const stretches = new Map(stated.map(g => [`${g.start}\t${g.end}`, g]))
   const endOf = (piece: GraphPath) =>
@@ -156,13 +167,13 @@ function highlightOf(
         const start = at
         at += x.bp
         return x.kind === 'steps' && x.nodes.length > 0
-          ? [{ name: first.name, nodeIds: x.nodes, start }]
+          ? [{ name, nodeIds: x.nodes, start }]
           : []
       })
     },
   )
   const walked = [...pieces, ...attached].sort(
-    (a, b) => (a.start ?? 0) - (b.start ?? 0),
+    (a, b) => (a.start ?? 0) - (b.start ?? 0) || endOf(a) - endOf(b),
   )
   const bp = walked.reduce((sum, piece) => sum + bpOf(piece), 0)
   // from the first piece's start to the furthest piece's end, gaps included
@@ -172,9 +183,19 @@ function highlightOf(
       ? { start, end: Math.max(...ps.map(p => (p.start ?? 0) + bpOf(p))) }
       : undefined
   }
-  const extent = extentOf(walked)
+  if (walked.length === 0) {
+    return undefined
+  }
+  const counted = [...pieces.map((_, p) => between(p)), ...rowEnds].flatMap(
+    gap => (gap ? [gap] : []),
+  )
+  const walkedExtent = extentOf(walked)
+  const extent = walkedExtent && {
+    start: Math.min(walkedExtent.start, ...counted.map(g => g.start)),
+    end: Math.max(walkedExtent.end, ...counted.map(g => g.end)),
+  }
   const range = extent && {
-    contig: first.contig ?? panSNContig(pathOrigin(name).name),
+    contig: first?.contig ?? panSNContig(pathOrigin(name).name),
     ...extent,
   }
   // progress runs over the contig where the records place the pieces, so the
@@ -229,13 +250,15 @@ function highlightOf(
   const departures = departuresOf(graph, name)
   let missingBp = 0
   let ownBp = 0
+  let readBp = 0
+  let unreadBp = 0
   const countOwn = (gap: GraphGap) => {
     for (const x of gap.segments) {
-      if (x.kind === 'own') {
-        const missing = Math.min(x.missingBp, x.bp)
-        missingBp += missing
-        ownBp += x.bp - missing
-      }
+      const missing = x.kind === 'own' ? Math.min(x.missingBp, x.bp) : 0
+      missingBp += missing
+      ownBp += x.kind === 'own' ? x.bp - missing : 0
+      readBp += x.kind === 'read' ? x.bp : 0
+      unreadBp += x.kind === 'unread' ? x.bp : 0
     }
   }
   let end: number | undefined
@@ -256,6 +279,8 @@ function highlightOf(
       )) {
         missingBp += part.cause === 'missing' ? part.bp : 0
         ownBp += part.cause === 'own' ? part.bp : 0
+        readBp += part.cause === undefined ? part.bp : 0
+        unreadBp += part.cause === 'elsewhere' ? part.bp : 0
       }
     }
     end = piece.start === undefined ? undefined : piece.start + bpOf(piece)
@@ -291,6 +316,7 @@ function highlightOf(
     referenceBp: referenceSpan(),
     missingBp,
     ownBp,
+    ...(stated.length > 0 ? { readBp, unreadBp } : {}),
   }
 }
 

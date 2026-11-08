@@ -5,7 +5,7 @@ import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
-import { walkHighlight } from '../walkHighlight'
+import { fadedKey, walkHighlight } from '../walkHighlight'
 
 import type { WalkRow } from './walkRows'
 import type { Departure } from '../gfa/departures'
@@ -602,6 +602,180 @@ test('two pieces that abut still draw a 0 bp step the cut attached between them'
     visited.push(v.names[v.node[k]!])
   }
   expect(visited).toContain('5+')
+})
+
+// A stops on node 2 inside the window and goes on by a departure there: its
+// row's end states 400 bp of attached steps on node 5, then 100 bp read
+function rowEndCut(edge: number, walk = { steps: [0, 1, 2], end: 3000 }) {
+  const t = statedTables(
+    [
+      { kind: 0, bp: 400, steps: [5] },
+      { kind: 1, bp: 100 },
+    ],
+    { start: walk.end, end: walk.end + 500 },
+    [{ steps: walk.steps, start: 0, end: walk.end }],
+  )
+  return {
+    ...t,
+    walks: { ...t.walks, trimmedAfter: Float64Array.of(0, 500) },
+    departures: departureTable([
+      departure('A#1#a', {
+        hapStart: walk.end,
+        ownBp: 500,
+        leavePos: walk.end,
+        rejoinPos: 9000,
+      }),
+    ]),
+    gaps: {
+      ...t.gaps!,
+      edges: Uint8Array.of(edge),
+      walks: Int32Array.of(edge === 3 ? -1 : 1),
+    },
+  }
+}
+
+test("a partial row draws its stated row end past its last fragment, and its readout leaves the departure's own bp to it", () => {
+  const region = { start: 2000, end: 3000 }
+  const row = rowsOf(rowEndCut(2), region).rows[0]!
+  expect(row.complete).toBe(false)
+  expect(row.runs.slice(-2)).toMatchObject([
+    { bp: 400, onReference: false },
+    { bp: 100, gap: true },
+  ])
+  expect(row.stop?.goesOn).toMatchObject({ near: 9000, drawn: true })
+  expect(
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' }),
+  ).not.toContain('of its own')
+})
+
+test('a complete row draws the same bar with or without a stated row end past its flank', () => {
+  const region = { start: 2000, end: 3000 }
+  const t = rowEndCut(2, { steps: [0, 1, 2, 3, 4], end: 5000 })
+  expect(rowsOf(t, region).rows[0]!.runs).toEqual(
+    rowsOf({ ...t, gaps: undefined }, region).rows[0]!.runs,
+  )
+})
+
+test('a row states its departures outside it in the readout, and draws none of them', () => {
+  const region = { start: 2000, end: 3000 }
+  const t = rowEndCut(3, { steps: [0, 1, 2, 3, 4], end: 5000 })
+  const row = rowsOf(t, region).rows[0]!
+  expect(row.outsideRow).toEqual({ count: 1, stepsBp: 400 })
+  expect(walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' })).toContain(
+    '1 departure outside the row, 0.4 kb of its own in the graph',
+  )
+  expect(row.runs).toEqual(
+    rowsOf({ ...t, gaps: undefined }, region).rows[0]!.runs,
+  )
+})
+
+test("a lifted walk takes a departure's attached steps outside its row at their place on the contig", () => {
+  const t = rowEndCut(3, { steps: [0, 1], end: 2000 })
+  const far = {
+    ...t,
+    gaps: {
+      ...t.gaps,
+      starts: Float64Array.of(10_000),
+      ends: Float64Array.of(10_500),
+    },
+  }
+  const lift = walkHighlight(graphFromTables(far), 'A#1#a')!
+  expect(lift.nodeIds.has('5+')).toBe(true)
+  expect(lift.range).toMatchObject({ start: 0, end: 10_500 })
+  expect(lift.progress.get('5+')).toBeCloseTo(10_200 / 10_500)
+})
+
+test('a walk with no fragment lifts from its stated departures, and another walk’s attached steps are not faded as off every walk', () => {
+  const t = rowEndCut(3, { steps: [0, 1], end: 2000 })
+  const lone = {
+    ...t,
+    walks: {
+      ...t.walks,
+      names: ['GRCh38#0#chr1'],
+      starts: t.walks.starts.subarray(0, 1),
+      ends: t.walks.ends.subarray(0, 1),
+      offsets: t.walks.offsets.subarray(0, 2),
+      trimmedBefore: t.walks.trimmedBefore!.subarray(0, 1),
+      trimmedAfter: t.walks.trimmedAfter.subarray(0, 1),
+    },
+  }
+  const graph = graphFromTables(lone)
+  const lift = walkHighlight(graph, 'A#1#a')!
+  expect([...lift.nodeIds]).toEqual(['5+'])
+  const reference = walkHighlight(graph, 'GRCh38#0#chr1')!
+  expect(
+    fadedKey(
+      graph,
+      {
+        walks: [],
+        nodeIds: reference.nodeIds,
+        edgeIndexes: reference.edgeIndexes,
+        names: new Set(['GRCh38#0#chr1']),
+      },
+      'GRCh38',
+    ),
+  ).toBe('only in other haplotypes')
+})
+
+test('a complete row with no flanks keeps its bar to its fragments, whatever its stated ends', () => {
+  const t = rowEndCut(2, { steps: [0, 1, 2, 3, 4], end: 5000 })
+  const whole = { start: 0, end: 5000 }
+  const row = rowsOf(t, whole).rows[0]!
+  const plain = rowsOf({ ...t, gaps: undefined }, whole).rows[0]!
+  expect(row.complete).toBe(true)
+  expect(row.runs).toEqual(plain.runs)
+  expect(row.axis).toEqual(plain.axis)
+})
+
+test('a stepless row does not count its own departures as outside it', () => {
+  const t = rowEndCut(3, { steps: [0, 1], end: 2000 })
+  const lone = {
+    ...t,
+    walks: {
+      ...t.walks,
+      names: ['GRCh38#0#chr1'],
+      starts: t.walks.starts.subarray(0, 1),
+      ends: t.walks.ends.subarray(0, 1),
+      offsets: t.walks.offsets.subarray(0, 2),
+      trimmedBefore: t.walks.trimmedBefore!.subarray(0, 1),
+      trimmedAfter: t.walks.trimmedAfter.subarray(0, 1),
+    },
+  }
+  const row = rowsOf(lone, { start: 2000, end: 3000 }).rows[0]!
+  expect(row.stepless).toBe(true)
+  expect(row.outsideRow).toBeUndefined()
+  expect(
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' }),
+  ).not.toContain('outside the row')
+})
+
+test('a lifted walk takes the links through a 0 bp step between two abutting pieces', () => {
+  const t = statedTables(
+    [{ kind: 0, bp: 0, steps: [5] }],
+    { start: 1000, end: 1000 },
+    [
+      { steps: [0], start: 0, end: 1000 },
+      { steps: [1, 2, 3, 4], start: 1000, end: 5000 },
+    ],
+  )
+  const graph = graphFromTables({
+    ...t,
+    nodes: {
+      ...t.nodes,
+      lengths: Int32Array.of(1000, 1000, 1000, 1000, 1000, 0),
+    },
+    links: {
+      from: Int32Array.of(0, 5),
+      to: Int32Array.of(5, 1),
+      strands: new Uint8Array(2),
+    },
+  })
+  const lift = walkHighlight(graph, 'A#1#a')!
+  expect(
+    [...lift.edgeIndexes].map(
+      i => `${graph.edges[i]!.from}>${graph.edges[i]!.to}`,
+    ),
+  ).toEqual(expect.arrayContaining(['0+>5+', '5+>1+']))
 })
 
 // H leaves the reference after node 0 and rejoins at node 6, and the writer

@@ -177,6 +177,7 @@ export function walkRowReadout(
     | 'departures'
     | 'placementChoice'
     | 'stepless'
+    | 'outsideRow'
   > & {
     runs?: WalkRun[]
   },
@@ -188,10 +189,13 @@ export function walkRowReadout(
   if (!reference) {
     return `${kb(bp)}${units(bp, unit)}`
   }
+  const beyond = row.outsideRow
+    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${kb(row.outsideRow.stepsBp)} of its own in the graph` : ''}`
+    : ''
   if (row.stepless) {
-    return steplessText(row.departures ?? [], reference.sample)
+    return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
   }
-  const outside = `${gapsText(gapBp, row.runs, row.abridgedSteps ?? 0, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}`
+  const outside = `${gapsText(gapBp, row.runs, row.abridgedSteps ?? 0, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
@@ -211,7 +215,7 @@ export function walkRowReadout(
     : stop.contigEnds
       ? `contig ends inside the ${region}`
       : stop.goesOn
-        ? `goes on near ${near(reference.name, stop.goesOn.near)} · ${roughBp(stop.goesOn.departure.ownBp)} of its own`
+        ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${roughBp(stop.goesOn.departure.ownBp)} of its own`}`
         : 'does not rejoin the reference within the extracted subgraph'
   const bound = bp === 0 ? '' : `≥ ${kb(bp)}${units(bp, unit)} · `
   return `${bound}${why}${outside}${called}`

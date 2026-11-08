@@ -25,7 +25,7 @@ import type {
   GapPart,
   GapSegment,
 } from '../gfa/departures'
-import type { DepartureTable, GapTable, GraphTables } from '../gfa/graphTables'
+import type { DepartureTable, GraphTables } from '../gfa/graphTables'
 import type { Graph, GraphPath } from '../types'
 
 const RUN_ON_REFERENCE = 1
@@ -100,15 +100,53 @@ interface Pieces {
   // a node's rank 0 position on the reference, NaN off it
   stableStart: (node: number) => number
   departures: DepartureTable | undefined
-  gapsBetween: (
-    name: string,
-    start: number,
-    end: number,
-  ) => GapSegment[] | undefined
+  stretches: Stretches
 }
 
 const stretchKey = (name: string, start: number, end: number) =>
   `${pathOrigin(name).name}\t${start}\t${end}`
+
+interface Stretch {
+  name: string
+  edge: number
+  start: number
+  end: number
+  segments: GapSegment[]
+}
+
+// The stretches a walk-file cut states: between two of a walk's pieces by
+// where they lie, past its first or last by edge, and its departures outside
+// the row as a count and the bp of their attached steps
+function stretchIndex(all: Stretch[]) {
+  const between = new Map<string, GapSegment[]>()
+  const ends = new Map<string, Stretch>()
+  const outside = new Map<string, { count: number; stepsBp: number }>()
+  for (const x of all) {
+    const name = pathOrigin(x.name).name
+    if (x.edge === 0) {
+      between.set(stretchKey(name, x.start, x.end), x.segments)
+    } else if (x.edge === 3) {
+      const o = outside.get(name) ?? { count: 0, stepsBp: 0 }
+      o.count++
+      o.stepsBp += x.segments.reduce(
+        (sum, y) => sum + (y.kind === 'steps' ? y.bp : 0),
+        0,
+      )
+      outside.set(name, o)
+    } else {
+      ends.set(`${name}\t${x.edge}`, x)
+    }
+  }
+  return {
+    between: (name: string, start: number, end: number) =>
+      between.get(stretchKey(name, start, end)),
+    rowEnd: (name: string, edge: 1 | 2) =>
+      ends.get(`${pathOrigin(name).name}\t${edge}`),
+    outside: (name: string) => outside.get(pathOrigin(name).name),
+  }
+}
+
+type Stretches = ReturnType<typeof stretchIndex>
 
 // The reference walk's name, stripped of the range suffix odgi leaves on a P
 // record's name: `referencePath`, else the walk a rank 0 segment's tag names,
@@ -180,18 +218,6 @@ function graphPieces(graph: Graph): Pieces {
     }
     to[p] = steps.length
   })
-  const between = new Map<string, GapSegment[]>()
-  for (const gap of graph.gaps ?? []) {
-    if (gap.edge === 0) {
-      between.set(
-        stretchKey(gap.name, gap.start, gap.end),
-        gap.segments.map(segment => ({
-          ...segment,
-          nodes: segment.nodes.map(indexOf),
-        })),
-      )
-    }
-  }
   return {
     heads,
     from,
@@ -202,8 +228,15 @@ function graphPieces(graph: Graph): Pieces {
     reference,
     stableStart: node => stable.get(node) ?? Number.NaN,
     departures: graph.departures,
-    gapsBetween: (name, start, end) =>
-      between.get(stretchKey(name, start, end)),
+    stretches: stretchIndex(
+      (graph.gaps ?? []).map(gap => ({
+        ...gap,
+        segments: gap.segments.map(segment => ({
+          ...segment,
+          nodes: segment.nodes.map(indexOf),
+        })),
+      })),
+    ),
   }
 }
 
@@ -213,7 +246,7 @@ function tablePieces(
   referencePath: string | undefined,
   visits: boolean | undefined,
 ): Pieces {
-  const { nodes: n, walks: w } = tables
+  const { nodes: n, walks: w, gaps } = tables
   const kept: number[] = []
   for (let p = 0; p < w.names.length; p++) {
     if (w.offsets[p + 1]! > w.offsets[p]!) {
@@ -250,22 +283,18 @@ function tablePieces(
         ? n.starts[node]!
         : Number.NaN,
     departures: tables.departures,
-    gapsBetween: tableGaps(tables.gaps),
+    stretches: stretchIndex(
+      gaps
+        ? gaps.names.map((name, g) => ({
+            name,
+            edge: gaps.edges[g]!,
+            start: gaps.starts[g]!,
+            end: gaps.ends[g]!,
+            segments: stretchSegments(gaps, g, i => i),
+          }))
+        : [],
+    ),
   }
-}
-
-function tableGaps(t: GapTable | undefined) {
-  const between = new Map<string, GapSegment[]>()
-  t?.names.forEach((name, g) => {
-    if (t.edges[g] === 0) {
-      between.set(
-        stretchKey(name, t.starts[g]!, t.ends[g]!),
-        stretchSegments(t, g, i => i),
-      )
-    }
-  })
-  return (name: string, start: number, end: number) =>
-    between.get(stretchKey(name, start, end))
 }
 
 function sampleOf(path: PieceHead) {
@@ -380,7 +409,7 @@ export function walkRowRuns(
     reference,
     stableStart,
     departures,
-    gapsBetween,
+    stretches,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
     : graphPieces(source)
@@ -548,6 +577,70 @@ export function walkRowRuns(
     // loaded pieces between them, and the jumps between those pieces cover
     // the bp it already drew
     let owed = 0
+    const drawnBp = (segments: GapSegment[]) =>
+      segments.reduce(
+        (sum, x) =>
+          sum +
+          (x.kind === 'steps'
+            ? x.nodes.reduce((bp, node) => bp + lengthOf(node), 0)
+            : x.bp),
+        0,
+      )
+    const emit = (segments: GapSegment[], from: number) => {
+      const need = segments.reduce((n, x) => n + x.nodes.length + 1, count)
+      if (length + need > steps.length) {
+        const grownSteps = new Int32Array((length + need) * 2)
+        const grownStarts = new Float64Array((length + need) * 2)
+        grownSteps.set(steps.subarray(0, length))
+        grownStarts.set(stepStart.subarray(0, length))
+        steps = grownSteps
+        stepStart = grownStarts
+      }
+      let at = from
+      let parts: GapPart[] = []
+      let partsBp = 0
+      const flush = () => {
+        if (partsBp > 0) {
+          partsAt.set(length, parts)
+          steps[length] = -partsBp
+          stepStart[length++] = at - partsBp
+        }
+        parts = []
+        partsBp = 0
+      }
+      for (const x of segments) {
+        if (x.kind === 'steps') {
+          flush()
+          for (const node of x.nodes) {
+            steps[length] = node
+            stepStart[length++] = at
+            at += lengthOf(node)
+          }
+        } else if (x.bp > 0) {
+          if (x.kind === 'abridged') {
+            flush()
+          }
+          parts.push(segmentPart(x))
+          partsBp += x.bp
+          at += x.bp
+          if (x.kind === 'abridged') {
+            flush()
+          }
+        }
+      }
+      flush()
+    }
+    const walkName = nameOf(ordered[0]!)
+    const lead = stretches.rowEnd(walkName, 1)
+    const leads =
+      lead !== undefined &&
+      lead.end === startOf(ordered[0]!) &&
+      drawnBp(lead.segments) === lead.end - lead.start
+    if (leads) {
+      emit(lead.segments, lead.start)
+      end = lead.end
+    }
+    const fragLo = length
     for (const piece of ordered) {
       const start = startOf(piece)
       const jump = start === undefined || end === undefined ? 0 : start - end
@@ -566,59 +659,10 @@ export function walkRowRuns(
         previous !== undefined &&
         start !== undefined &&
         end !== undefined
-          ? gapsBetween(nameOf(previous), end, start)
+          ? stretches.between(nameOf(previous), end, start)
           : undefined
-      const segmentsBp = segments?.reduce(
-        (sum, x) =>
-          sum +
-          (x.kind === 'steps'
-            ? x.nodes.reduce((bp, node) => bp + lengthOf(node), 0)
-            : x.bp),
-        0,
-      )
-      if (segments && segmentsBp === gap) {
-        const need = segments.reduce((n, x) => n + x.nodes.length + 1, count)
-        if (length + need > steps.length) {
-          const grownSteps = new Int32Array((length + need) * 2)
-          const grownStarts = new Float64Array((length + need) * 2)
-          grownSteps.set(steps.subarray(0, length))
-          grownStarts.set(stepStart.subarray(0, length))
-          steps = grownSteps
-          stepStart = grownStarts
-        }
-        let at = end!
-        let parts: GapPart[] = []
-        let partsBp = 0
-        const flush = () => {
-          if (partsBp > 0) {
-            partsAt.set(length, parts)
-            steps[length] = -partsBp
-            stepStart[length++] = at - partsBp
-          }
-          parts = []
-          partsBp = 0
-        }
-        for (const x of segments) {
-          if (x.kind === 'steps') {
-            flush()
-            for (const node of x.nodes) {
-              steps[length] = node
-              stepStart[length++] = at
-              at += lengthOf(node)
-            }
-          } else if (x.bp > 0) {
-            if (x.kind === 'abridged') {
-              flush()
-            }
-            parts.push(segmentPart(x))
-            partsBp += x.bp
-            at += x.bp
-            if (x.kind === 'abridged') {
-              flush()
-            }
-          }
-        }
-        flush()
+      if (segments && drawnBp(segments) === gap) {
+        emit(segments, end!)
       } else if (gap > 0) {
         partsAt.set(
           length,
@@ -658,6 +702,15 @@ export function walkRowRuns(
       }
       previous = piece
     }
+    const fragHi = length - 1
+    const tail = stretches.rowEnd(walkName, 2)
+    const tails =
+      tail !== undefined &&
+      tail.start === end &&
+      drawnBp(tail.segments) === tail.end - tail.start
+    if (tails) {
+      emit(tail.segments, tail.start)
+    }
     const onReference = (i: number) =>
       i >= 0 &&
       i < length &&
@@ -671,7 +724,7 @@ export function walkRowRuns(
     // departure leaving or rejoining at that step, and the bp the cut trimmed
     // off that side
     const endOf = (after: boolean) => {
-      const last = after ? length - 1 : 0
+      const last = after ? fragHi : fragLo
       const edge = after ? stepEnd(last) : stepStart[last]!
       return {
         last,
@@ -695,7 +748,7 @@ export function walkRowRuns(
       const lead = endOf(false)
       return near >= 0
         ? near > flank === spanStart[steps[near]!]! > spanStart[steps[flank]!]!
-        : length > 1
+        : fragHi > fragLo
           ? undefined
           : tail.departure
             ? !tail.departure.leaveReversed
@@ -726,6 +779,7 @@ export function walkRowRuns(
               goesOn: {
                 departure,
                 near: after ? departure.rejoinPos : departure.leavePos,
+                ...((after ? tails : leads) ? { drawn: true as const } : {}),
               },
             }
           : {}),
@@ -749,8 +803,8 @@ export function walkRowRuns(
           }
     }
 
-    let lo = 0
-    let hi = length
+    let lo = fragLo
+    let hi = fragHi + 1
     let backward = false
     let complete = true
     let flankFrom = -1
@@ -850,6 +904,12 @@ export function walkRowRuns(
         stopsInside(i0, i1, true)
       }
     }
+    if (lead && leads && lo < fragLo) {
+      extents.push([lead.start, lead.end])
+    }
+    if (tail && tails && hi > fragHi + 1) {
+      extents.push([tail.start, tail.end])
+    }
     // A walk with no step between its flanks, or past its lone one, whose
     // departure crosses the window has no step on the window's reference
     // whatever the cut holds of it outside, and is read as a walk with no
@@ -868,7 +928,7 @@ export function walkRowRuns(
         : axisStart !== undefined
           ? { contig, start: axisStart, reversed: backward }
           : flankFrom < 0
-            ? { contig, start: stepStart[0]!, reversed: false }
+            ? { contig, start: stepStart[lo]!, reversed: false }
             : flankFrom < flankTo
               ? {
                   contig,
@@ -1003,10 +1063,16 @@ export function walkRowRuns(
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
           ...(leftTrim + rightTrim > 0 ? { estimated: true } : {}),
           ...(undrawn.length > 0 ? { departures: undrawn } : {}),
+          ...outsideOf(walkName),
           ...(own.some(placementChoice)
             ? { placementChoice: true as const }
             : {}),
         }
+  }
+
+  const outsideOf = (name: string) => {
+    const outsideRow = stretches.outside(name)
+    return outsideRow ? { outsideRow } : {}
   }
 
   // a haplotype with no step in the cut is a row of its departures alone
