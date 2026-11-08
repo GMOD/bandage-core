@@ -1,3 +1,13 @@
+## [13.1.0](https://github.com/GMOD/bandage-core/compare/v13.0.1...v13.1.0) (2026-11-08)
+
+### Other Changes
+
+- Read walk format 7 with @jbrowse/graph-walks 6, pinned to its unreleased tarball for now ([01f41b1](https://github.com/GMOD/bandage-core/commit/01f41b109d4dd8d5c9928597f34d14a83174b47b))
+- Read a walk whose steps in the cut are the window's flanks alone as a row of its departure ([818a1c6](https://github.com/GMOD/bandage-core/commit/818a1c6559dffd416f7457675ab5a22d722a05c8))
+- Pin the graph-walks 6.0.0 tarball at a durable path, packed from e7259ee ([aa479d0](https://github.com/GMOD/bandage-core/commit/aa479d06847b125087b42df03fc9dc39c141b3f2))
+- Lockfile takes the graph-walks 6.0.0 tarball repacked from e6e5a74 ([e9455e8](https://github.com/GMOD/bandage-core/commit/e9455e8652eef33178ebf2272d6b46392b0929d2))
+- Depend on the published @jbrowse/graph-walks 6.0.0 ([1da2078](https://github.com/GMOD/bandage-core/commit/1da2078d7e03ac10ef5d23d85b2264d0d2fc18a9))
+
 ## [13.0.1](https://github.com/GMOD/bandage-core/compare/v13.0.0...v13.0.1) (2026-11-05)
 
 ### Other Changes
