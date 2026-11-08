@@ -20,6 +20,9 @@ function turnAt(line: NodeSegment[], i: number) {
   return t > Math.PI ? 2 * Math.PI - t : t
 }
 
+const knot = (a: NodeSegment, b: NodeSegment) =>
+  Math.max(Math.hypot(b.x - a.x, b.y - a.y) ** 0.5, 1e-9)
+
 // The point `u` of the way from p1 to p2 on the centripetal Catmull-Rom
 // spline through p0..p3, which neither cusps nor loops on uneven spacing
 function centripetal(
@@ -29,8 +32,6 @@ function centripetal(
   p3: NodeSegment,
   u: number,
 ): NodeSegment {
-  const knot = (a: NodeSegment, b: NodeSegment) =>
-    Math.max(Math.hypot(b.x - a.x, b.y - a.y) ** 0.5, 1e-9)
   const t1 = knot(p0, p1)
   const t2 = t1 + knot(p1, p2)
   const t3 = t2 + knot(p2, p3)

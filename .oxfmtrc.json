@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "arrowParens": "avoid",
+  "proseWrap": "always",
+  "printWidth": 80,
+  "sortPackageJson": false,
+  "sortImports": {
+    "ignoreCase": false,
+    "groups": [
+      "builtin",
+      ["external", "internal"],
+      ["parent", "sibling", "index"],
+      "type"
+    ]
+  },
+  "overrides": [
+    { "files": ["scripts/**", "*.mjs"], "options": { "sortImports": false } }
+  ],
+  "ignorePatterns": ["pnpm-lock.yaml", "pnpm-workspace.yaml", "CHANGELOG.md"]
+}

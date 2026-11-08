@@ -100,8 +100,14 @@ export function svgCanvas(width: number, height: number) {
       x: number,
       y: number,
     ) {
-      reach([cx0, cy0, cx1, cy1, x, y]).d +=
-        `C${n(cx0)} ${n(cy0)} ${n(cx1)} ${n(cy1)} ${n(x)} ${n(y)}`
+      reach([
+        cx0,
+        cy0,
+        cx1,
+        cy1,
+        x,
+        y,
+      ]).d += `C${n(cx0)} ${n(cy0)} ${n(cx1)} ${n(cy1)} ${n(x)} ${n(y)}`
     },
     closePath() {
       const s = subpaths.at(-1)
@@ -143,6 +149,7 @@ export function svgCanvas(width: number, height: number) {
   }
   ctx.canvas = canvas
   return {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     canvas: canvas as unknown as HTMLCanvasElement,
     // the drawing so far, as SVG elements in canvas pixels
     markup: () => out.join(''),

@@ -76,7 +76,7 @@ test('the node layouts leave the stray handle out, and walk rows place it', () =
     expect(Object.keys(result.nodePositions)).not.toContain('6+')
     expect(Object.keys(result.nodePositions)).toContain('3+')
   }
-  const h = walkRows(graph, region).rows.find(row => row.label === 'H#1')
+  const h = walkRows(graph, region)!.rows.find(row => row.label === 'H#1')
   expect(h?.runs.slice(-2)).toMatchObject([
     { cause: 'abridged' },
     { start: 58_000, bp: 1000 },

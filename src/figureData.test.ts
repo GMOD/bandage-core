@@ -131,11 +131,14 @@ test('each lifted walk is keyed with its colour stops as hex', async () => {
     facet: 'walk',
   })
   expect(faceted.keys.panel).toEqual(faceted.panels.panel)
-  faceted.nodes.walk.forEach((w, i) => {
-    if (w !== null) {
-      expect(faceted.keys.panel[w]).toBe(faceted.nodes.panel[i])
-    }
-  })
+  const walked = [...faceted.nodes.walk.keys()].filter(
+    i => faceted.nodes.walk[i] !== null,
+  )
+  for (const i of walked) {
+    expect(faceted.keys.panel[faceted.nodes.walk[i]!]).toBe(
+      faceted.nodes.panel[i],
+    )
+  }
   expect(new Set(faceted.nodes.walk.filter(w => w !== null))).toEqual(
     new Set([0, 1]),
   )
@@ -210,7 +213,7 @@ test('walks lifted together where one repeats key a thread per pass, apart from 
     panel: [''],
     note: ['a thread per pass through a node'],
   })
-  const passes = d.nodes.pass.filter((p, i) => d.nodes.walk[i] === 1)
+  const passes = d.nodes.pass.filter((_, i) => d.nodes.walk[i] === 1)
   expect(new Set(passes)).toEqual(new Set([0, 1]))
   const e = d.edges
   const lane = e.walk.findIndex(w => w === 0)

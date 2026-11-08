@@ -238,6 +238,7 @@ test('a lifted walk leaving a one-point node draws its link', () => {
     contigThickness: 5,
     connectorThickness: 2,
     highlight: lift('alt#1#chr'),
+    drawPaths: false,
   })
   expect(batch.edgeCurveRuns.get(2)).toBeDefined()
 })

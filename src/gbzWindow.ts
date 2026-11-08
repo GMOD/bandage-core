@@ -138,7 +138,7 @@ export function nodeLimitError(
   if (!isLimit) {
     return undefined
   } else {
-    const walked = (error as { walkedBp?: unknown }).walkedBp
+    const walked = 'walkedBp' in error ? error.walkedBp : undefined
     const fits =
       typeof walked === 'number' && walked > 0
         ? Math.floor(walked * 0.8)
@@ -232,7 +232,7 @@ export async function cutWindowTables(
     return compactTables(subgraphs[0]!.toCompactSubgraph())
   }
   const text = await joinedGFA(db, subgraphs)
-  return (text && gfaTables(text)) || text
+  return (text === '' ? undefined : gfaTables(text)) ?? text
 }
 
 // A GBWT handle's index into `names`, which a handle to a node the cut does

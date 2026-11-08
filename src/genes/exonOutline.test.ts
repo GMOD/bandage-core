@@ -16,6 +16,7 @@ const pin = (exonsByNode: GenePin['exonsByNode']): GenePin => ({
   },
   exons: exonsByNode.map(e => e.d).join(''),
   exonsByNode,
+  nodeIds: new Set(exonsByNode.map(e => e.nodeId)),
   at: { x: 0, y: 0 },
   covered: 1,
 })
@@ -23,7 +24,7 @@ const pin = (exonsByNode: GenePin['exonsByNode']): GenePin => ({
 describe('exonStretches', () => {
   it('clears each node’s ink and a gap round it', () => {
     const stretches = exonStretches(
-      [pin([{ nodeId: 'a+', d: 'M0,0L10,0' }])],
+      [pin([{ nodeId: 'a+', d: 'M0,0L10,0', stretches: [] }])],
       () => 3,
     )
     expect(stretches).toEqual([{ key: 'LPA-0-a+', d: 'M0,0L10,0', inner: 8 }])
@@ -32,7 +33,7 @@ describe('exonStretches', () => {
   it('clears the lifted lanes where they are wider than the node', () => {
     const lift = { nodeIds: new Set(['a+']), walks: [1, 2, 3] }
     const [s] = exonStretches(
-      [pin([{ nodeId: 'a+', d: 'M0,0L10,0' }])],
+      [pin([{ nodeId: 'a+', d: 'M0,0L10,0', stretches: [] }])],
       () => 3,
       lift,
     )
@@ -41,7 +42,7 @@ describe('exonStretches', () => {
 
   it('takes paths into the units the tree is drawn in', () => {
     const [s] = exonStretches(
-      [pin([{ nodeId: 'a+', d: 'M0,0L10,0' }])],
+      [pin([{ nodeId: 'a+', d: 'M0,0L10,0', stretches: [] }])],
       () => 3,
       undefined,
       d => d.replace('10', '20'),

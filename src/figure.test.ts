@@ -86,7 +86,7 @@ test('by sample, a sample takes a row and its haplotypes the columns', () => {
   expect(one![0]).toBe(0)
   expect(two![0]).toBeGreaterThan(0)
   expect(one![1]).toBe(two![1])
-  expect(one![1]).toBeGreaterThan(ref![1])
+  expect(one![1]).toBeGreaterThan(ref![1]!)
   expect(svg).toContain('9 bp reversed')
 })
 

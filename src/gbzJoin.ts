@@ -131,13 +131,14 @@ function* stepLinks(walk: Walk) {
 // and each cut's `unknown#N` walks numbered on from the cut before's, since
 // gbz-base numbers them per cut. Unnamed walks start every cut at 0, so their
 // pieces cannot be joined.
+const ofType = (cut: string[], type: string) =>
+  cut.filter(line => line.startsWith(`${type}\t`))
+
 export function joinCuts(gfas: string[], startsPath: StartsPath) {
   if (gfas.length <= 1) {
     return gfas[0] ?? ''
   }
   const cuts = gfas.map(gfa => gfa.split('\n').filter(line => line !== ''))
-  const ofType = (cut: string[], type: string) =>
-    cut.filter(line => line.startsWith(`${type}\t`))
   const lengths = segmentLengths(cuts.flat())
   let unknownOffset = 0
   const walksByCut = cuts.map(cut => {

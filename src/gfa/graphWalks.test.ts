@@ -31,7 +31,12 @@ async function rowsOf(name: string, start: number, end: number, context = 0) {
         readout: walkRowReadout(row, rows.reference),
         gaps: row.runs
           .filter(r => r.gap)
-          .map(({ start, bp, cause, near }) => ({ start, bp, cause, near })),
+          .map(r => ({
+            start: r.start,
+            bp: r.bp,
+            cause: r.cause,
+            near: r.near,
+          })),
         row,
       }
     },

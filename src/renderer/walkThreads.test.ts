@@ -561,8 +561,8 @@ test('every visit a walk makes to a node gets a frame at every point', () => {
     { walk: 'ref#1#chr' },
   ])!
   const { lines } = liftLanes(walks, at, 1, 1)
-  walks.forEach((walk, w) => {
-    for (const [id, passes] of walk.passes) {
+  walks.forEach((lifted, w) => {
+    for (const [id, passes] of lifted.passes) {
       for (let visit = 0; visit < passes; visit++) {
         const frame = lines.frames.get(id)![w]![visit]!
         at[id]!.forEach((_, k) => {
@@ -595,7 +595,7 @@ function joinFromBelow() {
       { x: i + 0.5, y: 0 },
     ]
   })
-  const chain = ids.map(id => `>${id}`).join('')
+  const path = ids.map(id => `>${id}`).join('')
   const gfa = [
     'S\tP\tA',
     'S\tR\tA',
@@ -604,8 +604,8 @@ function joinFromBelow() {
     'L\tR\t+\ts0\t+\t0M',
     ...ids.slice(1).map((id, i) => `L\t${ids[i]}\t+\t${id}\t+\t0M`),
     'L\ts39\t+\ts38\t+\t0M',
-    walk('a', `>P${chain}`),
-    walk('b', `>R${chain}>s38>s39`),
+    walk('a', `>P${path}`),
+    walk('b', `>R${path}>s38>s39`),
   ].join('\n')
   return { gfa, at }
 }
@@ -616,7 +616,7 @@ test('a walk joining from another side frames the shared nodes as it would alone
   const lift = (names: string[]) =>
     walkLift(
       graph,
-      names.map(walk => ({ walk })),
+      names.map(name => ({ walk: name })),
     )!.walks
   for (const worldPerPx of [1, 0.25, 1 / 16]) {
     const joint = liftLanes(lift(['a#1#chr', 'b#1#chr']), at, 1, worldPerPx)

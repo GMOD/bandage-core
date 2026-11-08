@@ -81,16 +81,17 @@ export const passesKey = (walks: readonly { mostPasses: number }[]) =>
     ? `${PASSES_KEY}, thinned to fit`
     : PASSES_KEY
 
+const slideVector = ({ normal, offsetX }: LaneSlide) => ({
+  dx: normal.nx * offsetX,
+  dy: normal.ny * offsetX,
+})
+
 export function laneSlideAt(
   start: LaneSlide,
   end: LaneSlide,
   along: number,
 ): LaneSlide {
-  const vector = ({ normal, offsetX }: LaneSlide) => ({
-    dx: normal.nx * offsetX,
-    dy: normal.ny * offsetX,
-  })
-  const { dx, dy } = slideAt(vector(start), vector(end), along)
+  const { dx, dy } = slideAt(slideVector(start), slideVector(end), along)
   const offsetX = Math.hypot(dx, dy)
   return offsetX > 0
     ? { normal: { nx: dx / offsetX, ny: dy / offsetX }, offsetX }
@@ -174,6 +175,11 @@ export function laneRuns(
   yToX: number,
   jump: number,
 ) {
+  const gap = (x: number, y: number, p: NodeSegment) => {
+    const dx = p.x - x
+    const dy = p.y * yToX - y
+    return Math.sqrt(dx * dx + dy * dy)
+  }
   const runs: LaneRun[] = []
   steps.forEach((pieces, walk) => {
     let total = 0
@@ -212,11 +218,6 @@ export function laneRuns(
       }
       run = fresh()
       from = at
-    }
-    const gap = (x: number, y: number, p: NodeSegment) => {
-      const dx = p.x - x
-      const dy = p.y * yToX - y
-      return Math.sqrt(dx * dx + dy * dy)
     }
     for (const piece of pieces) {
       piece.forEach(({ id, visit, owned, segments }, k) => {
@@ -528,7 +529,7 @@ function runSigns(
   const agreement = new Float64Array(n)
   let hi = 0
   let lo = 0
-  let sum = 0
+  let agreed = 0
   let decided: 0 | 1 | -1 = 0
   let pending = 0
   for (let i = 0; i < n; i++) {
@@ -537,14 +538,14 @@ function runSigns(
       const mine = own[hi]
       agreement[hi] =
         theirs && mine ? theirs.nx * mine.nx + theirs.ny * mine.ny : 0
-      sum += agreement[hi]!
+      agreed += agreement[hi]!
       hi++
     }
     while (s[i]! - s[lo]! > half) {
-      sum -= agreement[lo++]!
+      agreed -= agreement[lo++]!
     }
-    if (Math.abs(sum) > 1e-9) {
-      decided = sum < 0 ? -1 : 1
+    if (Math.abs(agreed) > 1e-9) {
+      decided = agreed < 0 ? -1 : 1
     }
     if (!decided) {
       continue

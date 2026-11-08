@@ -148,8 +148,18 @@ test('a read that loops back marks the pass that carries the mismatch', () => {
   const loop = layoutTubeMap(
     ['1', '2', '3', '4', '5'].map(name => ({ name, seq: 'ACGTACGTAC' })),
     [
-      { id: 0, name: 'ref', sequence: ['1', '2', '3', '4', '5'] },
-      { id: 1, name: 'alt', sequence: ['1', '4', '5', '4', '5'] },
+      {
+        id: 0,
+        name: 'ref',
+        sequence: ['1', '2', '3', '4', '5'],
+        sourceTrackID: 0,
+      },
+      {
+        id: 1,
+        name: 'alt',
+        sequence: ['1', '4', '5', '4', '5'],
+        sourceTrackID: 0,
+      },
     ],
     [
       read(2, [

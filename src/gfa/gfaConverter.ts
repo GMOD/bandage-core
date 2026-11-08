@@ -146,12 +146,12 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
   const { canonical, traversals } = surveySegments(gfaGraph, pathSteps)
   // segments no link, path, or walk mentions are drawn forward-strand. One
   // string per segment, not per step: a walk of 100k steps built 100k.
-  const nodeIds = new Map<string, string>()
+  const canonicalIds = new Map<string, string>()
   const nodeId = (segmentId: string) => {
-    let id = nodeIds.get(segmentId)
+    let id = canonicalIds.get(segmentId)
     if (id === undefined) {
       id = `${segmentId}${canonical.get(segmentId) ?? '+'}`
-      nodeIds.set(segmentId, id)
+      canonicalIds.set(segmentId, id)
     }
     return id
   }
@@ -206,19 +206,19 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     return set
   })
 
-  function recordPathEdges(nodeIds: string[], name: string) {
+  function recordPathEdges(nodeIds: string[], pathName: string) {
     for (let i = 0; i < nodeIds.length - 1; i++) {
-      pairPaths(nodeIds[i]!, nodeIds[i + 1]!)?.add(name)
+      pairPaths(nodeIds[i]!, nodeIds[i + 1]!)?.add(pathName)
     }
   }
 
-  gfaGraph.paths.forEach(({ name }, i) => {
+  gfaGraph.paths.forEach(({ name: pathName }, i) => {
     // a step lands on its segment's canonical orientation, whichever way this
     // path reads it
     const { start, steps } = pathSteps[i]!
     const nodeIds = steps.map(step => nodeId(step.id))
-    paths.push({ name, nodeIds, start } satisfies GraphPath)
-    recordPathEdges(nodeIds, name)
+    paths.push({ name: pathName, nodeIds, start } satisfies GraphPath)
+    recordPathEdges(nodeIds, pathName)
   })
 
   for (const walk of gfaGraph.walks) {
@@ -234,16 +234,16 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     // The legend narrows it back: `labelTiers` tries sample, then sample and
     // haplotype, then the whole name, so a graph with one contig per haplotype
     // is labelled exactly as before and only a colliding one widens.
-    const name = `${walk.sample}#${walk.haplotype}#${walk.contig}`
+    const walkName = `${walk.sample}#${walk.haplotype}#${walk.contig}`
     paths.push({
-      name,
+      name: walkName,
       nodeIds,
       start: walkStart(walk),
       sample: walk.sample,
       haplotype: walk.haplotype,
       contig: walk.contig,
     } satisfies GraphPath)
-    recordPathEdges(nodeIds, name)
+    recordPathEdges(nodeIds, walkName)
   }
 
   edges.forEach((edge, i) => {

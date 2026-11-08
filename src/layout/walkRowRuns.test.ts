@@ -36,21 +36,25 @@ const tables: GraphTables = {
     starts: Float64Array.of(0, 0, 0, 0, 0, 0),
     ends: Float64Array.of(5000, 3300, 2300, 2300, 3000, 2000),
     offsets: Int32Array.of(0, 5, 9, 12, 15, 18, 20),
-    steps: Int32Array.of(
-      ...[0, 1, 2, 3, 4],
-      ...[0, 1, 2, 5],
-      ...[1, 2, 5],
-      ...[4, 3, 5],
-      ...[0, 1, 2],
-      ...[0, 1],
+    steps: Int32Array.from(
+      [
+        [0, 1, 2, 3, 4],
+        [0, 1, 2, 5],
+        [1, 2, 5],
+        [4, 3, 5],
+        [0, 1, 2],
+        [0, 1],
+      ].flat(),
     ),
-    reversed: Uint8Array.of(
-      ...[0, 0, 0, 0, 0],
-      ...[0, 0, 0, 0],
-      ...[0, 0, 0],
-      ...[1, 1, 1],
-      ...[0, 0, 0],
-      ...[0, 0],
+    reversed: Uint8Array.from(
+      [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0],
+        [1, 1, 1],
+        [0, 0, 0],
+        [0, 0],
+      ].flat(),
     ),
   },
   departures: departureTable(),
@@ -142,7 +146,12 @@ test('a walk forward along the reference that reaches only the right flank reads
       starts: Float64Array.of(0, 0),
       ends: Float64Array.of(5000, 3300),
       offsets: Int32Array.of(0, 5, 9),
-      steps: Int32Array.of(...[0, 1, 2, 3, 4], ...[5, 2, 3, 4]),
+      steps: Int32Array.from(
+        [
+          [0, 1, 2, 3, 4],
+          [5, 2, 3, 4],
+        ].flat(),
+      ),
       reversed: new Uint8Array(9),
     },
   }
@@ -201,7 +210,13 @@ test('a reference cut into pieces is one reference row', () => {
       starts: Float64Array.of(0, 3000, 0),
       ends: Float64Array.of(2000, 5000, 5000),
       offsets: Int32Array.of(0, 2, 4, 9),
-      steps: Int32Array.of(...[0, 1], ...[3, 4], ...[0, 1, 2, 3, 4]),
+      steps: Int32Array.from(
+        [
+          [0, 1],
+          [3, 4],
+          [0, 1, 2, 3, 4],
+        ].flat(),
+      ),
       reversed: new Uint8Array(9),
     },
   }
@@ -943,14 +958,14 @@ test('gaps between loaded pieces leave out the bp an abridged row drew', () => {
       refNames: ['chr1'],
     },
     walks: {
-      names: ['GRCh38#0#chr1', ...Array(5).fill('H#1#h')],
+      names: ['GRCh38#0#chr1', ...Array<string>(5).fill('H#1#h')],
       starts: Float64Array.of(0, 0, 1000, 4000, 6500, 8500),
       ends: Float64Array.of(7000, 1000, 7000, 4500, 7000, 9500),
       offsets: Int32Array.of(0, 7, 8, 10, 11, 12, 13),
-      steps: Int32Array.of(...[0, 1, 2, 3, 4, 5, 6], 0, 1, 5, 7, 8, 6),
+      steps: Int32Array.of(0, 1, 2, 3, 4, 5, 6, 0, 1, 5, 7, 8, 6),
       reversed: new Uint8Array(13),
-      abridgedSteps: Float64Array.of(...Array(6).fill(Number.NaN)),
-      abridgedBp: Float64Array.of(...Array(6).fill(Number.NaN)),
+      abridgedSteps: new Float64Array(6).fill(Number.NaN),
+      abridgedBp: new Float64Array(6).fill(Number.NaN),
     },
     departures: departureTable([
       departure('H#1#h', {

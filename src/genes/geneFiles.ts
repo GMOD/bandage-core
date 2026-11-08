@@ -117,21 +117,21 @@ export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
     }
   })
   const genes: GeneModel[] = []
-  for (const [key, { top, rows }] of groups) {
+  for (const [key, { top, rows: members }] of groups) {
     if (top && !isGene(top.type)) {
       continue
     }
-    const first = top ?? rows[0]!
-    const start = top?.start ?? Math.min(...rows.map(r => r.start))
-    const end = top?.end ?? Math.max(...rows.map(r => r.end))
+    const first = top ?? members[0]!
+    const start = top?.start ?? Math.min(...members.map(r => r.start))
+    const end = top?.end ?? Math.max(...members.map(r => r.end))
     const a = first.attrs
     const spans = (type: string) =>
-      rows
+      members
         .filter(r => r.type === type)
         .map(r => ({ start: r.start, end: r.end }))
     const exons = spans('exon')
     const coding = spans('CDS')
-    const transcribed = rows.some(
+    const transcribed = members.some(
       r => r !== top && r.type !== 'exon' && r.type !== 'CDS',
     )
     genes.push({

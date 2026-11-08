@@ -72,10 +72,11 @@ interface Walk {
   gaps: Gap[]
 }
 
+const openGap = (): Gap => ({ a: -Infinity, b: Infinity, detour: [], bp: 0 })
+
 function readWalk(path: GraphPath, steps: readonly PathStep[]): Walk {
   const runs: Run[] = []
-  const open = (): Gap => ({ a: -Infinity, b: Infinity, detour: [], bp: 0 })
-  const gaps: Gap[] = [open()]
+  const gaps: Gap[] = [openGap()]
   for (const { node, strand } of steps) {
     const gap = gaps.at(-1)!
     const last = runs.at(-1)
@@ -90,7 +91,7 @@ function readWalk(path: GraphPath, steps: readonly PathStep[]): Walk {
         last.start = start
       } else {
         runs.push({ start, end, inverted })
-        gaps.push(open())
+        gaps.push(openGap())
       }
     } else {
       gap.detour.push({ node, strand })

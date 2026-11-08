@@ -1212,7 +1212,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       color: number,
       walk: number,
       pass: number,
-      normal: Normal,
+      startNormal: Normal,
       offsetX: number,
       endNormal: Normal,
       endOffsetX: number,
@@ -1223,7 +1223,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         color,
         walk,
         pass,
-        normal,
+        normal: startNormal,
         offsetX,
         endNormal,
         endOffsetX,
@@ -1441,12 +1441,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         }
         const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS
         for (const pass of onThreads) {
-          const color = threadColor(lane, nodeId, pass) ?? laneColor
+          const passColor = threadColor(lane, nodeId, pass) ?? laneColor
           if (lanes.length === 1) {
             nodeStrokes.push({
               points: segments,
               thickness,
-              color,
+              color: passColor,
               walk: lane,
               pass,
             })
@@ -1465,7 +1465,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           nodeStrokes.push({
             points: offsetPolyline(points, normals, offsets ?? offsetX, yToX),
             thickness,
-            color,
+            color: passColor,
             walk: lane,
             pass,
             normals,

@@ -23,7 +23,7 @@ export type LayoutEngineKind = (typeof LAYOUT_ENGINES)[number]['value']
 export const LAYOUT_ENGINE_VALUES = LAYOUT_ENGINES.map(e => e.value)
 
 export function isLayoutEngineKind(value: unknown): value is LayoutEngineKind {
-  return LAYOUT_ENGINE_VALUES.includes(value as LayoutEngineKind)
+  return LAYOUT_ENGINE_VALUES.some(v => v === value)
 }
 
 // Runs whichever engine a request names: the Bandage wasm module, or the stress layout. What a worker or a CLI hands `forceLayout`.

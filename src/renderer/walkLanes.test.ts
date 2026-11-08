@@ -23,7 +23,7 @@ test("each thread through a node carries one of the walk's visits to it", () => 
     10,
   )
   for (const [id, count] of passes) {
-    const carried = nodeThreads.get(id)!.map(t => threadPasses.get(id)![t])
-    expect(carried.toSorted()).toEqual([...Array(count).keys()])
+    const carried = nodeThreads.get(id)!.map(t => threadPasses.get(id)![t]!)
+    expect(carried.toSorted((a, b) => a - b)).toEqual([...Array(count).keys()])
   }
 })

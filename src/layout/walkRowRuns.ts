@@ -337,30 +337,59 @@ class Columns {
     this.offsets.push(this.length)
   }
 
-  // the rows in `order`, column i in the array `make[i]` makes
-  reorder(order: number[], make: ((n: number) => NumberArray)[]) {
+  // where each row in `order` starts once reordered
+  rowOffsets(order: number[]) {
     const offsets = new Uint32Array(order.length + 1)
     order.forEach((row, i) => {
       offsets[i + 1] = offsets[i]! + this.offsets[row + 1]! - this.offsets[row]!
     })
-    const columns = make.map((m, c) => {
-      const from = this.values[c]!
-      const out = m(this.length)
-      let at = 0
-      for (const row of order) {
-        for (let k = this.offsets[row]!; k < this.offsets[row + 1]!; k++) {
-          out[at++] = from[k]!
-        }
+    return offsets
+  }
+
+  // column c's rows in `order`, in the array `make` makes
+  reorder<T extends NumberArray>(
+    order: number[],
+    c: number,
+    make: (n: number) => T,
+  ) {
+    const from = this.values[c]!
+    const out = make(this.length)
+    let at = 0
+    for (const row of order) {
+      for (let k = this.offsets[row]!; k < this.offsets[row + 1]!; k++) {
+        out[at++] = from[k]!
       }
-      return out
-    })
-    return { offsets, columns }
+    }
+    return out
   }
 }
 
 type NumberArray = Float64Array | Int32Array | Uint8Array
 
 const float64 = (n: number) => new Float64Array(n)
+const uint8 = (n: number) => new Uint8Array(n)
+
+// A row with no step on the window's reference draws no bar: its departures
+// alone, and the own bp between their ends
+const steplessMeta = (
+  head: PieceHead,
+  own: Departure[],
+  gapBp: number,
+): WalkRowMeta => ({
+  name: head.name,
+  label: labelOf(head),
+  sample: sampleOf(head),
+  haplotype: head.haplotype,
+  bp: 0,
+  offReferenceBp: own.reduce((sum, d) => sum + d.ownBp, 0),
+  gapBp,
+  complete: true,
+  stop: undefined,
+  axis: undefined,
+  departures: own,
+  stepless: true,
+  ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
+})
 
 /**
  * The walk rows of a Graph, or of a cut's tables without the Graph of their
@@ -415,6 +444,15 @@ export function walkRowRuns(
     : graphPieces(source)
   const declared = lengths.length
   const lengthOf = (node: number) => (node < declared ? lengths[node]! : 0)
+  const drawnBp = (segments: GapSegment[]) =>
+    segments.reduce(
+      (sum, x) =>
+        sum +
+        (x.kind === 'steps'
+          ? x.nodes.reduce((bp, node) => bp + lengthOf(node), 0)
+          : x.bp),
+      0,
+    )
   const nameOf = (p: number) => pathOrigin(heads[p]!.name).name
   const startOf = (p: number) => heads[p]!.start
   const byStart = (a: number, b: number) =>
@@ -524,28 +562,6 @@ export function walkRowRuns(
     return gapBp
   }
 
-  // A row with no step on the window's reference draws no bar: its departures
-  // alone, and the own bp between their ends
-  const steplessMeta = (
-    head: PieceHead,
-    own: Departure[],
-    gapBp: number,
-  ): WalkRowMeta => ({
-    name: head.name,
-    label: labelOf(head),
-    sample: sampleOf(head),
-    haplotype: head.haplotype,
-    bp: 0,
-    offReferenceBp: own.reduce((sum, d) => sum + d.ownBp, 0),
-    gapBp,
-    complete: true,
-    stop: undefined,
-    axis: undefined,
-    departures: own,
-    stepless: true,
-    ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
-  })
-
   // `bar` is the reference row's, which the walks' rows are read against
   const rowOf = (
     pieces: number[],
@@ -577,16 +593,7 @@ export function walkRowRuns(
     // loaded pieces between them, and the jumps between those pieces cover
     // the bp it already drew
     let owed = 0
-    const drawnBp = (segments: GapSegment[]) =>
-      segments.reduce(
-        (sum, x) =>
-          sum +
-          (x.kind === 'steps'
-            ? x.nodes.reduce((bp, node) => bp + lengthOf(node), 0)
-            : x.bp),
-        0,
-      )
-    const emit = (segments: GapSegment[], from: number) => {
+    const emit = (segments: GapSegment[], fromBp: number) => {
       const need = segments.reduce((n, x) => n + x.nodes.length + 1, count)
       if (length + need > steps.length) {
         const grownSteps = new Int32Array((length + need) * 2)
@@ -596,7 +603,7 @@ export function walkRowRuns(
         steps = grownSteps
         stepStart = grownStarts
       }
-      let at = from
+      let at = fromBp
       let parts: GapPart[] = []
       let partsBp = 0
       const flush = () => {
@@ -744,17 +751,17 @@ export function walkRowRuns(
       for (let d = 1; near < 0 && d < length; d++) {
         near = [flank - d, flank + d].find(onReference) ?? -1
       }
-      const tail = endOf(true)
-      const lead = endOf(false)
+      const tailEnd = endOf(true)
+      const leadEnd = endOf(false)
       return near >= 0
         ? near > flank === spanStart[steps[near]!]! > spanStart[steps[flank]!]!
         : fragHi > fragLo
           ? undefined
-          : tail.departure
-            ? !tail.departure.leaveReversed
-            : lead.departure
-              ? !lead.departure.rejoinReversed
-              : (!tail.trimmed || !!lead.trimmed) === rightward
+          : tailEnd.departure
+            ? !tailEnd.departure.leaveReversed
+            : leadEnd.departure
+              ? !leadEnd.departure.rejoinReversed
+              : (!tailEnd.trimmed || !!leadEnd.trimmed) === rightward
     }
     // The steps on the window's side of a lone flank, the flank among them
     // where it is `inside` the window, and how the walk stops past them
@@ -785,7 +792,7 @@ export function walkRowRuns(
           : {}),
       }
       const skip = inside ? 0 : 1
-      const from = after === inside ? stepStart[flank]! : stepEnd(flank)
+      const flankBp = after === inside ? stepStart[flank]! : stepEnd(flank)
       return forward === undefined
         ? undefined
         : {
@@ -795,11 +802,11 @@ export function walkRowRuns(
             backward: !forward,
             axisStart: forward
               ? after
-                ? from
+                ? flankBp
                 : stepStart[0]!
               : after
                 ? stepEnd(length - 1)
-                : from,
+                : flankBp,
           }
     }
 
@@ -858,9 +865,9 @@ export function walkRowRuns(
       for (let i = 0; i < length; i++) {
         const start = placeStart(i)
         if (!Number.isNaN(start)) {
-          const end = start + lengthOf(steps[i]!)
-          if (end <= cut.start && end > bestEnd) {
-            bestEnd = end
+          const stepEndBp = start + lengthOf(steps[i]!)
+          if (stepEndBp <= cut.start && stepEndBp > bestEnd) {
+            bestEnd = stepEndBp
             i0 = i
           }
           if (start >= cut.end && start < bestStart) {
@@ -975,13 +982,9 @@ export function walkRowRuns(
       }
       return best
     }
-    const [, runBp, runRef, runFlags] = runs.values as [
-      number[],
-      number[],
-      number[],
-      number[],
-      number[],
-    ]
+    const runBp = runs.values[1]!
+    const runRef = runs.values[2]!
+    const runFlags = runs.values[3]!
     for (let k = lo; k < hi; k++) {
       const index = backward ? hi - 1 - (k - lo) : k
       const id = steps[index]!
@@ -1123,22 +1126,13 @@ export function walkRowRuns(
       a.meta.label.localeCompare(b.meta.label),
   )
   const order = [0, ...rows.map(r => r.row)]
-  const { offsets, columns } = runs.reorder(order, [
-    float64,
-    float64,
-    float64,
-    n => new Uint8Array(n),
-    float64,
-    float64,
-  ])
-  const [start, bp, referenceStart, flags, near, missing] = columns as [
-    Float64Array,
-    Float64Array,
-    Float64Array,
-    Uint8Array,
-    Float64Array,
-    Float64Array,
-  ]
+  const offsets = runs.rowOffsets(order)
+  const start = runs.reorder(order, 0, float64)
+  const bp = runs.reorder(order, 1, float64)
+  const referenceStart = runs.reorder(order, 2, float64)
+  const flags = runs.reorder(order, 3, uint8)
+  const near = runs.reorder(order, 4, float64)
+  const missing = runs.reorder(order, 5, float64)
   return {
     origin: cut ? cut.start : (startOf(first) ?? 0),
     rows: [referenceRow, ...rows.map(r => r.meta)],
@@ -1185,19 +1179,14 @@ function visitColumns(
   order: number[],
   names: ArrayLike<string>,
 ): WalkVisitColumns {
-  const { offsets, columns } = visits.reorder(order, [
-    n => new Int32Array(n),
-    float64,
-    float64,
-    n => new Uint8Array(n),
-  ])
-  const [node, start, bp, onReference] = columns as [
-    Int32Array,
-    Float64Array,
-    Float64Array,
-    Uint8Array,
-  ]
-  return { offsets, node, start, bp, onReference, names }
+  return {
+    offsets: visits.rowOffsets(order),
+    node: visits.reorder(order, 0, n => new Int32Array(n)),
+    start: visits.reorder(order, 1, float64),
+    bp: visits.reorder(order, 2, float64),
+    onReference: visits.reorder(order, 3, uint8),
+    names,
+  }
 }
 
 export function runAt(t: WalkRowRuns, k: number): WalkRun {

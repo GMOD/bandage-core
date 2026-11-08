@@ -257,7 +257,7 @@ export function graphFromTables(
   // Links between the same two segments, either way round, share one list of
   // the walks crossing them, kept per segment as [neighbour, list, ...]
   const edges: GraphEdge[] = []
-  const neighbours: (number[] | undefined)[] = new Array(count)
+  const neighbours = new Array<number[] | undefined>(count)
   const pairList = (a: number, b: number) => {
     const near = neighbours[a]
     if (near) {

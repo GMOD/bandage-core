@@ -260,6 +260,9 @@ async function renderSpec(spec: FigureSpec, base: string) {
 
 const USAGE = 'usage: bandage-figure <spec.json> [-o figure.svg]'
 
+const isSpec = (value: unknown): value is FigureSpec =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 function args() {
   try {
     return parseArgs({
@@ -271,7 +274,7 @@ function args() {
     })
   } catch (e) {
     console.error(`${e instanceof Error ? e.message : String(e)}\n${USAGE}`)
-    process.exit(2)
+    return process.exit(2)
   }
 }
 
@@ -286,7 +289,11 @@ async function main() {
     console.error(USAGE)
     process.exit(2)
   }
-  const spec = JSON.parse(await readFile(file, 'utf8')) as FigureSpec
+  const spec: unknown = JSON.parse(await readFile(file, 'utf8'))
+  if (!isSpec(spec)) {
+    console.error(`${file} does not hold a JSON object`)
+    process.exit(2)
+  }
   const svg = await renderSpec(spec, path.dirname(file))
   if (values.out) {
     await writeFile(values.out, svg)

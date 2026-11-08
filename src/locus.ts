@@ -5,14 +5,15 @@
 
 const LOCUS = /^\s*(\S+?):\s*([\d,]+)(?:\s*(?:-|\.\.)\s*([\d,]+))?\s*$/
 
+const commaNumber = (s: string) => Number(s.replaceAll(',', ''))
+
 export function parseLocus(text: string) {
   const m = LOCUS.exec(text)
   if (!m) {
     return undefined
   }
-  const n = (s: string) => Number(s.replaceAll(',', ''))
-  const start = n(m[2]!) - 1
-  const end = m[3] ? n(m[3]) : start + 1
+  const start = commaNumber(m[2]!) - 1
+  const end = m[3] ? commaNumber(m[3]) : start + 1
   return start >= 0 && end > start ? { refName: m[1]!, start, end } : undefined
 }
 

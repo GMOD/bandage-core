@@ -22,16 +22,16 @@ const SETTINGS: EngineSettings = {
 
 function countingEngine(): LayoutEngine & { calls: () => number } {
   let calls = 0
-  const engine = (async (request: { graph: { nodes: { id: string }[] } }) => {
+  const engine = ((request: { graph: { nodes: { id: string }[] } }) => {
     calls++
-    return {
+    return Promise.resolve({
       result: {
         nodePositions: Object.fromEntries(
           request.graph.nodes.map(n => [n.id, [{ x: 0, y: 0 }]]),
         ),
       },
       duration: 1,
-    }
+    })
   }) as unknown as LayoutEngine & { calls: () => number }
   engine.calls = () => calls
   return engine
@@ -73,10 +73,12 @@ test('the oldest goes once the cache is full', async () => {
 
 test('a run that throws leaves nothing behind', async () => {
   const cache = createForceLayoutCache()
-  const failing = vi.fn(() => Promise.reject(new Error('no engine')))
-  await expect(
-    cache.layout(GRAPH, SETTINGS, failing as unknown as LayoutEngine),
-  ).rejects.toThrow('no engine')
+  const failing = vi.fn<LayoutEngine>(() =>
+    Promise.reject(new Error('no engine')),
+  )
+  await expect(cache.layout(GRAPH, SETTINGS, failing)).rejects.toThrow(
+    'no engine',
+  )
   expect(cache.ready(GRAPH, SETTINGS)).toBeUndefined()
   const engine = countingEngine()
   await cache.layout(GRAPH, SETTINGS, engine)

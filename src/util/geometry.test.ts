@@ -67,11 +67,13 @@ describe('dashCurves', () => {
     const near = dashCurves([ARC], 2, 1, bounds)
     expect(near.length).toBeGreaterThan(0)
     expect(near.length).toBeLessThan(all.length / 2)
-    for (const dash of all) {
-      const xs = dash.flatMap(c => [c.x0, c.x1])
-      if (xs.some(x => x >= bounds.minX && x <= bounds.maxX)) {
-        expect(near).toContainEqual(dash)
-      }
+    const inBounds = all.filter(dash =>
+      dash
+        .flatMap(c => [c.x0, c.x1])
+        .some(x => x >= bounds.minX && x <= bounds.maxX),
+    )
+    for (const dash of inBounds) {
+      expect(near).toContainEqual(dash)
     }
     for (const dash of near) {
       expect(all).toContainEqual(dash)

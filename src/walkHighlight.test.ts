@@ -31,7 +31,7 @@ const graph = anchorGraph(convertGFAToGraph(parseGFA(GFA)), 'ref')
 test('a walk lifts its nodes, its links either way round, and its bp', () => {
   const h = walkHighlight(graph, 'alt#1#chr')!
   expect([...h.nodeIds]).toEqual(['v1+', 'a1+', 'v3+'])
-  expect([...h.edgeIndexes].sort()).toEqual([2, 3])
+  expect([...h.edgeIndexes].sort((a, b) => a - b)).toEqual([2, 3])
   expect(h).toMatchObject({ steps: 3, bp: 13, referenceBp: 9 })
 })
 
@@ -296,9 +296,9 @@ test('a walk in a tagged walk cut measures itself against the reference walk', (
     'W\tGRCh38\t0\tchr1\t100\t120\t>1>3',
     'W\tHG1\t1\tctg\t0\t25\t>1>2>3',
   ].join('\n')
-  const graph = anchorGraph(convertGFAToGraph(parseGFA(gfa)), undefined)
-  const name = graph.paths!.find(p => p.name.startsWith('HG1'))!.name
-  const walk = walkHighlight(graph, name)!
+  const looped = anchorGraph(convertGFAToGraph(parseGFA(gfa)), undefined)
+  const name = looped.paths!.find(p => p.name.startsWith('HG1'))!.name
+  const walk = walkHighlight(looped, name)!
   expect(walk.reference).toBe(false)
   expect(walk.referenceBp).toBe(20)
 })
@@ -354,14 +354,14 @@ W\ttail\t1\tchr\t0\t9\t>v2>v1>v3`
 
 test('each pass through a collapsed repeat takes its own copy on the reference', () => {
   const copies = anchorGraph(convertGFAToGraph(parseGFA(COPIES)), 'ref')
-  const ramp = computeReferenceRamp(copies, { start: 0, end: 13 })
+  const copyRamp = computeReferenceRamp(copies, { start: 0, end: 13 })
   const [ref, tail] = walkLift(
     copies,
     [
       { walk: 'ref#0#chr', color: { field: 'reference', scheme: 'rainbow' } },
       { walk: 'tail#1#chr', color: { field: 'reference', scheme: 'rainbow' } },
     ],
-    ramp,
+    copyRamp,
   )!.walks
   const at = (w: typeof ref, mids: number[]) =>
     mids.map(mid => encodedColor(w!.encoding, mid / 13))

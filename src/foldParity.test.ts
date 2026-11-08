@@ -64,7 +64,7 @@ function randomRgfa(seed: number, tag = '', tangled = true) {
   const chains: Segment[][] = []
   const links: string[] = []
   const flip = (s: Strand): Strand => (s === '+' ? '-' : '+')
-  const link = (a: Segment, sa: Strand, b: Segment, sb: Strand) => {
+  const addLink = (a: Segment, sa: Strand, b: Segment, sb: Strand) => {
     links.push(
       chance(0.5)
         ? `L\t${a.name}\t${sa}\t${b.name}\t${sb}\t0M`
@@ -73,8 +73,8 @@ function randomRgfa(seed: number, tag = '', tangled = true) {
   }
   const chain = (sequence: string, rank: number, sizes: number[]) => {
     let start = rank === 0 ? 0 : int(0, 3) * 10_000
-    const run = sizes.map(size => {
-      const segment = {
+    const chainSegments = sizes.map(size => {
+      const seg = {
         name: `${tag}s${ids[segments.length]}`,
         sequence: `${tag}${sequence}`,
         start,
@@ -82,14 +82,14 @@ function randomRgfa(seed: number, tag = '', tangled = true) {
         rank,
       }
       start += size
-      segments.push(segment)
-      return segment
+      segments.push(seg)
+      return seg
     })
-    for (let i = 1; i < run.length; i++) {
-      link(run[i - 1]!, '+', run[i]!, '+')
+    for (let i = 1; i < chainSegments.length; i++) {
+      addLink(chainSegments[i - 1]!, '+', chainSegments[i]!, '+')
     }
-    chains.push(run)
-    return run
+    chains.push(chainSegments)
+    return chainSegments
   }
 
   const backbones = Array.from({ length: int(1, 2) }, (_, k) =>
@@ -103,7 +103,7 @@ function randomRgfa(seed: number, tag = '', tangled = true) {
     for (let d = int(0, 2); d > 0; d--) {
       const i = int(0, backbone.length - 3)
       const j = int(i + 2, backbone.length - 1)
-      link(backbone[i]!, '+', backbone[j]!, chance(0.85) ? '+' : '-')
+      addLink(backbone[i]!, '+', backbone[j]!, chance(0.85) ? '+' : '-')
     }
     for (let n = int(0, 3); n > 0; n--) {
       const i = int(1, backbone.length - 2)
@@ -113,19 +113,19 @@ function randomRgfa(seed: number, tag = '', tangled = true) {
       )
       switch (int(0, 3)) {
         case 0:
-          link(prev!, '+', last!, '-')
-          link(first!, '-', next!, '+')
+          addLink(prev!, '+', last!, '-')
+          addLink(first!, '-', next!, '+')
           break
         case 1:
-          link(last!, '+', first!, '+')
+          addLink(last!, '+', first!, '+')
           break
         case 2:
-          link(first!, '+', first!, chance(0.5) ? '+' : '-')
+          addLink(first!, '+', first!, chance(0.5) ? '+' : '-')
           break
         default: {
           const allele = chain(`asm${int(1, 4)}#chr`, int(1, 3), lengths(2))
-          link(prev!, '+', allele[0]!, '+')
-          link(allele[1]!, '+', next!, '-')
+          addLink(prev!, '+', allele[0]!, '+')
+          addLink(allele[1]!, '+', next!, '-')
         }
       }
     }
@@ -145,20 +145,20 @@ function randomRgfa(seed: number, tag = '', tangled = true) {
       const allele = chain(`asm${int(1, 4)}#chr`, int(1, 3), sizes)
       const [first, last] = [allele[0]!, allele.at(-1)!]
       if (!chance(0.08)) {
-        link(left, '+', reversed ? last : first, reversed ? '-' : '+')
+        addLink(left, '+', reversed ? last : first, reversed ? '-' : '+')
       }
       if (!chance(0.08)) {
-        link(reversed ? first : last, reversed ? '-' : '+', right, '+')
+        addLink(reversed ? first : last, reversed ? '-' : '+', right, '+')
       }
       if (tangled && allele.length > 2 && chance(0.2)) {
-        link(allele[1]!, '+', pick(segments), chance(0.5) ? '+' : '-')
+        addLink(allele[1]!, '+', pick(segments), chance(0.5) ? '+' : '-')
       }
     }
   }
 
   for (let n = tangled ? int(0, 2) : 0; n > 0; n--) {
     const a = pick(segments)
-    link(a, chance(0.5) ? '+' : '-', chance(0.1) ? a : pick(segments), '+')
+    addLink(a, chance(0.5) ? '+' : '-', chance(0.1) ? a : pick(segments), '+')
   }
   if (chance(0.1)) {
     links.push(pick(links))
@@ -399,7 +399,7 @@ test(`${GRAPHS} random rGFA graphs folded twice fold as once at the larger size`
 
 const where = 'GFA_TO_TABIX or PATH'
 
-test.runIf(process.env.CI || process.env.GFA_TO_TABIX)(
+test.runIf([process.env.CI, process.env.GFA_TO_TABIX].some(Boolean))(
   `a gfa-to-tabix runs from ${where} under CI or a set GFA_TO_TABIX`,
   () => {
     expect(VERSION).toBeDefined()
@@ -445,9 +445,9 @@ describe.skipIf(!VERSION)(
           if (typeof batch !== 'string' && sameRows(batch)) {
             return []
           }
-          const failures = await failingSeeds(seeds, below, dir)
-          return failures.length > 0
-            ? failures
+          const seedFailures = await failingSeeds(seeds, below, dir)
+          return seedFailures.length > 0
+            ? seedFailures
             : [
                 `all ${GRAPHS} graphs in one file folded at ${below} bp, though each alone matches\n${typeof batch === 'string' ? batch : rowDiff(batch).split('\n').slice(0, 20).join('\n')}`,
               ]

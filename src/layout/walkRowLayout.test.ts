@@ -28,7 +28,7 @@ test('row 0 places every backbone node at its reference bp without a region', ()
       { x: node.stable.start + node.length, y: 0 },
     ])
   }
-  expect(rowLabels[0]).toEqual({ label: 'K12', y: 0 })
+  expect(rowLabels![0]).toEqual({ label: 'K12', y: 0 })
 })
 
 test('with a region, row 0 keeps only the backbone nodes overlapping it', () => {

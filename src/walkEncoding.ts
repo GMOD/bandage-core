@@ -150,9 +150,11 @@ const toGamma = (c: number) =>
 // sRGB hex to OKLab, where a straight line between two colours changes
 // lightness evenly, so a family's steps read alike from end to end
 function oklab(hex: string) {
-  const [r, g, b] = [1, 3, 5].map(i =>
-    toLinear(Number.parseInt(hex.slice(i, i + 2), 16) / 255),
-  ) as [number, number, number]
+  const channel = (i: number) =>
+    toLinear(Number.parseInt(hex.slice(i, i + 2), 16) / 255)
+  const r = channel(1)
+  const g = channel(3)
+  const b = channel(5)
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
@@ -198,7 +200,8 @@ export function schemeRgb(scheme: WalkScheme, t: number, darkest = 0) {
       REFERENCE_RAMP_LIGHTNESS,
     ).map(c => c * 255)
   }
-  const [from, to] = ends as [number[], number[]]
+  const from = ends[0]!
+  const to = ends[1]!
   const light = from[0]!
   const dark = to[0]!
   const reach =

@@ -196,6 +196,7 @@ export class Column<T extends Int32Array | Float64Array | Uint8Array> {
 
   push(value: number) {
     if (this.length === this.data.length) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       const grown = new (this.data.constructor as new (n: number) => T)(
         this.data.length * 2,
       )

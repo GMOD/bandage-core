@@ -43,16 +43,18 @@ test('runs cover the row without gaps, splitting shared sequence where its refer
   const { rows } = walkRows(pggbGraph())!
   for (const row of rows) {
     let pos = 0
-    row.runs.forEach((run, i) => {
+    for (const run of row.runs) {
       expect(run.start).toBe(pos)
-      const prev = row.runs[i - 1]
-      if (prev?.onReference && run.onReference) {
-        expect(run.referenceStart).not.toBe(prev.referenceStart! + prev.bp)
-      } else if (prev) {
-        expect(run.onReference).not.toBe(prev.onReference)
-      }
       expect(run.referenceStart !== undefined).toBe(run.onReference)
       pos += run.bp
+    }
+    row.runs.slice(1).forEach((run, i) => {
+      const prev = row.runs[i]!
+      const continues =
+        prev.onReference === run.onReference &&
+        (!run.onReference ||
+          run.referenceStart === prev.referenceStart! + prev.bp)
+      expect(continues).toBe(false)
     })
   }
 })

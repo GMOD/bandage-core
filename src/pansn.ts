@@ -1,7 +1,7 @@
 // The slice of a JBrowse data adapter these functions read, so any adapter with
 // a config reader fits and nothing here imports a host.
 interface ConfAdapter {
-  getConf(slot: any): unknown
+  getConf(slot: string): unknown
 }
 
 // PanSN naming convention: `sample#haplotype#contig`. Shared by the all-vs-all
@@ -86,11 +86,14 @@ export function panSNMatchesPrefix(
 //
 // `?? {}` so an adapter whose schema lacks the slot identity-maps rather than
 // throwing a TypeError deep inside a query.
+const isNameMap = (value: unknown): value is Record<string, string> =>
+  typeof value === 'object' &&
+  value !== null &&
+  Object.values(value).every(v => typeof v === 'string')
+
 function assemblyNameToPanSN(adapter: ConfAdapter) {
-  return (adapter.getConf('assemblyNameToPanSN') ?? {}) as Record<
-    string,
-    string
-  >
+  const map = adapter.getConf('assemblyNameToPanSN')
+  return isNameMap(map) ? map : {}
 }
 
 // One assembly name as its PanSN sample prefix, identity when the config maps
@@ -111,6 +114,13 @@ export function resolvePanSNPrefix(
     : (assemblyNameToPanSN(adapter)[name] ?? name)
 }
 
+function assemblyNames(adapter: ConfAdapter) {
+  const names = adapter.getConf('assemblyNames')
+  return Array.isArray(names)
+    ? names.filter((name): name is string => typeof name === 'string')
+    : []
+}
+
 const asmByPrefixCache = new WeakMap<ConfAdapter, Record<string, string>>()
 
 // The inverse: PanSN prefix -> the assembly name this session loads it as, for
@@ -123,7 +133,7 @@ export function assemblyByPanSNPrefix(adapter: ConfAdapter) {
     out = {}
     for (const asm of new Set([
       ...Object.keys(map),
-      ...(adapter.getConf('assemblyNames') as string[]),
+      ...assemblyNames(adapter),
     ])) {
       out[map[asm] ?? asm] = asm
     }

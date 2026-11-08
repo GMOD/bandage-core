@@ -249,12 +249,12 @@ function highlightOf(
     let at = gap.start
     for (const x of gap.segments) {
       const inRange = !extent || (at >= extent.start && at + x.bp <= extent.end)
-      const bp = inRange ? x.bp : 0
-      const missing = x.kind === 'own' ? Math.min(x.missingBp, bp) : 0
+      const keptBp = inRange ? x.bp : 0
+      const missing = x.kind === 'own' ? Math.min(x.missingBp, keptBp) : 0
       missingBp += missing
-      ownBp += x.kind === 'own' ? bp - missing : 0
-      readBp += x.kind === 'read' ? bp : 0
-      unreadBp += x.kind === 'unread' ? bp : 0
+      ownBp += x.kind === 'own' ? keptBp - missing : 0
+      readBp += x.kind === 'read' ? keptBp : 0
+      unreadBp += x.kind === 'unread' ? keptBp : 0
       at += x.bp
     }
   }

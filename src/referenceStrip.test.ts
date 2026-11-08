@@ -63,7 +63,7 @@ test('under lifted walks a block is a row per walk in its lane, pale where the w
       { colors: new Map(['a', 'x', 'c'].map(id => [id, hap])) },
     ],
   })
-  const pale = expect.stringMatching(/^rgba\(160,160,160,0\.18/)
+  const pale: unknown = expect.stringMatching(/^rgba\(160,160,160,0\.18/)
   expect(blocks.map(b => b.colors)).toEqual([
     ['rgba(10,20,30,1)', 'rgba(40,50,60,1)'],
     ['rgba(10,20,30,1)', pale],

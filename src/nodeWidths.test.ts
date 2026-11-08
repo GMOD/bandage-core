@@ -34,6 +34,7 @@ test('lanes that fit inside the node leave its width as the reach', () => {
 
 function graphOf(nodes: GraphNode[], walks: string[]): Graph {
   return {
+    name: 'g',
     nodes,
     edges: [],
     paths: walks.map(name => ({ name, nodeIds: [] })),

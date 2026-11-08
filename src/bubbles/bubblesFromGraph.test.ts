@@ -166,7 +166,7 @@ describe('bubblesFromGraph', () => {
   // with a longest allele of 101 bp, the insertion lost and the SNP fused into
   // it. Multi-node alleles are the ordinary shape of a GBZ cut or a pggb file.
   it('a multi-node allele beside a SNP derives two bubbles', () => {
-    const graph: Graph = {
+    const insertion: Graph = {
       name: 'g',
       nodes: [
         node('A', 100, 0),
@@ -188,7 +188,7 @@ describe('bubblesFromGraph', () => {
         ['Calt', 'D'],
       ].map(([from, to]) => ({ from: `${from}+`, to: `${to}+` })),
     }
-    const found = bubblesFromGraph(graph)
+    const found = bubblesFromGraph(insertion)
     expect(found.map(b => [b.start, b.end, b.segments])).toEqual([
       [100, 100, 'A,X1,X2,B'],
       [200, 201, 'B,Calt,C,D'],
@@ -204,7 +204,7 @@ describe('bubblesFromGraph', () => {
   // such a node sits in the first one, its link into r4 crossed r3's layer and
   // the SNP fused with the entry into one bubble, r1,a,r2,w,r3,r4.
   it('a node a walk enters the cut at does not fuse the bubbles before it', () => {
-    const graph: Graph = {
+    const entered: Graph = {
       name: 'g',
       nodes: [
         node('r1', 10, 0),
@@ -231,7 +231,7 @@ describe('bubblesFromGraph', () => {
         nodeIds: ids.map(id => `${id}+`),
       })),
     }
-    expect(bubblesFromGraph(graph).map(b => b.segments)).toEqual([
+    expect(bubblesFromGraph(entered).map(b => b.segments)).toEqual([
       'r1,a,r2,r3',
       'r3,w,r4',
     ])

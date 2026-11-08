@@ -48,10 +48,11 @@ test('a file naming no backbone contig says what it names, until refNames binds 
 test('an indexed file is read over the backbone contig alone', async () => {
   const reads: [string, number, number][] = []
   const indexed: IndexedGeneFile = {
-    getReferenceSequenceNames: async () => ['chr1', 'chr6'],
-    getLines: async (refName, start, end, { lineCallback }) => {
+    getReferenceSequenceNames: () => Promise.resolve(['chr1', 'chr6']),
+    getLines: (refName, start, end, { lineCallback }) => {
       reads.push([refName, start, end])
       lineCallback(bed(refName))
+      return Promise.resolve()
     },
   }
   const { genes } = await backboneGenes(graph, { indexed })

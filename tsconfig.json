@@ -16,8 +16,9 @@
     "allowJs": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["vitest/globals", "node"]
   },
   "include": ["src", "typecheck"],
-  "exclude": ["**/dist/", "src/**/*.test.ts", "src/renderer/recordingCanvas.ts"]
+  "exclude": ["**/dist/"]
 }

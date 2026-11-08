@@ -54,6 +54,8 @@ export function haplotypeIndexBeside(db: string) {
 // A figure spec's region, 0-based and half-open as in BED: a genome browser's
 // chr6:160,614,798-160,647,758 is chr6:160,614,797-160,647,758 here.
 // parseLocus reads the browser's form.
+const commaNumber = (s: string) => Number(s.replaceAll(',', ''))
+
 export function parseRegion(text: string) {
   const m = /^\s*(\S+?):([\d,]+)-([\d,]+)\s*$/.exec(text)
   if (!m) {
@@ -61,8 +63,11 @@ export function parseRegion(text: string) {
       `"${text}" is not a 0-based region like chr6:160,614,797-160,647,758`,
     )
   }
-  const n = (s: string) => Number(s.replaceAll(',', ''))
-  const region = { refName: m[1]!, start: n(m[2]!), end: n(m[3]!) }
+  const region = {
+    refName: m[1]!,
+    start: commaNumber(m[2]!),
+    end: commaNumber(m[3]!),
+  }
   if (region.end <= region.start) {
     throw new Error(`"${text}" ends at or before it starts`)
   }

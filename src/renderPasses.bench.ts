@@ -31,7 +31,7 @@ import type { Graph, GraphNode, NodeSegment } from './types'
 function benchGraph(backboneCount: number) {
   const nodes: GraphNode[] = []
   const edges: Graph['edges'] = []
-  let pos = 0
+  let at = 0
   for (let i = 0; i < backboneCount; i++) {
     const length = 300 + (i % 17) * 40
     nodes.push({
@@ -39,9 +39,9 @@ function benchGraph(backboneCount: number) {
       name: `b${i}`,
       length,
       depth: 5,
-      stable: { refName: 'chr1', start: pos, rank: 0 },
+      stable: { refName: 'chr1', start: at, rank: 0 },
     })
-    pos += length
+    at += length
     if (i > 0) {
       edges.push({ from: `b${i - 1}+`, to: `b${i}+` })
     }
@@ -153,15 +153,13 @@ for (const backbone of [1000, 5000]) {
     })
 
     test('SpatialIndex (nodes)', async ({ bench }) => {
-      await bench('SpatialIndex (nodes)', () => {
-        new SpatialIndex(nodePositions)
-      }).run()
+      await bench('SpatialIndex (nodes)', () =>
+        new SpatialIndex(nodePositions)).run()
     })
 
     test('EdgeSpatialIndex', async ({ bench }) => {
-      await bench('EdgeSpatialIndex', () => {
-        new EdgeSpatialIndex(nodePositions, graph, false, AXIS, bypassed)
-      }).run()
+      await bench('EdgeSpatialIndex', () =>
+        new EdgeSpatialIndex(nodePositions, graph, false, AXIS, bypassed)).run()
     })
   })
 }

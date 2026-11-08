@@ -74,8 +74,10 @@ function middle(r: { x0: number; x1: number; y0: number; y1: number }) {
 test('the pointer names the tube it is over, a read before the tube under it', () => {
   const picture = tubeMapPicture(drawing())
   const [haplotypes, reads] = picture.layers
-  const over = (px: number, py: number) => (r: (typeof reads.rects)[number]) =>
-    r.x0 <= px && px <= r.x1 && r.y0 <= py && py <= r.y1
+  const over =
+    (px: number, py: number) =>
+    (r: NonNullable<typeof reads>['rects'][number]) =>
+      r.x0 <= px && px <= r.x1 && r.y0 <= py && py <= r.y1
   const [rx, ry] = middle(reads!.rects[0]!)
   const read = tubeMapTrackAt(picture, identity, rx, ry)
   expect(reads!.rects.some(r => r.id === read && over(rx, ry)(r))).toBe(true)
@@ -210,12 +212,15 @@ const cubicMiddle = (x0: number, y0: number, c: Cubic) => [
 // A ribbon is M, its top edge, V down its far end, its bottom edge back, Z;
 // this is halfway between its edges' midpoints
 function ribbonMiddle(commands: ReturnType<typeof parsePath>) {
-  const [start, top, down, bottom] = commands as [
-    { x: number; y: number },
-    Cubic,
-    { y: number },
-    Cubic,
-  ]
+  const [start, top, down, bottom] = commands
+  if (
+    start?.op !== 'M' ||
+    top?.op !== 'C' ||
+    down?.op !== 'V' ||
+    bottom?.op !== 'C'
+  ) {
+    throw new Error('not a ribbon')
+  }
   const [tx, ty] = cubicMiddle(start.x, start.y, top)
   const [bx, by] = cubicMiddle(top.x, down.y, bottom)
   return [(tx! + bx!) / 2, (ty! + by!) / 2] as const
@@ -228,20 +233,18 @@ test('the pointer names the tube on a lane change, the reference over the rest',
     s => s.commands.length === 5 && s.commands[1]!.op === 'C',
   )
   expect(curves.length).toBeGreaterThan(0)
-  let named = 0
-  for (const curve of curves) {
+  const hits = curves.map(curve => {
     const [mx, my] = ribbonMiddle(curve.commands)
     const onRun = haplotypes!.rects.some(
       r => r.x0 <= mx && mx <= r.x1 && r.y0 <= my && my <= r.y1,
     )
-    const hit = tubeMapTrackAt(picture, identity, mx, my)
-    if (!onRun && hit !== undefined) {
-      named++
-    }
-    if (curve.reference) {
-      expect(hit).toBe(curve.id)
-    }
+    return { curve, onRun, hit: tubeMapTrackAt(picture, identity, mx, my) }
+  })
+  for (const { curve, hit } of hits.filter(h => h.curve.reference)) {
+    expect(hit).toBe(curve.id)
   }
-  expect(named).toBeGreaterThan(0)
+  expect(
+    hits.filter(h => !h.onRun && h.hit !== undefined).length,
+  ).toBeGreaterThan(0)
   expect(tubeMapTrackAt(picture, identity, -1e6, -1e6)).toBeUndefined()
 })

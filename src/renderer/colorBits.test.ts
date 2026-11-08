@@ -9,7 +9,11 @@ import {
   packAbgr,
 } from './colorBits'
 
-const rgb = (c: number) => [abgrRed(c), abgrGreen(c), abgrBlue(c)]
+const rgb = (c: number): [number, number, number] => [
+  abgrRed(c),
+  abgrGreen(c),
+  abgrBlue(c),
+]
 
 describe('brightenAbgr', () => {
   test('a factor of 1 leaves the color alone', () => {

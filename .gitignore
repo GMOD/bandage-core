@@ -12,7 +12,6 @@ node_modules
 dist/
 *.tsbuildinfo
 .npm
-.eslintcache
 *.tgz
 .env
 .env.test

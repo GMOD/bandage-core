@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { PathVisits } from '../pathVisits'
 import { bubbleSubgraph } from './popBubble'
 
 import type { Graph } from '../types'
@@ -57,11 +58,8 @@ describe('bubbleSubgraph', () => {
     const anchorPaths = [
       { name: 'ref', sample: 'ref', start: 1000, length: 40 },
     ]
-    const pathVisits = new Map([
-      [
-        's1',
-        [{ path: 'ref', sample: 'ref', start: 1000, strand: '+' as const }],
-      ],
+    const pathVisits = PathVisits.from([
+      ['s1', [{ path: 'ref', sample: 'ref', start: 1000, strand: '+' }]],
     ])
     const sub = bubbleSubgraph({ ...graph, anchorPaths, pathVisits }, [
       's2',

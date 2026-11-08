@@ -60,9 +60,9 @@ export function recordingCanvas() {
     },
   }
   // The element is real (jsdom gives a genuine HTMLCanvasElement); only the
-  // context is a stand-in, which is the one cast this needs.
+  // context is a stand-in.
   const canvas = document.createElement('canvas')
-  canvas.getContext = () => ctx as unknown as CanvasRenderingContext2D
+  Object.defineProperty(canvas, 'getContext', { value: () => ctx })
   return {
     canvas,
     strokes,

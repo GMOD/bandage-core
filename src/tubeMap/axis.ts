@@ -82,7 +82,7 @@ export function tubeSpan(boxes: readonly Box[], start: number, end: number) {
 
 // The refName most of the cut's reference lies on, for the ruler
 export function rulerBoxes(byRefName: ReferenceBoxes) {
-  let best: Box[] | undefined
+  let best: ReferenceBox[] | undefined
   for (const boxes of byRefName.values()) {
     if (!best || boxes.length > best.length) {
       best = boxes

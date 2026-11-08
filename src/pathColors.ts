@@ -145,8 +145,8 @@ export function pathLegend(
   // Nothing separates two paths with the same name and the same offset, so the
   // widest labelling is as close as any can get.
   const labels = distinct ?? candidates.at(-1)!
-  return entries.map(({ name, i }, k) => ({
-    name,
+  return entries.map(({ name: walkName, i }, k) => ({
+    name: walkName,
     label: labels[k]!,
     color: colors?.[i] ?? pathCssColor(i, paths.length),
   }))

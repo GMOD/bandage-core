@@ -78,12 +78,13 @@ test('each row label sits at the y its own samples were drawn at', () => {
   const graph = ecoliGraph()
   const { nodePositions, rowLabels } = sampleRowLayout(graph)!
   const labelY = new Map(rowLabels!.map(r => [r.label, r.y]))
-  for (const node of graph.nodes) {
+  const placed = graph.nodes.flatMap(node => {
     const position = nodePositions[node.id]
-    if (position && node.stable) {
-      const sample = node.stable.refName.split('#')[0]!
-      expect(labelY.get(sample)).toBe(position[0]!.y)
-    }
+    return position && node.stable ? [{ stable: node.stable, position }] : []
+  })
+  for (const { stable, position } of placed) {
+    const sample = stable.refName.split('#')[0]!
+    expect(labelY.get(sample)).toBe(position[0]!.y)
   }
 })
 
@@ -329,6 +330,6 @@ test('a segment no path visits does not take the layout down', () => {
   expect(layout.nodePositions['s9+']).toBeDefined()
   // on no sample's row, so the spare row below the named ones, which is what
   // the anchored layout does with a rank it does not have a row for
-  const rows = layout.rowLabels.length
+  const rows = layout.rowLabels!.length
   expect(layout.nodePositions['s9+']![0]!.y).toBe(rows * ROW_HEIGHT_PX)
 })

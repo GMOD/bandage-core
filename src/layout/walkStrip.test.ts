@@ -170,10 +170,8 @@ test('a point on the strip finds its row and bar offset, and ticks draw there', 
   const i = 1 + bars.rows.findIndex(r => r.name === 'HG1#1#ctg1')
   const x = (bars.origin + 7) * frame.scaleX + frame.translateX
   const y = i * frame.rowPx + frame.translateY
-  expect(stripRowAt(bars, frame, x, y)).toMatchObject({
-    index: i,
-    offset: expect.closeTo(7, 5),
-  })
+  const offset: unknown = expect.closeTo(7, 5)
+  expect(stripRowAt(bars, frame, x, y)).toMatchObject({ index: i, offset })
   const svg = serializeEl(
     walkMarksTree(
       bars,
@@ -236,8 +234,9 @@ test('a point along a stepless row finds it, and the bars reach as far as it', (
   const i = withStepless.rows.length
   const x = (bars.origin + 40) * frame.scaleX + frame.translateX
   const y = i * frame.rowPx + frame.translateY
+  const offset: unknown = expect.closeTo(40, 5)
   expect(stripRowAt(withStepless, frame, x, y)).toMatchObject({
     index: i,
-    offset: expect.closeTo(40, 5),
+    offset,
   })
 })

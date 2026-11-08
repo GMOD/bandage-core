@@ -49,7 +49,7 @@ test("a lifted walk's key states what all its pieces carry", () => {
   const graph = loadGraph(leavesAndReturns, 'cut', {
     referencePath: 'GRCh38#0#chr1',
   })
-  const lift = walkLift(graph, [{ walk: 'HG002#1#chr1' }])
+  const lift = walkLift(graph, [{ walk: 'HG002#1#chr1' }])!
   const key = walkKey(lift.walks[0]!)
   // the walk spans the reference's 5 kb; the kilobase between its pieces is
   // outside the extracted subgraph, not deleted

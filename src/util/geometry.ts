@@ -2,9 +2,10 @@ import { ROW_HEIGHT_PX } from '../layout/rowSpacing'
 
 import type { GraphEdge, NodeSegment } from '../types'
 
+const round = (v: number) => Math.round(v * 100) / 100
+
 // An SVG path along a polyline, rounded to two decimals.
 export function svgPath(points: NodeSegment[]) {
-  const round = (v: number) => Math.round(v * 100) / 100
   return points
     .map((p, i) => `${i ? 'L' : 'M'}${round(p.x)},${round(p.y)}`)
     .join('')
@@ -267,7 +268,7 @@ export function slideCurves(
   toDy: number,
 ): BezierCurve[] {
   const n = curves.length
-  const out: BezierCurve[] = new Array(n)
+  const out = new Array<BezierCurve>(n)
   for (let i = 0; i < n; i++) {
     const c = curves[i]!
     const a = i / n
@@ -295,7 +296,7 @@ export function translateCurves(
   dx: number,
   dy: number,
 ): BezierCurve[] {
-  const out: BezierCurve[] = new Array(curves.length)
+  const out = new Array<BezierCurve>(curves.length)
   for (let i = 0; i < curves.length; i++) {
     const c = curves[i]!
     out[i] = {
@@ -347,12 +348,13 @@ export function ownStrand(id: string) {
 // carries, and the other end where it reads it flipped. An absent strand reads
 // as the id's own. These are the drawn ends wherever a layout draws each node
 // start to end, as the force layout does (LayoutResult.stranded).
+const readsOwnStrand = (id: string, strand: string | undefined) =>
+  (strand ?? ownStrand(id)) === ownStrand(id)
+
 export function strandSides(edge: GraphEdge): EdgeSides {
-  const own = (id: string, strand: string | undefined) =>
-    (strand ?? ownStrand(id)) === ownStrand(id)
   return {
-    from: own(edge.from, edge.fromStrand) ? 'end' : 'start',
-    to: own(edge.to, edge.toStrand) ? 'start' : 'end',
+    from: readsOwnStrand(edge.from, edge.fromStrand) ? 'end' : 'start',
+    to: readsOwnStrand(edge.to, edge.toStrand) ? 'start' : 'end',
   }
 }
 

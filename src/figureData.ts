@@ -153,14 +153,11 @@ interface ArrowRow {
   alpha: number
 }
 
-function columns<T extends object>(keys: (keyof T)[]) {
-  const out = Object.fromEntries(
-    keys.map(k => [k, []]),
-  ) as unknown as Columns<T>
+function columns<T extends object>(out: Columns<T>) {
   return {
     out,
     push(row: T) {
-      for (const k of keys) {
+      for (const k in out) {
         out[k].push(row[k])
       }
     },
@@ -208,17 +205,17 @@ export function figureData(
     range: string
     firstKeyRow: number
   }[] = []
-  const keys = columns<KeyRow>([
-    'panel',
-    'walk',
-    'name',
-    'color',
-    'note',
-    'scale',
-    'stops',
-    'field',
-  ])
-  const threadKeys = columns<ThreadKeyRow>(['panel', 'note'])
+  const keys = columns<KeyRow>({
+    panel: [],
+    walk: [],
+    name: [],
+    color: [],
+    note: [],
+    scale: [],
+    stops: [],
+    field: [],
+  })
+  const threadKeys = columns<ThreadKeyRow>({ panel: [], note: [] })
   const pushKey = (walk: LiftedWalk, panel: string) => {
     const key = keyText(walk)
     const stops = encodingStops(walk.encoding).map(s => cssHex(s.abgr))
@@ -267,8 +264,14 @@ export function figureData(
     })
   }
 
-  const pins = columns<PinRow>(['gene', 'x', 'y', 'covered', 'bp'])
-  const exons = columns<ExonRow>(['gene', 'node', 'stretch', 'x', 'y'])
+  const pins = columns<PinRow>({ gene: [], x: [], y: [], covered: [], bp: [] })
+  const exons = columns<ExonRow>({
+    gene: [],
+    node: [],
+    stretch: [],
+    x: [],
+    y: [],
+  })
   let stretch = 0
   for (const pin of o.genes?.length
     ? genePins(graph, o.genes, layout.nodePositions)
@@ -291,57 +294,57 @@ export function figureData(
     }
   }
 
-  const nodes = columns<NodeRow>([
-    'panel',
-    'node',
-    'stroke',
-    'x',
-    'y',
-    'color',
-    'alpha',
-    'width',
-    'walk',
-    'pass',
-    'nx',
-    'ny',
-    'offset',
-  ])
-  const edges = columns<EdgeRow>([
-    'panel',
-    'edge',
-    'curve',
-    'x0',
-    'y0',
-    'cx0',
-    'cy0',
-    'cx1',
-    'cy1',
-    'x1',
-    'y1',
-    'color',
-    'alpha',
-    'width',
-    'deletion',
-    'walk',
-    'pass',
-    'nx',
-    'ny',
-    'offset',
-    'nx1',
-    'ny1',
-    'offset1',
-  ])
-  const arrows = columns<ArrowRow>([
-    'panel',
-    'edge',
-    'x',
-    'y',
-    'angle',
-    'length',
-    'halfWidth',
-    'color',
-    'alpha',
-  ])
+  const nodes = columns<NodeRow>({
+    panel: [],
+    node: [],
+    stroke: [],
+    x: [],
+    y: [],
+    color: [],
+    alpha: [],
+    width: [],
+    walk: [],
+    pass: [],
+    nx: [],
+    ny: [],
+    offset: [],
+  })
+  const edges = columns<EdgeRow>({
+    panel: [],
+    edge: [],
+    curve: [],
+    x0: [],
+    y0: [],
+    cx0: [],
+    cy0: [],
+    cx1: [],
+    cy1: [],
+    x1: [],
+    y1: [],
+    color: [],
+    alpha: [],
+    width: [],
+    deletion: [],
+    walk: [],
+    pass: [],
+    nx: [],
+    ny: [],
+    offset: [],
+    nx1: [],
+    ny1: [],
+    offset1: [],
+  })
+  const arrows = columns<ArrowRow>({
+    panel: [],
+    edge: [],
+    x: [],
+    y: [],
+    angle: [],
+    length: [],
+    halfWidth: [],
+    color: [],
+    alpha: [],
+  })
 
   for (const { highlight, name: panel, firstKeyRow } of panels) {
     const batch = geometry(highlight, axis)

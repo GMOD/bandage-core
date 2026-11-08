@@ -1,6 +1,6 @@
 // The tables bandage-core reads are the tables @jbrowse/graph-walks writes:
-// `tsc` fails here when the version package.json pins changes their shape,
-// so a graph-walks bump that changes the hand-off cannot land unnoticed.
+// `pnpm typecheck` fails here when the version package.json pins changes their
+// shape, so a graph-walks bump that changes the hand-off cannot land unnoticed.
 // Outside src, so neither the build nor a consumer's types depend on it.
 import type { Departure, DepartureKind, GapKind } from '../src/gfa/departures'
 import type {

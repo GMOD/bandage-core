@@ -30,16 +30,16 @@ test('the reference path is track 0 and every path is a track', () => {
   const graph = pggb()
   const tracks = tubeMapTracks(graph)
   expect(tracks[0]!.name).toBe('NCTC86#1#chr:1189696-1190158')
-  expect(tracks.map(t => t.name).sort()).toEqual(
+  expect(tracks.map(t => t.name!).sort()).toEqual(
     graph.paths!.map(p => p.name).sort(),
   )
 })
 
 test('a path walking the reverse strand reads its nodes in reverse', () => {
   const tracks = tubeMapTracks(pggb())
-  const iai39 = tracks.find(t => t.name.startsWith('IAI39'))!
+  const iai39 = tracks.find(t => t.name?.startsWith('IAI39'))!
   expect(iai39.sequence[0]).toBe('-54+')
-  const nctc86 = tracks.find(t => t.name.startsWith('NCTC86'))!
+  const nctc86 = tracks.find(t => t.name?.startsWith('NCTC86'))!
   expect(nctc86.sequence.every(step => !step.startsWith('-'))).toBe(true)
 })
 

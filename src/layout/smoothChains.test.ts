@@ -45,10 +45,11 @@ test('a force layout draws what its engine bent as a curve', async () => {
     { x: 10, y: 0 },
     { x: 10, y: 10 },
   ]
-  const engine: LayoutEngine = async () => ({
-    result: { nodePositions: { '1+': corner } },
-    duration: 0,
-  })
+  const engine: LayoutEngine = () =>
+    Promise.resolve({
+      result: { nodePositions: { '1+': corner } },
+      duration: 0,
+    })
   const { result } = await forceLayout(graph, engineSettingsOf(), engine)
   expect(Math.max(...turns(result.nodePositions['1+']!))).toBeLessThan(20)
 })

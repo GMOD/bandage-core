@@ -332,7 +332,7 @@ export function drawTubeMap(
   const visible = (item: { x0: number; x1: number }) =>
     x(item.x1) >= 0 && x(item.x0) <= width
   const colorOf = (item: Filled) =>
-    (item.haplotype && frame.tubeColors?.[item.id]) || item.color
+    (item.haplotype ? frame.tubeColors?.[item.id] : undefined) ?? item.color
   ctx.globalAlpha = 1
   for (const layer of picture.layers) {
     for (const reference of [false, true]) {
