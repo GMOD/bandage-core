@@ -5,6 +5,7 @@ import {
   MISSING_INK,
   MISSING_PX,
   barEnd,
+  fitReadout,
   gapStyle,
   genesOnRow,
   placeRowGenes,
@@ -415,6 +416,44 @@ test('a readout goes inside its bar only over solid bar, past the last gap', () 
     ),
   )
   expect(svg).toContain(`text-anchor="start">${text}<`)
+})
+
+test('a readout too long for the room beside its bar drops whole parts of its breakdown from the end', () => {
+  const text =
+    '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb near chr22:12.0 Mb, 86 kb out of view'
+  const cut = '5361 kb (+5360 kb), of which 5096 kb left out of graph, …'
+  expect(fitReadout(text, text.length * LABEL_CHAR_PX)).toBe(text)
+  expect(fitReadout(text, cut.length * LABEL_CHAR_PX)).toBe(cut)
+  expect(fitReadout(text, 10)).toBe('5361 kb (+5360 kb), …')
+  expect(
+    fitReadout(
+      '≥ 2.0 kb, of which 1.0 kb out of view · goes on near chr1:4 kb',
+      230,
+    ),
+  ).toBe('≥ 2.0 kb, … · goes on near chr1:4 kb')
+  const bars = rows()
+  const hg3 = bars.rows.find(row => row.name === 'HG3#1#ctg3')!
+  const scaleX = 20
+  const translateX = 40 - bars.origin * scaleX
+  const endX = (bars.origin + barEnd(hg3)) * scaleX + translateX
+  const full = walkRowReadout(hg3, bars.reference)
+  const svg = serializeEl(
+    walkRowsTree(
+      { ...bars, rows: [hg3] },
+      {
+        scaleX,
+        scaleY: 1,
+        translateX,
+        translateY: 20,
+        width: endX + 80,
+        height: 400,
+      },
+    ),
+  )
+  expect(full).toBe('0.0 kb, of which 0.0 kb out of view')
+  expect(svg).toContain(
+    `text-anchor="start"><title>${full}</title>0.0 kb, …</text>`,
+  )
 })
 
 // HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 have no step on

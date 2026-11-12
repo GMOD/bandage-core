@@ -235,6 +235,34 @@ export function readoutPlacement(
     : { x: inside, anchor: 'end' as const, halo: true }
 }
 
+const ELLIPSIS = '…'
+
+// A readout cut to `roomPx` by whole parts of its breakdown from the end,
+// closed with an ellipsis; its total and change against the reference stay
+export function fitReadout(text: string, roomPx: number) {
+  const fits = (candidate: string) => candidate.length * LABEL_CHAR_PX <= roomPx
+  const [first = '', ...rest] = text.split(' · ')
+  const tail = rest.map(part => ` · ${part}`).join('')
+  const at = first.indexOf(', of which ')
+  const head = at < 0 ? first : first.slice(0, at)
+  const items = at < 0 ? [] : first.slice(at + ', of which '.length).split(', ')
+  const cuts =
+    items.length > 0
+      ? [tail, ''].flatMap(after =>
+          items
+            .map((_, k) => items.length - 1 - k)
+            .map(k =>
+              k > 0
+                ? `${head}, of which ${items.slice(0, k).join(', ')}, ${ELLIPSIS}${after}`
+                : `${head}, ${ELLIPSIS}${after}`,
+            ),
+        )
+      : rest
+          .map((_, k) => rest.length - 1 - k)
+          .map(k => `${[first, ...rest.slice(0, k)].join(' · ')} · ${ELLIPSIS}`)
+  return fits(text) ? text : (cuts.find(fits) ?? cuts.at(-1) ?? text)
+}
+
 const rowNameEnd = (label: string) =>
   3 * READOUT_GAP_PX + label.length * LABEL_CHAR_PX
 
@@ -971,6 +999,10 @@ export function walkRowsTree(
         frame.width,
         Math.max(rowNameEnd(row.label), along(lastGapEnd(row.runs))),
       )
+    const shown =
+      readout && at?.anchor === 'start'
+        ? fitReadout(readout.text, frame.width - at.x)
+        : readout?.text
     return group(
       {
         'data-testid': i === 0 ? 'graph-walk-reference' : 'graph-walk-row',
@@ -1006,7 +1038,8 @@ export function walkRowsTree(
               'paint-order': 'stroke',
               'text-anchor': at.anchor,
             },
-            readout.text,
+            shown !== readout.text && el('title', {}, readout.text),
+            shown,
           ),
       ],
     )
