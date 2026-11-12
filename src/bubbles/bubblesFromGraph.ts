@@ -274,5 +274,6 @@ export function derivedBubble(
     longestAllele: undefined,
     partial,
     routes,
+    ...(segments.some(s => s.placeholder) ? { unloaded: true as const } : {}),
   }
 }

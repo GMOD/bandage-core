@@ -1,6 +1,8 @@
 import { WalkReader } from '@jbrowse/graph-walks'
 import { LocalFile } from 'generic-filehandle2'
 
+import { classifyBubble } from './bubbles/classifyBubble'
+import { graphBubbles } from './bubbles/superbubbles'
 import { COLOR_SCHEMES } from './colorSchemes'
 import { serializeEl } from './el'
 import { figureSvg } from './figure'
@@ -532,4 +534,17 @@ test('a cut says how many placeholders it returned, each a node of the tables', 
   expect(
     tables.nodes.placeholders!.reduce((sum, flagged) => sum + flagged, 0),
   ).toBe(placeholders)
+})
+
+test('a bubble with a run not loaded inside is called neither insertion nor deletion', () => {
+  const kinds = (tables: GraphTables) =>
+    graphBubbles(loadGraph(tables, 'cut')).map(bubble => classifyBubble(bubble))
+  expect(kinds(twinTables())).toEqual([
+    { kind: 'complex', label: '500 bp–1 kb, 4 routes, not loaded' },
+  ])
+  const loaded = kinds({
+    ...twinTables(),
+    nodes: { ...twinTables().nodes, placeholders: new Uint8Array(6) },
+  })
+  expect(loaded.map(c => c.label).join(' ')).not.toContain('not loaded')
 })

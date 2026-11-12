@@ -1,3 +1,4 @@
+import { NOT_LOADED_TEXT } from '../gfa/departures'
 import { formatBp } from '../graphLabels'
 import { SATURATED_PATH_COUNT } from './bubbleLine'
 
@@ -79,7 +80,12 @@ export function classifyBubble(
   b: MinigraphBubble,
   repeats: readonly RepeatSpan[] = [],
 ): BubbleClass {
-  const c = classifyShape(b, repeats)
+  const c: BubbleClass = b.unloaded
+    ? {
+        kind: 'complex',
+        label: `${formatBpRange(b.shortestAlleleLength, b.longestAlleleLength)}, ${routes(b.pathCount)}, ${NOT_LOADED_TEXT}`,
+      }
+    : classifyShape(b, repeats)
   return b.partial ? { ...c, label: `${c.label}, partial` } : c
 }
 
