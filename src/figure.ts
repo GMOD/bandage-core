@@ -130,6 +130,7 @@ const KEY_GAP_PX = 16
 const KEY_LINE_PX = 16
 const KEY_TALL_PX = 32
 const STRIP_KEY_PX = 22
+const ROW_NAME_X = 6
 const FADED = 'rgb(160,160,160)'
 const DELETION_INK = 'rgb(24,24,28)'
 const GENE_INK = '#1c1c22'
@@ -306,6 +307,12 @@ export function figureSvg(
       ? genePins(graph, o.genes, layout.nodePositions)
       : []
   const ink = nodeInk(graph, nodeById, contigThickness, nodeWidth)
+  const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)
+  const nameGutter = rowLabels.reduce(
+    (most, { label }) =>
+      Math.max(most, 2 * ROW_NAME_X + label.length * LABEL_CHAR_PX),
+    FIT_PADDING,
+  )
   let masks = 0
 
   // Exons outlined round their stretch of each node, clear of its ink, and
@@ -364,12 +371,11 @@ export function figureSvg(
         ),
       )
     }
-    const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)
     for (const { label, y } of rowLabels) {
       const sy = y * t.scaleY + t.translateY
       if (sy >= 0 && sy <= h) {
         out.push(
-          `<text x="6" y="${sy + 4}" ${FONT} stroke="#fff" stroke-width="3" paint-order="stroke">${escapeAttr(label)}</text>`,
+          `<text x="${ROW_NAME_X}" y="${sy + 4}" ${FONT} stroke="#fff" stroke-width="3" paint-order="stroke">${escapeAttr(label)}</text>`,
         )
       }
     }
@@ -389,7 +395,7 @@ export function figureSvg(
             padRight: FACET_PAD_PX,
             padBottom: FACET_PAD_PX,
           }
-        : {},
+        : { padLeft: nameGutter },
     )
     if (!fit) {
       return ''

@@ -31,6 +31,7 @@ import {
 import { walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
 import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
+import { LABEL_CHAR_PX } from './overlayLabels'
 import { loadGraph } from './pipeline'
 import {
   NOT_LOADED_COLOR,
@@ -281,6 +282,29 @@ test('a placeholder hovered says whose route it stands in for, and no depth', ()
     "500 bp of A#1's route, nodes not shown",
   )
   expect(placeholderHoverText(graph.nodes[0]!)).toBeUndefined()
+})
+
+test('a walk-rows figure gives the row names a gutter of their own', async () => {
+  const { tables, region, rows } = await cut('blocks', 'c', 60, 120)
+  const graph = loadGraph(tables, 'cut')
+  const svg = figureSvg(graph, walkRowLayoutOf(graph, rows, region)!, {
+    width: 900,
+    region: { refName: 'c', ...region },
+    walkRows: rows,
+  })
+  const longest = [rows.reference, ...rows.rows].reduce(
+    (most, each) => Math.max(most, each.label.length),
+    0,
+  )
+  const barStarts = [
+    ...svg.matchAll(
+      /data-testid="graph-walk-(?:row|reference)"><rect x="([\d.]+)"/g,
+    ),
+  ].map(match => Number(match[1]))
+  expect(barStarts.length).toBeGreaterThan(0)
+  for (const x of barStarts) {
+    expect(x).toBeGreaterThanOrEqual(12 + longest * LABEL_CHAR_PX)
+  }
 })
 
 test('runs off the path draw as one, loaded or not, and runs under a pixel merge into the kind most of their bp is', () => {
