@@ -28,9 +28,14 @@ export function isBackbone(node: GraphNode): node is AnchoredNode {
 }
 
 // Anchored and above rank 0: sequence that diverges from the reference. Not
-// simply `!isBackbone`, which would also admit nodes carrying no coordinate.
+// simply `!isBackbone`, which would also admit nodes carrying no coordinate,
+// nor a placeholder, whose steps may lie on the reference elsewhere.
 export function isOffReference(node: GraphNode): node is AnchoredNode {
-  return node.stable !== undefined && node.stable.rank > REFERENCE_RANK
+  return (
+    node.stable !== undefined &&
+    node.stable.rank > REFERENCE_RANK &&
+    !node.placeholder
+  )
 }
 
 export function backboneNodes(graph: Graph) {

@@ -1,6 +1,7 @@
 import { WalkReader } from '@jbrowse/graph-walks'
 import { LocalFile } from 'generic-filehandle2'
 
+import { isOffReference } from './anchoredNodes'
 import { classifyBubble } from './bubbles/classifyBubble'
 import { graphBubbles } from './bubbles/superbubbles'
 import { COLOR_SCHEMES } from './colorSchemes'
@@ -21,7 +22,9 @@ import {
 import { walkRowLayoutOf } from './layout/walkRowLayout'
 import { walkRowBlocks, walkRowLinks } from './layout/walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
+import { ROW_HEIGHT_PX } from './layout/rowSpacing'
 import { walkRows } from './layout/walkRows'
+import { sampleRowLayout } from './layout/sampleRowLayout'
 import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import {
@@ -497,6 +500,26 @@ test('a node layout draws a placeholder as a hollow node of its bp under every s
       width: 600,
     }),
   ).not.toContain('not loaded')
+})
+
+test('sample rows give no row for a placeholder, nor count it as sequence the reference lacks', async () => {
+  const tables = twinTables()
+  tables.nodes.refs[3] = 3
+  tables.nodes.refNames.push('C#1#c')
+  const graph = loadGraph(tables, 'cut')
+  const placeholders = graph.nodes.filter(node => node.placeholder)
+  expect(placeholders.some(isOffReference)).toBe(false)
+  const layout = sampleRowLayout(graph)!
+  expect(layout.sampleRows).toEqual(['C'])
+  for (const node of placeholders) {
+    expect(layout.nodePositions[node.id]![0]!.y).toBe(2 * ROW_HEIGHT_PX)
+  }
+  const available = async (loaded: boolean) =>
+    layoutModeByValue('samplerows').available(
+      loadGraph((await cut('blocks', 'c', 60, 120, { loaded })).tables, 'cut'),
+    )
+  expect(await available(false)).toBe(false)
+  expect(await available(true)).toBe(true)
 })
 
 test('a graph over the node limit says how many of its nodes are runs not loaded', () => {
