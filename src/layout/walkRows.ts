@@ -47,6 +47,9 @@ export interface WalkRun {
   near?: number
   // for a `mixed` gap, its bp not in the graph
   missingBp?: number
+  // steps the cut did not load: their bp, and nothing of which nodes they are
+  // or whether the reference walks them
+  unloaded?: true
 }
 
 // Where a row's bar lies on the walk's own contig: the contig position at the
@@ -78,6 +81,9 @@ export interface WalkVisit {
   start: number
   bp: number
   onReference: boolean
+  // a run of steps the cut did not load, which is no node and no other
+  // visit's
+  unloaded?: true
 }
 
 export interface WalkRow {
@@ -86,20 +92,21 @@ export interface WalkRow {
   sample: string
   haplotype?: number
   bp: number
-  // bp of its runs off the reference walk's path; for a stepless row, the
-  // haplotype's own bp between its departures' ends, which it draws no bar of
+  // bp of its loaded runs off the reference walk's path; for a stepless row,
+  // the haplotype's own bp between its departures' ends, which it draws no
+  // bar of
   offReferenceBp: number
+  // bp of its runs the cut did not load, counted in `bp`
+  unloadedBp?: number
   // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
   gapBp: number
   // false when the walk does not reach both flanking reference nodes; one
   // that reaches one flank is measured from it, a lower bound
   complete: boolean
   stop?: WalkStop
-  // the steps an abridged walk's gaps stand for, which the cut did not load
+  // the steps of the walk's pieces the cut did not load, on a row that
+  // holds any of them, for a host to offer to load
   abridgedSteps?: number
-  // true where an abridged block runs past the window, so `bp` takes the
-  // reference's bp for the part outside it
-  estimated?: boolean
   // the walk's departures from the reference over the cut that its runs do
   // not draw as steps: those its gaps stand for, and for a stepless row every
   // one

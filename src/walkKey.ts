@@ -1,4 +1,8 @@
-import { GAP_CAUSE_TEXT, OUTSIDE_TEXT } from './gfa/departures'
+import {
+  GAP_CAUSE_TEXT,
+  NOT_LOADED_TEXT,
+  OUTSIDE_TEXT,
+} from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
@@ -16,8 +20,8 @@ export function rangeText(
 }
 
 // A lifted walk's key in words, for a legend row or a facet panel's title: its
-// length against the reference, what its pieces leave out, and the bp it runs
-// reversed, and for a lane that shades, the stretch its scale runs over as
+// length against the reference, the bp of its steps not loaded, what its
+// pieces leave out, and the bp it runs reversed, and for a lane that shades, the stretch its scale runs over as
 // `contig:start-end (length)`, to write under a short bar of that scale. A
 // flat lane's stretch is `hover`.
 export function walkKey(
@@ -39,6 +43,7 @@ export function walkKey(
   const unstated = spanned - walk.bp - walk.missingBp - walk.ownBp
   const outside = walk.readBp ?? unstated
   const gaps = [
+    [walk.unloadedBp, NOT_LOADED_TEXT],
     [walk.missingBp, GAP_CAUSE_TEXT.missing],
     [walk.ownBp, GAP_CAUSE_TEXT.own],
     [

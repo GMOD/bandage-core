@@ -1,6 +1,7 @@
 import { el } from '../el'
 import {
   GAP_CAUSE_TEXT,
+  NOT_LOADED_TEXT,
   OUTSIDE_TEXT,
   PLACEMENT_CHOICE_TEXT,
   departureSpan,
@@ -16,7 +17,10 @@ import {
   rampHueCss,
   rampStops,
 } from '../referenceRampCss'
-import { REFERENCE_RAMP_ALT_CSS } from '../renderer/GeometryBuilder'
+import {
+  NOT_LOADED_CSS,
+  REFERENCE_RAMP_ALT_CSS,
+} from '../renderer/GeometryBuilder'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 
 import type { El } from '../el'
@@ -34,7 +38,7 @@ export const OFF_REFERENCE = '#8e3fbf'
 export const OUTSIDE_CUT = '#bdbdbd'
 export const MISSING_INK = '#8a8a8a'
 export const OWN_GAP = '#e2e2e2'
-export const ABRIDGED_GAP = '#d9a441'
+export const NOT_LOADED = NOT_LOADED_CSS
 export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
@@ -72,10 +76,6 @@ export interface ReadoutCall {
 const near = (refName: string | undefined, pos: number) =>
   `${refName === undefined ? '' : `${panSNContig(refName)}:`}${pos < 1e6 ? `${Math.round(pos / 1000)} kb` : `${(pos / 1e6).toFixed(1)} Mb`}`
 
-function stepsText(steps: number) {
-  return steps < 1000 ? `${steps}` : `${Math.round(steps / 1000)} k`
-}
-
 // What the cut left out of a row, by the cause its gaps state: ` · 19 kb not
 // in the graph`, ` · 34 kb on nodes filed near chr22:20.3 Mb`, where the
 // departure out of the gap rejoins the reference, or for gaps stating none
@@ -83,7 +83,6 @@ function stepsText(steps: number) {
 function gapsText(
   gapBp: number,
   runs: WalkRun[] | undefined,
-  abridgedSteps: number,
   refName: string | undefined,
 ) {
   if (gapBp <= 0) {
@@ -123,16 +122,10 @@ function gapsText(
     ],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
-  const abridged = bpOf('abridged')
-  return (
-    (abridged > 0
-      ? ` · ${stepsText(abridgedSteps)} steps, ${kb(abridged)} not loaded`
-      : '') +
-    parts
-      .filter(([bp]) => bp > 0)
-      .map(([bp, text]) => ` · ${kb(bp)} ${text}`)
-      .join('')
-  )
+  return parts
+    .filter(([bp]) => bp > 0)
+    .map(([bp, text]) => ` · ${kb(bp)} ${text}`)
+    .join('')
 }
 
 // A stepless row's departures in words: the widest stretch's facts, how many
@@ -162,9 +155,9 @@ function steplessText(
 // reference row, and what the cut left out, by cause where its gaps state
 // one. A walk reaching one flank states a lower bound, none where it has no
 // bp in the window, and why it stops, or where on the reference and by how
-// much of its own it goes on by a departure; one whose abridged block runs
-// past the window an estimate, and a stepless row its departures' facts. A
-// row with a departure the writer placed says so.
+// much of its own it goes on by a departure, and a stepless row its
+// departures' facts. A row with runs the cut did not load states their bp,
+// and one with a departure the writer placed says so.
 export function walkRowReadout(
   row: Pick<
     WalkRow,
@@ -172,8 +165,7 @@ export function walkRowReadout(
     | 'gapBp'
     | 'complete'
     | 'stop'
-    | 'abridgedSteps'
-    | 'estimated'
+    | 'unloadedBp'
     | 'departures'
     | 'placementChoice'
     | 'stepless'
@@ -195,15 +187,17 @@ export function walkRowReadout(
   if (row.stepless) {
     return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
   }
-  const outside = `${gapsText(gapBp, row.runs, row.abridgedSteps ?? 0, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
+  const unloaded = row.unloadedBp
+    ? ` · ${kb(row.unloadedBp)} ${NOT_LOADED_TEXT}`
+    : ''
+  const outside = `${unloaded}${gapsText(gapBp, row.runs, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
   if (complete) {
     const delta = bp - reference.bp
     const against = delta === 0 ? '' : ` (${signedLength(delta)})`
-    const about = row.estimated ? '≈ ' : ''
-    return `${about}${kb(bp)}${units(bp, unit)}${against}${outside}${called}`
+    return `${kb(bp)}${units(bp, unit)}${against}${outside}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   if (stop?.contigEnds && bp === 0) {
@@ -253,9 +247,8 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
 
 // How a gap draws, and the key's words for it: graph sequence outside the
 // extracted subgraph as a band, bases the graph lacks as a hairline the walk
-// jumps along, its own sequence the cut did not read as a pale band, and an
-// abridged walk's steps the cut did not load as an amber band. The stretch
-// between a stepless row's departure's ends is a hairline too.
+// jumps along, and its own sequence the cut did not read as a pale band. The
+// stretch between a stepless row's departure's ends is a hairline too.
 export function gapStyle(cause: GapCause | undefined) {
   return cause === 'missing'
     ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.missing }
@@ -271,24 +264,21 @@ export function gapStyle(cause: GapCause | undefined) {
                 px: MISSING_PX,
                 label: GAP_CAUSE_TEXT.unread,
               }
-            : cause === 'abridged'
-              ? {
-                  fill: ABRIDGED_GAP,
-                  px: GAP_PX,
-                  label: GAP_CAUSE_TEXT.abridged,
-                }
-              : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
+            : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
 }
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues
 // a gradient along a shared run takes, since it covers its reference
-// contiguously
+// contiguously. Steps the cut did not load paint one colour under either.
 export function runPaint(
   run: WalkRun,
   ramp: { start: number; end: number } | undefined,
 ): { fill: string } | { stops: string[] } {
   if (run.gap) {
     return { fill: gapStyle(run.cause).fill }
+  }
+  if (run.unloaded) {
+    return { fill: NOT_LOADED }
   }
   if (!ramp) {
     return { fill: run.onReference ? ON_REFERENCE : OFF_REFERENCE }
@@ -473,7 +463,7 @@ const rowsText = (n: number) => `${n} row${n === 1 ? '' : 's'}`
 // What the bar colours mean: whether a run is on the reference walk's path.
 // Off the path is an alternative route, no statement about the sequence: at a
 // duplication the graph may route a copy the reference carries through nodes
-// of its own.
+// of its own. A run not loaded says neither.
 export function walkRowsKey(
   bars: WalkRows,
   o: {
@@ -500,11 +490,16 @@ export function walkRowsKey(
       label: `off ${bars.reference.label}'s path`,
     },
   ]
-  const gaps = [bars.reference, ...bars.rows].flatMap(row =>
-    row.runs.filter(run => run.gap),
+  const runs = [bars.reference, ...bars.rows].flatMap(row => row.runs)
+  if (runs.some(run => run.unloaded)) {
+    entries.push({
+      swatch: { kind: 'bar', fill: NOT_LOADED },
+      label: NOT_LOADED_TEXT,
+    })
+  }
+  const labels = new Set(
+    runs.filter(run => run.gap).map(run => gapStyle(run.cause).label),
   )
-  const labels = new Set(gaps.map(run => gapStyle(run.cause).label))
-  const estimated = bars.rows.some(row => row.estimated)
   for (const cause of [
     undefined,
     'missing',
@@ -512,17 +507,10 @@ export function walkRowsKey(
     'own',
     'mixed',
     'unread',
-    'abridged',
   ] as const) {
     const { fill, px, label } = gapStyle(cause)
     if (labels.has(label)) {
-      entries.push({
-        swatch: { kind: 'gap', fill, px },
-        label:
-          cause === 'abridged' && estimated
-            ? `${label}; ≈ length takes the reference's bp past the window`
-            : label,
-      })
+      entries.push({ swatch: { kind: 'gap', fill, px }, label })
     }
   }
   if ([bars.reference, ...bars.rows].some(row => row.placementChoice)) {
@@ -699,8 +687,9 @@ export interface WalkRowsFrame {
 }
 
 // Runs under a pixel wide merged into one, painted as the bp most of them
-// carry: a base-level cut splits a bar at every SNP, which draws as noise and
-// costs an element per run. Gaps stay apart.
+// carry, on the path, off it or not loaded: a base-level cut splits a bar at
+// every SNP, which draws as noise and costs an element per run. Gaps stay
+// apart.
 export function coalesceRuns(runs: WalkRun[], pxPerBp: number) {
   const minBp = 1 / pxPerBp
   const out: WalkRun[] = []
@@ -714,21 +703,31 @@ export function coalesceRuns(runs: WalkRun[], pxPerBp: number) {
     } else {
       let on = 0
       let off = 0
+      let unloaded = 0
       for (const r of bucket) {
         if (r.onReference) {
           on += r.bp
+        } else if (r.unloaded) {
+          unloaded += r.bp
         } else {
           off += r.bp
         }
       }
-      const onReference = on >= off
-      const lead = bucket.find(r => r.onReference === onReference)!
+      const most = Math.max(on, off, unloaded)
+      const lead = bucket.find(r =>
+        on === most
+          ? r.onReference
+          : unloaded === most
+            ? r.unloaded
+            : !r.onReference && !r.unloaded,
+      )!
       out.push({
         start: bucket[0]!.start,
-        bp: on + off,
-        onReference,
-        referenceStart: onReference ? lead.referenceStart : undefined,
+        bp: on + off + unloaded,
+        onReference: lead.onReference,
+        referenceStart: lead.referenceStart,
         ...(lead.reversed ? { reversed: true as const } : {}),
+        ...(lead.unloaded ? { unloaded: true as const } : {}),
       })
     }
     bucket = []

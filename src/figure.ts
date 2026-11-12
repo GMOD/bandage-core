@@ -10,6 +10,7 @@ import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
+import { NOT_LOADED_TEXT } from './gfa/departures'
 import { geneLabelCandidates, geneLeader } from './labelLayout'
 import {
   walkRowsKey,
@@ -32,6 +33,7 @@ import {
 } from './overlayLabels'
 import { FIT_PADDING, fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
+import { NOT_LOADED_CSS } from './renderer/GeometryBuilder'
 import { svgCanvas } from './renderer/svgCanvas'
 import { THREAD_PX, passesKey, threadsPasses } from './renderer/walkLanes'
 import { nodesUnderBox } from './util/hitDetection'
@@ -501,6 +503,19 @@ export function figureSvg(
             referenceRamp.start,
             referenceRamp.start + referenceRamp.span,
           ),
+        ),
+      )
+    }
+    if (!rows && graph.nodes.some(node => node.placeholder)) {
+      keys.push((x, y) =>
+        keySvg(
+          'not-loaded',
+          x,
+          y,
+          [{ offset: 0, color: NOT_LOADED_CSS }],
+          '',
+          NOT_LOADED_TEXT,
+          undefined,
         ),
       )
     }

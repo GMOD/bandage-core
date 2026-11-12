@@ -19,7 +19,6 @@ import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
 import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
-import { withoutStrayHandles } from './layout/strayHandles'
 import { anchorGraph } from './pathAnchoring'
 import { canonicalEdgeOrder } from './util/edgeOrder'
 
@@ -56,7 +55,8 @@ function graphOf(source: string | GraphTables, name: string) {
 // coordinates only in its P/W lines, so the walk that recovers them happens
 // before anything reads `stable`; otherwise the anchored layouts see an
 // unanchored graph and hand off to force. `maxNodes` is checked here because it
-// is upstream of everything that scales with the node count.
+// is upstream of everything that scales with the node count, and it counts a
+// run of steps not loaded as the node a layout places for it.
 export function loadGraph(
   source: string | GraphTables,
   name: string,
@@ -67,8 +67,11 @@ export function loadGraph(
     throw new Error(`No graph segments in ${name}`)
   }
   if (opts.maxNodes !== undefined && graph.nodes.length > opts.maxNodes) {
+    const unloaded = graph.nodes.filter(node => node.placeholder).length
     throw new Error(
-      `Graph too large to draw: ${graph.nodes.length.toLocaleString()} nodes (limit ${opts.maxNodes.toLocaleString()}). Zoom in to a smaller region, or raise maxGraphNodes on this view.`,
+      unloaded > 0
+        ? `Graph too large to draw: ${graph.nodes.length.toLocaleString()} nodes, ${unloaded.toLocaleString()} of them runs of steps not loaded (limit ${opts.maxNodes.toLocaleString()}). Zoom in to a smaller region, show fewer haplotypes, or raise maxGraphNodes on this view.`
+        : `Graph too large to draw: ${graph.nodes.length.toLocaleString()} nodes (limit ${opts.maxNodes.toLocaleString()}). Zoom in to a smaller region, or raise maxGraphNodes on this view.`,
     )
   }
   return anchorGraph(graph, opts.referencePath)
@@ -191,11 +194,10 @@ export function engineKey(graph: Graph, settings: EngineSettings) {
 // keeps only its coarsest level's seeds, and the matched turn carried a
 // curled reference's angle forward, to 45 degrees by 125 kb at bovine DEFB.
 export async function forceLayout(
-  cut: Graph,
+  graph: Graph,
   settings: EngineSettings,
   engine: LayoutEngine,
 ) {
-  const graph = withoutStrayHandles(cut)
   const spread = spreadFor(settings.bubbleSpread)
   const { shown: deletions, hidden: dropped } = deletionDrawing(
     graph,

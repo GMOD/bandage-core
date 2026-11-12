@@ -2,7 +2,7 @@ import { isBackbone } from './anchoredNodes'
 import { departureAt, gapParts } from './gfa/departures'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
-import { rampFraction } from './renderer/GeometryBuilder'
+import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
 import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
 
 import type { GraphGap } from './gfa/departures'
@@ -27,8 +27,11 @@ export interface WalkHighlight {
   passes: Map<string, number>
   mostPasses: number
   route: readonly (readonly string[])[]
+  // the steps the cut loaded, and the bp of its runs of steps not loaded,
+  // which `bp` counts
   steps: number
   bp: number
+  unloadedBp: number
   referenceBp?: number
   // where the walk's stretch of the cut sits on its own contig, from its W or
   // P record: its start where it begins and its end where it ends
@@ -137,8 +140,7 @@ function highlightOf(
     g => pathOrigin(g.name).name === origin,
   )
   const stretches = new Map(stated.map(g => [`${g.start}\t${g.end}`, g]))
-  const endOf = (piece: GraphPath) =>
-    (piece.start ?? 0) + (piece.abridged?.bp ?? bpOf(piece))
+  const endOf = (piece: GraphPath) => (piece.start ?? 0) + bpOf(piece)
   const drawnBp = (gap: GraphGap) =>
     gap.segments.reduce(
       (sum, x) =>
@@ -176,6 +178,7 @@ function highlightOf(
     (a, b) => (a.start ?? 0) - (b.start ?? 0) || endOf(a) - endOf(b),
   )
   const bp = walked.reduce((sum, piece) => sum + bpOf(piece), 0)
+  const unloaded = (id: string) => byId.get(id)?.placeholder === true
   // from the first piece's start to the furthest piece's end, gaps included
   const extentOf = (ps: GraphPath[]) => {
     const start = Math.min(...ps.map(p => p.start ?? Infinity))
@@ -308,8 +311,20 @@ function highlightOf(
     passes,
     mostPasses,
     route: walked.map(piece => piece.nodeIds),
-    steps: walked.reduce((sum, piece) => sum + piece.nodeIds.length, 0),
+    steps: walked.reduce(
+      (sum, piece) => sum + piece.nodeIds.filter(id => !unloaded(id)).length,
+      0,
+    ),
     bp,
+    unloadedBp: walked.reduce(
+      (sum, piece) =>
+        sum +
+        piece.nodeIds.reduce(
+          (run, id) => run + (unloaded(id) ? lengthOf(id) : 0),
+          0,
+        ),
+      0,
+    ),
     referenceBp: referenceSpan(),
     missingBp,
     ownBp,
@@ -331,7 +346,8 @@ function departuresOf(graph: Graph, name: string) {
   return out
 }
 
-// Each visit's value for the walk's field, through its scheme
+// Each visit's value for the walk's field, through its scheme; a run of steps
+// not loaded keeps its own ink
 function laneColors(
   graph: Graph,
   byId: Map<string, GraphNode>,
@@ -348,7 +364,9 @@ function laneColors(
   for (const [id, progress] of walk.passProgress) {
     const at = places?.get(id)
     const each = progress.map((t, pass) =>
-      encodedColor(encoding, places ? at?.[pass] : t),
+      byId.get(id)?.placeholder
+        ? NOT_LOADED_COLOR
+        : encodedColor(encoding, places ? at?.[pass] : t),
     )
     colors.set(id, each[0]!)
     passColors.set(id, each)

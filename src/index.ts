@@ -62,6 +62,7 @@ export { LAYOUT_ENGINES, layoutEngine } from './layoutEngines'
 export type { LayoutEngineKind } from './layoutEngines'
 
 export {
+  NOT_LOADED_CSS,
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
   computeReferenceRamp,
@@ -209,6 +210,7 @@ export {
   DISAGREES as WALK_DISAGREES,
   GAP_PX as WALK_GAP_PX,
   GENE_INK as WALK_GENE_INK,
+  NOT_LOADED as WALK_NOT_LOADED,
   OFF_REFERENCE as WALK_OFF_REFERENCE,
   ON_REFERENCE as WALK_ON_REFERENCE,
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,
@@ -321,10 +323,15 @@ export {
 export type { GbzWindowOptions } from './gbzWindow'
 
 export { gfaTables } from './gfa/gfaTables'
-export { graphFromTables, graphTablesGFA } from './gfa/graphTables'
+export {
+  NOT_LOADED_TAG,
+  graphFromTables,
+  graphTablesGFA,
+} from './gfa/graphTables'
 export type { DepartureTable, GraphTables } from './gfa/graphTables'
 export {
   GAP_CAUSE_TEXT,
+  NOT_LOADED_TEXT,
   OUTSIDE_TEXT,
   PLACEMENT_CHOICE_TEXT,
   departureAt,

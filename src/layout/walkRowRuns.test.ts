@@ -3,7 +3,7 @@ import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
-import { walkRowReadout, walkRowsKey } from './walkRowDraw'
+import { walkRowReadout } from './walkRowDraw'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
 
@@ -313,7 +313,7 @@ function statedCut(): GraphTables {
       segments: [
         { kind: 0, bp: 400, missingBp: 0, before: NaN, after: NaN, steps: [7] },
         {
-          kind: 3,
+          kind: 2,
           bp: 600,
           missingBp: 600,
           before: NaN,
@@ -326,7 +326,7 @@ function statedCut(): GraphTables {
       name: 'B#1#b',
       segments: [
         {
-          kind: 4,
+          kind: 3,
           bp: 600,
           missingBp: 0,
           before: 20_316_160,
@@ -334,7 +334,7 @@ function statedCut(): GraphTables {
           steps: [],
         },
         {
-          kind: 3,
+          kind: 2,
           bp: 400,
           missingBp: 300,
           before: NaN,
@@ -370,7 +370,6 @@ function statedCut(): GraphTables {
         kinds: Uint8Array.from(segments, x => x.kind),
         bp: Float64Array.from(segments, x => x.bp),
         missingBp: Float64Array.from(segments, x => x.missingBp),
-        abridged: new Uint8Array(segments.length),
         before: Float64Array.from(segments, x => x.before),
         after: Float64Array.from(segments, x => x.after),
         stepOffsets: Int32Array.from(stepOffsets),
@@ -441,7 +440,6 @@ function statedTables(
   }[],
   stretch: { start: number; end: number },
   walks: { steps: number[]; start: number; end: number }[],
-  abridged?: { steps: number; bp: number },
 ): GraphTables {
   const all = [{ steps: [0, 1, 2, 3, 4], start: 0, end: 5000 }, ...walks]
   const offsets = [0]
@@ -475,12 +473,6 @@ function statedTables(
       reversed: new Uint8Array(offsets.at(-1)!),
       trimmedBefore: new Float64Array(all.length),
       trimmedAfter: new Float64Array(all.length),
-      ...(abridged
-        ? {
-            abridgedSteps: Float64Array.of(NaN, abridged.steps, NaN),
-            abridgedBp: Float64Array.of(NaN, abridged.bp, NaN),
-          }
-        : {}),
     },
     departures: departureTable(),
     gaps: {
@@ -494,7 +486,6 @@ function statedTables(
         kinds: Uint8Array.from(segments, x => x.kind),
         bp: Float64Array.from(segments, x => x.bp),
         missingBp: Float64Array.from(segments, x => x.missingBp ?? 0),
-        abridged: new Uint8Array(segments.length),
         before: Float64Array.from(segments, () => NaN),
         after: Float64Array.from(segments, () => NaN),
         stepOffsets: Int32Array.from(stepOffsets),
@@ -505,50 +496,10 @@ function statedTables(
   }
 }
 
-test('an abridged segment stays its own gap, so trimming it at a flank keeps the unread part beside it', () => {
-  const t = statedTables(
-    [
-      { kind: 2, bp: 600 },
-      { kind: 4, bp: 400 },
-    ],
-    { start: 1000, end: 2000 },
-    [
-      { steps: [0], start: 0, end: 1000 },
-      { steps: [2, 3, 4], start: 2000, end: 5000 },
-    ],
-  )
-  for (const source of [t, graphFromTables(t)]) {
-    const row = walkRowsOf(walkRowRuns(source, { start: 2000, end: 3000 })!)
-      .rows[0]!
-    expect(row.runs.reduce((sum, run) => sum + run.bp, 0)).toBe(row.bp)
-    expect(row.runs.filter(run => run.cause === 'unread')).toMatchObject([
-      { bp: 400 },
-    ])
-  }
-})
-
-test('a lifted walk finds a stated gap after an abridged piece, which ends its abridged bp past its start', () => {
-  const t = statedTables(
-    [
-      { kind: 0, bp: 400, steps: [5] },
-      { kind: 3, bp: 600, missingBp: 600 },
-    ],
-    { start: 3000, end: 4000 },
-    [
-      { steps: [0, 2], start: 0, end: 3000 },
-      { steps: [4], start: 4000, end: 5000 },
-    ],
-    { steps: 5, bp: 3000 },
-  )
-  const lift = walkHighlight(graphFromTables(t), 'A#1#a')!
-  expect(lift.nodeIds.has('5+')).toBe(true)
-  expect(lift.missingBp).toBe(600)
-})
-
 test("a lifted walk counts a stated row end's missing bp and steps, so none of it reads as outside", () => {
   const t = statedTables(
     [
-      { kind: 3, bp: 600, missingBp: 600 },
+      { kind: 2, bp: 600, missingBp: 600 },
       { kind: 0, bp: 400, steps: [5] },
     ],
     { start: 2000, end: 3000 },
@@ -567,7 +518,7 @@ test('a lifted walk takes the link into attached steps that follow its piece on 
   const t = statedTables(
     [
       { kind: 0, bp: 400, steps: [5] },
-      { kind: 3, bp: 600, missingBp: 600 },
+      { kind: 2, bp: 600, missingBp: 600 },
     ],
     { start: 2000, end: 3000 },
     [
@@ -801,211 +752,6 @@ test('a lifted walk takes the links through a 0 bp step between two abutting pie
   ).toEqual(expect.arrayContaining(['0+>5+', '5+>1+']))
 })
 
-// H leaves the reference after node 0 and rejoins at node 6, and the writer
-// abridged the 140 k steps and 9 kb between
-const abridged: GraphTables = {
-  nodes: {
-    names: ['0', '1', '2', '3', '4', '5', '6'],
-    lengths: Int32Array.of(1000, 1000, 1000, 1000, 1000, 1000, 1000),
-    refs: Int32Array.of(0, 0, 0, 0, 0, 0, 0),
-    starts: Float64Array.of(0, 1000, 2000, 3000, 4000, 5000, 6000),
-    ranks: Int32Array.of(0, 0, 0, 0, 0, 0, 0),
-    refNames: ['chr1'],
-  },
-  links: {
-    from: new Int32Array(0),
-    to: new Int32Array(0),
-    strands: new Uint8Array(0),
-  },
-  walks: {
-    names: ['GRCh38#0#chr1', 'H#1#h'],
-    starts: Float64Array.of(0, 0),
-    ends: Float64Array.of(7000, 9000),
-    offsets: Int32Array.of(0, 7, 9),
-    steps: Int32Array.of(0, 1, 2, 3, 4, 5, 6, 0, 6),
-    reversed: new Uint8Array(9),
-    abridgedSteps: Float64Array.of(Number.NaN, 140_000),
-    abridgedBp: Float64Array.of(Number.NaN, 9000),
-  },
-  departures: departureTable(),
-}
-
-test("an abridged walk's two steps bound a gap of the bp it left out", () => {
-  const [h] = rowsOf(abridged, { start: 1000, end: 6000 }).rows
-  expect(h).toMatchObject({
-    label: 'H#1',
-    bp: 7000,
-    gapBp: 7000,
-    complete: true,
-    abridgedSteps: 140_000,
-  })
-  expect(h!.estimated).toBeUndefined()
-  expect(h!.runs).toEqual([
-    { start: 0, bp: 7000, onReference: false, gap: true, cause: 'abridged' },
-  ])
-  expect(walkRowsOf(walkRowRuns(abridged)!)).toEqual(
-    walkRows(loadGraph(abridged, 'cut')),
-  )
-})
-
-// The reference runs nodes 0..6, a kb each, and the window is chr1:2000-4000.
-// Inside the window, E visits node 7's 2.5 kb, and its abridged block ends at
-// node 6, past the window. L's abridged block starts at node 0, before the
-// window, and includes node 8's 500 bp, and V walks L backwards. Outside the
-// window each walk follows the reference, so the trim is exact.
-function walkTables(
-  walks: { name: string; start: number; steps: number[]; bp?: number }[],
-  reference = { start: 0, steps: [0, 1, 2, 3, 4, 5, 6] },
-): GraphTables {
-  const lengths = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 2500, 500]
-  const all = [{ name: 'GRCh38#0#chr1', ...reference }, ...walks]
-  const offsets = [0]
-  for (const w of all) {
-    offsets.push(offsets.at(-1)! + w.steps.length)
-  }
-  return {
-    nodes: {
-      names: lengths.map((_, i) => `${i}`),
-      lengths: Int32Array.from(lengths),
-      refs: Int32Array.from(lengths, (_, i) => (i < 7 ? 0 : -1)),
-      starts: Float64Array.from(lengths, (_, i) => (i < 7 ? i * 1000 : 0)),
-      ranks: Int32Array.from(lengths, (_, i) => (i < 7 ? 0 : -1)),
-      refNames: ['chr1'],
-    },
-    links: abridged.links,
-    walks: {
-      names: all.map(w => w.name),
-      starts: Float64Array.from(all, w => w.start),
-      ends: Float64Array.from(
-        all,
-        w =>
-          w.start +
-          ('bp' in w && w.bp !== undefined
-            ? w.bp
-            : w.steps.reduce((sum, n) => sum + lengths[n]!, 0)),
-      ),
-      offsets: Int32Array.from(offsets),
-      steps: Int32Array.from(all.flatMap(w => w.steps)),
-      reversed: new Uint8Array(offsets.at(-1)!),
-      abridgedSteps: Float64Array.from(all, w =>
-        'bp' in w && w.bp !== undefined ? 10_000 : Number.NaN,
-      ),
-      abridgedBp: Float64Array.from(all, w =>
-        'bp' in w && w.bp !== undefined ? w.bp : Number.NaN,
-      ),
-    },
-    departures: departureTable(),
-  }
-}
-
-test('an abridged block past the window gives up the reference bp there, an estimate', () => {
-  const region = { start: 2000, end: 4000 }
-  const rows = (t: GraphTables) =>
-    Object.fromEntries(rowsOf(t, region).rows.map(r => [r.label, r]))
-  const abridgedCut = walkTables([
-    { name: 'E#1#e', start: 0, steps: [0, 1, 2] },
-    { name: 'E#1#e', start: 3000, steps: [3, 6], bp: 6500 },
-    { name: 'L#1#l', start: 0, steps: [0, 3], bp: 4500 },
-    { name: 'L#1#l', start: 4500, steps: [4, 5, 6] },
-    { name: 'V#1#v', start: 0, steps: [6, 5, 4] },
-    { name: 'V#1#v', start: 3000, steps: [3, 0], bp: 4500 },
-  ])
-  const cut = rows(abridgedCut)
-  const full = rows(
-    walkTables([
-      { name: 'E#1#e', start: 0, steps: [0, 1, 2, 3, 7, 4, 5, 6] },
-      { name: 'L#1#l', start: 0, steps: [0, 1, 2, 8, 3, 4, 5, 6] },
-      { name: 'V#1#v', start: 0, steps: [6, 5, 4, 3, 8, 2, 1, 0] },
-    ]),
-  )
-  for (const label of ['E#1', 'L#1', 'V#1']) {
-    expect(cut[label]).toMatchObject({
-      bp: full[label]!.bp,
-      complete: true,
-      estimated: true,
-      axis: full[label]!.axis,
-    })
-    expect(full[label]!.estimated).toBeUndefined()
-  }
-  expect(cut['E#1']!.runs.filter(r => r.gap)).toEqual([
-    { start: 2000, bp: 2500, onReference: false, gap: true, cause: 'abridged' },
-  ])
-  expect(walkRowReadout(cut['E#1']!, { bp: 2000 })).toBe(
-    '≈ 4.5 kb (+2.5 kb) · 10 k steps, 2.5 kb not loaded',
-  )
-  expect(
-    walkRowsKey(walkRowsOf(walkRowRuns(abridgedCut, region)!)).map(
-      e => e.label,
-    ),
-  ).toContain(
-    "abridged: steps not loaded; ≈ length takes the reference's bp past the window",
-  )
-})
-
-// H runs 7.5 kb between the flanks at nodes 0 and 6: abridged pieces of 3, 2
-// and 1 kb, leaving the reference at node 1 and rejoining at node 5, alternate
-// with loaded 500 bp pieces on nodes 7 and 8, then 500 bp filed elsewhere
-test('gaps between loaded pieces leave out the bp an abridged row drew', () => {
-  const lengths = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 500, 500]
-  const interleaved: GraphTables = {
-    ...abridged,
-    nodes: {
-      names: lengths.map((_, i) => `${i}`),
-      lengths: Int32Array.from(lengths),
-      refs: Int32Array.of(0, 0, 0, 0, 0, 0, 0, -1, -1),
-      starts: Float64Array.of(0, 1000, 2000, 3000, 4000, 5000, 6000, 0, 0),
-      ranks: Int32Array.of(0, 0, 0, 0, 0, 0, 0, -1, -1),
-      refNames: ['chr1'],
-    },
-    walks: {
-      names: ['GRCh38#0#chr1', ...Array<string>(5).fill('H#1#h')],
-      starts: Float64Array.of(0, 0, 1000, 4000, 6500, 8500),
-      ends: Float64Array.of(7000, 1000, 7000, 4500, 7000, 9500),
-      offsets: Int32Array.of(0, 7, 8, 10, 11, 12, 13),
-      steps: Int32Array.of(0, 1, 2, 3, 4, 5, 6, 0, 1, 5, 7, 8, 6),
-      reversed: new Uint8Array(13),
-      abridgedSteps: new Float64Array(6).fill(Number.NaN),
-      abridgedBp: new Float64Array(6).fill(Number.NaN),
-    },
-    departures: departureTable([
-      departure('H#1#h', {
-        hapStart: 8200,
-        ownBp: 300,
-        leavePos: 65_536,
-        rejoinPos: 6000,
-      }),
-    ]),
-  }
-  interleaved.walks.abridgedSteps![2] = 14_000
-  interleaved.walks.abridgedBp![2] = 6000
-  const region = { start: 1000, end: 6000 }
-  const h = rowsOf(interleaved, region).rows[0]!
-  expect(h).toMatchObject({
-    label: 'H#1',
-    bp: 7500,
-    gapBp: 4500,
-    complete: true,
-  })
-  expect(h.runs.filter(r => r.gap)).toEqual([
-    { start: 1000, bp: 4000, onReference: false, gap: true, cause: 'abridged' },
-    {
-      start: 7000,
-      bp: 500,
-      onReference: false,
-      gap: true,
-      cause: 'elsewhere',
-      near: 65_536,
-    },
-  ])
-  expect(h.runs.reduce((sum, r) => sum + r.bp, 0)).toBe(h.bp)
-  expect(walkRowReadout(h, { bp: 5000, name: 'GRCh38#0#chr1' })).toBe(
-    '7.5 kb (+2.5 kb) · 14 k steps, 4.0 kb not loaded · 0.5 kb on nodes filed near chr1:66 kb',
-  )
-  expect(walkRowsOf(walkRowRuns(interleaved, region)!)).toEqual(
-    walkRows(loadGraph(interleaved, 'cut'), region),
-  )
-})
-
 // F has no step in the cut: it leaves the reference at 1500 and rejoins it at
 // 3500, over the repeat, with 120 bp of its own between
 const jumpF = departure('F#1#f', {
@@ -1146,45 +892,4 @@ test('a cut whose only other haplotypes have no step in it still has rows', () =
   expect(
     walkRowRuns({ ...reference, departures: departureTable() }, repeat),
   ).toBeUndefined()
-})
-
-// In a hosted KIV-2 cut the reference walk visits the nodes near the
-// window, here 1..4. E's abridged block rejoins at node 6 and L's leaves at
-// node 0, both past it, so their rank 0 positions place them.
-test("an abridged block's handle past the cut's reference still flanks it", () => {
-  const region = { start: 2000, end: 3000 }
-  const reference = { start: 1000, steps: [1, 2, 3, 4] }
-  const abridgedCut = walkTables(
-    [
-      { name: 'E#1#e', start: 0, steps: [1] },
-      { name: 'E#1#e', start: 1000, steps: [2, 6], bp: 7500 },
-      { name: 'L#1#l', start: 0, steps: [0, 2], bp: 3500 },
-      { name: 'L#1#l', start: 3500, steps: [3, 4] },
-    ],
-    reference,
-  )
-  const fullCut = walkTables(
-    [
-      { name: 'E#1#e', start: 0, steps: [1, 2, 7, 3, 4] },
-      { name: 'L#1#l', start: 0, steps: [0, 1, 8, 2, 3, 4] },
-    ],
-    reference,
-  )
-  const rows = (t: GraphTables) =>
-    Object.fromEntries(rowsOf(t, region).rows.map(r => [r.label, r]))
-  const cut = rows(abridgedCut)
-  const full = rows(fullCut)
-  expect(full['E#1']).toMatchObject({ bp: 3500, complete: true })
-  expect(full['L#1']).toMatchObject({ bp: 1500, complete: true })
-  for (const label of ['E#1', 'L#1']) {
-    expect(cut[label]).toMatchObject({
-      bp: full[label]!.bp,
-      complete: true,
-      estimated: true,
-      axis: full[label]!.axis,
-    })
-  }
-  expect(walkRowsOf(walkRowRuns(abridgedCut, region)!)).toEqual(
-    walkRows(loadGraph(abridgedCut, 'cut'), region),
-  )
 })

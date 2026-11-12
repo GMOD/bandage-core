@@ -531,6 +531,10 @@ export { REFERENCE_RAMP_MAX_HUE } from '../referenceRampCss'
 const REFERENCE_RAMP_ALT_RGB = [60, 65, 72] as const
 export const REFERENCE_RAMP_ALT_COLOR = packAbgr(...REFERENCE_RAMP_ALT_RGB, 255)
 export const REFERENCE_RAMP_ALT_CSS = `rgb(${REFERENCE_RAMP_ALT_RGB.join(', ')})`
+// a placeholder under every scheme: steps a walk-file cut did not load
+const NOT_LOADED_RGB = [217, 164, 65] as const
+export const NOT_LOADED_COLOR = packAbgr(...NOT_LOADED_RGB, 255)
+export const NOT_LOADED_CSS = `rgb(${NOT_LOADED_RGB.join(', ')})`
 
 export interface ReferenceRamp {
   start: number
@@ -598,20 +602,22 @@ export function computeColorSchemeRange(
   let maxLength = -Infinity
   let maxRank = 0
   for (const n of graph.nodes) {
-    if (n.stable !== undefined && n.stable.rank > maxRank) {
-      maxRank = n.stable.rank
-    }
-    if (n.depth < minDepth) {
-      minDepth = n.depth
-    }
-    if (n.depth > maxDepth) {
-      maxDepth = n.depth
-    }
-    if (n.length < minLength) {
-      minLength = n.length
-    }
-    if (n.length > maxLength) {
-      maxLength = n.length
+    if (!n.placeholder) {
+      if (n.stable !== undefined && n.stable.rank > maxRank) {
+        maxRank = n.stable.rank
+      }
+      if (n.depth < minDepth) {
+        minDepth = n.depth
+      }
+      if (n.depth > maxDepth) {
+        maxDepth = n.depth
+      }
+      if (n.length < minLength) {
+        minLength = n.length
+      }
+      if (n.length > maxLength) {
+        maxLength = n.length
+      }
     }
   }
   return {
@@ -626,6 +632,17 @@ export function computeColorSchemeRange(
 }
 
 export function getNodeColor(
+  node: GraphNode,
+  nodeIndex: number,
+  colorScheme: ResolvedColorScheme,
+  range: ColorSchemeRange,
+) {
+  return node.placeholder
+    ? NOT_LOADED_COLOR
+    : schemeColor(node, nodeIndex, colorScheme, range)
+}
+
+function schemeColor(
   node: GraphNode,
   nodeIndex: number,
   colorScheme: ResolvedColorScheme,

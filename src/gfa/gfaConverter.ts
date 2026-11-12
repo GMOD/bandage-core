@@ -159,6 +159,7 @@ function makeNode(
     stable: stableCoordinate(gfaNode),
     samples: carriedSamples(gfaNode),
     ...(gfaNode.tags.mv === 1 ? { moved: true as const } : {}),
+    ...(gfaNode.tags.nl === 1 ? { placeholder: true as const } : {}),
   }
 }
 

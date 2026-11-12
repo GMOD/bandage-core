@@ -351,27 +351,22 @@ test("a row takes the backbone's genes on its own contig, bare or PanSN", () => 
   ])
 })
 
-test("an abridged walk's readout counts the steps and bp not loaded", () => {
-  expect(
-    walkRowReadout(
-      {
-        bp: 2_100_000,
-        gapBp: 2_100_000,
-        complete: true,
-        abridgedSteps: 140_000,
-        runs: [
-          {
-            start: 0,
-            bp: 2_100_000,
-            onReference: false,
-            gap: true,
-            cause: 'abridged',
-          },
-        ],
-      },
-      { bp: 2_100_000 },
-    ),
-  ).toBe('2100 kb · 140 k steps, 2100 kb not loaded')
+test("a row's readout states the bp of its runs not loaded, with no estimate", () => {
+  const readout = walkRowReadout(
+    {
+      bp: 4500,
+      gapBp: 0,
+      complete: true,
+      unloadedBp: 2500,
+      runs: [
+        { start: 0, bp: 2000, onReference: true, referenceStart: 2000 },
+        { start: 2000, bp: 2500, onReference: false, unloaded: true },
+      ],
+    },
+    { bp: 2000 },
+  )
+  expect(readout).toBe('4.5 kb (+2.5 kb) · 2.5 kb not loaded')
+  expect(readout).not.toMatch(/≈|estimate/)
 })
 
 // HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 have no step on

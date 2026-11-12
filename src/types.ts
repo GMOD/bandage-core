@@ -27,6 +27,9 @@ export interface GraphNode {
   // reference (gfa-to-tabix --max-component), which an indexed cut reaches
   // only through the links into it: graph-walks tags it `mv:i:1`
   moved?: true
+  // a run of a walk's steps a walk-file cut did not load: its bp, on no node
+  // the cut names, so it is no other placeholder's node or sequence
+  placeholder?: true
 }
 
 export interface GraphEdge {
@@ -63,10 +66,8 @@ export interface GraphPath {
   // kept all; absent where the source states none, as GFA text does
   trimmedBefore?: number
   trimmedAfter?: number
-  // set on a walk-file cut's abridged walk: its two steps are where it leaves
-  // and rejoins the reference, around `steps` steps and `bp` the cut did not
-  // load
-  abridged?: { steps: number; bp: number }
+  // the steps of the walk's pieces a walk-file cut did not load
+  abridgedSteps?: number
 }
 
 // One P or W record, named the way a coordinate is named: the range suffix

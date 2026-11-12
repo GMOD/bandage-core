@@ -37,12 +37,12 @@ const GAP_CAUSES = [
   'missing',
   'elsewhere',
   'own',
-  'abridged',
   'departure',
   'mixed',
   'unread',
 ] as const
 const CAUSE_SHIFT = 3
+const RUN_UNLOADED = 64
 
 const causeFlags = (cause: GapCause | undefined) =>
   GAP_CAUSES.indexOf(cause) << CAUSE_SHIFT
@@ -60,6 +60,8 @@ export interface WalkVisitColumns {
   start: Float64Array
   bp: Float64Array
   onReference: Uint8Array
+  // 1 for a run of steps the cut did not load, which is no node
+  unloaded: Uint8Array
   names: ArrayLike<string>
 }
 
@@ -97,8 +99,7 @@ interface Pieces {
   lengths: Int32Array
   names: ArrayLike<string>
   reference: string | undefined
-  // a node's rank 0 position on the reference, NaN off it
-  stableStart: (node: number) => number
+  placeholder: (node: number) => boolean
   departures: DepartureTable | undefined
   stretches: Stretches
 }
@@ -175,14 +176,6 @@ export function referenceWalkName(
   )
 }
 
-// whether a stable tag's sequence name is the reference walk, by its name or
-// its contig's
-const namesReference = (reference: string | undefined) => {
-  const contig = reference && panSNContig(reference)
-  return (name: string | undefined) =>
-    name !== undefined && (name === reference || name === contig)
-}
-
 function graphPieces(graph: Graph): Pieces {
   const index = new Map<string, number>()
   const names: string[] = []
@@ -197,14 +190,12 @@ function graphPieces(graph: Graph): Pieces {
     }
     return i
   }
-  const reference = referenceWalkName(graph)
-  const onReferenceContig = namesReference(reference)
-  const stable = new Map<number, number>()
+  const placeholders = new Set<number>()
   for (const node of graph.nodes) {
     const i = indexOf(node.id)
     lengths[i] = node.length
-    if (node.stable?.rank === 0 && onReferenceContig(node.stable.refName)) {
-      stable.set(i, node.stable.start)
+    if (node.placeholder) {
+      placeholders.add(i)
     }
   }
   const heads = graph.paths ?? []
@@ -225,8 +216,8 @@ function graphPieces(graph: Graph): Pieces {
     steps: Int32Array.from(steps),
     lengths: Int32Array.from(lengths),
     names,
-    reference,
-    stableStart: node => stable.get(node) ?? Number.NaN,
+    reference: referenceWalkName(graph),
+    placeholder: node => placeholders.has(node),
     departures: graph.departures,
     stretches: stretchIndex(
       (graph.gaps ?? []).map(gap => ({
@@ -265,7 +256,6 @@ function tablePieces(
     referencePath,
     rankZero,
   )
-  const onReferenceContig = namesReference(reference)
   return {
     heads,
     from: Int32Array.from(kept, p => w.offsets[p]!),
@@ -276,12 +266,7 @@ function tablePieces(
     // steps
     names: visits ? tableNodeIds(tables) : n.names,
     reference,
-    stableStart: node =>
-      node < n.lengths.length &&
-      n.ranks[node] === 0 &&
-      onReferenceContig(n.refNames[n.refs[node]!])
-        ? n.starts[node]!
-        : Number.NaN,
+    placeholder: node => n.placeholders?.[node] === 1,
     departures: tables.departures,
     stretches: stretchIndex(
       gaps
@@ -436,7 +421,7 @@ export function walkRowRuns(
     lengths,
     names,
     reference,
-    stableStart,
+    placeholder,
     departures,
     stretches,
   } = 'walks' in source
@@ -520,7 +505,7 @@ export function walkRowRuns(
     cut === undefined || (flankEnd > -Infinity && flankStart < Infinity)
 
   const runs = new Columns(6)
-  const visits = o.visits ? new Columns(4) : undefined
+  const visits = o.visits ? new Columns(5) : undefined
   // the walk's steps, each gap between its pieces a step of -bp; reused
   // across rows
   let steps = new Int32Array(0)
@@ -575,8 +560,8 @@ export function walkRowRuns(
     let count = ordered.length - 1
     let abridgedSteps = 0
     for (const piece of ordered) {
-      count += to[piece]! - from[piece]! + (heads[piece]!.abridged ? 1 : 0)
-      abridgedSteps += heads[piece]!.abridged?.steps ?? 0
+      count += to[piece]! - from[piece]!
+      abridgedSteps += heads[piece]!.abridgedSteps ?? 0
     }
     if (count > steps.length) {
       steps = new Int32Array(count * 2)
@@ -589,10 +574,6 @@ export function walkRowRuns(
     let end: number | undefined
     let previous: number | undefined
     const partsAt = new Map<number, GapPart[]>()
-    // An abridged row's bp covers all its pieces, so its bar runs past the
-    // loaded pieces between them, and the jumps between those pieces cover
-    // the bp it already drew
-    let owed = 0
     const emit = (segments: GapSegment[], fromBp: number) => {
       const need = segments.reduce((n, x) => n + x.nodes.length + 1, count)
       if (length + need > steps.length) {
@@ -624,15 +605,9 @@ export function walkRowRuns(
             at += lengthOf(node)
           }
         } else if (x.bp > 0) {
-          if (x.kind === 'abridged') {
-            flush()
-          }
           parts.push(segmentPart(x))
           partsBp += x.bp
           at += x.bp
-          if (x.kind === 'abridged') {
-            flush()
-          }
         }
       }
       flush()
@@ -650,19 +625,12 @@ export function walkRowRuns(
     const fragLo = length
     for (const piece of ordered) {
       const start = startOf(piece)
-      const jump = start === undefined || end === undefined ? 0 : start - end
-      if (start === undefined || jump < 0) {
+      const gap = start === undefined || end === undefined ? 0 : start - end
+      if (start === undefined || gap < 0) {
         unplaced = true
       }
-      if (jump < 0 && heads[previous!]!.abridged) {
-        owed -= jump
-      }
-      const covered = Math.min(owed, Math.max(jump, 0))
-      owed -= covered
-      const gap = jump - covered
       const segments =
         gap >= 0 &&
-        covered === 0 &&
         previous !== undefined &&
         start !== undefined &&
         end !== undefined
@@ -687,18 +655,8 @@ export function walkRowRuns(
         stepStart[length++] = end!
       }
       let pos = start ?? 0
-      const abridged = heads[piece]!.abridged
       for (let s = from[piece]!, stop = to[piece]!; s < stop; s++) {
         const node = all[s]!
-        const bp = abridged
-          ? abridged.bp - (pos - (start ?? 0)) - lengthOf(node)
-          : 0
-        if (bp > 0 && s === stop - 1 && s > from[piece]!) {
-          partsAt.set(length, [{ bp, cause: 'abridged' }])
-          steps[length] = -bp
-          stepStart[length++] = pos
-          pos += bp
-        }
         steps[length] = node
         stepStart[length++] = pos
         pos += lengthOf(node)
@@ -818,35 +776,9 @@ export function walkRowRuns(
     let flankTo = -1
     let axisStart: number | undefined
     let stop: WalkStop | undefined
-    // An abridged block that ends on a flank past the reference's own holds
-    // walk bp beyond the window, so it gives up the reference's bp between the
-    // two flanks, an estimate
-    const trimAbridged = (inner: number, bp: number) => {
-      const parts = partsAt.get(inner)
-      const gap = parts?.[0]
-      if (bp <= 0 || gap?.cause !== 'abridged') {
-        return 0
-      }
-      const trimmed = Math.min(bp, gap.bp)
-      partsAt.set(
-        inner,
-        gap.bp > trimmed ? [{ ...gap, bp: gap.bp - trimmed }] : [],
-      )
-      steps[inner]! += trimmed
-      return trimmed
-    }
-    const abridgedAt = (i: number) => partsAt.get(i)?.[0]?.cause === 'abridged'
-    // The cut's reference walk places step i, or for an abridged block's
-    // handle past that walk, the handle's rank 0 position does
     const placeStart = (i: number) => {
       const id = steps[i]!
-      if (id < 0 || partsAt.has(i)) {
-        return Number.NaN
-      }
-      return Number.isNaN(spanStart[id]!) &&
-        (abridgedAt(i - 1) || abridgedAt(i + 1))
-        ? stableStart(id)
-        : spanStart[id]!
+      return id < 0 || partsAt.has(i) ? Number.NaN : spanStart[id]!
     }
     const stopsInside = (i0: number, i1: number, inside: boolean) => {
       complete = false
@@ -855,8 +787,6 @@ export function walkRowRuns(
         ;({ lo, hi, backward, axisStart, stop } = side)
       }
     }
-    let leftTrim = 0
-    let rightTrim = 0
     if (cut && flanked) {
       let i0 = -1
       let i1 = -1
@@ -884,9 +814,6 @@ export function walkRowRuns(
         backward = i0 > i1
         flankFrom = i0
         flankTo = i1
-        const inward = backward ? -1 : 1
-        leftTrim = trimAbridged(i0 + inward, flankEnd - bestEnd)
-        rightTrim = trimAbridged(i1 - inward, bestStart - flankStart)
       }
     } else if (
       cut &&
@@ -937,19 +864,12 @@ export function walkRowRuns(
           : flankFrom < 0
             ? { contig, start: stepStart[lo]!, reversed: false }
             : flankFrom < flankTo
-              ? {
-                  contig,
-                  start: stepEnd(flankFrom) + leftTrim,
-                  reversed: false,
-                }
-              : {
-                  contig,
-                  start: stepStart[flankFrom]! - leftTrim,
-                  reversed: true,
-                }
+              ? { contig, start: stepEnd(flankFrom), reversed: false }
+              : { contig, start: stepStart[flankFrom]!, reversed: true }
 
     let bp = 0
     let offReferenceBp = 0
+    let unloadedBp = 0
     let gapBp = 0
     // which way the last run steps through the reference, 0 while it holds
     // one node
@@ -1010,14 +930,16 @@ export function walkRowRuns(
         continue
       }
       const len = lengthOf(id)
-      const at = placeOf(id)
+      const unloaded = placeholder(id)
+      const at = unloaded ? Number.NaN : placeOf(id)
       const on = !Number.isNaN(at)
-      visits?.push(id, bp, len, on ? 1 : 0)
+      visits?.push(id, bp, len, on ? 1 : 0, unloaded ? 1 : 0)
       const placed = last >= 0 && !Number.isNaN(lastRef)
       const forward =
         on && placed && step >= 0 && lastRef + (runBp[last] ?? 0) === at
       const back = on && placed && step <= 0 && at + len === lastRef
-      if (!on && last >= 0 && !(lastFlags & (RUN_ON_REFERENCE | RUN_GAP))) {
+      const flags = on ? RUN_ON_REFERENCE : unloaded ? RUN_UNLOADED : 0
+      if (!on && last >= 0 && lastFlags === flags) {
         runBp[last]! += len
       } else if (forward || back) {
         runBp[last]! += len
@@ -1029,7 +951,7 @@ export function walkRowRuns(
         }
         step = forward ? 1 : -1
       } else {
-        lastFlags = on ? RUN_ON_REFERENCE : 0
+        lastFlags = flags
         lastRef = on ? at : Number.NaN
         runs.push(bp, len, lastRef, lastFlags, Number.NaN, Number.NaN)
         last = runs.length - 1
@@ -1038,6 +960,8 @@ export function walkRowRuns(
       bp += len
       if (on) {
         cursor = step < 0 ? at : at + len
+      } else if (unloaded) {
+        unloadedBp += len
       } else {
         offReferenceBp += len
       }
@@ -1064,7 +988,7 @@ export function walkRowRuns(
           stop,
           axis,
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
-          ...(leftTrim + rightTrim > 0 ? { estimated: true } : {}),
+          ...(unloadedBp > 0 ? { unloadedBp } : {}),
           ...(undrawn.length > 0 ? { departures: undrawn } : {}),
           ...outsideOf(walkName),
           ...(own.some(placementChoice)
@@ -1185,6 +1109,7 @@ function visitColumns(
     start: visits.reorder(order, 1, float64),
     bp: visits.reorder(order, 2, float64),
     onReference: visits.reorder(order, 3, uint8),
+    unloaded: visits.reorder(order, 4, uint8),
     names,
   }
 }
@@ -1218,6 +1143,9 @@ export function runAt(t: WalkRowRuns, k: number): WalkRun {
   if (f & RUN_REVERSED) {
     run.reversed = true
   }
+  if (f & RUN_UNLOADED) {
+    run.unloaded = true
+  }
   return run
 }
 
@@ -1229,6 +1157,7 @@ function visitsOf(v: WalkVisitColumns, row: number) {
       start: v.start[k]!,
       bp: v.bp[k]!,
       onReference: v.onReference[k] === 1,
+      ...(v.unloaded[k] === 1 ? { unloaded: true as const } : {}),
     })
   }
   return out

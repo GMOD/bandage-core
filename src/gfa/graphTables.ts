@@ -25,7 +25,7 @@ import type {
  * line states. `graphFromTables` builds the Graph that converting that GFA
  * builds, and `graphTablesGFA` writes the GFA.
  *
- * @jbrowse/graph-walks 6's `WalkGraph.tables` returns this shape, which
+ * @jbrowse/graph-walks 7's `WalkGraph.tables` returns this shape, which
  * typecheck/graphWalks.ts holds equal to its `GraphTables`. `departures` is
  * required, so tables from a reader that states none fail to compile rather
  * than draw no departure; a source with none passes `departureTable()`.
@@ -44,6 +44,9 @@ export interface GraphTables {
     // how many times the reference's paths pass each node, 0 for a node
     // placed off the reference; absent from tables another source builds
     passes?: Int32Array
+    // 1 for a run of a walk's steps the cut did not load, which stands for no
+    // node of the graph; absent from tables another source builds
+    placeholders?: Uint8Array
   }
   links: {
     from: Int32Array
@@ -64,9 +67,9 @@ export interface GraphTables {
     // absent where the source states none, so a walk's ends say nothing
     trimmedBefore?: Float64Array
     trimmedAfter?: Float64Array
-    // an abridged walk's steps and bp in all, NaN for any other walk
+    // the steps of a walk's pieces the cut did not load, each piece on the
+    // first walk holding it; NaN for a walk with none
     abridgedSteps?: Float64Array
-    abridgedBp?: Float64Array
   }
   // every departure from the reference over the cut, each once
   departures: DepartureTable
@@ -93,7 +96,6 @@ export interface GapTable {
     kinds: Uint8Array
     bp: Float64Array
     missingBp: Float64Array
-    abridged: Uint8Array
     before: Float64Array
     after: Float64Array
     stepOffsets: Int32Array
@@ -122,6 +124,9 @@ export interface DepartureTable {
   reversed: Uint8Array
 }
 
+// the S line tag of a placeholder, a run of steps the cut did not load
+export const NOT_LOADED_TAG = 'nl:i:1'
+
 // A P line states a walk's start only as a range on its name
 function pLineName(name: string, start: number, end: number) {
   return start === 0 ? name : `${name}:${start}-${end}`
@@ -136,9 +141,7 @@ export function tablePath(
   const fields = panSNFields(walkName)
   const start = w.starts[p]!
   const steps = w.abridgedSteps?.[p] ?? Number.NaN
-  const abridged = Number.isNaN(steps)
-    ? {}
-    : { abridged: { steps, bp: w.abridgedBp?.[p] ?? 0 } }
+  const abridged = Number.isNaN(steps) ? {} : { abridgedSteps: steps }
   const trimmedBefore = w.trimmedBefore?.[p]
   const trimmedAfter = w.trimmedAfter?.[p]
   return fields
@@ -261,6 +264,7 @@ export function graphFromTables(
               rank: n.ranks[i]!,
             },
       samples: undefined,
+      ...(n.placeholders?.[i] === 1 ? { placeholder: true as const } : {}),
     })
   }
 
@@ -458,9 +462,9 @@ function graphGaps(t: GapTable, ids: ArrayLike<string>) {
 }
 
 /**
- * The tables as GFA text: S lines in table order, then L lines, then a W
- * line per walk, or a P line for a walk whose name has fewer than three PanSN
- * parts
+ * The tables as GFA text: S lines in table order, a placeholder's tagged
+ * `nl:i:1`, then L lines, then a W line per walk, or a P line for a walk
+ * whose name has fewer than three PanSN parts
  */
 export function graphTablesGFA({
   nodes,
@@ -475,7 +479,10 @@ export function graphTablesGFA({
       ref < 0
         ? ''
         : `\tSN:Z:${nodes.refNames[ref]}\tSO:i:${nodes.starts[i]}\tSR:i:${nodes.ranks[i]}`
-    lines.push(`S\t${names[i]}\t*\tLN:i:${nodes.lengths[i]}${stable}`)
+    const placeholder = nodes.placeholders?.[i] === 1 ? `\t${NOT_LOADED_TAG}` : ''
+    lines.push(
+      `S\t${names[i]}\t*\tLN:i:${nodes.lengths[i]}${stable}${placeholder}`,
+    )
   }
   for (let i = 0; i < links.from.length; i++) {
     const strands = links.strands[i]!
