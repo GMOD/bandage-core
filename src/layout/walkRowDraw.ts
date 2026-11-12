@@ -19,6 +19,8 @@ import {
 } from '../referenceRampCss'
 import {
   NOT_LOADED_CSS,
+  NOT_LOADED_FILL_CSS,
+  NOT_LOADED_RIM_PX,
   REFERENCE_RAMP_ALT_CSS,
 } from '../renderer/GeometryBuilder'
 import { ROW_HEIGHT_PX } from './rowSpacing'
@@ -38,7 +40,9 @@ export const OFF_REFERENCE = '#8e3fbf'
 export const OUTSIDE_CUT = '#bdbdbd'
 export const MISSING_INK = '#8a8a8a'
 export const OWN_GAP = '#e2e2e2'
+// a run not loaded is a hollow bar: this rim round this fill
 export const NOT_LOADED = NOT_LOADED_CSS
+export const NOT_LOADED_FILL = NOT_LOADED_FILL_CSS
 export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
@@ -270,16 +274,17 @@ export function gapStyle(cause: GapCause | undefined) {
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues
 // a gradient along a shared run takes, since it covers its reference
-// contiguously. Steps the cut did not load paint one colour under either.
+// contiguously. Steps the cut did not load are hollow under either: a fill
+// with a rim.
 export function runPaint(
   run: WalkRun,
   ramp: { start: number; end: number } | undefined,
-): { fill: string } | { stops: string[] } {
+): { fill: string; rim?: string } | { stops: string[] } {
   if (run.gap) {
     return { fill: gapStyle(run.cause).fill }
   }
   if (run.unloaded) {
-    return { fill: NOT_LOADED }
+    return { fill: NOT_LOADED_FILL, rim: NOT_LOADED }
   }
   if (!ramp) {
     return { fill: run.onReference ? ON_REFERENCE : OFF_REFERENCE }
@@ -437,8 +442,9 @@ export function rowGeneBoxes(
 }
 
 export type KeySwatch =
-  // `ramp` bars paint the reference-position ramp, which `fill` holds as CSS
-  | { kind: 'bar'; fill: string; ramp?: true }
+  // `ramp` bars paint the reference-position ramp, which `fill` holds as CSS;
+  // a hollow bar has a `rim`
+  | { kind: 'bar'; fill: string; ramp?: true; rim?: string }
   | { kind: 'gap'; fill: string; px: number }
   | { kind: 'gene' }
 
@@ -494,7 +500,7 @@ export function walkRowsKey(
   const runs = [bars.reference, ...bars.rows].flatMap(row => row.runs)
   if (runs.some(run => run.unloaded)) {
     entries.push({
-      swatch: { kind: 'bar', fill: NOT_LOADED },
+      swatch: { kind: 'bar', fill: NOT_LOADED_FILL, rim: NOT_LOADED },
       label: NOT_LOADED_TEXT,
     })
   }
@@ -617,6 +623,9 @@ export function walkRowsKeyTree(
             height: e.swatch.kind === 'gap' ? e.swatch.px : 8,
             rx: 2,
             fill: ramp ? `url(#${rampId})` : e.swatch.fill,
+            ...(e.swatch.kind === 'bar' && e.swatch.rim
+              ? { stroke: e.swatch.rim, 'stroke-width': NOT_LOADED_RIM_PX }
+              : {}),
           })
     const text = el(
       'text',
@@ -829,12 +838,22 @@ export function walkRowsTree(
       const paint = runPaint(run, o.ramp)
       const h = run.gap ? Math.min(gapStyle(run.cause).px, barPx) : barPx
       const id = `${prefix}-${i}-${run.start}`
+      const w = Math.max(1, run.bp * frame.scaleX)
+      const rim = 'rim' in paint ? paint.rim : undefined
+      const hollow = rim !== undefined && w > 2 * NOT_LOADED_RIM_PX
+      const inset = hollow ? NOT_LOADED_RIM_PX / 2 : 0
       const rect = el('rect', {
-        x: along(run.start),
-        y: y - h / 2,
-        width: Math.max(1, run.bp * frame.scaleX),
-        height: h,
-        fill: 'stops' in paint ? `url(#${id})` : paint.fill,
+        x: along(run.start) + inset,
+        y: y - h / 2 + inset,
+        width: w - 2 * inset,
+        height: h - 2 * inset,
+        fill:
+          'stops' in paint
+            ? `url(#${id})`
+            : hollow
+              ? paint.fill
+              : (rim ?? paint.fill),
+        ...(hollow ? { stroke: rim, 'stroke-width': NOT_LOADED_RIM_PX } : {}),
       })
       return 'stops' in paint
         ? [

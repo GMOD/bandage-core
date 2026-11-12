@@ -93,8 +93,7 @@ export const LAYOUT_MODES = [
     label: 'Sample rows',
     description:
       'x is reference bp, one row per contributing assembly. Needs rGFA tags or a reference path.',
-    run: (graph, region, keepRows?) =>
-      sampleRowLayout(graph, region, keepRows),
+    run: (graph, region, keepRows?) => sampleRowLayout(graph, region, keepRows),
     cutMargins: true,
     wholeWalks: false,
     available: hasAlleles,

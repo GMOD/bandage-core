@@ -63,6 +63,8 @@ export type { LayoutEngineKind } from './layoutEngines'
 
 export {
   NOT_LOADED_CSS,
+  NOT_LOADED_FILL_CSS,
+  NOT_LOADED_RIM_PX,
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
   computeReferenceRamp,
@@ -211,6 +213,7 @@ export {
   GAP_PX as WALK_GAP_PX,
   GENE_INK as WALK_GENE_INK,
   NOT_LOADED as WALK_NOT_LOADED,
+  NOT_LOADED_FILL as WALK_NOT_LOADED_FILL,
   OFF_REFERENCE as WALK_OFF_REFERENCE,
   ON_REFERENCE as WALK_ON_REFERENCE,
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,

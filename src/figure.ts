@@ -33,7 +33,11 @@ import {
 } from './overlayLabels'
 import { FIT_PADDING, fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
-import { NOT_LOADED_CSS } from './renderer/GeometryBuilder'
+import {
+  NOT_LOADED_CSS,
+  NOT_LOADED_FILL_CSS,
+  NOT_LOADED_RIM_PX,
+} from './renderer/GeometryBuilder'
 import { svgCanvas } from './renderer/svgCanvas'
 import { THREAD_PX, passesKey, threadsPasses } from './renderer/walkLanes'
 import { nodesUnderBox } from './util/hitDetection'
@@ -182,6 +186,15 @@ function deletionKeySvg(x: number, y: number, note: string, color: string) {
     width: SWATCH_PX + 5 + note.length * LABEL_CHAR_PX,
     height: KEY_LINE_PX,
     markup: `<g transform="translate(${x} ${y})" ${FONT}><line y1="9" y2="9" x2="${SWATCH_PX}" stroke="${color}" stroke-width="2" stroke-dasharray="4 3"/><text x="${SWATCH_PX + 5}" y="13">${note}</text></g>`,
+  }
+}
+
+// a placeholder node's key: the hollow shape the drawing gives it
+function notLoadedKeySvg(x: number, y: number) {
+  return {
+    width: SWATCH_PX + 5 + NOT_LOADED_TEXT.length * LABEL_CHAR_PX,
+    height: KEY_LINE_PX,
+    markup: `<g transform="translate(${x} ${y})" ${FONT}><rect x="1" y="5" width="${SWATCH_PX - 2}" height="8" rx="4" fill="${NOT_LOADED_FILL_CSS}" stroke="${NOT_LOADED_CSS}" stroke-width="${NOT_LOADED_RIM_PX}"/><text x="${SWATCH_PX + 5}" y="13">${NOT_LOADED_TEXT}</text></g>`,
   }
 }
 
@@ -507,17 +520,7 @@ export function figureSvg(
       )
     }
     if (!rows && graph.nodes.some(node => node.placeholder)) {
-      keys.push((x, y) =>
-        keySvg(
-          'not-loaded',
-          x,
-          y,
-          [{ offset: 0, color: NOT_LOADED_CSS }],
-          '',
-          NOT_LOADED_TEXT,
-          undefined,
-        ),
-      )
+      keys.push(notLoadedKeySvg)
     }
     if (dashedDeletions(drawnDeletions.shown, lift).length > 0) {
       keys.push(deletionKeyAt)

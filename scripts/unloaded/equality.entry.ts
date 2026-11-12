@@ -7,8 +7,11 @@
 // differ is the "not loaded" flag, which nodes a run holds, and the readout's
 // "not loaded" part.
 //
-// Checked beside that: a loaded row holds nothing unloaded, and a row with a
-// run not loaded states its `abridgedSteps`.
+// Checked beside that: a loaded row holds nothing unloaded, and a row that
+// holds a run not loaded, in its bar or among the steps the cut attached to
+// one of its departures or gaps, states its `abridgedSteps`, which a host
+// offers to load. A row that does not is printed as NOCOUNT and counted apart
+// from the differences.
 //
 //   node_modules/.bin/esbuild scripts/unloaded/equality.entry.ts --bundle \
 //     --format=esm --platform=node --outfile=/tmp/equality.mjs
@@ -19,12 +22,14 @@
 // `--tiles` with `--random` adds that many windows of `--width` bp at random
 // over those tiles. Each window is cut once per `--haplotypes` haplotypes of
 // the file, 0 for all at once, with and without the cut's gap table. Prints
-// every difference and then the counts, and exits 1 on any difference.
+// every difference and then the counts, and exits 1 on any difference or any
+// row without its count.
 import { NOT_LOADED_TEXT } from '../../src/gfa/departures'
 import { walkRowReadout } from '../../src/layout/walkRowDraw'
 import { walkRowRuns, walkRowsOf } from '../../src/layout/walkRowRuns'
 import { cutTables, flag, openWalks, parseWindow, windowText } from './cut'
 
+import type { GraphTables } from '../../src/gfa/graphTables'
 import type { WalkRow, WalkRun } from '../../src/layout/walkRows'
 import type { Reader, Window } from './cut'
 
@@ -116,6 +121,33 @@ function shapeOf(row: WalkRow, reference: WalkRow | undefined) {
 
 const unloadedRuns = (row: WalkRow) => row.runs.filter(run => run.unloaded)
 
+// The walks with a placeholder among the steps the cut attached to a
+// departure or a gap
+function attachedPlaceholders({ nodes, departures, gaps }: GraphTables) {
+  const names = new Set<string>()
+  const flagged = (node: number) => nodes.placeholders?.[node] === 1
+  for (let k = 0; k < departures.names.length; k++) {
+    for (let j = departures.offsets[k]!; j < departures.offsets[k + 1]!; j++) {
+      if (flagged(departures.steps[j]!)) {
+        names.add(departures.names[k]!)
+      }
+    }
+  }
+  if (gaps) {
+    const { stepOffsets, steps } = gaps.segments
+    for (let g = 0; g < gaps.names.length; g++) {
+      const from = stepOffsets[gaps.segmentOffsets[g]!]!
+      const to = stepOffsets[gaps.segmentOffsets[g + 1]!]!
+      for (let j = from; j < to; j++) {
+        if (flagged(steps[j]!)) {
+          names.add(gaps.names[g]!)
+        }
+      }
+    }
+  }
+  return names
+}
+
 const counts = {
   windows: 0,
   cuts: 0,
@@ -125,6 +157,7 @@ const counts = {
   bpNotLoaded: 0,
   rowsWithLoad: 0,
   differences: 0,
+  withoutCount: 0,
 }
 
 const differ = (where: string, what: string) => {
@@ -145,7 +178,10 @@ async function rowsOf(
     gaps,
   })
   const runs = walkRowRuns(tables, region)
-  return runs ? walkRowsOf(runs) : undefined
+  return {
+    rows: runs ? walkRowsOf(runs) : undefined,
+    attached: attachedPlaceholders(tables),
+  }
 }
 
 async function compare(
@@ -155,8 +191,14 @@ async function compare(
   gaps: boolean,
 ) {
   const where = `${refName}:${windowText(region)}${gaps ? ' gaps' : ''}`
-  const unloaded = await rowsOf(reader, region, haplotypes, false, gaps)
-  const loaded = await rowsOf(reader, region, haplotypes, true, gaps)
+  const { rows: unloaded, attached } = await rowsOf(
+    reader,
+    region,
+    haplotypes,
+    false,
+    gaps,
+  )
+  const { rows: loaded } = await rowsOf(reader, region, haplotypes, true, gaps)
   counts.cuts++
   if (!unloaded || !loaded) {
     if (unloaded || loaded) {
@@ -181,10 +223,13 @@ async function compare(
         counts.bpNotLoaded += row.unloadedBp ?? 0
       }
       counts.rowsWithLoad += row.abridgedSteps === undefined ? 0 : 1
-      if (notLoaded.length > 0 && row.abridgedSteps === undefined) {
-        differ(
-          `${where} ${row.name}`,
-          'a run not loaded and no abridgedSteps',
+      if (
+        row.abridgedSteps === undefined &&
+        (notLoaded.length > 0 || attached.has(row.name))
+      ) {
+        counts.withoutCount++
+        print(
+          `NOCOUNT ${where} ${row.name}: a run not loaded ${notLoaded.length > 0 ? 'in its bar' : "among a departure's or a gap's steps"} and no abridgedSteps`,
         )
       }
       if (other) {
@@ -193,7 +238,10 @@ async function compare(
           other.unloadedBp !== undefined ||
           other.abridgedSteps !== undefined
         ) {
-          differ(`${where} ${row.name}`, 'the loaded row holds a run not loaded')
+          differ(
+            `${where} ${row.name}`,
+            'the loaded row holds a run not loaded',
+          )
         }
         const full = shapeOf(other, loaded.reference)
         for (const [key, mine] of shapeOf(row, unloaded.reference)) {
@@ -249,5 +297,7 @@ print(
 print(
   `${counts.rowsNotLoaded} rows with runs not loaded: ${counts.runsNotLoaded} runs, ${counts.bpNotLoaded} bp; ${counts.rowsWithLoad} rows state abridgedSteps`,
 )
-print(`${counts.differences} differences`)
-process.exitCode = counts.differences > 0 ? 1 : 0
+print(
+  `${counts.differences} differences, ${counts.withoutCount} rows holding a run not loaded without abridgedSteps`,
+)
+process.exitCode = counts.differences + counts.withoutCount > 0 ? 1 : 0

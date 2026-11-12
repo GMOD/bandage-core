@@ -531,10 +531,16 @@ export { REFERENCE_RAMP_MAX_HUE } from '../referenceRampCss'
 const REFERENCE_RAMP_ALT_RGB = [60, 65, 72] as const
 export const REFERENCE_RAMP_ALT_COLOR = packAbgr(...REFERENCE_RAMP_ALT_RGB, 255)
 export const REFERENCE_RAMP_ALT_CSS = `rgb(${REFERENCE_RAMP_ALT_RGB.join(', ')})`
-// a placeholder under every scheme: steps a walk-file cut did not load
+// A placeholder, steps a walk-file cut did not load, under every scheme: a
+// hollow shape, an amber rim round a pale fill, since any one flat colour is
+// some scheme's colour for a node
 const NOT_LOADED_RGB = [217, 164, 65] as const
+const NOT_LOADED_FILL_RGB = [250, 240, 214] as const
 export const NOT_LOADED_COLOR = packAbgr(...NOT_LOADED_RGB, 255)
 export const NOT_LOADED_CSS = `rgb(${NOT_LOADED_RGB.join(', ')})`
+export const NOT_LOADED_FILL_COLOR = packAbgr(...NOT_LOADED_FILL_RGB, 255)
+export const NOT_LOADED_FILL_CSS = `rgb(${NOT_LOADED_FILL_RGB.join(', ')})`
+export const NOT_LOADED_RIM_PX = 1.5
 
 export interface ReferenceRamp {
   start: number
@@ -1447,7 +1453,16 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       highlight?.walks.length && !faded && !slots?.length
         ? highlight.walks
         : undefined
-    if (drawable && lanes) {
+    if (drawable && node.placeholder && !faded) {
+      nodeStrokes.push({ points: segments, thickness: nodeThickness, color })
+      if (nodeThickness > NOT_LOADED_RIM_PX) {
+        nodeStrokes.push({
+          points: segments,
+          thickness: nodeThickness - NOT_LOADED_RIM_PX,
+          color: NOT_LOADED_FILL_COLOR,
+        })
+      }
+    } else if (drawable && lanes) {
       const laneWidth = walkLaneWidthPx(width, lanes.length)
       const thickness = laneHalfWidth(laneWidth)
       const frames = lines?.frames.get(nodeId)

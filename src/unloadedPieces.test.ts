@@ -2,11 +2,13 @@ import { WalkReader } from '@jbrowse/graph-walks'
 import { LocalFile } from 'generic-filehandle2'
 
 import { COLOR_SCHEMES } from './colorSchemes'
+import { serializeEl } from './el'
 import { figureSvg } from './figure'
 import { departureTable } from './gfa/departures'
 import { graphFromTables, graphTablesGFA } from './gfa/graphTables'
 import {
   NOT_LOADED,
+  NOT_LOADED_FILL,
   OFF_REFERENCE,
   coalesceRuns,
   runPaint,
@@ -22,10 +24,11 @@ import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import {
   NOT_LOADED_COLOR,
+  NOT_LOADED_FILL_COLOR,
+  buildGeometry,
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
-import { serializeEl } from './el'
 import { walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
@@ -46,21 +49,15 @@ async function cut(
     `test_data/walks8/${name}.R.walks.gz`,
     url => new LocalFile(url),
   )
-  const {
-    graph,
-    kept,
-    fragments,
-    departures,
-    gaps,
-    placeholders,
-  } = await reader.cut(
-    `R#0#${contig}`,
-    { start, end },
-    {
-      ...(o.context === undefined ? {} : { context: o.context }),
-      ...(o.loaded ? { expand: () => true } : {}),
-    },
-  )
+  const { graph, kept, fragments, departures, gaps, placeholders } =
+    await reader.cut(
+      `R#0#${contig}`,
+      { start, end },
+      {
+        ...(o.context === undefined ? {} : { context: o.context }),
+        ...(o.loaded ? { expand: () => true } : {}),
+      },
+    )
   const tables = o.gaps
     ? graph.tables(kept, fragments, departures, gaps)
     : graph.tables(kept, fragments, departures)
@@ -85,14 +82,22 @@ const runText = (run: WalkRun) =>
 const runsText = (row: WalkRow) => row.runs.map(runText).join(' ')
 
 // A row as the loaded cut must give it too: its runs with those off the
-// reference as their bp alone, and everything else it states but what loading
-// changes
+// reference as their bp alone, a run not loaded and the loaded steps beside
+// it as one, and everything else it states but what loading changes
 const loadedShape = (row: WalkRow) => ({
   ...row,
   offReferenceBp: row.offReferenceBp + (row.unloadedBp ?? 0),
   unloadedBp: undefined,
   abridgedSteps: undefined,
-  runs: runsText(row).replaceAll('?', 'o'),
+  runs: runsText(row)
+    .replaceAll('?', 'o')
+    .replaceAll(
+      /o\d+(?: o\d+)+/g,
+      run =>
+        `o${run
+          .split(' ')
+          .reduce((sum, part) => sum + Number(part.slice(1)), 0)}`,
+    ),
 })
 
 // blocks.R.gfa: R walks twelve 10 bp nodes over c:0-120, in two tiles of 60.
@@ -102,15 +107,19 @@ const loadedShape = (row: WalkRow) => ({
 // to c:20-30, and ends over c:100-120. JUMP walks c:60-80, 5 bp off the
 // reference and c:110-120.
 test("an unloaded piece's row is the loaded piece's row, its runs off the reference at their bp and not loaded", async () => {
-  for (const [start, end] of [
-    [60, 120],
-    [80, 110],
-    [0, 60],
-    [70, 80],
+  for (const [name, contig, start, end] of [
+    ['blocks', 'c', 60, 120],
+    ['blocks', 'c', 80, 110],
+    ['blocks', 'c', 0, 60],
+    ['blocks', 'c', 70, 80],
+    ['interleaved', 'c', 0, 36],
+    ['interleaved', 'c', 6, 12],
+    ['drawnedge', 'chr', 6228, 6233],
+    ['drawnedge', 'chr', 10_500, 13_500],
   ] as const) {
     for (const gaps of [false, true]) {
-      const unloaded = await cut('blocks', 'c', start, end, { gaps })
-      const loaded = await cut('blocks', 'c', start, end, {
+      const unloaded = await cut(name, contig, start, end, { gaps })
+      const loaded = await cut(name, contig, start, end, {
         gaps,
         loaded: true,
       })
@@ -189,21 +198,25 @@ test('a walk with no step in the window is a row of its departure, loaded or not
   expect(rows.rows.some(row => row.stepless)).toBe(false)
 })
 
-test('a run not loaded paints in its own colour, flat or under the ramp, and the key names it', async () => {
+test('a run not loaded is a hollow bar, flat or under the ramp, and the key names it', async () => {
   const { rows, row } = await cut('blocks', 'c', 60, 120)
   const [onPath, notLoaded] = row('PARTIAL#1').runs
   const ramp = { start: 60, end: 120 }
-  expect(runPaint(notLoaded!, undefined)).toEqual({ fill: NOT_LOADED })
-  expect(runPaint(notLoaded!, ramp)).toEqual({ fill: NOT_LOADED })
-  expect(NOT_LOADED).not.toBe(OFF_REFERENCE)
-  expect(runPaint(onPath!, undefined)).not.toEqual({ fill: NOT_LOADED })
+  const hollow = { fill: NOT_LOADED_FILL, rim: NOT_LOADED }
+  expect(runPaint(notLoaded!, undefined)).toEqual(hollow)
+  expect(runPaint(notLoaded!, ramp)).toEqual(hollow)
+  expect(runPaint({ ...notLoaded!, unloaded: undefined }, undefined)).toEqual({
+    fill: OFF_REFERENCE,
+  })
+  expect(runPaint(onPath!, undefined)).not.toHaveProperty('rim')
+  expect(runPaint(onPath!, ramp)).not.toHaveProperty('rim')
   const key = walkRowsKey(rows)
   expect(key.map(entry => entry.label)).toEqual([
     "on R#0's path",
     "off R#0's path",
     'not loaded',
   ])
-  expect(key[2]!.swatch).toEqual({ kind: 'bar', fill: NOT_LOADED })
+  expect(key[2]!.swatch).toEqual({ kind: 'bar', ...hollow })
   const loaded = await cut('blocks', 'c', 60, 120, { loaded: true })
   expect(walkRowsKey(loaded.rows).map(entry => entry.label)).toEqual([
     "on R#0's path",
@@ -219,7 +232,21 @@ test('a run not loaded paints in its own colour, flat or under the ramp, and the
       height: 400,
     }),
   )
-  expect(svg).toContain(`fill="${NOT_LOADED}"`)
+  expect(svg).toContain(
+    `fill="${NOT_LOADED_FILL}" stroke="${NOT_LOADED}" stroke-width="1.5"`,
+  )
+  const thin = serializeEl(
+    walkRowsTree(rows, {
+      scaleX: 0.05,
+      scaleY: 1,
+      translateX: 0,
+      translateY: 20,
+      width: 800,
+      height: 400,
+    }),
+  )
+  expect(thin).toContain(`fill="${NOT_LOADED}"`)
+  expect(thin).not.toContain(NOT_LOADED_FILL)
 })
 
 test('runs under a pixel merge into the kind most of their bp is, a run not loaded among them', () => {
@@ -240,25 +267,46 @@ test('runs under a pixel merge into the kind most of their bp is, a run not load
   expect(coalesceRuns(runs, 1)).toEqual(runs)
 })
 
-// interleaved.R.gfa: X's pieces alternate loaded and abridged, so a run off
-// the reference can lie part in a loaded piece and part in an unloaded one
-test('a run not loaded stays apart from the loaded steps off the reference beside it, and their bp add up to the loaded run', async () => {
-  const unloaded = await cut('interleaved', 'c', 0, 36)
-  const loaded = await cut('interleaved', 'c', 0, 36, { loaded: true })
-  const x = unloaded.row('X#1')
-  const whole = loaded.row('X#1')
-  expect(x.unloadedBp).toBeGreaterThan(0)
-  expect(x.bp).toBe(whole.bp)
-  expect(x.offReferenceBp + x.unloadedBp!).toBe(whole.offReferenceBp)
-  const merged = (row: WalkRow) =>
-    runsText(row)
-      .replaceAll('?', 'o')
-      .replaceAll(/o(\d+)(?: o(\d+))+/g, run =>
-        `o${run
-          .split(' ')
-          .reduce((sum, part) => sum + Number(part.slice(1)), 0)}`,
-      )
-  expect(merged(x)).toBe(merged(whole))
+// GRCh38 over three 1 kb nodes. E leaves it after the first for node 3, 500
+// bp of loaded steps off it, then two runs not loaded, of 300 and 200 bp,
+// and rejoins at the third
+test('a run not loaded stays apart from the loaded steps off the reference beside it, and two runs not loaded on end draw as one', () => {
+  const tables: GraphTables = {
+    nodes: {
+      names: ['0', '1', '2', '3', 'E#1#e:1500-1800', 'E#1#e:1800-2000'],
+      lengths: Int32Array.of(1000, 1000, 1000, 500, 300, 200),
+      refs: Int32Array.of(0, 0, 0, -1, 1, 1),
+      starts: Float64Array.of(0, 1000, 2000, 0, 1500, 1800),
+      ranks: Int32Array.of(0, 0, 0, 1, 1, 1),
+      refNames: ['chr1', 'E#1#e'],
+      placeholders: Uint8Array.of(0, 0, 0, 0, 1, 1),
+    },
+    links: {
+      from: new Int32Array(0),
+      to: new Int32Array(0),
+      strands: new Uint8Array(0),
+    },
+    walks: {
+      names: ['GRCh38#0#chr1', 'E#1#e'],
+      starts: new Float64Array(2),
+      ends: Float64Array.of(3000, 3000),
+      offsets: Int32Array.of(0, 3, 8),
+      steps: Int32Array.of(0, 1, 2, 0, 3, 4, 5, 2),
+      reversed: new Uint8Array(8),
+      abridgedSteps: Float64Array.of(NaN, 12),
+    },
+    departures: departureTable(),
+  }
+  for (const source of [tables, graphFromTables(tables)]) {
+    const e = walkRowsOf(walkRowRuns(source)!).rows[0]!
+    expect(runsText(e)).toBe('R1000@0 o500 ?500 R1000@2000')
+    expect(e).toMatchObject({
+      bp: 3000,
+      offReferenceBp: 500,
+      unloadedBp: 500,
+      abridgedSteps: 12,
+    })
+  }
 })
 
 // drawnedge.R.gfa at chr:6228-6233: H#1 walks the window twice, in two loaded
@@ -330,7 +378,9 @@ function twinTables(): GraphTables {
 }
 
 test('two runs not loaded are no node in common: no ribbon joins them, no block holds them and their visits name different things', () => {
-  const rows = walkRowsOf(walkRowRuns(twinTables(), undefined, { visits: true })!)
+  const rows = walkRowsOf(
+    walkRowRuns(twinTables(), undefined, { visits: true })!,
+  )
   const byLabel = Object.fromEntries(rows.rows.map(row => [row.label, row]))
   const unloadedVisit = (label: string) =>
     byLabel[label]!.visits!.find(visit => visit.unloaded)!
@@ -346,7 +396,7 @@ test('two runs not loaded are no node in common: no ribbon joins them, no block 
   expect(blockRows).toEqual(new Set([2, 3]))
 })
 
-test('a Graph from the tables keeps its placeholders, and its walk rows are the tables\' rows', () => {
+test("a Graph from the tables keeps its placeholders, and its walk rows are the tables' rows", () => {
   const tables = twinTables()
   const graph = graphFromTables(tables)
   expect(graph.nodes.filter(node => node.placeholder).map(n => n.name)).toEqual(
@@ -377,7 +427,7 @@ test('GFA text of the tables tags a placeholder, and loading it keeps the flag',
   ).toEqual(['A#1#a:1000-1500', 'B#1#b:1000-1500'])
 })
 
-test('a node layout draws a placeholder as a node of its bp in the not-loaded colour under every scheme, outside the colour ranges', () => {
+test('a node layout draws a placeholder as a hollow node of its bp under every scheme, outside the colour ranges', () => {
   const graph = loadGraph(twinTables(), 'cut')
   const range = computeColorSchemeRange(graph)
   const placeholders = graph.nodes.filter(node => node.placeholder)
@@ -388,9 +438,7 @@ test('a node layout draws a placeholder as a node of its bp in the not-loaded co
     for (const node of placeholders) {
       expect(getNodeColor(node, 0, scheme, range)).toBe(NOT_LOADED_COLOR)
     }
-    expect(getNodeColor(loadedOff, 0, scheme, range)).not.toBe(
-      NOT_LOADED_COLOR,
-    )
+    expect(getNodeColor(loadedOff, 0, scheme, range)).not.toBe(NOT_LOADED_COLOR)
   }
   const stretched = {
     ...graph,
@@ -404,9 +452,31 @@ test('a node layout draws a placeholder as a node of its bp in the not-loaded co
     const [from, to] = layout.nodePositions[node.id]!
     expect(Math.abs(to!.x - from!.x)).toBeGreaterThan(0)
   }
+  const batch = buildGeometry({
+    graph,
+    nodeById: new Map(graph.nodes.map(node => [node.id, node])),
+    nodePositions: layout.nodePositions,
+    colorScheme: 'random',
+    axis: { scaleX: 1, scaleY: 1 },
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+  })
+  const strokesOf = (id: string) => {
+    const { start, count } = batch.nodeStrokeRuns.get(id)!
+    return batch.nodeStrokes.slice(start, start + count)
+  }
+  for (const node of placeholders) {
+    const [rim, fill] = strokesOf(node.id)
+    expect(rim!.color).toBe(NOT_LOADED_COLOR)
+    expect(fill!.color).toBe(NOT_LOADED_FILL_COLOR)
+    expect(fill!.thickness).toBe(rim!.thickness - 1.5)
+  }
+  expect(strokesOf(loadedOff.id)).toHaveLength(1)
   const svg = figureSvg(graph, layout, { width: 600 })
   expect(svg).toContain('>not loaded</text>')
   expect(svg).toContain('rgb(217, 164, 65)')
+  expect(svg).toContain('rgb(250, 240, 214)')
   const allLoaded = loadGraph(
     {
       ...twinTables(),
@@ -451,7 +521,7 @@ test('a walk-rows figure of an unloaded cut draws its runs not loaded and keys t
     region: { refName: 'c', ...region },
     walkRows: rows,
   })
-  expect(svg).toContain(`fill="${NOT_LOADED}"`)
+  expect(svg).toContain(`fill="${NOT_LOADED_FILL}" stroke="${NOT_LOADED}"`)
   expect(svg).toContain('>not loaded</text>')
   expect(svg).toContain('50 bp not loaded')
 })

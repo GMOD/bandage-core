@@ -204,9 +204,10 @@ export interface GraphGap {
 
 /**
  * The gap part a segment the cut did not keep steps of draws as: what it
- * read and kept out, outside the extracted subgraph; a record's own sequence it did not read, not in the graph where all of it
- * lies between W lines, else one part stating both amounts in no order; and
- * pieces it did not read, near where the walk was last seen
+ * read and kept out, outside the extracted subgraph; a record's own sequence
+ * it did not read, not in the graph where all of it lies between W lines,
+ * else one part stating both amounts in no order; and pieces it did not
+ * read, near where the walk was last seen
  */
 export function segmentPart(segment: GapSegment): GapPart {
   const { kind, bp, missingBp, before } = segment

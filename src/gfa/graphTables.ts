@@ -479,7 +479,8 @@ export function graphTablesGFA({
       ref < 0
         ? ''
         : `\tSN:Z:${nodes.refNames[ref]}\tSO:i:${nodes.starts[i]}\tSR:i:${nodes.ranks[i]}`
-    const placeholder = nodes.placeholders?.[i] === 1 ? `\t${NOT_LOADED_TAG}` : ''
+    const placeholder =
+      nodes.placeholders?.[i] === 1 ? `\t${NOT_LOADED_TAG}` : ''
     lines.push(
       `S\t${names[i]}\t*\tLN:i:${nodes.lengths[i]}${stable}${placeholder}`,
     )

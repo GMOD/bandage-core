@@ -1,8 +1,4 @@
-import {
-  GAP_CAUSE_TEXT,
-  NOT_LOADED_TEXT,
-  OUTSIDE_TEXT,
-} from './gfa/departures'
+import { GAP_CAUSE_TEXT, NOT_LOADED_TEXT, OUTSIDE_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
