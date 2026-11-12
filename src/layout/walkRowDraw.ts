@@ -280,22 +280,21 @@ export function runPaint(
   run: WalkRun,
   ramp: { start: number; end: number } | undefined,
 ): { fill: string; rim?: string } | { stops: string[] } {
-  if (run.gap) {
-    return { fill: gapStyle(run.cause).fill }
-  }
-  if (run.unloaded) {
-    return { fill: NOT_LOADED_FILL, rim: NOT_LOADED }
-  }
-  if (!ramp) {
-    return { fill: run.onReference ? ON_REFERENCE : OFF_REFERENCE }
-  }
-  if (run.referenceStart === undefined) {
-    return { fill: REFERENCE_RAMP_ALT_CSS }
-  }
-  const stops = rampStops({ ...run, start: run.referenceStart }, ramp)
-  return stops.length === 1
-    ? { fill: rampHueCss(stops[0]!) }
-    : { stops: stops.map(rampHueCss) }
+  const stops =
+    !run.gap && !run.unloaded && ramp && run.referenceStart !== undefined
+      ? rampStops({ ...run, start: run.referenceStart }, ramp)
+      : undefined
+  return run.gap
+    ? { fill: gapStyle(run.cause).fill }
+    : run.unloaded
+      ? { fill: NOT_LOADED_FILL, rim: NOT_LOADED }
+      : !ramp
+        ? { fill: run.onReference ? ON_REFERENCE : OFF_REFERENCE }
+        : !stops
+          ? { fill: REFERENCE_RAMP_ALT_CSS }
+          : stops.length === 1
+            ? { fill: rampHueCss(stops[0]!) }
+            : { stops: stops.map(rampHueCss) }
 }
 
 // A contig span as offsets along a row's bar
