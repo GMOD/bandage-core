@@ -550,6 +550,7 @@ export function figureSvg(
         ramp: rampInterval,
         genes: stripGeneGaps(frame, strip.rowGenes, strip.rowGeneGaps),
         annotation: o.rowAnnotation,
+        markUnloaded: true,
       }),
       6,
       height + frame.height,
@@ -562,6 +563,7 @@ export function figureSvg(
           ramp: rampInterval,
           rowGenes: strip.rowGenes,
           idPrefix: 'strip',
+          markUnloaded: true,
         }),
       )}${serializeEl(
         walkStripLabelsTree(

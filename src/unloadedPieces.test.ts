@@ -7,7 +7,7 @@ import { graphBubbles } from './bubbles/superbubbles'
 import { COLOR_SCHEMES } from './colorSchemes'
 import { serializeEl } from './el'
 import { figureSvg } from './figure'
-import { departureTable } from './gfa/departures'
+import { NOT_LOADED_TEXT, departureTable } from './gfa/departures'
 import { graphFromTables, graphTablesGFA } from './gfa/graphTables'
 import { writeRgfa } from './gfa/writeRgfa'
 import { placeholderHoverText } from './hoverText'
@@ -24,6 +24,7 @@ import {
 import { walkRowLayoutOf } from './layout/walkRowLayout'
 import {
   rowsNeedingRoutes,
+  sharedRowOrder,
   walkRowBlocks,
   walkRowLinks,
 } from './layout/walkRowLinks'
@@ -33,7 +34,9 @@ import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import {
   NOT_LOADED_COLOR,
+  NOT_LOADED_CSS,
   NOT_LOADED_FILL_COLOR,
+  NOT_LOADED_FILL_CSS,
   REFERENCE_RAMP_ALT_CSS,
   buildGeometry,
   computeColorSchemeRange,
@@ -46,7 +49,7 @@ import { walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
 import type { GraphTables } from './gfa/graphTables'
-import type { WalkRow, WalkRun } from './layout/walkRows'
+import type { WalkRow, WalkRows, WalkRun } from './layout/walkRows'
 import type { TubeMapContext } from './tubeMap/draw'
 
 // Walk format 8 files built by test_data/walks8/build.sh, every piece
@@ -247,6 +250,30 @@ test('a run not loaded draws as a loaded run off the path, flat or under the ram
   }
 })
 
+test('under a node layout the walk strip draws a run not loaded hollow, as the graph draws its placeholder, and keys it', async () => {
+  const { rows, row } = await cut('blocks', 'c', 60, 120)
+  const notLoaded = row('PARTIAL#1').runs[1]!
+  expect(runPaint(notLoaded, undefined, true)).toEqual({
+    fill: NOT_LOADED_FILL_CSS,
+    rim: NOT_LOADED_CSS,
+  })
+  const frame = {
+    scaleX: 5,
+    scaleY: 1,
+    translateX: 0,
+    translateY: 20,
+    width: 800,
+    height: 400,
+  }
+  expect(
+    serializeEl(walkRowsTree(rows, frame, { markUnloaded: true })),
+  ).toContain(`fill="${NOT_LOADED_FILL_CSS}" stroke="${NOT_LOADED_CSS}"`)
+  expect(serializeEl(walkRowsTree(rows, frame))).not.toContain(NOT_LOADED_CSS)
+  expect(
+    walkRowsKey(rows, { markUnloaded: true }).map(entry => entry.label),
+  ).toContain(NOT_LOADED_TEXT)
+})
+
 test('a placeholder hovered says whose route it stands in for, and no depth', () => {
   const graph = loadGraph(twinTables(), 'cut')
   const [a] = graph.nodes.filter(node => node.placeholder)
@@ -436,6 +463,46 @@ test('ribbons, shared blocks and the shared order leave out a row with a run not
   expect(walkRowLinks(unloaded, 0)).toEqual([])
   expect(walkRowBlocks(unloaded, 0)).toEqual([])
   expect(rowsNeedingRoutes(unloaded)).toBe(1)
+})
+
+// G walks 0, 3, 2; F walks 0, 1, 2; E walks 0, 3, 300 bp not loaded, 2
+test('the shared row order compares no row with a run not loaded, and the key says how many it left out', () => {
+  const tables = besideTableData()
+  const rowsOf = (placeholders: Uint8Array) => {
+    const all: GraphTables = {
+      ...tables,
+      nodes: { ...tables.nodes, placeholders },
+      walks: {
+        ...tables.walks,
+        names: [...tables.walks.names, 'G#1#g'],
+        starts: new Float64Array(4),
+        ends: Float64Array.of(3000, 2800, 3000, 2500),
+        offsets: Int32Array.of(0, 3, 7, 10, 13),
+        steps: Int32Array.from([...tables.walks.steps, 0, 3, 2]),
+        reversed: new Uint8Array(13),
+        abridgedSteps: Float64Array.of(NaN, 12, NaN, NaN),
+      },
+    }
+    const bars = walkRowsOf(walkRowRuns(all, undefined, { visits: true })!)
+    const byLabel = (label: string) =>
+      bars.rows.find(row => row.label === label)!
+    return { bars, ordered: ['G#1', 'F#1', 'E#1'].map(byLabel) }
+  }
+  const labels = (rows: WalkRow[]) =>
+    sharedRowOrder(rows).map(i => rows[i]!.label)
+  const unloaded = rowsOf(Uint8Array.of(0, 0, 0, 0, 1))
+  const loaded = rowsOf(new Uint8Array(5))
+  expect(labels(loaded.ordered)).toEqual(['G#1', 'E#1', 'F#1'])
+  expect(labels(unloaded.ordered)).toEqual(['G#1', 'F#1', 'E#1'])
+  const notes = (rows: WalkRows, comparing?: { fetchLimit: number }) =>
+    walkRowsKey(rows, { comparing })
+      .filter(entry => entry.note)
+      .map(entry => entry.label)
+  expect(notes(unloaded.bars, { fetchLimit: 64 })).toEqual([
+    'Leaves out 1 row: node-level detail is fetched for at most 64 at a time',
+  ])
+  expect(notes(unloaded.bars)).toEqual([])
+  expect(notes(loaded.bars, { fetchLimit: 64 })).toEqual([])
 })
 
 test("a Graph from the tables keeps its placeholders, and its walk rows are the tables' rows", () => {

@@ -61,7 +61,7 @@ function barOf(row: WalkRow): Bar | undefined {
 // How far apart two shared stretches may lie and still join, by default a
 // 2000th of the longest bar
 export function ribbonJoin(rows: WalkRow[]) {
-  return Math.max(...rows.map(r => r.bp)) / 2000
+  return rows.reduce((most, r) => Math.max(most, r.bp), -Infinity) / 2000
 }
 
 function sharedBp(a: Bar, b: Bar) {
@@ -96,7 +96,7 @@ export function sharedRowOrder(rows: WalkRow[]) {
         bestBp = bp
       }
     })
-    order.push(...rest.splice(best, 1))
+    order.push(rest.splice(best, 1)[0]!)
   }
   return order
 }
@@ -189,7 +189,10 @@ function chained(runs: Run[], join: number) {
     }
   })
   const out: Run[] = []
-  let i = best.indexOf(Math.max(...best))
+  let i =
+    best.length === 0
+      ? -1
+      : best.reduce((top, weight, k) => (weight > best[top]! ? k : top), 0)
   while (i >= 0) {
     out.unshift(sorted[i]!)
     i = prev[i]!

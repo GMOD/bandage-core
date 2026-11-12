@@ -1,4 +1,5 @@
 import { serializeEl } from '../el'
+import { LABEL_CHAR_PX } from '../overlayLabels'
 import { loadGraph } from '../pipeline'
 import {
   MISSING_INK,
@@ -384,6 +385,38 @@ test('a readout goes inside its bar only where it fits there clear of the row na
   )
   expect(svg).toContain('text-anchor="start"')
   expect(svg).not.toContain('text-anchor="end"')
+})
+
+// HG3 walks the window in two pieces, a gap between them
+test('a readout goes inside its bar only over solid bar, past the last gap', () => {
+  const bars = rows()
+  const hg3 = bars.rows.find(row => row.name === 'HG3#1#ctg3')!
+  const scaleX = 20
+  const translateX = 40 - bars.origin * scaleX
+  const along = (offset: number) => (bars.origin + offset) * scaleX + translateX
+  const endX = along(barEnd(hg3))
+  const gapEnd = hg3.runs.reduce(
+    (end, run) => (run.gap ? Math.max(end, run.start + run.bp) : end),
+    0,
+  )
+  const text = walkRowReadout(hg3, bars.reference)
+  const textStart = endX - 6 - text.length * LABEL_CHAR_PX
+  expect(textStart).toBeGreaterThan(12 + hg3.label.length * LABEL_CHAR_PX)
+  expect(textStart).toBeLessThan(along(gapEnd))
+  const svg = serializeEl(
+    walkRowsTree(
+      { ...bars, rows: [hg3] },
+      {
+        scaleX,
+        scaleY: 1,
+        translateX,
+        translateY: 20,
+        width: endX + 50,
+        height: 400,
+      },
+    ),
+  )
+  expect(svg).toContain(`text-anchor="start">${text}<`)
 })
 
 // HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 have no step on
