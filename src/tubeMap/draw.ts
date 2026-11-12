@@ -2,7 +2,6 @@ import { curvePaths, flattenPath, nodeOutlinePath } from '@jbrowse/tubemap-core'
 
 import { formatBp } from '../graphLabels'
 import { referenceWalkName } from '../layout/walkRows'
-import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 import { pushTo } from '../util/groups'
 import { tubeMapMismatches } from './mismatches'
@@ -348,9 +347,13 @@ const CAPTION_PAD_PX = 8
 
 // A box standing for steps the cut did not load says so in its own words,
 // shortened to what fits inside it
-export function notShownCaption(bp: number, widthPx: number) {
+export function notShownCaption(
+  bp: number,
+  widthPx: number,
+  textPx: (text: string) => number,
+) {
   return [`${formatBp(bp)} · nodes not shown`, 'nodes not shown'].find(
-    text => text.length * LABEL_CHAR_PX + CAPTION_PAD_PX <= widthPx,
+    text => textPx(text) + CAPTION_PAD_PX <= widthPx,
   )
 }
 
@@ -370,7 +373,11 @@ function drawNotShown(
     const right = x(node.x1)
     const text =
       node.notShown && right >= 0 && left <= width
-        ? notShownCaption(node.notShown.bp, right - left)
+        ? notShownCaption(
+            node.notShown.bp,
+            right - left,
+            caption => ctx.measureText(caption).width,
+          )
         : undefined
     if (text && node.notShown) {
       const cx = (left + right) / 2

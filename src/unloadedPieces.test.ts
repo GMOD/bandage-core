@@ -568,9 +568,11 @@ test('a tube map box of steps not loaded is untinted and dashed, and says its no
           ? () => dashes.push(dash.length)
           : key === 'fillText'
             ? (text: string) => texts.push(text)
-            : key in target
-              ? target[key]
-              : () => {},
+            : key === 'measureText'
+              ? (text: string) => ({ width: text.length * 6 })
+              : key in target
+                ? target[key]
+                : () => {},
     set: (target, key: string, value) => {
       target[key] = value
       return true
@@ -584,9 +586,10 @@ test('a tube map box of steps not loaded is untinted and dashed, and says its no
   })
   expect(dashes.filter(n => n > 0)).toHaveLength(1)
   expect(texts).toEqual(['300 bp · nodes not shown'])
-  expect(notShownCaption(300, 200)).toBe('300 bp · nodes not shown')
-  expect(notShownCaption(300, 120)).toBe('nodes not shown')
-  expect(notShownCaption(300, 60)).toBeUndefined()
+  const textPx = (text: string) => text.length * 6
+  expect(notShownCaption(300, 200, textPx)).toBe('300 bp · nodes not shown')
+  expect(notShownCaption(300, 120, textPx)).toBe('nodes not shown')
+  expect(notShownCaption(300, 60, textPx)).toBeUndefined()
 })
 
 test('a node layout draws a placeholder as a hollow node of its bp under every scheme, outside the colour ranges', () => {
