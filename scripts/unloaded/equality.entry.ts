@@ -1,20 +1,15 @@
 // Holds the walk rows of a cut with nothing loaded equal to the rows of the
 // same cut with every abridged piece loaded, over a list of windows of a walk
-// file: each row's bp, gaps, runs (position, direction, bp, on or off the
-// reference), completeness, stop, axis and departures, and its readout but
-// for its "not loaded" part. Consecutive runs off the reference compare as
-// one run of their bp, loaded or not.
+// file: drawn, a bp to the pixel and fitted to a pane, flat and under the
+// reference ramp, with their readouts and key, the two must be the same
+// markup; and each row's bp, gaps, completeness, stop, axis and departures
+// must be equal.
 //
-// Each run not loaded is then held to what it stands for, apart from that
-// merge:
+// Each run not loaded is then held to what it stands for:
 // - it lies inside a run off the reference of the same row loaded
 // - the row's runs not loaded cover exactly the bp of its visits to the
 //   tables' placeholders, and `unloadedBp` is their sum
-// - the readout states `· <bp> not loaded` where and only where the row has
-//   such a run, and that bp is their sum
-// - drawn, flat and under the reference ramp, a run carries the not-loaded
-//   rim where and only where it is not loaded
-// - a loaded row holds no run not loaded and no placeholder
+// - a loaded row holds no run not loaded and the loaded cut no placeholder
 //
 // Checked beside that: a row that holds a run not loaded, in its bar or among
 // the steps the cut attached to one of its departures or gaps, states its
@@ -32,17 +27,12 @@
 // the file, 0 for all at once, with and without the cut's gap table. Prints
 // every difference and then the counts, and exits 1 on any difference or any
 // row without its count.
-import { NOT_LOADED_TEXT } from '../../src/gfa/departures'
+import { serializeEl } from '../../src/el'
 import { tableNodeIds } from '../../src/gfa/graphTables'
-import {
-  NOT_LOADED,
-  walkRowReadout,
-  walkRowsTree,
-} from '../../src/layout/walkRowDraw'
+import { barEnd, walkRowsKey, walkRowsTree } from '../../src/layout/walkRowDraw'
 import { walkRowRuns, walkRowsOf } from '../../src/layout/walkRowRuns'
 import { cutTables, flag, openWalks, parseWindow, windowText } from './cut'
 
-import type { El } from '../../src/el'
 import type { GraphTables } from '../../src/gfa/graphTables'
 import type { WalkRow, WalkRows, WalkRun } from '../../src/layout/walkRows'
 import type { Reader, Window } from './cut'
@@ -107,48 +97,12 @@ const runSpan = (run: { start: number; bp: number }) => ({
   end: run.start + run.bp,
 })
 
-function runsOf(runs: WalkRun[]) {
-  const out: string[] = []
-  let offStart = 0
-  let offBp = 0
-  const flush = () => {
-    if (offBp > 0) {
-      out.push(`off@${offStart}:${offBp}`)
-    }
-    offBp = 0
-  }
-  for (const run of runs) {
-    if (offReference(run)) {
-      offStart = offBp > 0 ? offStart : run.start
-      offBp += run.bp
-    } else {
-      flush()
-      out.push(
-        run.gap
-          ? `gap@${run.start}:${run.bp}:${run.cause ?? 'outside'}:${run.near ?? ''}:${run.missingBp ?? ''}`
-          : `on@${run.start}:${run.bp}:${run.referenceStart}${run.reversed ? '<' : '>'}`,
-      )
-    }
-  }
-  flush()
-  return out
-}
-
-const NOT_LOADED_PART = new RegExp(
-  ` · ([0-9.]+) (kb|bp) ${NOT_LOADED_TEXT}`,
-  'g',
-)
-
-const withoutNotLoaded = (readout: string) =>
-  readout.replace(NOT_LOADED_PART, '')
-
-function shapeOf(row: WalkRow, reference: WalkRow | undefined) {
+function factsOf(row: WalkRow) {
   return new Map(
     Object.entries({
       label: row.label,
       bp: row.bp,
       gapBp: row.gapBp,
-      offReferenceBp: row.offReferenceBp + (row.unloadedBp ?? 0),
       complete: row.complete,
       stepless: row.stepless ?? false,
       stop: row.stop,
@@ -156,8 +110,6 @@ function shapeOf(row: WalkRow, reference: WalkRow | undefined) {
       departures: row.departures ?? [],
       placementChoice: row.placementChoice ?? false,
       outsideRow: row.outsideRow,
-      runs: runsOf(row.runs),
-      readout: withoutNotLoaded(walkRowReadout(row, reference)),
     }).map(([key, value]) => [key, JSON.stringify(value)]),
   )
 }
@@ -167,12 +119,34 @@ const unloadedRuns = (row: WalkRow) => row.runs.filter(run => run.unloaded)
 const bpOf = (spans: { bp: number }[]) =>
   spans.reduce((sum, span) => sum + span.bp, 0)
 
-// The bp a readout's `kb` or `bp` figure may stand for, as its rounding
-// leaves it
-function statedRange(value: number, unit: string) {
-  const half = unit === 'bp' ? 0 : value < 10 ? 50 : 500
-  const bp = unit === 'bp' ? value : value * 1000
-  return { low: bp - half, high: bp + half }
+const PANE_PX = 1600
+
+// The rows as a pane draws them: a bp to the pixel, where no run merges with
+// another, and fitted to a pane by the longest bar of `fit`, flat and under
+// the ramp, with the key
+function drawn(rows: WalkRows, region: Window, fit: WalkRows) {
+  const longest = [fit.reference, ...fit.rows].reduce(
+    (most, row) => Math.max(most, barEnd(row)),
+    1,
+  )
+  return [1, PANE_PX / longest].flatMap(scaleX =>
+    [undefined, region].map(ramp =>
+      serializeEl(
+        walkRowsTree(
+          rows,
+          {
+            scaleX,
+            scaleY: 1,
+            translateX: -rows.origin * scaleX,
+            translateY: 0,
+            width: PANE_PX,
+            height: Infinity,
+          },
+          { ramp },
+        ),
+      ),
+    ),
+  )
 }
 
 // The walks with a placeholder among the steps the cut attached to a
@@ -205,34 +179,6 @@ function attachedPlaceholders({ nodes, departures, gaps }: GraphTables) {
 function placeholderIds(tables: GraphTables) {
   const ids = tableNodeIds(tables)
   return new Set(ids.filter((_, i) => tables.nodes.placeholders?.[i] === 1))
-}
-
-const rimmed = (rect: El) =>
-  rect.attrs.stroke === NOT_LOADED || rect.attrs.fill === NOT_LOADED
-
-// Each row's bars drawn a bp to the pixel, where no run is under a pixel and
-// so none merges with another, flat and under the ramp: per row, whether each
-// drawn bar carries the not-loaded rim
-function drawnRims(rows: WalkRows, region: Window) {
-  const frame = {
-    scaleX: 1,
-    scaleY: 1,
-    translateX: -rows.origin,
-    translateY: 0,
-    width: Infinity,
-    height: Infinity,
-  }
-  return [undefined, region].map(ramp =>
-    walkRowsTree(rows, frame, { ramp }).children.map(group =>
-      typeof group === 'string'
-        ? []
-        : group.children.flatMap(child =>
-            typeof child !== 'string' && child.tag === 'rect'
-              ? [rimmed(child)]
-              : [],
-          ),
-    ),
-  )
 }
 
 const counts = {
@@ -272,12 +218,11 @@ async function rowsOf(
   }
 }
 
-// What a row's runs not loaded must be, apart from the merged comparison
+// What a row's runs not loaded must be
 function checkNotLoaded(
   where: string,
   row: WalkRow,
   loadedRow: WalkRow,
-  reference: WalkRow | undefined,
   placeholders: Set<string>,
 ) {
   const notLoaded = unloadedRuns(row)
@@ -308,36 +253,36 @@ function checkNotLoaded(
       `unloadedBp ${row.unloadedBp ?? 0}, runs not loaded ${runBp} bp, placeholder visits ${bpOf(visited)} bp`,
     )
   }
-  const readout = walkRowReadout(row, reference)
-  const stated = [...readout.matchAll(NOT_LOADED_PART)]
-  const range = stated[0] && statedRange(Number(stated[0][1]), stated[0][2]!)
-  if (
-    row.stepless
-      ? stated.length > 0
-      : runBp > 0
-        ? stated.length !== 1 ||
-          !range ||
-          runBp < range.low ||
-          runBp > range.high
-        : stated.length > 0
-  ) {
-    differ(where, `readout "${readout}" for ${runBp} bp not loaded`)
-  }
 }
 
-function checkRims(where: string, rows: WalkRows, region: Window) {
-  const all = [rows.reference, ...rows.rows]
-  for (const [mode, drawn] of drawnRims(rows, region).entries()) {
-    all.forEach((row, i) => {
-      const want = row.runs.map(run => run.unloaded === true)
-      const got = drawn[i] ?? []
-      if (want.join() !== got.join()) {
-        differ(
-          `${where} ${row.name} ${mode === 0 ? 'flat' : 'ramp'}`,
-          `rims drawn [${got.map(Number).join('')}] for runs not loaded [${want.map(Number).join('')}]`,
-        )
-      }
-    })
+function firstDifference(a: string, b: string) {
+  let i = 0
+  while (i < a.length && a[i] === b[i]) {
+    i++
+  }
+  return i
+}
+
+function checkDrawn(
+  where: string,
+  unloaded: WalkRows,
+  loaded: WalkRows,
+  region: Window,
+) {
+  const mine = drawn(unloaded, region, loaded)
+  const theirs = drawn(loaded, region, loaded)
+  mine.forEach((markup, k) => {
+    if (markup !== theirs[k]) {
+      const at = firstDifference(markup, theirs[k]!)
+      differ(
+        `${where} drawing ${k}`,
+        `unloaded …${markup.slice(Math.max(0, at - 80), at + 80)}… loaded …${theirs[k]!.slice(Math.max(0, at - 80), at + 80)}…`,
+      )
+    }
+  })
+  const key = (rows: WalkRows) => JSON.stringify(walkRowsKey(rows))
+  if (key(unloaded) !== key(loaded)) {
+    differ(where, `key ${key(unloaded)} against ${key(loaded)}`)
   }
 }
 
@@ -379,8 +324,8 @@ async function compare(
     if (order(unloaded.rows) !== order(loaded.rows)) {
       differ(where, 'the rows come in another order')
     }
-    checkRims(where, unloaded, region)
-    for (const [i, row] of [unloaded.reference, ...unloaded.rows].entries()) {
+    checkDrawn(where, unloaded, loaded, region)
+    for (const row of [unloaded.reference, ...unloaded.rows]) {
       const other = others.get(row.name)
       others.delete(row.name)
       counts.rows++
@@ -411,15 +356,9 @@ async function compare(
             'the loaded row holds a run not loaded',
           )
         }
-        checkNotLoaded(
-          `${where} ${row.name}`,
-          row,
-          other,
-          i === 0 ? undefined : unloaded.reference,
-          placeholders,
-        )
-        const full = shapeOf(other, loaded.reference)
-        for (const [key, mine] of shapeOf(row, unloaded.reference)) {
+        checkNotLoaded(`${where} ${row.name}`, row, other, placeholders)
+        const full = factsOf(other)
+        for (const [key, mine] of factsOf(row)) {
           const theirs = full.get(key)
           if (mine !== theirs) {
             differ(

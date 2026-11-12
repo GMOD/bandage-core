@@ -55,13 +55,13 @@ reads them.
   says `placement choice`: the file's writer chose that pass
 - Each row's `departures` lists those its runs do not draw as steps, for a
   host's hover
-- A piece of a walk the cut did not load draws as the loaded piece does: its
-  steps on the reference where they lie, and each run of steps off the tile's
-  reference as a hollow bar of its bp, a `WalkRun` with `unloaded`. Such a run
-  says its bp and nothing else: not which nodes it holds, not that another row's
-  run holds the same ones, and not that the reference lacks them. The row states
-  `unloadedBp`, its readout `· 2.5 kb not loaded`, and `abridgedSteps` the steps
-  of its unloaded pieces, for a host to offer to load
+- A piece of a walk the cut did not load draws exactly as the loaded piece does:
+  its steps on the reference where they lie, and each run of steps off the
+  tile's reference as a bar off the path of its bp, a `WalkRun` with `unloaded`.
+  The row states `unloadedBp`, and `abridgedSteps` the steps of its unloaded
+  pieces, for a host to load or offer to load
+- A bar off the path (charcoal under the reference ramp) is sequence off the
+  reference path as far as the cut has read it
 - In a node layout such a run is a node with `placeholder`, drawn hollow at its
   bp under every color scheme. `loadGraph`'s `maxNodes` counts placeholders,
   which graph-walks' `nodeLimit` does not, and its refusal says how many there

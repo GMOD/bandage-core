@@ -386,24 +386,6 @@ test('a readout goes inside its bar only where it fits there clear of the row na
   expect(svg).not.toContain('text-anchor="end"')
 })
 
-test("a row's readout states the bp of its runs not loaded, with no estimate", () => {
-  const readout = walkRowReadout(
-    {
-      bp: 4500,
-      gapBp: 0,
-      complete: true,
-      unloadedBp: 2500,
-      runs: [
-        { start: 0, bp: 2000, onReference: true, referenceStart: 2000 },
-        { start: 2000, bp: 2500, onReference: false, unloaded: true },
-      ],
-    },
-    { bp: 2000 },
-  )
-  expect(readout).toBe('4.5 kb (+2.5 kb) · 2.5 kb not loaded')
-  expect(readout).not.toMatch(/≈|estimate/)
-})
-
 // HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 have no step on
 // 50 kb of window, inside stretches of about 150 kb and 490 kb between the
 // ends of a departure

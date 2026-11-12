@@ -1,7 +1,6 @@
 import { el } from '../el'
 import {
   GAP_CAUSE_TEXT,
-  NOT_LOADED_TEXT,
   OUTSIDE_TEXT,
   PLACEMENT_CHOICE_TEXT,
   departureSpan,
@@ -17,12 +16,7 @@ import {
   rampHueCss,
   rampStops,
 } from '../referenceRampCss'
-import {
-  NOT_LOADED_CSS,
-  NOT_LOADED_FILL_CSS,
-  NOT_LOADED_RIM_PX,
-  REFERENCE_RAMP_ALT_CSS,
-} from '../renderer/GeometryBuilder'
+import { REFERENCE_RAMP_ALT_CSS } from '../renderer/GeometryBuilder'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 
 import type { El } from '../el'
@@ -40,8 +34,6 @@ export const OFF_REFERENCE = '#8e3fbf'
 export const OUTSIDE_CUT = '#bdbdbd'
 export const MISSING_INK = '#8a8a8a'
 export const OWN_GAP = '#e2e2e2'
-export const NOT_LOADED = NOT_LOADED_CSS
-export const NOT_LOADED_FILL = NOT_LOADED_FILL_CSS
 export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
@@ -160,8 +152,7 @@ function steplessText(
 // one. A walk reaching one flank states a lower bound, none where it has no
 // bp in the window, and why it stops, or where on the reference and by how
 // much of its own it goes on by a departure, and a stepless row its
-// departures' facts. A row with runs the cut did not load states their bp,
-// and one with a departure the writer placed says so.
+// departures' facts. A row with a departure the writer placed says so.
 export function walkRowReadout(
   row: Pick<
     WalkRow,
@@ -169,7 +160,6 @@ export function walkRowReadout(
     | 'gapBp'
     | 'complete'
     | 'stop'
-    | 'unloadedBp'
     | 'departures'
     | 'placementChoice'
     | 'stepless'
@@ -191,10 +181,7 @@ export function walkRowReadout(
   if (row.stepless) {
     return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
   }
-  const unloaded = row.unloadedBp
-    ? ` · ${sized(row.unloadedBp)} ${NOT_LOADED_TEXT}`
-    : ''
-  const outside = `${unloaded}${gapsText(gapBp, row.runs, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
+  const outside = `${gapsText(gapBp, row.runs, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
@@ -238,7 +225,7 @@ export function readoutPlacement(
 }
 
 const rowNameEnd = (label: string) =>
-  2 * READOUT_GAP_PX + label.length * LABEL_CHAR_PX
+  3 * READOUT_GAP_PX + label.length * LABEL_CHAR_PX
 
 // Where a row's bar ends: past its runs, since a stepless row has no bp
 export function barEnd(row: Pick<WalkRow, 'bp' | 'runs'>) {
@@ -285,27 +272,24 @@ export function gapStyle(cause: GapCause | undefined) {
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues
 // a gradient along a shared run takes, since it covers its reference
-// contiguously. Steps the cut did not load are hollow under either: a fill
-// with a rim.
+// contiguously
 export function runPaint(
   run: WalkRun,
   ramp: { start: number; end: number } | undefined,
-): { fill: string; rim?: string } | { stops: string[] } {
+): { fill: string } | { stops: string[] } {
   const stops =
-    !run.gap && !run.unloaded && ramp && run.referenceStart !== undefined
+    !run.gap && ramp && run.referenceStart !== undefined
       ? rampStops({ ...run, start: run.referenceStart }, ramp)
       : undefined
   return run.gap
     ? { fill: gapStyle(run.cause).fill }
-    : run.unloaded
-      ? { fill: NOT_LOADED_FILL, rim: NOT_LOADED }
-      : !ramp
-        ? { fill: run.onReference ? ON_REFERENCE : OFF_REFERENCE }
-        : !stops
-          ? { fill: REFERENCE_RAMP_ALT_CSS }
-          : stops.length === 1
-            ? { fill: rampHueCss(stops[0]!) }
-            : { stops: stops.map(rampHueCss) }
+    : !ramp
+      ? { fill: run.onReference ? ON_REFERENCE : OFF_REFERENCE }
+      : !stops
+        ? { fill: REFERENCE_RAMP_ALT_CSS }
+        : stops.length === 1
+          ? { fill: rampHueCss(stops[0]!) }
+          : { stops: stops.map(rampHueCss) }
 }
 
 // A contig span as offsets along a row's bar
@@ -452,9 +436,8 @@ export function rowGeneBoxes(
 }
 
 export type KeySwatch =
-  // `ramp` bars paint the reference-position ramp, which `fill` holds as CSS;
-  // a hollow bar has a `rim`
-  | { kind: 'bar'; fill: string; ramp?: true; rim?: string }
+  // `ramp` bars paint the reference-position ramp, which `fill` holds as CSS
+  | { kind: 'bar'; fill: string; ramp?: true }
   | { kind: 'gap'; fill: string; px: number }
   | { kind: 'gene' }
 
@@ -480,7 +463,7 @@ const rowsText = (n: number) => `${n} row${n === 1 ? '' : 's'}`
 // What the bar colours mean: whether a run is on the reference walk's path.
 // Off the path is an alternative route, no statement about the sequence: at a
 // duplication the graph may route a copy the reference carries through nodes
-// of its own. A run not loaded says neither.
+// of its own.
 export function walkRowsKey(
   bars: WalkRows,
   o: {
@@ -508,12 +491,6 @@ export function walkRowsKey(
     },
   ]
   const rows = [bars.reference, ...bars.rows]
-  if (rows.some(row => row.runs.some(run => run.unloaded))) {
-    entries.push({
-      swatch: { kind: 'bar', fill: NOT_LOADED_FILL, rim: NOT_LOADED },
-      label: NOT_LOADED_TEXT,
-    })
-  }
   const labels = new Set<string>()
   for (const row of rows) {
     for (const run of row.runs) {
@@ -638,9 +615,6 @@ export function walkRowsKeyTree(
             height: e.swatch.kind === 'gap' ? e.swatch.px : 8,
             rx: 2,
             fill: ramp ? `url(#${rampId})` : e.swatch.fill,
-            ...(e.swatch.kind === 'bar' && e.swatch.rim
-              ? { stroke: e.swatch.rim, 'stroke-width': NOT_LOADED_RIM_PX }
-              : {}),
           })
     const text = el(
       'text',
@@ -711,10 +685,30 @@ export interface WalkRowsFrame {
   bars?: boolean
 }
 
+const offPath = (run: WalkRun) => !run.gap && !run.onReference
+
+// Adjacent runs off the path as one, loaded or not, since they draw alike
+function joinOffPath(runs: WalkRun[]) {
+  const out: WalkRun[] = []
+  for (const run of runs) {
+    const last = out.at(-1)
+    if (last && offPath(last) && offPath(run)) {
+      out[out.length - 1] = {
+        start: last.start,
+        bp: last.bp + run.bp,
+        onReference: false,
+        referenceStart: undefined,
+      }
+    } else {
+      out.push(run)
+    }
+  }
+  return out
+}
+
 // Runs under a pixel wide merged into one, painted as the bp most of them
-// carry, on the path, off it or not loaded: a base-level cut splits a bar at
-// every SNP, which draws as noise and costs an element per run. Gaps stay
-// apart.
+// carry: a base-level cut splits a bar at every SNP, which draws as noise and
+// costs an element per run. Gaps stay apart.
 export function coalesceRuns(runs: WalkRun[], pxPerBp: number) {
   const minBp = 1 / pxPerBp
   const out: WalkRun[] = []
@@ -728,37 +722,27 @@ export function coalesceRuns(runs: WalkRun[], pxPerBp: number) {
     } else {
       let on = 0
       let off = 0
-      let unloaded = 0
       for (const r of bucket) {
         if (r.onReference) {
           on += r.bp
-        } else if (r.unloaded) {
-          unloaded += r.bp
         } else {
           off += r.bp
         }
       }
-      const most = Math.max(on, off, unloaded)
-      const lead = bucket.find(r =>
-        on === most
-          ? r.onReference
-          : unloaded === most
-            ? r.unloaded
-            : !r.onReference && !r.unloaded,
-      )!
+      const onReference = on >= off
+      const lead = bucket.find(r => r.onReference === onReference)!
       out.push({
         start: bucket[0]!.start,
-        bp: on + off + unloaded,
-        onReference: lead.onReference,
-        referenceStart: lead.referenceStart,
+        bp: on + off,
+        onReference,
+        referenceStart: onReference ? lead.referenceStart : undefined,
         ...(lead.reversed ? { reversed: true as const } : {}),
-        ...(lead.unloaded ? { unloaded: true as const } : {}),
       })
     }
     bucket = []
   }
   let held = 0
-  for (const run of runs) {
+  for (const run of joinOffPath(runs)) {
     if (run.gap || run.bp >= minBp) {
       flush()
       held = 0
@@ -853,22 +837,12 @@ export function walkRowsTree(
       const paint = runPaint(run, o.ramp)
       const h = run.gap ? Math.min(gapStyle(run.cause).px, barPx) : barPx
       const id = `${prefix}-${i}-${run.start}`
-      const w = Math.max(1, run.bp * frame.scaleX)
-      const rim = 'rim' in paint ? paint.rim : undefined
-      const hollow = rim !== undefined && w > 2 * NOT_LOADED_RIM_PX
-      const inset = hollow ? NOT_LOADED_RIM_PX / 2 : 0
       const rect = el('rect', {
-        x: along(run.start) + inset,
-        y: y - h / 2 + inset,
-        width: w - 2 * inset,
-        height: h - 2 * inset,
-        fill:
-          'stops' in paint
-            ? `url(#${id})`
-            : hollow
-              ? paint.fill
-              : (rim ?? paint.fill),
-        ...(hollow ? { stroke: rim, 'stroke-width': NOT_LOADED_RIM_PX } : {}),
+        x: along(run.start),
+        y: y - h / 2,
+        width: Math.max(1, run.bp * frame.scaleX),
+        height: h,
+        fill: 'stops' in paint ? `url(#${id})` : paint.fill,
       })
       return 'stops' in paint
         ? [

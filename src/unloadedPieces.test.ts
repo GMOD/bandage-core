@@ -13,8 +13,6 @@ import { writeRgfa } from './gfa/writeRgfa'
 import { ROW_HEIGHT_PX } from './layout/rowSpacing'
 import { sampleRowLayout } from './layout/sampleRowLayout'
 import {
-  NOT_LOADED,
-  NOT_LOADED_FILL,
   OFF_REFERENCE,
   coalesceRuns,
   runPaint,
@@ -32,6 +30,7 @@ import {
   NOT_LOADED_COLOR,
   NOT_LOADED_CSS,
   NOT_LOADED_FILL_COLOR,
+  REFERENCE_RAMP_ALT_CSS,
   buildGeometry,
   computeColorSchemeRange,
   getNodeColor,
@@ -169,10 +168,14 @@ test('an unloaded piece draws its stretches on the reference where they lie, in 
   })
 })
 
-test('a row with a run not loaded states its bp exactly, and one without says nothing of loading', async () => {
+test('a row with a run not loaded reads as the loaded row, saying nothing of loading', async () => {
   const { row, rows } = await cut('blocks', 'c', 80, 110)
+  const loaded = await cut('blocks', 'c', 80, 110, { loaded: true })
   expect(walkRowReadout(row('PARTIAL#1'), rows.reference)).toBe(
-    '0.1 kb (+50 bp) · 50 bp not loaded',
+    '0.1 kb (+50 bp)',
+  )
+  expect(walkRowReadout(loaded.row('PARTIAL#1'), loaded.rows.reference)).toBe(
+    '0.1 kb (+50 bp)',
   )
   expect(walkRowReadout(row('LOWFIRST#1'), rows.reference)).toBe(
     '0.0 kb (−20 bp)',
@@ -207,73 +210,46 @@ test('a walk with no step in the window is a row of its departure, loaded or not
   expect(rows.rows.some(row => row.stepless)).toBe(false)
 })
 
-test('a run not loaded is a hollow bar, flat or under the ramp, and the key names it', async () => {
-  const { rows, row } = await cut('blocks', 'c', 60, 120)
-  const [onPath, notLoaded] = row('PARTIAL#1').runs
-  const ramp = { start: 60, end: 120 }
-  const hollow = { fill: NOT_LOADED_FILL, rim: NOT_LOADED }
-  expect(runPaint(notLoaded!, undefined)).toEqual(hollow)
-  expect(runPaint(notLoaded!, ramp)).toEqual(hollow)
-  expect(runPaint({ ...notLoaded!, unloaded: undefined }, undefined)).toEqual({
-    fill: OFF_REFERENCE,
-  })
-  expect(runPaint(onPath!, undefined)).not.toHaveProperty('rim')
-  expect(runPaint(onPath!, ramp)).not.toHaveProperty('rim')
-  const key = walkRowsKey(rows)
-  expect(key.map(entry => entry.label)).toEqual([
-    "on R#0's path",
-    "off R#0's path",
-    'not loaded',
-  ])
-  expect(key[2]!.swatch).toEqual({ kind: 'bar', ...hollow })
+test('a run not loaded draws as a loaded run off the path, flat or under the ramp, and the key has no entry for it', async () => {
+  const unloaded = await cut('blocks', 'c', 60, 120)
   const loaded = await cut('blocks', 'c', 60, 120, { loaded: true })
-  expect(walkRowsKey(loaded.rows).map(entry => entry.label)).toEqual([
-    "on R#0's path",
-    "off R#0's path",
-  ])
-  const svg = serializeEl(
-    walkRowsTree(rows, {
-      scaleX: 5,
-      scaleY: 1,
-      translateX: 0,
-      translateY: 20,
-      width: 800,
-      height: 400,
-    }),
-  )
-  expect(svg).toContain(
-    `fill="${NOT_LOADED_FILL}" stroke="${NOT_LOADED}" stroke-width="1.5"`,
-  )
-  const thin = serializeEl(
-    walkRowsTree(rows, {
-      scaleX: 0.05,
-      scaleY: 1,
-      translateX: 0,
-      translateY: 20,
-      width: 800,
-      height: 400,
-    }),
-  )
-  expect(thin).toContain(`fill="${NOT_LOADED}"`)
-  expect(thin).not.toContain(NOT_LOADED_FILL)
+  const notLoaded = unloaded.row('PARTIAL#1').runs[1]!
+  const ramp = { start: 60, end: 120 }
+  expect(notLoaded.unloaded).toBe(true)
+  expect(runPaint(notLoaded, undefined)).toEqual({ fill: OFF_REFERENCE })
+  expect(runPaint(notLoaded, ramp)).toEqual({ fill: REFERENCE_RAMP_ALT_CSS })
+  expect(walkRowsKey(unloaded.rows)).toEqual(walkRowsKey(loaded.rows))
+  for (const scaleX of [5, 0.05]) {
+    for (const each of [undefined, ramp]) {
+      const drawn = ({ rows }: typeof unloaded) =>
+        serializeEl(
+          walkRowsTree(
+            rows,
+            {
+              scaleX,
+              scaleY: 1,
+              translateX: 0,
+              translateY: 20,
+              width: 800,
+              height: 400,
+            },
+            { ramp: each },
+          ),
+        )
+      expect(drawn(unloaded)).toBe(drawn(loaded))
+    }
+  }
 })
 
-test('runs under a pixel merge into the kind most of their bp is, a run not loaded among them', () => {
+test('runs off the path draw as one, loaded or not, and runs under a pixel merge into the kind most of their bp is', () => {
   const runs: WalkRun[] = [
     { start: 0, bp: 2, onReference: true, referenceStart: 100 },
     { start: 2, bp: 5, onReference: false, unloaded: true },
     { start: 7, bp: 1, onReference: false },
   ]
-  expect(coalesceRuns(runs, 0.1)).toEqual([
-    {
-      start: 0,
-      bp: 8,
-      onReference: false,
-      referenceStart: undefined,
-      unloaded: true,
-    },
-  ])
-  expect(coalesceRuns(runs, 1)).toEqual(runs)
+  const off = { onReference: false, referenceStart: undefined }
+  expect(coalesceRuns(runs, 0.1)).toEqual([{ start: 0, bp: 8, ...off }])
+  expect(coalesceRuns(runs, 1)).toEqual([runs[0], { start: 2, bp: 6, ...off }])
 })
 
 // GRCh38 over three 1 kb nodes. E leaves it after the first for node 3, 500
@@ -636,17 +612,19 @@ test('a lifted walk keeps a run not loaded in its own colour, counts its bp apar
   expect(walkKey(c!).gaps).toBe('')
 })
 
-test('a walk-rows figure of an unloaded cut draws its runs not loaded and keys them', async () => {
-  const { tables, region, rows } = await cut('blocks', 'c', 60, 120)
-  const graph = loadGraph(tables, 'cut')
-  const svg = figureSvg(graph, walkRowLayoutOf(graph, rows, region)!, {
-    width: 900,
-    region: { refName: 'c', ...region },
-    walkRows: rows,
-  })
-  expect(svg).toContain(`fill="${NOT_LOADED_FILL}" stroke="${NOT_LOADED}"`)
-  expect(svg).toContain('>not loaded</text>')
-  expect(svg).toContain('50 bp not loaded')
+test('a walk-rows figure of an unloaded cut is the figure of the loaded cut', async () => {
+  const figure = async (loaded: boolean) => {
+    const { tables, region, rows } = await cut('blocks', 'c', 60, 120, {
+      loaded,
+    })
+    const graph = loadGraph(tables, 'cut')
+    return figureSvg(graph, walkRowLayoutOf(graph, rows, region)!, {
+      width: 900,
+      region: { refName: 'c', ...region },
+      walkRows: rows,
+    })
+  }
+  expect(await figure(false)).toBe(await figure(true))
 })
 
 test('a cut says how many placeholders it returned, each a node of the tables', async () => {
