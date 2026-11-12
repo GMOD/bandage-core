@@ -5,14 +5,15 @@
 //   node_modules/.bin/esbuild scripts/unloaded/render.entry.ts --bundle \
 //     --format=esm --platform=node --outfile=/tmp/render.mjs
 //   node /tmp/render.mjs <walks.gz> <sequence> <out dir> <label> <start-end>
-//     ... [--haplotypes 4] [--loaded] [--width 1600]
+//     ... [--haplotypes 4 | --named HG002#1,HG005#2] [--loaded] [--width 1600]
 //
-// Writes `<out dir>/<contig>_<start>-<end>.<all|first4>.<label>.svg` and a
-// `.txt` of the rows beside it. `--haplotypes n` keeps the first n the file's
-// header lists, every haplotype without it; `--loaded` reads every abridged
-// piece in full. It uses what graph-walks 6.2 and 7 share, so a copy of this
-// directory in a checkout of bandage-core 13.3.1 draws the same windows as
-// that release drew them, for a before and after.
+// Writes `<out dir>/<contig>_<start>-<end>.<all|first4|named2>.<label>.svg`
+// and a `.txt` of the rows beside it. `--haplotypes n` keeps the first n the
+// file's header lists and `--named` those it names, every haplotype without
+// either; `--loaded` reads every abridged piece in full. It uses what
+// graph-walks 6.2 and 7 share, so a copy of this directory in a checkout of
+// bandage-core 13.3.1 draws the same windows as that release drew them, for a
+// before and after.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -28,13 +29,16 @@ import { cutTables, flag, openWalks, parseWindow, windowText } from './cut'
 const [file = '', refName = '', outDir = '', label = '', ...rest] =
   process.argv.slice(2)
 const kept = Number(flag('haplotypes') ?? 0)
+const named = flag('named')?.split(',')
 const loaded = process.argv.includes('--loaded')
 const width = Number(flag('width') ?? 1600)
 const KEY_ROOM_PX = 140
 
 const reader = openWalks(file)
 const header = await reader.header()
-const haplotypes = kept > 0 ? header.haplotypes.slice(0, kept) : undefined
+const haplotypes =
+  named ?? (kept > 0 ? header.haplotypes.slice(0, kept) : undefined)
+const set = named ? `named${named.length}` : kept > 0 ? `first${kept}` : 'all'
 const contig = panSNContig(refName)
 mkdirSync(outDir, { recursive: true })
 
@@ -48,7 +52,7 @@ for (const text of rest.filter(arg => /^[\d,]+-[\d,]+$/.test(arg))) {
   const rows = runs && walkRowsOf(runs)
   const graph = loadGraph(tables, `${contig}:${windowText(region)}`)
   const layout = rows && walkRowLayoutOf(graph, rows, region)
-  const name = `${contig}_${windowText(region)}.${kept > 0 ? `first${kept}` : 'all'}.${label}`
+  const name = `${contig}_${windowText(region)}.${set}.${label}`
   if (rows && layout) {
     writeFileSync(
       path.join(outDir, `${name}.svg`),
