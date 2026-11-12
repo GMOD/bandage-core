@@ -307,6 +307,24 @@ test('a walk-rows figure gives the row names a gutter of their own', async () =>
   }
 })
 
+test('a node layout figure clips its drawing to the right of the row names', async () => {
+  const { tables, region } = await cut('blocks', 'c', 60, 120)
+  const graph = loadGraph(tables, 'cut', { referencePath: 'R#0#c' })
+  const layout = layoutModeByValue('auto').run(graph, region)!
+  const svg = figureSvg(graph, layout, {
+    width: 900,
+    region: { refName: 'c', ...region },
+  })
+  const longest = (layout.rowLabels ?? []).reduce(
+    (most, { label }) => Math.max(most, label.length),
+    0,
+  )
+  expect(longest).toBeGreaterThan(0)
+  expect(svg).toContain(
+    `<clipPath id="names0"><rect x="${Math.max(40, 12 + longest * LABEL_CHAR_PX) - 6}"`,
+  )
+})
+
 test('runs off the path draw as one, loaded or not, and runs under a pixel merge into the kind most of their bp is', () => {
   const runs: WalkRun[] = [
     { start: 0, bp: 2, onReference: true, referenceStart: 100 },
