@@ -1,7 +1,11 @@
 // The slice of a JBrowse data adapter these functions read, so any adapter with
 // a config reader fits and nothing here imports a host.
+interface PanSNMapAdapter {
+  getConf(slot: 'assemblyNameToPanSN'): unknown
+}
+
 interface ConfAdapter {
-  getConf(slot: string): unknown
+  getConf(slot: 'assemblyNameToPanSN' | 'assemblyNames'): unknown
 }
 
 // PanSN naming convention: `sample#haplotype#contig`. Shared by the all-vs-all
@@ -91,7 +95,7 @@ const isNameMap = (value: unknown): value is Record<string, string> =>
   value !== null &&
   Object.values(value).every(v => typeof v === 'string')
 
-function assemblyNameToPanSN(adapter: ConfAdapter) {
+function assemblyNameToPanSN(adapter: PanSNMapAdapter) {
   const map = adapter.getConf('assemblyNameToPanSN')
   return isNameMap(map) ? map : {}
 }
@@ -100,13 +104,16 @@ function assemblyNameToPanSN(adapter: ConfAdapter) {
 // it to nothing. Overloaded rather than widened: undefined passes through, so a
 // caller can express "no anchor/target supplied", and a caller that has a name
 // gets a `string` back instead of having to re-assert one.
-export function resolvePanSNPrefix(adapter: ConfAdapter, name: string): string
 export function resolvePanSNPrefix(
-  adapter: ConfAdapter,
+  adapter: PanSNMapAdapter,
+  name: string,
+): string
+export function resolvePanSNPrefix(
+  adapter: PanSNMapAdapter,
   name: string | undefined,
 ): string | undefined
 export function resolvePanSNPrefix(
-  adapter: ConfAdapter,
+  adapter: PanSNMapAdapter,
   name: string | undefined,
 ) {
   return name === undefined
