@@ -270,18 +270,20 @@ const GLYPH_UNITS = new Map(
       [2025, 'W'],
       [2048, '…'],
     ] as const
-  ).flatMap(([units, glyphs]) => [...glyphs].map(c => [c, units] as const)),
+  ).flatMap(([advance, glyphs]) =>
+    Array.from(glyphs, glyph => [glyph, advance] as const),
+  ),
 )
 const READOUT_FONT_PX = 11
 
 // A readout's drawn width in px at its font, a little over, for a host with
 // no canvas to measure it
 export function readoutTextPx(text: string) {
-  let units = 0
+  let em = 0
   for (const c of text) {
-    units += GLYPH_UNITS.get(c) ?? 2048
+    em += GLYPH_UNITS.get(c) ?? 2048
   }
-  return (units * READOUT_FONT_PX * 1.02) / 2048
+  return (em * READOUT_FONT_PX * 1.02) / 2048
 }
 
 // A readout right of its bar's end and of `left`, or inside the bar where it
