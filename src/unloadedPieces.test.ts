@@ -676,7 +676,7 @@ test('a tube map box of steps not loaded is untinted and dashed, and says its no
     quadraticCurveTo: () => {},
     rect: () => {},
     setLineDash: segments => {
-      dash = segments
+      dash = [...segments]
     },
     stroke: () => {
       dashes.push(dash.length)

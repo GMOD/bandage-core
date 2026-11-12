@@ -999,7 +999,11 @@ export function walkRowsTree(
       ],
     )
   }
-  return group({}, [reference].map(rowTree), rows.map(rowTree))
+  return group(
+    {},
+    [rowTree(reference, 0)],
+    rows.map((row, k) => rowTree(row, k + 1)),
+  )
 }
 
 // An element of `parts`' elements, which may be too many to pass one by one
