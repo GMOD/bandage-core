@@ -507,7 +507,7 @@ function besideTableData(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
   return tables
 }
 
-function besideTables(placeholders?: Uint8Array) {
+function besideTables(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
   return loadGraph(besideTableData(placeholders), 'cut', {
     referencePath: 'GRCh38#0#chr1',
   })
