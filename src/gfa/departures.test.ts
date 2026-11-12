@@ -179,7 +179,7 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
   expect(texts).toEqual([
     'no step on GRCh38 across 54 kb · 120 kb of its own',
     'rejoins GRCh38 1 kb back · 0 bp of its own',
-    'rejoins the reference on the other strand, 1 kb away · 1 kb of its own · 400 bp not in the graph · placement choice',
+    'rejoins the reference on the other strand, 1 kb away · 1 kb of its own, 400 bp left out of graph · placement choice',
     'between adjacent steps on GRCh38 · 300 bp of its own',
   ])
   for (const text of texts) {
@@ -223,9 +223,11 @@ test('a gap across W lines is the bp the departure says the graph lacks', () => 
   )
   expect(gap).toMatchObject({ bp: 1000, cause: 'missing' })
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb · 1.0 kb not in the graph',
+    '5.0 kb, of which 1.0 kb left out of graph',
   )
-  expect(walkRowsKey(rows).map(e => e.label)).toContain('not in the graph')
+  expect(walkRowsKey(rows).map(e => e.label)).toContain(
+    'left out of graph: in the assembly, but the graph builder dropped it',
+  )
   expect(row.departures).toEqual([departure({ missingBp: 1000 })])
 })
 
@@ -242,11 +244,11 @@ test('a gap the walk spends elsewhere on the reference names where it rejoins', 
     near: 20_316_160,
   })
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb · 1.0 kb on nodes filed near chr1:20.3 Mb',
+    '5.0 kb, of which 1.0 kb near chr1:20.3 Mb',
   )
   const small = gapOf(twoFragments(away(9000)))
   expect(walkRowReadout(small.row, small.rows.reference)).toBe(
-    '5.0 kb · 1.0 kb on nodes filed near chr1:9 kb',
+    '5.0 kb, of which 1.0 kb near chr1:9 kb',
   )
 })
 
@@ -269,7 +271,7 @@ test('a gap past a trimmed walk splits into what the cut left out and what the g
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb · 0.6 kb not in the graph · 0.4 kb outside the extracted subgraph',
+    '5.0 kb, of which 0.6 kb left out of graph, 0.4 kb out of view',
   )
   expect(
     parts(
@@ -288,11 +290,14 @@ test('the key gives one entry to each way a gap draws', () => {
   const gaps = walkRowsKey(rows).filter(e => e.swatch.kind === 'gap')
   expect(gaps.map(e => [e.label, e.swatch])).toEqual([
     [
-      'outside the extracted subgraph',
+      'out of view: in the graph, beyond the part drawn here',
       { kind: 'gap', fill: WALK_OUTSIDE_CUT, px: WALK_GAP_PX },
     ],
-    ['not in the graph', { kind: 'gap', fill: MISSING_INK, px: MISSING_PX }],
-    ['of its own, not read', { kind: 'gap', fill: OWN_GAP, px: WALK_GAP_PX }],
+    [
+      'left out of graph: in the assembly, but the graph builder dropped it',
+      { kind: 'gap', fill: MISSING_INK, px: MISSING_PX },
+    ],
+    ['of its own not read', { kind: 'gap', fill: OWN_GAP, px: WALK_GAP_PX }],
   ])
 })
 
@@ -308,7 +313,7 @@ test('a tree drawn over canvas bars still names what its gaps leave out', () => 
   }
   const svg = serializeEl(walkRowsTree(rows, { ...frame, bars: false }))
   expect(svg).not.toContain('<rect')
-  expect(svg).toContain('5.0 kb · 1.0 kb not in the graph')
+  expect(svg).toContain('5.0 kb, of which 1.0 kb left out of graph')
   expect(serializeEl(walkRowsTree(rows, frame))).toContain('<rect')
 })
 
@@ -322,7 +327,7 @@ test("own sequence the cut did not read is the rest of the departure's own bp", 
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb · 0.4 kb not in the graph · 0.6 kb of its own, not read',
+    '5.0 kb, of which 0.4 kb left out of graph, 0.6 kb of its own not read',
   )
 })
 
@@ -347,7 +352,7 @@ test('a row with a departure the writer placed says so, and the key why', () => 
   const { row, rows } = gapOf(placed)
   expect(row.placementChoice).toBe(true)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb · 1.0 kb not in the graph · placement choice',
+    '5.0 kb, of which 1.0 kb left out of graph · placement choice',
   )
   expect(walkRowsKey(rows).find(e => e.note)?.label).toMatch(
     /^placement choice: /,
@@ -406,17 +411,17 @@ test('a lifted walk states the bp its departures say the graph lacks', () => {
   const [walk] = walkLift(graph, [{ walk: 'HG002#1#chr1' }])!.walks
   expect(walk).toMatchObject({ missingBp: 300, ownBp: 300 })
   expect(walkKey(walk!).gaps).toBe(
-    ', 300 bp not in the graph, 300 bp of its own, not read, 400 bp outside the extracted subgraph',
+    ', 300 bp left out of graph, 300 bp of its own not read, 400 bp out of view',
   )
 })
 
-test('a gap with no departure in it is outside the extracted subgraph', () => {
+test('a gap with no departure in it is out of view', () => {
   const { row, gap, rows } = gapOf(twoFragments([], { after: 400 }))
   expect(gap).toEqual({ start: 2000, bp: 1000, onReference: false, gap: true })
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb · 1.0 kb outside the extracted subgraph',
+    '5.0 kb, of which 1.0 kb out of view',
   )
   expect(walkRowsKey(rows).map(e => e.label)).toContain(
-    'outside the extracted subgraph',
+    'out of view: in the graph, beyond the part drawn here',
   )
 })

@@ -108,7 +108,7 @@ test('a gap states what the departure across it says: bp the graph lacks, own bp
   const { row } = await rowsOf('records.GRCh38', 1500, 3500)
   expect(row('HG002#1')).toMatchObject({
     readout:
-      '3.0 kb (+1.0 kb) · 1.3 kb not in the graph · 0.7 kb of its own, not read',
+      '3.0 kb (+1.0 kb), of which 1.3 kb left out of graph, 0.7 kb of its own not read',
     gaps: [
       { start: 500, bp: 1300, cause: 'missing' },
       { start: 1800, bp: 700, cause: 'own' },
@@ -116,7 +116,7 @@ test('a gap states what the departure across it says: bp the graph lacks, own bp
   })
   const away = await rowsOf('records.GRCh38', 1000, 3000)
   expect(away.row('HG003#1')).toMatchObject({
-    readout: '3.0 kb (+1.0 kb) · 1.0 kb on nodes filed near chr1:9 kb',
+    readout: '3.0 kb (+1.0 kb), of which 1.0 kb near chr1:9 kb',
     gaps: [{ start: 500, bp: 1000, cause: 'elsewhere', near: 9000 }],
   })
 })
@@ -151,8 +151,7 @@ test("a walk ending at the window's edge reads as a contig end only with no depa
     },
   })
   expect(row('HG003#1')).toMatchObject({
-    readout:
-      '≥ 0.5 kb · does not rejoin the reference within the extracted subgraph',
+    readout: '≥ 0.5 kb · does not rejoin the reference in view',
     row: { complete: false, stop: { contigEnds: false, shortBp: 0 } },
   })
   const ends = await rowsOf('records.GRCh38', 5500, 6500, 500)
@@ -186,8 +185,7 @@ test('with no context, a walk that stops inside the window states how, and a who
     row: { bp: 500, complete: false, stop: { goesOn: { near: 4000 } } },
   })
   expect(row('HG003#1')).toMatchObject({
-    readout:
-      '≥ 0.5 kb · does not rejoin the reference within the extracted subgraph',
+    readout: '≥ 0.5 kb · does not rejoin the reference in view',
     row: { bp: 500, complete: false, stop: { contigEnds: false } },
   })
   expect(row('HG002#2')).toMatchObject({
@@ -212,7 +210,7 @@ test('with no context, a walk that stops inside the window states how, and a who
 test('a walk whose only step is a flank has no bp in the window and says how it goes on from there', async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 1500, 2000, 500)
   expect(row('HG003#1')).toMatchObject({
-    readout: 'does not rejoin the reference within the extracted subgraph',
+    readout: 'does not rejoin the reference in view',
     row: { bp: 0, complete: false, stop: { contigEnds: false } },
   })
   expect(row('HG002#2')).toMatchObject({

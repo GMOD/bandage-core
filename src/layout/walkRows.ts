@@ -41,11 +41,11 @@ export interface WalkRun {
   // read; `elsewhere`, the walk goes on along the reference near `near`
   // (gfa/departures.ts gapParts). A row of departures alone draws each one's
   // stretch of the reference as a `departure` gap. A gap with no cause is
-  // graph sequence outside the extracted subgraph
+  // graph sequence out of view
   cause?: GapCause
   // a reference position on the reference row's sequence
   near?: number
-  // for a `mixed` gap, its bp not in the graph
+  // for a `mixed` gap, its bp left out of graph
   missingBp?: number
   unloaded?: true
 }

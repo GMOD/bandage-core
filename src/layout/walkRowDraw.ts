@@ -79,10 +79,10 @@ export interface ReadoutCall {
 const near = (refName: string | undefined, pos: number) =>
   `${refName === undefined ? '' : `${panSNContig(refName)}:`}${pos < 1e6 ? `${Math.round(pos / 1000)} kb` : `${(pos / 1e6).toFixed(1)} Mb`}`
 
-// What the cut left out of a row, by the cause its gaps state: ` · 19 kb not
-// in the graph`, ` · 34 kb on nodes filed near chr22:20.3 Mb`, where the
-// departure out of the gap rejoins the reference, or for gaps stating none
-// ` · 19 kb outside the extracted subgraph`
+// What of a row's bp the cut left out, as parts of it, by the cause its gaps
+// state: `, of which 19 kb left out of graph, 34 kb near chr22:20.3 Mb`, where
+// the departure out of the gap rejoins the reference, or for gaps stating
+// none `, of which 19 kb out of view`
 function gapsText(
   gapBp: number,
   runs: WalkRun[] | undefined,
@@ -93,7 +93,7 @@ function gapsText(
   }
   const gaps = (runs ?? []).filter(r => r.gap)
   if (!gaps.some(g => g.cause)) {
-    return ` · ${kb(gapBp)} ${OUTSIDE_TEXT}`
+    return `, of which ${kb(gapBp)} ${OUTSIDE_TEXT}`
   }
   const bpOf = (cause: GapCause | undefined) =>
     gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
@@ -117,18 +117,18 @@ function gapsText(
   const lastSeen = placesOf('unread')
   const parts = [
     [bpOf('missing') + mixedMissing, GAP_CAUSE_TEXT.missing],
-    [bpOf('elsewhere'), `on nodes filed near ${placesOf('elsewhere')}`],
+    [bpOf('elsewhere'), `near ${placesOf('elsewhere')}`],
     [bpOf('own') + bpOf('mixed') - mixedMissing, GAP_CAUSE_TEXT.own],
     [
       bpOf('unread'),
-      `${GAP_CAUSE_TEXT.unread}${lastSeen ? `, last seen near ${lastSeen}` : ''}`,
+      `${GAP_CAUSE_TEXT.unread}${lastSeen ? ` (last seen near ${lastSeen})` : ''}`,
     ],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
-  return parts
+  const stated = parts
     .filter(([bp]) => bp > 0)
-    .map(([bp, text]) => ` · ${kb(bp)} ${text}`)
-    .join('')
+    .map(([bp, text]) => `${kb(bp)} ${text}`)
+  return stated.length > 0 ? `, of which ${stated.join(', ')}` : ''
 }
 
 // A stepless row's departures in words: the widest stretch's facts, how many
@@ -188,14 +188,15 @@ export function walkRowReadout(
   if (row.stepless) {
     return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
   }
-  const outside = `${gapsText(gapBp, row.runs, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
+  const parts = gapsText(gapBp, row.runs, reference.name)
+  const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
   if (complete) {
     const delta = bp - reference.bp
     const against = delta === 0 ? '' : ` (${signedLength(delta)})`
-    return `${kb(bp)}${units(bp, unit)}${against}${outside}${called}`
+    return `${kb(bp)}${units(bp, unit)}${against}${parts}${after}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   if (stop?.contigEnds && bp === 0) {
@@ -208,9 +209,12 @@ export function walkRowReadout(
       ? `contig ends inside the ${region}`
       : stop.goesOn
         ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${roughBp(stop.goesOn.departure.ownBp)} of its own`}`
-        : 'does not rejoin the reference within the extracted subgraph'
-  const bound = bp === 0 ? '' : `≥ ${kb(bp)}${units(bp, unit)} · `
-  return `${bound}${why}${outside}${called}`
+        : 'does not rejoin the reference in view'
+  const stated =
+    bp === 0
+      ? `${why}${parts}`
+      : `≥ ${kb(bp)}${units(bp, unit)}${parts} · ${why}`
+  return `${stated}${after}${called}`
 }
 
 const READOUT_GAP_PX = 6
@@ -255,13 +259,17 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
   return ticks
 }
 
-// How a gap draws, and the key's words for it: graph sequence outside the
-// extracted subgraph as a band, bases the graph lacks as a hairline the walk
-// jumps along, and its own sequence the cut did not read as a pale band. The
-// stretch between a stepless row's departure's ends is a hairline too.
+// How a gap draws, and the key's words for it: graph sequence out of view as
+// a band, bases the graph lacks as a hairline the walk jumps along, and its
+// own sequence the cut did not read as a pale band. The stretch between a
+// stepless row's departure's ends is a hairline too.
 export function gapStyle(cause: GapCause | undefined) {
   return cause === 'missing'
-    ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.missing }
+    ? {
+        fill: MISSING_INK,
+        px: MISSING_PX,
+        label: `${GAP_CAUSE_TEXT.missing}: in the assembly, but the graph builder dropped it`,
+      }
     : cause === 'departure'
       ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.departure }
       : cause === 'own'
@@ -274,7 +282,11 @@ export function gapStyle(cause: GapCause | undefined) {
                 px: MISSING_PX,
                 label: GAP_CAUSE_TEXT.unread,
               }
-            : { fill: OUTSIDE_CUT, px: GAP_PX, label: OUTSIDE_TEXT }
+            : {
+                fill: OUTSIDE_CUT,
+                px: GAP_PX,
+                label: `${OUTSIDE_TEXT}: in the graph, beyond the part drawn here`,
+              }
 }
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues

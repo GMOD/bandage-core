@@ -148,7 +148,7 @@ test('the readout states length, change and what the cut left out', () => {
       { bp: 167_867, gapBp: 19_156, complete: true },
       { bp: 240_365 },
     ),
-  ).toBe('168 kb (−72 kb) · 19 kb outside the extracted subgraph')
+  ).toBe('168 kb (−72 kb), of which 19 kb out of view')
 })
 
 test('a change under a kilobase reads in bp rather than rounding to 0.0 kb', () => {
@@ -187,9 +187,7 @@ test('a partial walk states a lower bound and why it stops', () => {
       reference,
       51,
     ),
-  ).toBe(
-    '≥ 1.5 kb ≈ 29 units · does not rejoin the reference within the extracted subgraph',
-  )
+  ).toBe('≥ 1.5 kb ≈ 29 units · does not rejoin the reference in view')
   expect(
     walkRowReadout(
       {
@@ -208,7 +206,7 @@ test('the key says the colours are the graph’s alignment', () => {
   expect(key.map(e => e.label)).toEqual([
     "on GRCh38#0's path",
     "off GRCh38#0's path",
-    'outside the extracted subgraph',
+    'out of view: in the graph, beyond the part drawn here',
     'gene',
     'no gene track for 2 rows',
   ])
@@ -475,7 +473,7 @@ test("a stepless row reads as its departure's facts", () => {
     'no step on the reference across 1.2 Mb · 0 bp of its own',
   )
   expect(readout({ rejoinPos: 22_780_850, missingBp: 40, ownBp: 40 })).toBe(
-    'no step on GRCh38 across 850 bp · 40 bp of its own · 40 bp not in the graph',
+    'no step on GRCh38 across 850 bp · 40 bp of its own, all left out of graph',
   )
   expect(gapStyle('departure')).toEqual({
     fill: MISSING_INK,

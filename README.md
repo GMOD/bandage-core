@@ -36,12 +36,14 @@ reads them.
 - Walk rows draw the facts and make no call on what a departure is. A haplotype
   with no step in the window is a `stepless` row, a hairline under the reference
   between its departure's ends:
-  `no step on GRCh38 across 54 kb · 120 kb of its own`
+  `no step on GRCh38 across 54 kb · 120 kb of its own, 3 kb left out of graph`
 - A gap between two pieces of a walk splits into the bp the cut trimmed
-  (`outside the extracted subgraph`), the bp the departures inside it say the
-  graph lacks (`not in the graph`), and the rest: the walk's own sequence the
-  cut did not read (`of its own, not read`), or, where the walk goes back to the
-  reference, `on nodes filed near chr22:20.3 Mb`, where it rejoins
+  (`out of view`), the bp the departures inside it say the graph lacks
+  (`left out of graph`), and the rest: the walk's own sequence the cut did not
+  read (`of its own not read`), or, where the walk goes back to the reference,
+  `near chr22:20.3 Mb`, where it rejoins. The readout states them as parts of
+  the row's bp:
+  `5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb near chr22:12.0 Mb, 86 kb out of view`
 - A walk reaching one flank reads as a lower bound. Its contig ends inside the
   window only where its last step there is on the reference, with no departure
   at that step and nothing the cut trimmed past it. A departure there says where

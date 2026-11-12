@@ -421,12 +421,12 @@ test("a stated gap's readout gives a mixed part's amounts and where an unread wa
   )
   const reference = { bp: 7000, name: 'GRCh38#0#chr1' }
   expect(walkRowReadout(rows['A#1']!, reference)).toContain(
-    '0.6 kb not in the graph',
+    '0.6 kb left out of graph',
   )
   const b = walkRowReadout(rows['B#1']!, reference)
-  expect(b).toContain('0.3 kb not in the graph')
-  expect(b).toContain('0.1 kb of its own, not read')
-  expect(b).toContain('0.6 kb not read, last seen near')
+  expect(b).toContain('0.3 kb left out of graph')
+  expect(b).toContain('0.1 kb of its own not read')
+  expect(b).toContain('0.6 kb not read (last seen near')
 })
 
 // GRCh38 over five 1 kb nodes; A on node 0 at 0, then the stated stretch,

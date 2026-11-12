@@ -81,7 +81,7 @@ export interface WalkRowRuns {
   flags: Uint8Array
   // an `elsewhere` gap's reference position, NaN for none
   near: Float64Array
-  // a `mixed` gap's bp not in the graph, NaN for any other run
+  // a `mixed` gap's bp left out of graph, NaN for any other run
   missing: Float64Array
   visits?: WalkVisitColumns
 }

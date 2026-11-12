@@ -120,7 +120,8 @@ export function roughBp(bp: number) {
  * A departure's facts in words, making no call on what it is: the reference
  * stretch between its ends and how the ends lie, the haplotype's own bp
  * between them and the part the graph lacks, and whether the place is the
- * writer's choice. `no step on GRCh38 across 54 kb · 120 kb of its own`
+ * writer's choice. `no step on GRCh38 across 54 kb · 120 kb of its own, 3 kb
+ * left out of graph`
  */
 export function departureText(d: Departure, reference = 'the reference') {
   const { start, end } = departureSpan(d)
@@ -136,8 +137,7 @@ export function departureText(d: Departure, reference = 'the reference') {
           : `between adjacent steps on ${reference}`
   return [
     ends,
-    `${roughBp(d.ownBp)} of its own`,
-    ...(d.missingBp > 0 ? [`${roughBp(d.missingBp)} not in the graph`] : []),
+    `${roughBp(d.ownBp)} of its own${d.missingBp > 0 ? `, ${d.missingBp >= d.ownBp ? 'all' : roughBp(d.missingBp)} ${GAP_CAUSE_TEXT.missing}` : ''}`,
     ...(placementChoice(d) ? [PLACEMENT_CHOICE_TEXT] : []),
   ].join(' · ')
 }
@@ -155,10 +155,10 @@ export type GapCause =
 
 // What a gap's cause says of its bp, and the key's words for it
 export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
-  missing: 'not in the graph',
-  elsewhere: 'on nodes filed elsewhere',
-  own: 'of its own, not read',
-  mixed: 'of its own, part not read and part not in the graph',
+  missing: 'left out of graph',
+  elsewhere: 'near where it rejoins',
+  own: 'of its own not read',
+  mixed: 'not read or left out of graph',
   unread: 'not read',
   // a row of departures alone: the haplotype has no step on the reference
   // across the window, which says nothing of what it carries instead
@@ -166,7 +166,7 @@ export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
 }
 
 // a gap with no cause: graph sequence the cut did not keep
-export const OUTSIDE_TEXT = 'outside the extracted subgraph'
+export const OUTSIDE_TEXT = 'out of view'
 
 export const NOT_LOADED_TEXT = 'nodes not shown'
 
@@ -202,8 +202,8 @@ export interface GraphGap {
 
 /**
  * The gap part a segment the cut did not keep steps of draws as: what it
- * read and kept out, outside the extracted subgraph; a record's own sequence
- * it did not read, not in the graph where all of it lies between W lines,
+ * read and kept out, out of view; a record's own sequence it did not read,
+ * left out of graph where all of it lies between W lines,
  * else one part stating both amounts in no order; and pieces it did not
  * read, near where the walk was last seen
  */
@@ -251,11 +251,11 @@ export function stretchSegments<T>(
 
 /**
  * A gap of a walk's contig between two of its pieces, `from` to `to`, split
- * by what the cut states: the bp each side's fragment was trimmed of, outside
- * the extracted subgraph; then the bp the departures inside the gap say the
- * graph lacks; and the rest, the walk's own sequence the cut did not read
- * where one departure leaves at the gap's start and rejoins at its end, and
- * else on nodes filed near where the first leaves for. With no departure in
+ * by what the cut states: the bp each side's fragment was trimmed of, out of
+ * view; then the bp the departures inside the gap say the graph lacks; and
+ * the rest, the walk's own sequence the cut did not read where one departure
+ * leaves at the gap's start and rejoins at its end, and else near where the
+ * first leaves for. With no departure in
  * it, the gap stays whole, with no cause.
  */
 export function gapParts(
