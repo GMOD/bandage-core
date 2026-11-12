@@ -453,6 +453,7 @@ export function walkRowRuns(
   const first = referencePieces[0]
   const others = pieceIds.filter(p => nameOf(p) !== reference)
   const departuresOf = departuresByWalk(departures, reference)
+  const departureSteps = unloadedStepsByWalk(departures, reference)
   if (first === undefined || (others.length === 0 && departuresOf.size === 0)) {
     return undefined
   }
@@ -560,7 +561,7 @@ export function walkRowRuns(
     const extents: [number, number][] = []
     const ordered = [...pieces].sort(byStart)
     let count = ordered.length - 1
-    let abridgedSteps = 0
+    let abridgedSteps = departureSteps.get(nameOf(pieces[0]!)) ?? 0
     for (const piece of ordered) {
       count += to[piece]! - from[piece]!
       abridgedSteps += heads[piece]!.abridgedSteps ?? 0
@@ -1013,7 +1014,12 @@ export function walkRowRuns(
     const gapBp = departureRuns(own, bar)
     runs.endRow()
     visits?.endRow()
-    return steplessMeta({ name, ...panSNFields(name) }, own, gapBp)
+    return steplessMeta(
+      { name, ...panSNFields(name) },
+      own,
+      gapBp,
+      departureSteps.get(name),
+    )
   }
 
   const referenceRow = rowOf(referencePieces)
@@ -1096,6 +1102,24 @@ function departuresByWalk(
   }
   for (const list of byWalk.values()) {
     list.sort((a, b) => a.hapStart - b.hapStart)
+  }
+  return byWalk
+}
+
+function unloadedStepsByWalk(
+  table: DepartureTable | undefined,
+  reference: string | undefined,
+) {
+  const byWalk = new Map<string, number>()
+  const counts = table?.abridgedSteps
+  if (table && counts) {
+    for (let k = 0; k < table.names.length; k++) {
+      const steps = counts[k]!
+      const name = pathOrigin(table.names[k]!).name
+      if (steps > 0 && name !== reference) {
+        byWalk.set(name, (byWalk.get(name) ?? 0) + steps)
+      }
+    }
   }
   return byWalk
 }

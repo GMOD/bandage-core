@@ -105,8 +105,9 @@ export interface GapTable {
 }
 
 // A Departure per row (gfa/departures.ts), each strand and `fromSteps` 1 for
-// true, and its own steps the cut holds as node indices at `offsets[k]` to
-// `offsets[k + 1]` of `steps`
+// true, its own steps the cut holds as node indices at `offsets[k]` to
+// `offsets[k + 1]` of `steps`, and `abridgedSteps` the steps of the pieces
+// not loaded among them that no walk counts, NaN where none
 export interface DepartureTable {
   names: string[]
   hapStarts: Float64Array
@@ -122,6 +123,7 @@ export interface DepartureTable {
   offsets: Int32Array
   steps: Int32Array
   reversed: Uint8Array
+  abridgedSteps?: Float64Array
 }
 
 // the S line tag of a placeholder, a run of steps the cut did not load

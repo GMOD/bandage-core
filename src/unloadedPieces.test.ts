@@ -329,7 +329,7 @@ test("a placeholder among a gap's attached steps draws as a run not loaded", asy
       unloaded: true,
     },
   ])
-  expect(h.unloadedBp).toBe(600)
+  expect(h).toMatchObject({ unloadedBp: 600, abridgedSteps: 9 })
   const loaded = await cut('drawnedge', 'chr', 6228, 6233, {
     gaps: true,
     loaded: true,
