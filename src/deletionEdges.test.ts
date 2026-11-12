@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-import { deletionDrawing, deletionEdges } from './deletionEdges'
+import { deletionDrawing, deletionEdges, inversions } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { anchorGraph } from './pathAnchoring'
@@ -96,8 +96,19 @@ test('a link the reference walks at an inverted copy is no deletion', () => {
       return `L\t${from}\t${fromStrand}\t${to}\t${toStrand}\t0M`
     }),
   ].join('\n')
-  const found = deletionEdges(anchorGraph(graphOf(gfa), 'ref'))
-  expect(found).toEqual([])
+  const graph = anchorGraph(graphOf(gfa), 'ref')
+  expect(deletionEdges(graph)).toEqual([])
+  // and no inversion: the reference walks every link that reads a node of
+  // one copy against its strand in the other
+  expect(inversions(graph)).toEqual([])
+  const referenceOnly = anchorGraph(
+    graphOf(
+      gfa.replace(/^P\ta#1#c.*\n/m, '').replace(/^L\t1\t\+\t2\t\+.*\n/m, ''),
+    ),
+    'ref',
+  )
+  expect(referenceOnly.edges).toHaveLength(6)
+  expect(inversions(referenceOnly)).toEqual([])
 })
 
 test.each([false, true])(
@@ -182,6 +193,40 @@ test('a link back along the reference is a duplication, not a deletion', () => {
 test('a link into the far side of a segment is an inversion, not a deletion', () => {
   const inverted = RGFA.replace('L\t2\t+\t3\t+\t0M', 'L\t2\t+\t3\t-\t0M')
   expect(deletionEdges(graphOf(inverted))).toEqual([])
+})
+
+// `L 1 + 2 -` and `L 2 - 3 +`: a haplotype reads 2 backwards between 1 and 3
+const REVERSED = `${RGFA}L\t1\t+\t2\t-\t0M\nL\t2\t-\t3\t+\t0M\n`
+
+test('the links into and out of a reversed run name one inversion of it', () => {
+  const found = inversions(graphOf(REVERSED))
+  expect(found).toEqual([
+    {
+      refName: 'GRCh38#0#chr6',
+      start: 1010,
+      end: 1020,
+      bp: 10,
+      across: ['2+'],
+      edgeIndexes: [4, 5],
+    },
+  ])
+  expect(deletionEdges(graphOf(REVERSED))).toHaveLength(1)
+})
+
+test('a link from either strand, or into the far side of a run, finds the same inversion', () => {
+  const restated = RGFA.replace(
+    'L\t1\t+\t2\t+\t0M',
+    'L\t1\t+\t2\t+\t0M\nL\t2\t+\t1\t-\t0M',
+  )
+  expect(inversions(graphOf(restated))).toMatchObject([
+    { start: 1010, end: 1020, across: ['2+'] },
+  ])
+})
+
+test('a graph read forwards throughout has no inversion', () => {
+  expect(inversions(graphOf(RGFA))).toEqual([])
+  const noStrands = RGFA.replaceAll(/\t[+-]\t/g, '\t')
+  expect(inversions(graphOf(noStrands))).toEqual([])
 })
 
 // A graph built without the strands, by hand or by an older snapshot, reads the
