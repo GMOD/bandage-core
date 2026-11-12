@@ -193,6 +193,7 @@ export type {
 } from './layout/walkRowRuns'
 export {
   ribbonJoin,
+  rowsNeedingRoutes,
   sharedRowOrder,
   walkRowBlocks,
   walkRowLinks,

@@ -21,7 +21,11 @@ import {
   walkRowsTree,
 } from './layout/walkRowDraw'
 import { walkRowLayoutOf } from './layout/walkRowLayout'
-import { walkRowBlocks, walkRowLinks } from './layout/walkRowLinks'
+import {
+  rowsNeedingRoutes,
+  walkRowBlocks,
+  walkRowLinks,
+} from './layout/walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
 import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
@@ -379,12 +383,48 @@ test('two runs not loaded are no node in common: no ribbon joins them, no block 
   expect(overRun([order[2]!, order[3]!])).toHaveLength(1)
   const blockRows = new Set(walkRowBlocks(order).map(block => block.row))
   expect(blockRows).toEqual(new Set([2, 3]))
+  expect(rowsNeedingRoutes(order)).toBe(2)
   const long = twinTables()
   long.nodes.lengths.set([400_000, 400_000], 4)
   const longRows = walkRowsOf(walkRowRuns(long, undefined, { visits: true })!)
   expect(walkRowBlocks(longRows.rows).map(block => block.bp)).toEqual([
     500, 500,
   ])
+})
+
+// E walks node 3 and then 300 bp not loaded, G walks node 3 alone
+test('ribbons, shared blocks and the shared order leave out a row with a run not loaded, and count it', () => {
+  const tables = besideTableData()
+  const both: GraphTables = {
+    ...tables,
+    walks: {
+      names: [...tables.walks.names, 'G#1#g'],
+      starts: new Float64Array(4),
+      ends: Float64Array.of(3000, 2800, 3000, 2500),
+      offsets: Int32Array.of(0, 3, 7, 10, 13),
+      steps: Int32Array.from([...tables.walks.steps, 0, 3, 2]),
+      reversed: new Uint8Array(13),
+      abridgedSteps: Float64Array.of(NaN, 12, NaN, NaN),
+    },
+  }
+  const rowsOf = (placeholders: Uint8Array) => {
+    const rows = walkRowsOf(
+      walkRowRuns(
+        { ...both, nodes: { ...both.nodes, placeholders } },
+        undefined,
+        { visits: true },
+      )!,
+    ).rows
+    return ['E#1', 'G#1'].map(label => rows.find(row => row.label === label)!)
+  }
+  const unloaded = rowsOf(Uint8Array.of(0, 0, 0, 0, 1))
+  const loaded = rowsOf(new Uint8Array(5))
+  expect(walkRowLinks(loaded, 0)).not.toEqual([])
+  expect(walkRowBlocks(loaded, 0)).not.toEqual([])
+  expect(rowsNeedingRoutes(loaded)).toBe(0)
+  expect(walkRowLinks(unloaded, 0)).toEqual([])
+  expect(walkRowBlocks(unloaded, 0)).toEqual([])
+  expect(rowsNeedingRoutes(unloaded)).toBe(1)
 })
 
 test("a Graph from the tables keeps its placeholders, and its walk rows are the tables' rows", () => {
@@ -437,7 +477,7 @@ test('rGFA text of a graph tags a placeholder, and loading it keeps the flag', (
 // GRCh38 over three 1 kb nodes, which F walks too. E leaves it after the
 // first for node 3, 500 bp only E walks, then 300 bp not loaded, and rejoins
 // at the third
-function besideTables(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
+function besideTableData(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
   const tables: GraphTables = {
     nodes: {
       names: ['0', '1', '2', '3', 'E#1#e:1500-1800'],
@@ -464,7 +504,13 @@ function besideTables(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
     },
     departures: departureTable(),
   }
-  return loadGraph(tables, 'cut', { referencePath: 'GRCh38#0#chr1' })
+  return tables
+}
+
+function besideTables(placeholders?: Uint8Array) {
+  return loadGraph(besideTableData(placeholders), 'cut', {
+    referencePath: 'GRCh38#0#chr1',
+  })
 }
 
 test('the tube map merges no placeholder with a loaded node, and keeps its box not loaded', () => {

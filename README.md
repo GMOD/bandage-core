@@ -62,6 +62,10 @@ reads them.
   pieces, for a host to load or offer to load
 - A bar off the path (charcoal under the reference ramp) is sequence off the
   reference path as far as the cut has read it
+- Ribbons, shared blocks and the shared row order compare nodes, which a run not
+  loaded does not name, so they leave out a row holding one;
+  `rowsNeedingRoutes(rows)` says how many rows they left out, for a host to load
+  before relying on them
 - In a node layout such a run is a node with `placeholder`, drawn hollow at its
   bp under every color scheme. `loadGraph`'s `maxNodes` counts placeholders,
   which graph-walks' `nodeLimit` does not, and its refusal says how many there
