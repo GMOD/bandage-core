@@ -415,7 +415,7 @@ test('a readout goes inside its bar only over solid bar, past the last gap', () 
       },
     ),
   )
-  expect(svg).toContain(`text-anchor="start">${text}<`)
+  expect(svg).toContain(`text-anchor="start"><title>${text}</title>`)
 })
 
 test('a readout too long for the room beside its bar drops whole parts of its breakdown from the end', () => {
