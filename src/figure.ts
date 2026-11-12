@@ -314,7 +314,6 @@ export function figureSvg(
     FIT_PADDING,
   )
   let masks = 0
-  let clips = 0
 
   // Exons outlined round their stretch of each node, clear of its ink, and
   // the genes named under their pins; a row layout names its rows
@@ -376,6 +375,7 @@ export function figureSvg(
       const sy = y * t.scaleY + t.translateY
       if (sy >= 0 && sy <= h) {
         out.push(
+          `<rect x="${ROW_NAME_X - 2}" y="${sy - 7}" width="${label.length * LABEL_CHAR_PX + 4}" height="14" fill="#fff" fill-opacity="0.85"/>`,
           `<text x="${ROW_NAME_X}" y="${sy + 4}" ${FONT} stroke="#fff" stroke-width="3" paint-order="stroke">${escapeAttr(label)}</text>`,
         )
       }
@@ -413,12 +413,7 @@ export function figureSvg(
     }
     renderer.updateTransform({ ...t, dpr: 1 })
     renderer.render([1, 1, 1, 1])
-    const clip = `names${clips++}`
-    const drawn =
-      rowLabels.length > 0 && !facets
-        ? `<clipPath id="${clip}"><rect x="${nameGutter - ROW_NAME_X}" y="0" width="${w}" height="${h}"/></clipPath><g clip-path="url(#${clip})">${markup()}</g>`
-        : markup()
-    return drawn + overlays(highlight, t, w, h)
+    return markup() + overlays(highlight, t, w, h)
   }
 
   const deletionKeyAt: KeyAt = (x, y) =>
