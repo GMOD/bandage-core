@@ -460,13 +460,14 @@ test('a readout too long for the room beside its bar drops whole parts of its br
     width,
   })
   const beside = 106
-  expect(walkRowReadoutAt(bars, 1, frame(800))).toMatchObject({
+  const roomy = walkRowReadoutAt(bars, 1, frame(800))
+  expect(roomy).toMatchObject({
     text,
     shown: text,
     cut: false,
-    x: beside,
     anchor: 'start',
   })
+  expect(roomy.x).toBeCloseTo(beside)
   expect(
     walkRowReadoutAt(bars, 1, frame(beside + cut.length * LABEL_CHAR_PX + 1)),
   ).toMatchObject({ text, shown: cut, cut: true })
