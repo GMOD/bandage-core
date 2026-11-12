@@ -439,7 +439,7 @@ export function gapStyle(cause: GapCause | undefined) {
                   fill: OUTSIDE_CUT,
                   px: GAP_PX,
                   label:
-                    'near a place: in the graph, on another stretch of the reference, where it rejoins',
+                    'near a position: in the graph, drawn on another stretch of the reference',
                 }
               : {
                   fill: OUTSIDE_CUT,
