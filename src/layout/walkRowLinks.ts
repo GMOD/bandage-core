@@ -209,7 +209,8 @@ export function walkRowLinks(
 /**
  * Blocks of nodes off the reference's path that two or more rows walk: the
  * nodes one set of rows walks, joined where a row walks them within `join` bp
- * of each other. Blocks rank by bp over every visit, so a block has one rank
+ * of each other. A run of steps not loaded is no node, in no block and not
+ * counted off the path. Blocks rank by bp over every visit, so a block has one rank
  * in every row, set by neither the rows' order nor the build order that
  * created its nodes. A block under 0.3% of the bp off the path is left out.
  * Returns each row's stretches of each block.
@@ -221,8 +222,8 @@ export function walkRowBlocks(
   const bars = rows.map(barOf)
   const carriers = new Map<string, Set<string>>()
   bars.forEach((bar, i) => {
-    for (const { node, onReference } of bar?.visits ?? []) {
-      if (!onReference) {
+    for (const { node, onReference, unloaded } of bar?.visits ?? []) {
+      if (!onReference && !unloaded) {
         carriers.set(node, (carriers.get(node) ?? new Set()).add(rows[i]!.name))
       }
     }
@@ -259,8 +260,8 @@ export function walkRowBlocks(
   const least = new Map<string, string>()
   let offBp = 0
   for (const bar of bars) {
-    for (const { node: id, onReference, bp } of bar?.visits ?? []) {
-      if (onReference) {
+    for (const { node: id, onReference, unloaded, bp } of bar?.visits ?? []) {
+      if (onReference || unloaded) {
         continue
       }
       offBp += bp

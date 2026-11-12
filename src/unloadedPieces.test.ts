@@ -396,6 +396,12 @@ test('two runs not loaded are no node in common: no ribbon joins them, no block 
   expect(overRun([order[2]!, order[3]!])).toHaveLength(1)
   const blockRows = new Set(walkRowBlocks(order).map(block => block.row))
   expect(blockRows).toEqual(new Set([2, 3]))
+  const long = twinTables()
+  long.nodes.lengths.set([400_000, 400_000], 4)
+  const longRows = walkRowsOf(walkRowRuns(long, undefined, { visits: true })!)
+  expect(walkRowBlocks(longRows.rows).map(block => block.bp)).toEqual([
+    500, 500,
+  ])
 })
 
 test("a Graph from the tables keeps its placeholders, and its walk rows are the tables' rows", () => {
