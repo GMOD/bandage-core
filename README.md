@@ -67,7 +67,9 @@ reads them.
   `rowsNeedingRoutes(rows)` says how many rows they left out, for a host to load
   before relying on them
 - In a node layout such a run is a node with `placeholder`, drawn hollow at its
-  bp under every color scheme. `loadGraph`'s `maxNodes` counts placeholders,
+  bp under every color scheme. In the tube map, where loading turns one box into
+  its nodes, it is a box with a dashed outline and no tint, captioned
+  `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts placeholders,
   which graph-walks' `nodeLimit` does not, and its refusal says how many there
   are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`, which only
   bandage-core reads back: another tool ignores the tag and takes the line for a

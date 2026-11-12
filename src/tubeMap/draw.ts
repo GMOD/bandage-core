@@ -1,6 +1,8 @@
 import { curvePaths, flattenPath, nodeOutlinePath } from '@jbrowse/tubemap-core'
 
+import { formatBp } from '../graphLabels'
 import { referenceWalkName } from '../layout/walkRows'
+import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 import { pushTo } from '../util/groups'
 import { tubeMapMismatches } from './mismatches'
@@ -103,7 +105,13 @@ interface Layer {
 export interface TubeMapPicture {
   bounds: TubeMapLayout['bounds']
   layers: Layer[]
-  nodes: { name: string; commands: Command[]; x0: number; x1: number }[]
+  nodes: {
+    name: string
+    commands: Command[]
+    x0: number
+    x1: number
+    notShown?: { bp: number; y: number }
+  }[]
   mismatches: TubeMapMismatch[]
 }
 
@@ -212,11 +220,24 @@ export function tubeMapPicture({
   const referenceIds = referenceTrackIds(graph)
   // the reference axis draws a gap at most this wide (warp.ts)
   const gapWidth = columns ? MAX_GAP_PX : undefined
+  const placeholders = new Map(
+    (graph?.nodes ?? []).flatMap(node =>
+      node.placeholder ? [[node.id, node.length] as const] : [],
+    ),
+  )
   const nodes: TubeMapPicture['nodes'] = []
   layout.nodes.forEach(node => {
     if (node.order >= 0) {
       const commands = parsePath(nodeOutlinePath(node))
-      nodes.push({ name: node.name, commands, ...extentOf(commands) })
+      const bp = placeholders.get(node.name)
+      nodes.push({
+        name: node.name,
+        commands,
+        ...extentOf(commands),
+        ...(bp === undefined
+          ? {}
+          : { notShown: { bp, y: node.y + node.contentHeight / 2 } }),
+      })
     }
   })
   return {
@@ -322,6 +343,43 @@ function outlineAlpha(screenWidth: number) {
 
 // A tinted box lets the tubes through it show, as the clear box's wash does
 const NODE_TINT_ALPHA = 0.55
+const NOT_SHOWN_DASH = [5, 4]
+const CAPTION_PAD_PX = 8
+
+// A box standing for steps the cut did not load says so in its own words,
+// shortened to what fits inside it
+export function notShownCaption(bp: number, widthPx: number) {
+  return [`${formatBp(bp)} · nodes not shown`, 'nodes not shown'].find(
+    text => text.length * LABEL_CHAR_PX + CAPTION_PAD_PX <= widthPx,
+  )
+}
+
+function drawNotShown(
+  ctx: CanvasRenderingContext2D,
+  picture: TubeMapPicture,
+  { x, y, width, darkMode }: TubeMapFrame,
+) {
+  ctx.font = '11px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineWidth = 3
+  ctx.strokeStyle = darkMode ? 'rgb(30, 30, 30)' : '#ffffff'
+  ctx.fillStyle = darkMode ? '#e0e0e0' : '#000000'
+  for (const node of picture.nodes) {
+    const left = x(node.x0)
+    const right = x(node.x1)
+    const text =
+      node.notShown && right >= 0 && left <= width
+        ? notShownCaption(node.notShown.bp, right - left)
+        : undefined
+    if (text && node.notShown) {
+      const cx = (left + right) / 2
+      const cy = y(node.notShown.y)
+      ctx.strokeText(text, cx, cy)
+      ctx.fillText(text, cx, cy)
+    }
+  }
+}
 
 export function drawTubeMap(
   ctx: CanvasRenderingContext2D,
@@ -372,10 +430,13 @@ export function drawTubeMap(
       ctx.globalAlpha = tint ? NODE_TINT_ALPHA : 1
       ctx.fill()
       ctx.globalAlpha = outlineAlpha(x(node.x1) - x(node.x0))
+      ctx.setLineDash(node.notShown ? NOT_SHOWN_DASH : [])
       ctx.stroke()
+      ctx.setLineDash([])
       ctx.globalAlpha = 1
     }
   }
+  drawNotShown(ctx, picture, frame)
   drawTubeMapHighlight(ctx, picture, frame)
   drawMismatches(ctx, picture.mismatches, frame)
 }

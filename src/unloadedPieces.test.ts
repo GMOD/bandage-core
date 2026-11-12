@@ -32,7 +32,6 @@ import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import {
   NOT_LOADED_COLOR,
-  NOT_LOADED_CSS,
   NOT_LOADED_FILL_COLOR,
   REFERENCE_RAMP_ALT_CSS,
   buildGeometry,
@@ -40,6 +39,7 @@ import {
   getNodeColor,
 } from './renderer/GeometryBuilder'
 import { coarsenTubeMap } from './tubeMap/coarsen'
+import { drawTubeMap, notShownCaption, tubeMapPicture } from './tubeMap/draw'
 import { tubeMapNodeColors } from './tubeMap/nodeColors'
 import { walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
@@ -539,17 +539,54 @@ test('a coarse tube map route through a placeholder is not loaded, and one throu
   expect(route('3+').placeholder).toBeUndefined()
 })
 
-test('a tube map under uniform or grey still tints a placeholder not loaded', () => {
-  const graph = besideTables()
-  const placeholder = graph.nodes.find(node => node.placeholder)!
-  for (const scheme of ['uniform', 'grey'] as const) {
-    expect(tubeMapNodeColors(graph, scheme)).toEqual(
-      new Map([[placeholder.id, NOT_LOADED_CSS]]),
-    )
-    expect(
-      tubeMapNodeColors(besideTables(new Uint8Array(5)), scheme),
-    ).toBeUndefined()
-  }
+test('a tube map box of steps not loaded is untinted and dashed, and says its nodes are not shown', () => {
+  const drawing = layoutModeByValue('tubemap').run(
+    besideTables(),
+    undefined,
+  )!.tubeMap!
+  const placeholder = drawing.graph.nodes.find(node => node.placeholder)!
+  const tints = tubeMapNodeColors(drawing.graph, 'random')!
+  expect(tints.has(placeholder.id)).toBe(false)
+  expect(tints.size).toBe(drawing.graph.nodes.length - 1)
+  const picture = tubeMapPicture(drawing)
+  expect(
+    picture.nodes.flatMap(node =>
+      node.notShown ? [[node.name, node.notShown.bp]] : [],
+    ),
+  ).toEqual([[placeholder.id, 300]])
+  const dashes: number[] = []
+  const texts: string[] = []
+  let dash: number[] = []
+  const state: Record<string, unknown> = {}
+  const ctx = new Proxy(state, {
+    get: (target, key: string) =>
+      key === 'setLineDash'
+        ? (segments: number[]) => {
+            dash = segments
+          }
+        : key === 'stroke'
+          ? () => dashes.push(dash.length)
+          : key === 'fillText'
+            ? (text: string) => texts.push(text)
+            : key in target
+              ? target[key]
+              : () => {},
+    set: (target, key: string, value) => {
+      target[key] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  drawTubeMap(ctx, picture, {
+    x: tx => tx * 10,
+    y: ty => ty,
+    yScale: 1,
+    width: 1e6,
+  })
+  expect(dashes.filter(n => n > 0)).toHaveLength(1)
+  expect(texts).toEqual(['300 bp · nodes not shown'])
+  expect(notShownCaption(300, 200)).toBe('300 bp · nodes not shown')
+  expect(notShownCaption(300, 120)).toBe('nodes not shown')
+  expect(notShownCaption(300, 60)).toBeUndefined()
 })
 
 test('a node layout draws a placeholder as a hollow node of its bp under every scheme, outside the colour ranges', () => {
