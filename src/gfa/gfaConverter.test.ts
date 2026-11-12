@@ -26,6 +26,28 @@ L\t1\t+\t2\t-\t0M`)
   expect(ids).toEqual(['1+', '2-'])
 })
 
+// The inverted reading comes first, as it can in an HPRC cut, and a stranded
+// layout would then join the backbone's links to its wrong ends
+test('a backbone segment is drawn forward along the reference whichever way its first link reads it', () => {
+  const gfa =
+    'S\t1\t*\tLN:i:10\tSN:Z:chr1\tSO:i:0\tSR:i:0\n' +
+    'S\t2\t*\tLN:i:10\tSN:Z:chr1\tSO:i:10\tSR:i:0\n' +
+    'S\t3\t*\tLN:i:10\tSN:Z:chr1\tSO:i:20\tSR:i:0\n' +
+    'S\t4\t*\tLN:i:5\tSN:Z:alt\tSO:i:0\tSR:i:1\n' +
+    'L\t1\t+\t2\t-\t0M\n' +
+    'L\t2\t-\t3\t+\t0M\n' +
+    'L\t1\t+\t2\t+\t0M\n' +
+    'L\t2\t+\t3\t+\t0M\n' +
+    'L\t1\t+\t4\t-\t0M\n' +
+    'L\t4\t-\t3\t+\t0M\n'
+  const graph = convertGFAToGraph(parseGFA(gfa))
+  expect(graph.nodes.map(n => n.id)).toEqual(['1+', '2+', '3+', '4-'])
+  expect(graph.edges.slice(0, 2)).toMatchObject([
+    { from: '1+', to: '2+', fromStrand: '+', toStrand: '-' },
+    { from: '2+', to: '3+', fromStrand: '-', toStrand: '+' },
+  ])
+})
+
 test('extracts depth from dp tag', () => {
   const gfa = parseGFA(`S\t1\tACGT\tdp:i:42
 S\t2\tGGCC

@@ -1,5 +1,6 @@
 import { projectAlleles } from '../alleleProjection/projectAlleles'
 import { buildNeighbors } from '../referenceSpan'
+import { canonicalEdgeOrder } from '../util/edgeOrder'
 
 import type { AlleleDeletion, Graph, NodeSegment } from '../types'
 
@@ -46,12 +47,13 @@ interface PlaceArgs {
 }
 
 export function placeOffReference({
-  graph,
+  graph: given,
   span,
   rowY,
   positions,
 }: PlaceArgs): AlleleDeletion[] {
   const minSpan = span * MIN_ALLELE_SPAN_FRACTION
+  const graph = { ...given, edges: canonicalEdgeOrder(given.edges) }
   const alleles = projectAlleles(graph)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   // Alleles standing in for more reference than they carry. Collected here

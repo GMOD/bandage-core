@@ -21,6 +21,7 @@ import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
 import { withoutStrayHandles } from './layout/strayHandles'
 import { anchorGraph } from './pathAnchoring'
+import { canonicalEdgeOrder } from './util/edgeOrder'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { GraphTables } from './gfa/graphTables'
@@ -155,7 +156,7 @@ export function engineRequest(
   return {
     graph: {
       nodes: anchored ? seededNodes(graph, spaced) : spaced.nodes,
-      edges: graph.edges,
+      edges: canonicalEdgeOrder(graph.edges),
     },
     options: {
       quality: s.quality,

@@ -313,7 +313,9 @@ test('an allele on a neighbour’s far side keeps its size when the backbone bes
       seg('r2', 'ref#chr', 1000, 2000, 0),
       seg('x', 'a#chr', 0, 100, 1),
     ],
-    [link('r1', 'r2'), link('r1', 'x'), link('x', 'r2', '+', '-')],
+    // the link into r3's far end, as the graph states it: read one way, as
+    // an inversion's links are, it is stated from its lower-named end
+    [link('r1', 'r2'), link('r1', 'x'), link('r2', 'x', '+', '-')],
   )
   expect(written(graph, 1500)).toBe(kept)
   expect(written(foldVariants(graph, 50), 1500)).toBe(kept)

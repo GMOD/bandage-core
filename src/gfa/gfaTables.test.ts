@@ -64,6 +64,23 @@ test('an rGFA keeps its stable coordinates', () => {
   )
 })
 
+test('a backbone segment a link first reads reversed is still drawn forward', () => {
+  const text = gfa(
+    'S\t1\t*\tLN:i:10\tSN:Z:chr1\tSO:i:0\tSR:i:0',
+    'S\t2\t*\tLN:i:10\tSN:Z:chr1\tSO:i:10\tSR:i:0',
+    'S\t3\t*\tLN:i:5\tSN:Z:alt\tSO:i:0\tSR:i:1',
+    'L\t1\t+\t2\t-\t0M',
+    'L\t1\t+\t2\t+\t0M',
+    'L\t1\t+\t3\t-\t0M',
+  )
+  expectSameGraph(text)
+  expect(graphFromTables(gfaTables(text)!).nodes.map(n => n.id)).toEqual([
+    '1+',
+    '2+',
+    '3-',
+  ])
+})
+
 test('a GFA the tables cannot hold converts as text', () => {
   const base = ['S\t1\tA', 'S\t2\tC', 'L\t1\t+\t2\t+\t0M']
   for (const extra of [

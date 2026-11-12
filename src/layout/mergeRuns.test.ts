@@ -100,17 +100,30 @@ test('a run splits its polyline among its members by weight, abutting', () => {
   expect(splitRuns(positions, runs, () => 0)['v4+']).toEqual(split['v4+'])
 })
 
-// The node is c-, the strand the first link names, so `L d + c +` joins its
-// END. Counted as an in-edge of c- it stopped the run at b and told the engine
-// to attach d at c's start.
+// a, b and c lie forward on the reference, so b's link into c's far end stops
+// the run at b, and d runs into c's start: the run d, c then takes b's link
+// at its end
 test('a link to the far end of a node attaches there, not across the run', () => {
+  const backbone = (name: string, start: number) =>
+    `S\t${name}\t*\tLN:i:10\tSN:Z:chr\tSO:i:${start}\tSR:i:0`
   const { graph: merged, runs } = mergeRuns(
     convertGFAToGraph(
       parseGFA(
-        `S\ta\tAAAA\nS\tb\tCC\nS\tc\tGG\nS\td\tTT\nL\ta\t+\tb\t+\t0M\nL\tb\t+\tc\t-\t0M\nL\td\t+\tc\t+\t0M`,
+        [
+          backbone('a', 0),
+          backbone('b', 10),
+          backbone('c', 20),
+          'S\td\tTT',
+          'L\ta\t+\tb\t+\t0M',
+          'L\tb\t+\tc\t-\t0M',
+          'L\td\t+\tc\t+\t0M',
+        ].join('\n'),
       ),
     ),
   )
-  expect([...runs]).toEqual([['a+', ['a+', 'b+', 'c-']]])
-  expect(merged.edges).toEqual([{ from: 'd+', to: 'a+', toStrand: '-' }])
+  expect([...runs]).toEqual([
+    ['a+', ['a+', 'b+']],
+    ['d+', ['d+', 'c+']],
+  ])
+  expect(merged.edges).toEqual([{ from: 'a+', to: 'd+', toStrand: '-' }])
 })

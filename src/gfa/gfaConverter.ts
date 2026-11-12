@@ -1,55 +1,79 @@
+import { REFERENCE_RANK } from '../anchoredNodes'
 import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
+import { REVERSED, orientSegments, respelled } from './segmentOrientation'
 
 import type { GFAGraph, GFANode, GFAPath, GFAWalk } from '../gfa-core/index'
 import type { PathSteps } from '../pathAnchoring'
 import type { Graph, GraphEdge, GraphNode, GraphPath } from '../types'
 
-// Single pass over every reference a GFA makes to a segment, collecting the two
-// things the drawn graph needs from them.
+// Every reference a GFA makes to a segment, collecting the things the drawn
+// graph needs from them.
 //
 // `canonical` is the one orientation each segment is drawn in, which is what
 // Bandage calls single-node mode. A segment is the same sequence read either
 // way (`L 1 + 2 +` is the same edge as `L 2 - 1 -`), so `1+` and `1-` are one
 // node, not two: drawing both doubles every segment, and since the L lines only
 // wire one of the pair, the other copy has no edges at all and scatters loose
-// across the layout. Links carry the topology, so their orientation wins; a
-// segment only paths mention takes the orientation they walk it in.
+// across the layout. Which of the two it is reads off the reference, not off
+// the file's order or spelling (segmentOrientation.ts). `respell` says which
+// links read better in their other spelling.
 //
 // `traversals` is how many paths cross each segment. Assembly GFAs carry read
 // depth in a dp/RC/FC/KC tag, but a pangenome GFA (odgi, vg) carries none —
 // there the meaningful depth is how many samples go through the segment, i.e.
 // core versus accessory sequence.
 function surveySegments(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
-  const canonical = new Map<string, '+' | '-'>()
+  const index = new Map<string, number>()
+  const names: string[] = []
+  const indexOf = (id: string) => {
+    let i = index.get(id)
+    if (i === undefined) {
+      i = names.length
+      index.set(id, i)
+      names.push(id)
+    }
+    return i
+  }
+  const backbone: number[] = []
+  for (const node of gfaGraph.nodes) {
+    const i = indexOf(node.id)
+    backbone[i] ??= stableCoordinate(node)?.rank === REFERENCE_RANK ? 1 : 0
+  }
+  const links = {
+    from: gfaGraph.links.map(link => indexOf(link.source)),
+    to: gfaGraph.links.map(link => indexOf(link.target)),
+    strands: gfaGraph.links.map(
+      link => (link.strand1 === '-' ? 1 : 0) | (link.strand2 === '-' ? 2 : 0),
+    ),
+  }
   const traversals = new Map<string, number>()
-  function claim(id: string, strand: '+' | '-') {
-    if (!canonical.has(id)) {
-      canonical.set(id, strand)
-    }
-  }
-  function traverse(id: string, strand: '+' | '-') {
-    const seen = traversals.get(id)
-    if (seen === undefined) {
-      claim(id, strand)
-    }
-    traversals.set(id, (seen ?? 0) + 1)
-  }
-  for (const link of gfaGraph.links) {
-    claim(link.source, link.strand1 === '-' ? '-' : '+')
-    claim(link.target, link.strand2 === '-' ? '-' : '+')
+  const reversals: number[] = []
+  const traverse = ({ id, strand }: { id: string; strand: '+' | '-' }) => {
+    const i = indexOf(id)
+    reversals[i] = (reversals[i] ?? 0) + (strand === '-' ? 1 : -1)
+    traversals.set(id, (traversals.get(id) ?? 0) + 1)
   }
   for (const { steps } of pathSteps) {
-    for (const step of steps) {
-      traverse(step.id, step.strand)
-    }
+    steps.forEach(traverse)
   }
   for (const walk of gfaGraph.walks) {
-    for (const step of walk.segments) {
-      traverse(step.id, step.strand)
-    }
+    walk.segments.forEach(traverse)
   }
-  return { canonical, traversals }
+  const orient = orientSegments(
+    names,
+    Array.from(names, (_, i) => backbone[i] ?? 0),
+    links,
+    Array.from(names, (_, i) => reversals[i] ?? 0),
+  )
+  const canonical = new Map(
+    names.map((id, i) => [id, orient[i] === REVERSED ? '-' : '+'] as const),
+  )
+  return {
+    canonical,
+    traversals,
+    respell: (k: number) => respelled(names, orient, links, k),
+  }
 }
 
 // `*` parses to -1, meaning the record declines to say; 0 is then the only
@@ -143,7 +167,7 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
   const edges: GraphEdge[] = []
 
   const pathSteps = gfaGraph.paths.map(stepsOfPath)
-  const { canonical, traversals } = surveySegments(gfaGraph, pathSteps)
+  const { canonical, traversals, respell } = surveySegments(gfaGraph, pathSteps)
   // segments no link, path, or walk mentions are drawn forward-strand. One
   // string per segment, not per step: a walk of 100k steps built 100k.
   const canonicalIds = new Map<string, string>()
@@ -169,14 +193,26 @@ export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
     nodes.push(makeNode(gfaNode, canonical.get(gfaNode.id) ?? '+', depth))
   }
 
-  for (const link of gfaGraph.links) {
-    edges.push({
-      from: nodeId(link.source),
-      to: nodeId(link.target),
-      fromStrand: link.strand1 === '-' ? '-' : '+',
-      toStrand: link.strand2 === '-' ? '-' : '+',
-    })
-  }
+  const flip = { '+': '-', '-': '+' } as const
+  gfaGraph.links.forEach((link, k) => {
+    const fromStrand = link.strand1 === '-' ? '-' : '+'
+    const toStrand = link.strand2 === '-' ? '-' : '+'
+    edges.push(
+      respell(k)
+        ? {
+            from: nodeId(link.target),
+            to: nodeId(link.source),
+            fromStrand: flip[toStrand],
+            toStrand: flip[fromStrand],
+          }
+        : {
+            from: nodeId(link.source),
+            to: nodeId(link.target),
+            fromStrand,
+            toStrand,
+          },
+    )
+  })
 
   const paths: GraphPath[] = []
 

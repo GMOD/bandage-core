@@ -1,6 +1,13 @@
+import { REFERENCE_RANK } from '../anchoredNodes'
 import { panSNFields, panSNSample } from '../pansn'
 import { PathVisits } from '../pathVisits'
 import { stretchSegments } from './departures'
+import {
+  REVERSED,
+  orientSegments,
+  respelled,
+  respelledStrands,
+} from './segmentOrientation'
 
 import type {
   Graph,
@@ -180,36 +187,38 @@ function namesByList(
 }
 
 /**
- * Each segment's Graph node id: its name and its one drawn orientation, first
- * claimed by a link and else by a walk. Counts each segment's walk steps into
+ * Each segment's drawn orientation (segmentOrientation.ts), as
+ * `convertGFAToGraph` orients it. Counts each segment's walk steps into
  * `traversals` when given one.
  */
-export function tableNodeIds(
+function tableOrientation(
   { nodes: n, links: l, walks: w }: Omit<GraphTables, 'departures'>,
   traversals?: Int32Array,
 ) {
-  // 0 unclaimed, 1 forward, 2 reversed
-  const canonical = new Uint8Array(n.names.length)
-  const claim = (node: number, reversed: number) => {
-    if (canonical[node] === 0) {
-      canonical[node] = reversed ? 2 : 1
-    }
+  const backbone = new Uint8Array(n.names.length)
+  for (let i = 0; i < n.lengths.length; i++) {
+    backbone[i] = n.refs[i]! >= 0 && n.ranks[i] === REFERENCE_RANK ? 1 : 0
   }
-  for (let i = 0; i < l.from.length; i++) {
-    claim(l.from[i]!, l.strands[i]! & 1)
-    claim(l.to[i]!, l.strands[i]! & 2)
-  }
+  const reversals = new Int32Array(n.names.length)
   const stepCount = w.offsets[w.names.length] ?? 0
   for (let s = 0; s < stepCount; s++) {
     const node = w.steps[s]!
-    claim(node, w.reversed[s]!)
+    reversals[node]! += w.reversed[s] ? 1 : -1
     if (traversals) {
       traversals[node]!++
     }
   }
-  return n.names.map(
-    (segment, i) => `${segment}${canonical[i] === 2 ? '-' : '+'}`,
-  )
+  return orientSegments(n.names, backbone, l, reversals)
+}
+
+const nodeIdsOf = (names: string[], orient: Uint8Array) =>
+  names.map((segment, i) => `${segment}${orient[i] === REVERSED ? '-' : '+'}`)
+
+/**
+ * Each segment's Graph node id: its name and its one drawn orientation.
+ */
+export function tableNodeIds(tables: Omit<GraphTables, 'departures'>) {
+  return nodeIdsOf(tables.nodes.names, tableOrientation(tables))
 }
 
 /**
@@ -232,7 +241,8 @@ export function graphFromTables(
     }
   }
   const traversals = new Int32Array(count)
-  const ids = tableNodeIds({ nodes: n, links: l, walks: w }, traversals)
+  const orient = tableOrientation({ nodes: n, links: l, walks: w }, traversals)
+  const ids = nodeIdsOf(n.names, orient)
 
   const nodes: GraphNode[] = []
   for (let i = 0; i < declared; i++) {
@@ -280,13 +290,15 @@ export function graphFromTables(
   const edgeLists: number[] = []
   let lists = 0
   for (let i = 0; i < l.from.length; i++) {
-    const a = l.from[i]!
-    const b = l.to[i]!
+    const flip = respelled(n.names, orient, l, i)
+    const a = flip ? l.to[i]! : l.from[i]!
+    const b = flip ? l.from[i]! : l.to[i]!
+    const strands = flip ? respelledStrands(l.strands[i]!) : l.strands[i]!
     edges.push({
       from: ids[a]!,
       to: ids[b]!,
-      fromStrand: l.strands[i]! & 1 ? '-' : '+',
-      toStrand: l.strands[i]! & 2 ? '-' : '+',
+      fromStrand: strands & 1 ? '-' : '+',
+      toStrand: strands & 2 ? '-' : '+',
     })
     let list = pairList(a, b)
     if (list === undefined) {

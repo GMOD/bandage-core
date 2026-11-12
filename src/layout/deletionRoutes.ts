@@ -14,13 +14,26 @@ const ROUTE_FRACTION = 0.5
 
 export type DeletionRoutes = Record<number, NodeSegment[]>
 
+const linkKey = (d: DeletionEdge) =>
+  `${d.from}${d.fromStrand ?? ''}>${d.to}${d.toStrand ?? ''}`
+
 export function withDeletionRoutes(
   graph: Graph,
   deletions: DeletionEdge[],
   dropped: ReadonlySet<number> = new Set(),
 ) {
+  // named for the link, not its place in the file, so the engine is handed
+  // the same nodes whatever order the L lines came in
+  const seen = new Map<string, number>()
   const routes = new Map(
-    deletions.map(d => [d.edgeIndex, `${ROUTE_ID}${d.edgeIndex}`]),
+    deletions
+      .map(d => ({ d, key: linkKey(d) }))
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      .map(({ d, key }) => {
+        const copy = seen.get(key) ?? 0
+        seen.set(key, copy + 1)
+        return [d.edgeIndex, `${ROUTE_ID}${key}${copy ? `#${copy}` : ''}`]
+      }),
   )
   const edges: GraphEdge[] = []
   graph.edges.forEach((edge, ei) => {
@@ -81,16 +94,18 @@ export function routeNodes(
   )
   const total = wanted.reduce((sum, drawn) => sum + drawn, 0)
   const scale = total > budget ? budget / total : 1
-  return deletions.map((d, i) => {
-    const drawn = Math.max(opts.minimumNodeLength, wanted[i]! * scale)
-    const id = routes.get(d.edgeIndex)!
-    return {
-      id,
-      name: id,
-      length: Math.round((drawn * 1_000_000) / opts.nodeLengthPerMegabase),
-      depth: 0,
-    }
-  })
+  return deletions
+    .map((d, i) => {
+      const drawn = Math.max(opts.minimumNodeLength, wanted[i]! * scale)
+      const id = routes.get(d.edgeIndex)!
+      return {
+        id,
+        name: id,
+        length: Math.round((drawn * 1_000_000) / opts.nodeLengthPerMegabase),
+        depth: 0,
+      }
+    })
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
 // The route nodes split back out of a finished layout, keyed by the edge each
