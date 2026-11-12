@@ -220,14 +220,26 @@ export function walkRowReadout(
   return `${bound}${why}${outside}${called}`
 }
 
-// A readout right of its bar's end, or inside it where it would leave the pane
-export function readoutPlacement(text: string, endX: number, width: number) {
-  const x = endX + 6
-  const fits = x + text.length * LABEL_CHAR_PX < width
-  return fits
-    ? { x, anchor: 'start' as const, halo: false }
-    : { x: endX - 6, anchor: 'end' as const, halo: true }
+const READOUT_GAP_PX = 6
+
+// A readout right of its bar's end, or inside it where it would leave the
+// pane and fits right of `left`
+export function readoutPlacement(
+  text: string,
+  endX: number,
+  width: number,
+  left = 0,
+) {
+  const textPx = text.length * LABEL_CHAR_PX
+  const beside = endX + READOUT_GAP_PX
+  const inside = endX - READOUT_GAP_PX
+  return beside + textPx < width || inside - textPx < left
+    ? { x: beside, anchor: 'start' as const, halo: false }
+    : { x: inside, anchor: 'end' as const, halo: true }
 }
+
+const rowNameEnd = (label: string) =>
+  2 * READOUT_GAP_PX + label.length * LABEL_CHAR_PX
 
 // Where a row's bar ends: past its runs, since a stepless row has no bp
 export function barEnd(row: Pick<WalkRow, 'bp' | 'runs'>) {
@@ -896,7 +908,13 @@ export function walkRowsTree(
           }
         : undefined
     const at =
-      readout && readoutPlacement(readout.text, along(barEnd(row)), frame.width)
+      readout &&
+      readoutPlacement(
+        readout.text,
+        along(barEnd(row)),
+        frame.width,
+        rowNameEnd(row.label),
+      )
     return el(
       'g',
       {

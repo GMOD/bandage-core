@@ -7,6 +7,7 @@ import {
   gapStyle,
   genesOnRow,
   placeRowGenes,
+  readoutPlacement,
   rowGeneBoxes,
   rowPitch,
   rowSpan,
@@ -349,6 +350,36 @@ test("a row takes the backbone's genes on its own contig, bare or PanSN", () => 
     'ON',
     'PANSN',
   ])
+})
+
+test('a readout goes inside its bar only where it fits there clear of the row name, else beside it', () => {
+  const text = 'x'.repeat(50)
+  expect(readoutPlacement(text, 100, 1000, 40)).toMatchObject({
+    x: 106,
+    anchor: 'start',
+  })
+  expect(readoutPlacement(text, 900, 1000, 40)).toMatchObject({
+    x: 894,
+    anchor: 'end',
+    halo: true,
+  })
+  expect(readoutPlacement(text, 300, 400, 40)).toMatchObject({
+    x: 306,
+    anchor: 'start',
+    halo: false,
+  })
+  const svg = serializeEl(
+    walkRowsTree(rows(), {
+      scaleX: 1,
+      scaleY: 1,
+      translateX: 40 - region.start,
+      translateY: 20,
+      width: 100,
+      height: 400,
+    }),
+  )
+  expect(svg).toContain('text-anchor="start"')
+  expect(svg).not.toContain('text-anchor="end"')
 })
 
 test("a row's readout states the bp of its runs not loaded, with no estimate", () => {
