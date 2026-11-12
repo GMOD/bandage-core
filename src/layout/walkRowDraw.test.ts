@@ -5,15 +5,14 @@ import {
   MISSING_INK,
   MISSING_PX,
   barEnd,
-  fitReadout,
   gapStyle,
   genesOnRow,
   placeRowGenes,
-  readoutPlacement,
   rowGeneBoxes,
   rowPitch,
   rowSpan,
   walkRowReadout,
+  walkRowReadoutAt,
   walkRowsKey,
   walkRowsKeyTree,
   walkRowsTree,
@@ -21,6 +20,7 @@ import {
 import { walkRows } from './walkRows'
 
 import type { Departure } from '../gfa/departures'
+import type { WalkRowsWithCalls } from './walkRowDraw'
 
 // Five 10 bp reference nodes on chr1 from 1000, and a 5 bp node no reference
 // walk visits
@@ -352,26 +352,7 @@ test("a row takes the backbone's genes on its own contig, bare or PanSN", () => 
   ])
 })
 
-test('a readout goes inside its bar only where it fits there clear of the row name, else beside it and the name', () => {
-  const text = 'x'.repeat(50)
-  expect(readoutPlacement(text, 100, 1000, 40)).toMatchObject({
-    x: 106,
-    anchor: 'start',
-  })
-  expect(readoutPlacement(text, 900, 1000, 40)).toMatchObject({
-    x: 894,
-    anchor: 'end',
-    halo: true,
-  })
-  expect(readoutPlacement(text, 300, 400, 40)).toMatchObject({
-    x: 306,
-    anchor: 'start',
-    halo: false,
-  })
-  expect(readoutPlacement(text, 20, 1000, 40)).toMatchObject({
-    x: 40,
-    anchor: 'start',
-  })
+test('a readout goes beside its bar where it fits there, clear of the row name', () => {
   const svg = serializeEl(
     walkRowsTree(rows(), {
       scaleX: 1,
@@ -415,31 +396,101 @@ test('a readout goes inside its bar only over solid bar, past the last gap', () 
       },
     ),
   )
-  expect(svg).toContain(`text-anchor="start"><title>${text}</title>`)
+  expect(svg).toContain(`<title>${text}</title>`)
+  expect(svg).toContain('text-anchor="start">0.0 kb, …</text>')
 })
 
-test('a readout too long for the room beside its bar drops whole parts of its breakdown from the end', () => {
+// A 5.4 Mb row over a 1 kb reference, most of it left out of the graph, at
+// chr22:11,950,000-11,951,000
+function longRow(): WalkRowsWithCalls {
+  const on = { start: 0, bp: 1000, onReference: true, referenceStart: 0 }
+  return {
+    origin: 0,
+    reference: {
+      name: 'GRCh38#0#chr22',
+      label: 'GRCh38#0',
+      sample: 'GRCh38',
+      bp: 1000,
+      offReferenceBp: 0,
+      gapBp: 0,
+      complete: true,
+      runs: [on],
+    },
+    rows: [
+      {
+        name: 'HG1#1#c',
+        label: 'HG1#1',
+        sample: 'HG1',
+        bp: 5_361_000,
+        offReferenceBp: 0,
+        gapBp: 5_360_000,
+        complete: true,
+        runs: [
+          on,
+          {
+            start: 1000,
+            bp: 5_096_000,
+            onReference: false,
+            gap: true,
+            cause: 'missing',
+          },
+          {
+            start: 5_097_000,
+            bp: 178_000,
+            onReference: false,
+            gap: true,
+            cause: 'elsewhere',
+            near: 12_000_000,
+          },
+          { start: 5_275_000, bp: 86_000, onReference: false, gap: true },
+        ],
+      },
+    ],
+  }
+}
+
+test('a readout too long for the room beside its bar drops whole parts of its breakdown from the end, and says it was cut', () => {
+  const bars = longRow()
   const text =
     '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb near chr22:12.0 Mb, 86 kb out of view'
   const cut = '5361 kb (+5360 kb), of which 5096 kb left out of graph, …'
-  expect(fitReadout(text, text.length * LABEL_CHAR_PX)).toBe(text)
-  expect(fitReadout(text, cut.length * LABEL_CHAR_PX)).toBe(cut)
-  expect(fitReadout(text, 10)).toBe('5361 kb (+5360 kb), …')
+  const frame = (width: number) => ({
+    scaleX: 100 / 5_361_000,
+    translateX: 0,
+    width,
+  })
+  const beside = 106
+  expect(walkRowReadoutAt(bars, 1, frame(800))).toMatchObject({
+    text,
+    shown: text,
+    cut: false,
+    x: beside,
+    anchor: 'start',
+  })
   expect(
-    fitReadout(
-      '≥ 2.0 kb, of which 1.0 kb out of view · goes on near chr1:4 kb',
-      230,
-    ),
-  ).toBe('≥ 2.0 kb, … · goes on near chr1:4 kb')
-  const bars = rows()
-  const hg3 = bars.rows.find(row => row.name === 'HG3#1#ctg3')!
+    walkRowReadoutAt(bars, 1, frame(beside + cut.length * LABEL_CHAR_PX + 1)),
+  ).toMatchObject({ text, shown: cut, cut: true })
+  expect(walkRowReadoutAt(bars, 1, frame(beside + 10)).shown).toBe(
+    '5361 kb (+5360 kb), …',
+  )
+  const left = longRow()
+  left.rows[0] = { ...left.rows[0]!, unloadedBp: 10 }
+  expect(walkRowReadoutAt(left, 1, frame(800)).shown).toBe(text)
+  expect(
+    walkRowReadoutAt(left, 1, frame(900), { comparing: true }),
+  ).toMatchObject({ text: `${text} · not compared`, cut: false })
+  expect(
+    walkRowReadoutAt(left, 1, frame(beside + 10), { comparing: true }).shown,
+  ).toBe('5361 kb (+5360 kb), … · not compared')
+  const hg = rows()
+  const hg3 = hg.rows.find(row => row.name === 'HG3#1#ctg3')!
   const scaleX = 20
-  const translateX = 40 - bars.origin * scaleX
-  const endX = (bars.origin + barEnd(hg3)) * scaleX + translateX
-  const full = walkRowReadout(hg3, bars.reference)
+  const translateX = 40 - hg.origin * scaleX
+  const endX = (hg.origin + barEnd(hg3)) * scaleX + translateX
+  const full = walkRowReadout(hg3, hg.reference)
   const svg = serializeEl(
     walkRowsTree(
-      { ...bars, rows: [hg3] },
+      { ...hg, rows: [hg3] },
       {
         scaleX,
         scaleY: 1,
@@ -452,8 +503,9 @@ test('a readout too long for the room beside its bar drops whole parts of its br
   )
   expect(full).toBe('0.0 kb, of which 0.0 kb out of view')
   expect(svg).toContain(
-    `text-anchor="start"><title>${full}</title>0.0 kb, …</text>`,
+    `<g data-testid="graph-walk-row"><title>${full}</title>`,
   )
+  expect(svg).toContain('text-anchor="start">0.0 kb, …</text>')
 })
 
 // HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 have no step on

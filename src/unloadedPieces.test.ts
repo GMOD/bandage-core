@@ -490,7 +490,7 @@ test('ribbons, shared blocks and the shared order leave out a row with a run not
 })
 
 // G walks 0, 3, 2; F walks 0, 1, 2; E walks 0, 3, 300 bp not loaded, 2
-test('the shared row order compares no row with a run not loaded, and the key says how many it left out', () => {
+test('the shared row order compares no row with a run not loaded, and the key says it is fetching those rows or how many it left out', () => {
   const tables = besideTableData()
   const rowsOf = (placeholders: Uint8Array) => {
     const all: GraphTables = {
@@ -523,7 +523,10 @@ test('the shared row order compares no row with a run not loaded, and the key sa
       .filter(entry => entry.note)
       .map(entry => entry.label)
   expect(notes(unloaded.bars, { fetchLimit: 64 })).toEqual([
-    'Leaves out 1 row: node-level detail is fetched for at most 64 at a time',
+    'Fetching node-level detail for 1 row',
+  ])
+  expect(notes(unloaded.bars, { fetchLimit: 0 })).toEqual([
+    'Leaves out 1 row: node-level detail is fetched for at most 0 at a time',
   ])
   expect(notes(unloaded.bars)).toEqual([])
   expect(notes(loaded.bars, { fetchLimit: 64 })).toEqual([])

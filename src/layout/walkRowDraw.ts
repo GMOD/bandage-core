@@ -221,12 +221,7 @@ const READOUT_GAP_PX = 6
 
 // A readout right of its bar's end and of `left`, or inside the bar where it
 // would leave the pane and fits right of `left`
-export function readoutPlacement(
-  text: string,
-  endX: number,
-  width: number,
-  left = 0,
-) {
+function readoutPlacement(text: string, endX: number, width: number, left = 0) {
   const textPx = text.length * LABEL_CHAR_PX
   const beside = Math.max(endX + READOUT_GAP_PX, left)
   const inside = endX - READOUT_GAP_PX
@@ -239,7 +234,7 @@ const ELLIPSIS = '…'
 
 // A readout cut to `roomPx` by whole parts of its breakdown from the end,
 // closed with an ellipsis; its total and change against the reference stay
-export function fitReadout(text: string, roomPx: number) {
+function fitReadout(text: string, roomPx: number) {
   const fits = (candidate: string) => candidate.length * LABEL_CHAR_PX <= roomPx
   const [first = '', ...rest] = text.split(' · ')
   const tail = rest.map(part => ` · ${part}`).join('')
@@ -265,6 +260,49 @@ export function fitReadout(text: string, roomPx: number) {
 
 const rowNameEnd = (label: string) =>
   3 * READOUT_GAP_PX + label.length * LABEL_CHAR_PX
+
+export const NOT_COMPARED_TEXT = 'not compared'
+
+/**
+ * Row `i`'s readout (0 the reference) as a pane of `frame` draws it: `text`
+ * in full, `shown` as drawn, cut to the room beside the bar where it would
+ * leave the pane, `cut` whether it was, and where it sits. Beside the bar
+ * means right of its end and of the row's name; inside, only over solid bar
+ * past its last gap. While `comparing`, a row the comparison leaves out ends
+ * `· not compared`, which no cut drops.
+ */
+export function walkRowReadoutAt(
+  bars: WalkRowsWithCalls,
+  i: number,
+  frame: Pick<WalkRowsFrame, 'scaleX' | 'translateX' | 'width'>,
+  o: { comparing?: boolean } = {},
+) {
+  const row = i === 0 ? bars.reference : bars.rows[i - 1]!
+  const along = (offset: number) =>
+    (bars.origin + offset) * frame.scaleX + frame.translateX
+  const base = walkRowReadout(
+    row,
+    i === 0 ? undefined : bars.reference,
+    bars.unit,
+    row.call,
+  )
+  const suffix =
+    o.comparing && i > 0 && rowsNeedingRoutes([row]) > 0
+      ? ` · ${NOT_COMPARED_TEXT}`
+      : ''
+  const text = `${base}${suffix}`
+  const at = readoutPlacement(
+    text,
+    along(barEnd(row)),
+    frame.width,
+    Math.max(rowNameEnd(row.label), along(lastGapEnd(row.runs))),
+  )
+  const shown =
+    at.anchor === 'start'
+      ? `${fitReadout(base, frame.width - at.x - suffix.length * LABEL_CHAR_PX)}${suffix}`
+      : text
+  return { ...at, text, shown, cut: shown !== text }
+}
 
 // Where a row's bar ends: past its runs, since a stepless row has no bp
 export function barEnd(row: Pick<WalkRow, 'bp' | 'runs'>) {
@@ -526,7 +564,8 @@ export function walkRowsKey(
     // what a row's boxes are, singular: 'gene' unless the host names another
     annotation?: string
     // set while ribbons, shared blocks or the shared order are on: the most
-    // walks a host fetches node-level detail for at a time
+    // walks a host fetches node-level detail for at a time, which it is
+    // fetching for left-out rows up to that many
     comparing?: { fetchLimit: number }
     // runs not loaded are drawn hollow, as under a node layout
     markUnloaded?: boolean
@@ -580,7 +619,10 @@ export function walkRowsKey(
   if (o.comparing && leftOut > 0) {
     entries.push({
       swatch: { kind: 'gene' },
-      label: `Leaves out ${rowsText(leftOut)}: node-level detail is fetched for at most ${o.comparing.fetchLimit} at a time`,
+      label:
+        leftOut <= o.comparing.fetchLimit
+          ? `Fetching node-level detail for ${rowsText(leftOut)}`
+          : `Leaves out ${rowsText(leftOut)}: node-level detail is fetched for at most ${o.comparing.fetchLimit} at a time`,
       note: true,
     })
   }
@@ -909,6 +951,8 @@ export function walkRowsTree(
     idPrefix?: string
     // draw runs not loaded hollow, as a node layout above draws placeholders
     markUnloaded?: boolean
+    // set while ribbons, shared blocks or the shared order are on
+    comparing?: boolean
   } = {},
 ) {
   const marked = o.markUnloaded ?? false
@@ -982,31 +1026,13 @@ export function walkRowsTree(
     const { call } = row
     const readout =
       (frame.readouts ?? true)
-        ? {
-            text: walkRowReadout(
-              row,
-              i === 0 ? undefined : reference,
-              unit,
-              call,
-            ),
-          }
+        ? walkRowReadoutAt(bars, i, frame, { comparing: o.comparing })
         : undefined
-    const at =
-      readout &&
-      readoutPlacement(
-        readout.text,
-        along(barEnd(row)),
-        frame.width,
-        Math.max(rowNameEnd(row.label), along(lastGapEnd(row.runs))),
-      )
-    const shown =
-      readout && at?.anchor === 'start'
-        ? fitReadout(readout.text, frame.width - at.x)
-        : readout?.text
     return group(
       {
         'data-testid': i === 0 ? 'graph-walk-reference' : 'graph-walk-row',
       },
+      [readout?.cut === true && el('title', {}, readout.text)],
       runs,
       ticks,
       rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y, {
@@ -1024,22 +1050,20 @@ export function walkRowsTree(
             fill: callTickInk(call),
           }),
         readout &&
-          at &&
           el(
             'text',
             {
-              x: at.x,
+              x: readout.x,
               y: y + 4,
               'font-family': 'sans-serif',
               'font-size': 11,
               fill: call?.agrees === false ? DISAGREES : '#333',
-              stroke: at.halo ? 'white' : undefined,
-              'stroke-width': at.halo ? 3 : undefined,
+              stroke: readout.halo ? 'white' : undefined,
+              'stroke-width': readout.halo ? 3 : undefined,
               'paint-order': 'stroke',
-              'text-anchor': at.anchor,
+              'text-anchor': readout.anchor,
             },
-            shown !== readout.text && el('title', {}, readout.text),
-            shown,
+            readout.shown,
           ),
       ],
     )
