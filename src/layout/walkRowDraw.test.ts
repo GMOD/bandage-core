@@ -8,6 +8,7 @@ import {
   gapStyle,
   genesOnRow,
   placeRowGenes,
+  readoutTextPx,
   rowGeneBoxes,
   rowPitch,
   rowSpan,
@@ -393,6 +394,7 @@ test('a readout goes inside its bar only over solid bar, past the last gap', () 
         translateY: 20,
         width: endX + 50,
         height: 400,
+        measure: (shown: string) => shown.length * LABEL_CHAR_PX,
       },
     ),
   )
@@ -458,6 +460,7 @@ test('a readout too long for the room beside its bar drops whole parts of its br
     scaleX: 100 / 5_361_000,
     translateX: 0,
     width,
+    measure: (shown: string) => shown.length * LABEL_CHAR_PX,
   })
   const beside = 106
   const roomy = walkRowReadoutAt(bars, 1, frame(800))
@@ -499,6 +502,7 @@ test('a readout too long for the room beside its bar drops whole parts of its br
         translateY: 20,
         width: endX + 80,
         height: 400,
+        measure: (shown: string) => shown.length * LABEL_CHAR_PX,
       },
     ),
   )
@@ -507,6 +511,57 @@ test('a readout too long for the room beside its bar drops whole parts of its br
     `<g data-testid="graph-walk-row"><title>${full}</title>`,
   )
   expect(svg).toContain('text-anchor="start">0.0 kb, …</text>')
+})
+
+// A 1.8 kb row, 1 kb of it left out of the graph, as the split fixture draws
+// on a 1200 px pane
+test('a readout is measured at its font, so one with room enough is drawn whole', () => {
+  const on = { start: 0, bp: 400, onReference: true, referenceStart: 0 }
+  const bars: WalkRowsWithCalls = {
+    origin: 0,
+    reference: {
+      name: 'GRCh38#0#chr1',
+      label: 'GRCh38#0',
+      sample: 'GRCh38',
+      bp: 1000,
+      offReferenceBp: 0,
+      gapBp: 0,
+      complete: true,
+      runs: [{ ...on, bp: 1000 }],
+    },
+    rows: [
+      {
+        name: 'HG002#1#c',
+        label: 'HG002#1',
+        sample: 'HG002',
+        bp: 1800,
+        offReferenceBp: 0,
+        gapBp: 1000,
+        complete: true,
+        runs: [
+          on,
+          {
+            start: 400,
+            bp: 1000,
+            onReference: false,
+            gap: true,
+            cause: 'missing',
+          },
+          { ...on, start: 1400, referenceStart: 600 },
+        ],
+      },
+    ],
+  }
+  const text = '1.8 kb (+800 bp), of which 1.0 kb left out of graph'
+  const frame = { scaleX: 905 / 1800, translateX: 0, width: 1200 }
+  expect(walkRowReadoutAt(bars, 1, frame)).toMatchObject({
+    text,
+    shown: text,
+    cut: false,
+  })
+  expect(text.length * LABEL_CHAR_PX).toBeGreaterThan(1200 - 911)
+  expect(readoutTextPx(text)).toBeGreaterThan(277)
+  expect(readoutTextPx(text)).toBeLessThan(1200 - 911)
 })
 
 // HG002#2 and HG01074#1 at GRCh38 chr22:22,800,000-22,850,000 have no step on

@@ -229,6 +229,7 @@ export {
   gapStyle,
   genesOnRow,
   placeRowGenes,
+  readoutTextPx,
   rowGeneBoxes,
   rowPitch,
   rowSpan,

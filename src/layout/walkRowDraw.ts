@@ -219,10 +219,81 @@ export function walkRowReadout(
 
 const READOUT_GAP_PX = 6
 
+// 11 px sans-serif advances in 2048ths of an em, from DejaVu Sans, which
+// renders a figure's text where no Helvetica or Arial is installed and is the
+// widest of the three, so a readout measured by them is never wider than
+// drawn
+const GLYPH_UNITS = new Map(
+  (
+    [
+      [569, 'ijl'],
+      [604, 'IJ'],
+      [651, ' .,·'],
+      [690, ':'],
+      [721, 'f'],
+      [739, '-'],
+      [799, '()'],
+      [803, 't'],
+      [842, 'r'],
+      [1067, 's'],
+      [1075, 'z'],
+      [1126, 'c'],
+      [1141, 'L'],
+      [1178, 'F'],
+      [1186, 'k'],
+      [1212, 'vxy'],
+      [1235, 'P'],
+      [1251, 'TY'],
+      [1253, 'o'],
+      [1255, 'a'],
+      [1260, 'e'],
+      [1294, 'E'],
+      [1298, 'hnu'],
+      [1300, 'bdgpqS'],
+      [1303, '0123456789'],
+      [1343, 'K'],
+      [1401, 'AV'],
+      [1403, 'XZ'],
+      [1405, 'B'],
+      [1423, 'R'],
+      [1430, 'C'],
+      [1499, 'U'],
+      [1532, 'N'],
+      [1540, 'H'],
+      [1577, 'D'],
+      [1587, 'G'],
+      [1612, 'OQ'],
+      [1675, 'w'],
+      [1716, '+−≥#'],
+      [1767, 'M'],
+      [1995, 'm'],
+      [2025, 'W'],
+      [2048, '…'],
+    ] as const
+  ).flatMap(([units, glyphs]) => [...glyphs].map(c => [c, units] as const)),
+)
+const READOUT_FONT_PX = 11
+
+// A readout's drawn width in px at its font, a little over, for a host with
+// no canvas to measure it
+export function readoutTextPx(text: string) {
+  let units = 0
+  for (const c of text) {
+    units += GLYPH_UNITS.get(c) ?? 2048
+  }
+  return (units * READOUT_FONT_PX * 1.02) / 2048
+}
+
 // A readout right of its bar's end and of `left`, or inside the bar where it
 // would leave the pane and fits right of `left`
-function readoutPlacement(text: string, endX: number, width: number, left = 0) {
-  const textPx = text.length * LABEL_CHAR_PX
+function readoutPlacement(
+  text: string,
+  endX: number,
+  width: number,
+  left: number,
+  measure: (text: string) => number,
+) {
+  const textPx = measure(text)
   const beside = Math.max(endX + READOUT_GAP_PX, left)
   const inside = endX - READOUT_GAP_PX
   return beside + textPx < width || inside - textPx < left
@@ -234,8 +305,12 @@ const ELLIPSIS = '…'
 
 // A readout cut to `roomPx` by whole parts of its breakdown from the end,
 // closed with an ellipsis; its total and change against the reference stay
-function fitReadout(text: string, roomPx: number) {
-  const fits = (candidate: string) => candidate.length * LABEL_CHAR_PX <= roomPx
+function fitReadout(
+  text: string,
+  roomPx: number,
+  measure: (text: string) => number,
+) {
+  const fits = (candidate: string) => measure(candidate) <= roomPx
   const [first = '', ...rest] = text.split(' · ')
   const tail = rest.map(part => ` · ${part}`).join('')
   const at = first.indexOf(', of which ')
@@ -268,13 +343,14 @@ export const NOT_COMPARED_TEXT = 'not compared'
  * in full, `shown` as drawn, cut to the room beside the bar where it would
  * leave the pane, `cut` whether it was, and where it sits. Beside the bar
  * means right of its end and of the row's name; inside, only over solid bar
- * past its last gap. While `comparing`, a row the comparison leaves out ends
+ * past its last gap, its width by `frame.measure` or else readoutTextPx.
+ * While `comparing`, a row the comparison leaves out ends
  * `· not compared`, which no cut drops.
  */
 export function walkRowReadoutAt(
   bars: WalkRowsWithCalls,
   i: number,
-  frame: Pick<WalkRowsFrame, 'scaleX' | 'translateX' | 'width'>,
+  frame: Pick<WalkRowsFrame, 'scaleX' | 'translateX' | 'width' | 'measure'>,
   o: { comparing?: boolean } = {},
 ) {
   const row = i === 0 ? bars.reference : bars.rows[i - 1]!
@@ -291,15 +367,17 @@ export function walkRowReadoutAt(
       ? ` · ${NOT_COMPARED_TEXT}`
       : ''
   const text = `${base}${suffix}`
+  const measure = frame.measure ?? readoutTextPx
   const at = readoutPlacement(
     text,
     along(barEnd(row)),
     frame.width,
     Math.max(rowNameEnd(row.label), along(lastGapEnd(row.runs))),
+    measure,
   )
   const shown =
     at.anchor === 'start'
-      ? `${fitReadout(base, frame.width - at.x - suffix.length * LABEL_CHAR_PX)}${suffix}`
+      ? `${fitReadout(base, frame.width - at.x - measure(suffix), measure)}${suffix}`
       : text
   return { ...at, text, shown, cut: shown !== text }
 }
@@ -816,6 +894,9 @@ export interface WalkRowsFrame {
   // false where a canvas paints the bars under the tree, which then draws the
   // rest of each row, its readout naming its gaps' causes
   bars?: boolean
+  // a readout's width in px at 11 px sans-serif, readoutTextPx unless a host
+  // measures it on its canvas
+  measure?: (text: string) => number
 }
 
 const offPath = (run: WalkRun) => !run.gap && !run.onReference
