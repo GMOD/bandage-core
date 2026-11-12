@@ -262,6 +262,28 @@ test('a figure keys the dashed links it draws as skipped reference sequence', ()
   )
 })
 
+// v2 is read backwards by `inv`, between v1 and v3
+const reversed = anchorGraph(
+  convertGFAToGraph(
+    parseGFA(
+      `${GFA}\nL\tv1\t+\tv2\t-\t0M\nL\tv2\t-\tv3\t+\t0M\nW\tinv\t1\tchr\t0\t9\t>v1<v2>v3`,
+    ),
+  ),
+  'ref',
+)
+
+test('a figure haloes a run some walk reads backwards, names it INV over the halo and keys it', () => {
+  const svg = figureSvg(
+    reversed,
+    layoutModeByValue('ordered').run(reversed, undefined)!,
+    { width: 600 },
+  )
+  expect(svg).toContain('stroke="rgb(224,123,0)" stroke-opacity="0.22"')
+  expect(svg).toContain('<tspan font-weight="600">INV</tspan> 2 bp')
+  expect(svg).toMatch(/INV: .+? sequence inverted in some haplotypes/)
+  expect(figureSvg(graph, layout, { width: 600 })).not.toContain('INV')
+})
+
 test('a figure split into panels keys the dashed links once, above the grid, only when a panel draws one', () => {
   const skipped = anchorGraph(
     convertGFAToGraph(

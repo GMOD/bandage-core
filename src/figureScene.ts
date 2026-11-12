@@ -7,7 +7,10 @@ import { pathLegend, walkLabelsOf } from './pathColors'
 import { drawingBounds } from './pipeline'
 import { referenceLabel } from './reference'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
-import { layoutGeometryInputs } from './renderer/geometryInputs'
+import {
+  drawnInversionHalos,
+  layoutGeometryInputs,
+} from './renderer/geometryInputs'
 import { facetLifts, walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
@@ -64,6 +67,9 @@ export function figureScene(
     layout.tubeMap ? [] : deletionEdges(graph),
     o.showDeletionEdges,
   )
+  const inversions = drawnInversionHalos(layout, drawnDeletions, {
+    drawsRows: !!rows,
+  })
   const layers = o.walks ?? []
   const walkRamp = layers.some(l => l.color?.field === 'reference')
     ? (referenceRamp ?? computeReferenceRamp(graph, rampDomain))
@@ -104,6 +110,7 @@ export function figureScene(
     colorScheme,
     referenceRamp,
     drawnDeletions,
+    inversions,
     layers,
     lift,
     facet,

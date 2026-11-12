@@ -2,6 +2,7 @@ import { geneCoverageNote, geneLeader, layoutLabels } from './labelLayout'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
+import type { InversionHalo } from './inversionHalos'
 import type { LabelLayoutSource } from './labelLayout'
 import type { NodeSegment } from './types'
 
@@ -329,4 +330,35 @@ test('bubble names on one spot stack, and a long one falls back to its kind', ()
     }),
   )
   expect(tight.bubbles.map(b => b.text)).toEqual(['0 bp–22 kb superbubble'])
+})
+
+function inverted(labelAt: NodeSegment): InversionHalo {
+  return {
+    inversion: {
+      refName: 'chr1',
+      start: 0,
+      end: 37_600,
+      bp: 37_600,
+      across: ['s2'],
+      edgeIndexes: [0, 1],
+      joins: ['s1', 's2', 's3'],
+    },
+    points: [labelAt],
+    labelAt,
+    note: '37.6 kb',
+    flat: true,
+  }
+}
+
+test('an inversion is named over its halo, ahead of a gene there', () => {
+  const layout = layoutLabels(
+    source({
+      inversionHalos: [inverted({ x: 300, y: 216 })],
+      genePins: [pin({ x: 300, y: 216 - 6 * 3.4 - 6 - 18 - 6 })],
+    }),
+  )
+  expect(layout.inversions).toMatchObject([
+    { text: 'INV 37.6 kb', x: 300, y: 216 - (6 * 3.4) / 2 - 6 },
+  ])
+  expect(layout.genes[0]?.y).not.toBe(layout.inversions[0]!.y)
 })

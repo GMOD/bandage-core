@@ -86,6 +86,26 @@ test('strokes every edge of one paint as one path, and every node likewise', () 
   expect(strokes).toHaveLength(2)
 })
 
+test('a halo is stroked first, under the edges and nodes', () => {
+  const { renderer, strokes } = makeRenderer()
+  const batch = batchOf2Edges()
+  renderer.uploadGeometry({
+    ...batch,
+    halos: [
+      {
+        points: batch.nodeStrokes[1]!.points,
+        thickness: 17,
+        color: 0x38007be0,
+      },
+    ],
+  })
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  expect(strokes).toHaveLength(3)
+  expect(strokes[0]).toMatch(/^rgba\(224,123,0,0\.2/)
+})
+
 test('a highlighted edge is stroked brighter, apart from its neighbour', () => {
   const { renderer, strokes } = makeRenderer()
   renderer.uploadGeometry(batchOf2Edges())

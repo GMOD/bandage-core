@@ -5,6 +5,12 @@ export function packAbgr(r: number, g: number, b: number, a: number) {
   return ((a << 24) | (b << 16) | (g << 8) | r) >>> 0
 }
 
+// `#rrggbb` at an alpha in [0, 1]
+export function hexToAbgr(hex: string, alpha: number) {
+  const channel = (at: number) => Number.parseInt(hex.slice(at, at + 2), 16)
+  return packAbgr(channel(1), channel(3), channel(5), Math.round(alpha * 255))
+}
+
 export function abgrRed(c: number) {
   return c & 0xff
 }

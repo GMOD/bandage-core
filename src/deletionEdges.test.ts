@@ -208,6 +208,7 @@ test('the links into and out of a reversed run name one inversion of it', () => 
       bp: 10,
       across: ['2+'],
       edgeIndexes: [4, 5],
+      joins: ['1+', '2+', '3+'],
     },
   ])
   expect(deletionEdges(graphOf(REVERSED))).toHaveLength(1)
