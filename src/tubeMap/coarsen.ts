@@ -295,6 +295,9 @@ export function coarsenTubeMap(
           rank: 1,
           strand: '+',
         },
+        ...(gap.detour.some(s => s.node.placeholder)
+          ? { placeholder: true as const }
+          : {}),
       }
       routes.set(key, node)
       members.set(

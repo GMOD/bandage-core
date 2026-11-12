@@ -302,6 +302,50 @@ function boxGraph(graph: Graph, { members, flipped }: BoxRuns): Graph {
   }
 }
 
+const WALK_END = ''
+
+// Read without neighbours' strands, so it finds every pair tubemap-core's
+// merge joins, and some it does not
+function mergesPlaceholder(graph: Graph, walks: readonly InputTrack[]) {
+  const placeholders = new Set(
+    graph.nodes.flatMap(node => (node.placeholder ? [node.id] : [])),
+  )
+  const after = new Map<string, Set<string>>()
+  const before = new Map<string, Set<string>>()
+  const add = (
+    side: Map<string, Set<string>>,
+    node: string,
+    neighbour: string | undefined,
+  ) => {
+    if (neighbour !== undefined) {
+      side.set(node, (side.get(node) ?? new Set()).add(neighbour))
+    }
+  }
+  if (placeholders.size > 0) {
+    for (const { sequence, type } of walks) {
+      const end = type === 'haplotype' ? WALK_END : undefined
+      sequence.forEach((step, i) => {
+        const node = forward(step)
+        const previous = i > 0 ? forward(sequence[i - 1]!) : end
+        const next = i < sequence.length - 1 ? forward(sequence[i + 1]!) : end
+        const reversed = isReverse(step)
+        add(after, node, reversed ? previous : next)
+        add(before, node, reversed ? next : previous)
+      })
+    }
+  }
+  return [...after].some(([node, next]) => {
+    const [successor] = next
+    return (
+      next.size === 1 &&
+      successor !== undefined &&
+      successor !== WALK_END &&
+      before.get(successor)?.size === 1 &&
+      placeholders.has(node) !== placeholders.has(successor)
+    )
+  })
+}
+
 function runTubeMap(graph: Graph) {
   const paths = graph.paths ?? []
   const tracks = tubeMapTracks(graph)
@@ -315,6 +359,7 @@ function runTubeMap(graph: Graph) {
   const bundled = paths.some(p => p.members)
   const walks = paths.reduce((n, p) => n + (p.members?.length ?? 1), 0)
   const layout = layoutTubeMap(tubeMapNodes(graph), tracks, reads, {
+    mergeNodes: !mergesPlaceholder(graph, [...tracks, ...reads]),
     nodeWidthOption: 'compressed',
     trackWidth: tubeWidth(bundled ? walks : tracks.length),
     ...(bundled ? { freqWidth: 'linear' as const } : {}),

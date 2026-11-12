@@ -30,11 +30,14 @@ import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import {
   NOT_LOADED_COLOR,
+  NOT_LOADED_CSS,
   NOT_LOADED_FILL_COLOR,
   buildGeometry,
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
+import { coarsenTubeMap } from './tubeMap/coarsen'
+import { tubeMapNodeColors } from './tubeMap/nodeColors'
 import { walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
@@ -453,6 +456,78 @@ test('rGFA text of a graph tags a placeholder, and loading it keeps the flag', (
       .nodes.filter(node => node.placeholder)
       .map(node => node.name),
   ).toEqual(['A#1#a:1000-1500', 'B#1#b:1000-1500'])
+})
+
+// GRCh38 over three 1 kb nodes, which F walks too. E leaves it after the
+// first for node 3, 500 bp only E walks, then 300 bp not loaded, and rejoins
+// at the third
+function besideTables(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
+  const tables: GraphTables = {
+    nodes: {
+      names: ['0', '1', '2', '3', 'E#1#e:1500-1800'],
+      lengths: Int32Array.of(1000, 1000, 1000, 500, 300),
+      refs: Int32Array.of(0, 0, 0, 1, 1),
+      starts: Float64Array.of(0, 1000, 2000, 1000, 1500),
+      ranks: Int32Array.of(0, 0, 0, 1, 1),
+      refNames: ['chr1', 'E#1#e'],
+      placeholders,
+    },
+    links: {
+      from: Int32Array.of(0, 1, 0, 3, 4),
+      to: Int32Array.of(1, 2, 3, 4, 2),
+      strands: new Uint8Array(5),
+    },
+    walks: {
+      names: ['GRCh38#0#chr1', 'E#1#e', 'F#1#f'],
+      starts: new Float64Array(3),
+      ends: Float64Array.of(3000, 2800, 3000),
+      offsets: Int32Array.of(0, 3, 7, 10),
+      steps: Int32Array.of(0, 1, 2, 0, 3, 4, 2, 0, 1, 2),
+      reversed: new Uint8Array(10),
+      abridgedSteps: Float64Array.of(NaN, 12, NaN),
+    },
+    departures: departureTable(),
+  }
+  return loadGraph(tables, 'cut', { referencePath: 'GRCh38#0#chr1' })
+}
+
+test('the tube map merges no placeholder with a loaded node, and keeps its box not loaded', () => {
+  const boxes = (graph: ReturnType<typeof besideTables>) =>
+    layoutModeByValue('tubemap')
+      .run(graph, undefined)!
+      .tubeMap!.graph.nodes.map(
+        node => `${node.name}:${node.length}${node.placeholder ? '?' : ''}`,
+      )
+  expect(boxes(besideTables())).toContain('3:500')
+  expect(boxes(besideTables())).toContain('E#1#e:1500-1800:300?')
+  expect(boxes(besideTables(new Uint8Array(5)))).toContain('3:800')
+})
+
+test('a coarse tube map route through a placeholder is not loaded, and one through loaded nodes is', () => {
+  const tables = twinTables()
+  tables.nodes.refs[3] = 3
+  tables.nodes.refNames.push('C#1#c')
+  const graph = loadGraph(tables, 'cut', { referencePath: 'GRCh38#0#chr1' })
+  const coarse = coarsenTubeMap(graph, 50)!
+  const route = (id: string) =>
+    coarse.graph.nodes.find(node => node.id === coarse.coarseOf.get(id))!
+  for (const node of graph.nodes.filter(n => n.placeholder)) {
+    expect(route(node.id)).toMatchObject({ placeholder: true, length: 500 })
+  }
+  expect(route('3+').placeholder).toBeUndefined()
+})
+
+test('a tube map under uniform or grey still tints a placeholder not loaded', () => {
+  const graph = besideTables()
+  const placeholder = graph.nodes.find(node => node.placeholder)!
+  for (const scheme of ['uniform', 'grey'] as const) {
+    expect(tubeMapNodeColors(graph, scheme)).toEqual(
+      new Map([[placeholder.id, NOT_LOADED_CSS]]),
+    )
+    expect(
+      tubeMapNodeColors(besideTables(new Uint8Array(5)), scheme),
+    ).toBeUndefined()
+  }
 })
 
 test('a node layout draws a placeholder as a hollow node of its bp under every scheme, outside the colour ranges', () => {
