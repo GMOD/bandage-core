@@ -66,9 +66,9 @@ reads them.
   bp under every color scheme. `loadGraph`'s `maxNodes` counts placeholders,
   which graph-walks' `nodeLimit` does not, and its refusal says how many there
   are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`, which only
-  bandage-core reads back: another tool ignores the tag and takes the line for
-  a real segment off the reference. A GFA meant for another tool must be
-  written from a cut with every piece loaded
+  bandage-core reads back: another tool ignores the tag and takes the line for a
+  real segment off the reference. A GFA meant for another tool must be written
+  from a cut with every piece loaded
 - `GraphTables` mirrors graph-walks 7's, and `typecheck/graphWalks.ts` holds the
   two equal. `departures` is required, so tables from a reader that states none
   fail to compile; a source with none, such as GFA text or a gbz-base cut,

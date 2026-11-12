@@ -29,7 +29,7 @@ export type DepartureTablesMatch = Holds<
   Identical<DepartureTable, WalksDepartureTable>
 >
 export type DeparturesMatch = Holds<
-  Identical<Departure, Omit<WalkDeparture, 'steps'>>
+  Identical<Departure, Omit<WalkDeparture, 'steps' | 'abridged'>>
 >
 export type KindsMatch = Holds<Identical<DepartureKind, WalksDepartureKind>>
 export type GapTablesMatch = Holds<Identical<GapTable, WalksGapTable>>
