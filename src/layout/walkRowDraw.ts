@@ -339,20 +339,35 @@ export function gapStyle(cause: GapCause | undefined) {
     : cause === 'departure'
       ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.departure }
       : cause === 'own'
-        ? { fill: OWN_GAP, px: GAP_PX, label: GAP_CAUSE_TEXT.own }
+        ? {
+            fill: OWN_GAP,
+            px: GAP_PX,
+            label: `${GAP_CAUSE_TEXT.own}: in the graph off the reference, between two stretches drawn here`,
+          }
         : cause === 'mixed'
-          ? { fill: OWN_GAP, px: MISSING_PX, label: GAP_CAUSE_TEXT.mixed }
+          ? {
+              fill: OWN_GAP,
+              px: MISSING_PX,
+              label: `${GAP_CAUSE_TEXT.mixed}: some of each`,
+            }
           : cause === 'unread'
             ? {
                 fill: OUTSIDE_CUT,
                 px: MISSING_PX,
-                label: GAP_CAUSE_TEXT.unread,
+                label: `${GAP_CAUSE_TEXT.unread}: in the graph, where the walk went after leaving this view`,
               }
-            : {
-                fill: OUTSIDE_CUT,
-                px: GAP_PX,
-                label: `${OUTSIDE_TEXT}: in the graph, beyond the part drawn here`,
-              }
+            : cause === 'elsewhere'
+              ? {
+                  fill: OUTSIDE_CUT,
+                  px: GAP_PX,
+                  label:
+                    'near a place: in the graph, on another stretch of the reference, where it rejoins',
+                }
+              : {
+                  fill: OUTSIDE_CUT,
+                  px: GAP_PX,
+                  label: `${OUTSIDE_TEXT}: in the graph, beyond the part drawn here`,
+                }
 }
 
 // A run's paint: a flat colour, or under the reference-position ramp the hues
@@ -605,6 +620,7 @@ export function walkRowsKey(
   for (const cause of [
     undefined,
     'missing',
+    'elsewhere',
     'departure',
     'own',
     'mixed',

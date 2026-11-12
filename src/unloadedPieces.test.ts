@@ -806,7 +806,7 @@ test('a lifted walk keeps a run not loaded in its own colour, counts its bp apar
   expect(a!.colors.get('0+')).not.toBe(NOT_LOADED_COLOR)
   expect(a).toMatchObject({ steps: 2, bp: 2500, unloadedBp: 500 })
   expect(c).toMatchObject({ steps: 3, bp: 2500, unloadedBp: 0 })
-  expect(walkKey(a!).gaps).toBe(', 500 bp · nodes not shown')
+  expect(walkKey(a!).gaps).toBe(', 500 bp whose nodes are not shown')
   expect(walkKey(c!).gaps).toBe('')
 })
 
@@ -837,7 +837,7 @@ test('a bubble with a run not loaded inside is called neither insertion nor dele
   const kinds = (tables: GraphTables) =>
     graphBubbles(loadGraph(tables, 'cut')).map(bubble => classifyBubble(bubble))
   expect(kinds(twinTables())).toEqual([
-    { kind: 'complex', label: '500 bp–1 kb, 4 routes, nodes not shown' },
+    { kind: 'complex', label: '500 bp–1 kb, 4 routes, some nodes not shown' },
   ])
   const loaded = kinds({
     ...twinTables(),

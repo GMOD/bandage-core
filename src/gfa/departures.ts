@@ -157,9 +157,9 @@ export type GapCause =
 export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
   missing: 'left out of graph',
   elsewhere: 'near where it rejoins',
-  own: 'of its own not read',
-  mixed: 'not read or left out of graph',
-  unread: 'not read',
+  own: 'own sequence not drawn',
+  mixed: 'not drawn or left out of graph',
+  unread: 'not drawn',
   // a row of departures alone: the haplotype has no step on the reference
   // across the window, which says nothing of what it carries instead
   departure: 'no step on the reference',

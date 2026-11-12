@@ -83,7 +83,7 @@ export function classifyBubble(
   const c: BubbleClass = b.unloaded
     ? {
         kind: 'complex',
-        label: `${formatBpRange(b.shortestAlleleLength, b.longestAlleleLength)}, ${routes(b.pathCount)}, ${NOT_LOADED_TEXT}`,
+        label: `${formatBpRange(b.shortestAlleleLength, b.longestAlleleLength)}, ${routes(b.pathCount)}, some ${NOT_LOADED_TEXT}`,
       }
     : classifyShape(b, repeats)
   return b.partial ? { ...c, label: `${c.label}, partial` } : c

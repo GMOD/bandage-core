@@ -1,4 +1,4 @@
-import { GAP_CAUSE_TEXT, NOT_LOADED_TEXT, OUTSIDE_TEXT } from './gfa/departures'
+import { GAP_CAUSE_TEXT, OUTSIDE_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 
 import type { LiftedWalk } from './walkHighlight'
@@ -39,7 +39,7 @@ export function walkKey(
   const unstated = spanned - walk.bp - walk.missingBp - walk.ownBp
   const outside = walk.readBp ?? unstated
   const gaps = [
-    [walk.unloadedBp, `· ${NOT_LOADED_TEXT}`],
+    [walk.unloadedBp, 'whose nodes are not shown'],
     [walk.missingBp, GAP_CAUSE_TEXT.missing],
     [walk.ownBp, GAP_CAUSE_TEXT.own],
     [

@@ -40,9 +40,9 @@ reads them.
 - A gap between two pieces of a walk splits into the bp the cut trimmed
   (`out of view`), the bp the departures inside it say the graph lacks
   (`left out of graph`), and the rest: the walk's own sequence the cut did not
-  read (`of its own not read`), or, where the walk goes back to the reference,
-  `near chr22:20.3 Mb`, where it rejoins. The readout states them as parts of
-  the row's bp:
+  read (`own sequence not drawn`), or, where the walk goes back to the
+  reference, `near chr22:20.3 Mb`, where it rejoins. The readout states them as
+  parts of the row's bp:
   `5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb near chr22:12.0 Mb, 86 kb out of view`
 - A walk reaching one flank reads as a lower bound. Its contig ends inside the
   window only where its last step there is on the reference, with no departure
@@ -67,7 +67,12 @@ reads them.
 - Ribbons, shared blocks and the shared row order compare nodes, which a run not
   loaded does not name, so they leave out a row holding one;
   `rowsNeedingRoutes(rows)` says how many rows they left out, for a host to load
-  before relying on them
+  before relying on them. While one is on, such a row's readout ends
+  `· not compared`, and the key says `Fetching node-level detail for N rows`
+  within the host's fetch limit, or that it leaves them out beyond it
+- `walkRowReadoutAt` places a row's readout for every host: its full text, the
+  text drawn, which is cut to the room beside the bar by whole parts with `…`,
+  whether it was cut, and where it sits
 - In a node layout such a run is a node with `placeholder`, drawn hollow at its
   bp under every color scheme. In the tube map, where loading turns one box into
   its nodes, it is a box with a dashed outline and no tint, captioned

@@ -297,7 +297,10 @@ test('the key gives one entry to each way a gap draws', () => {
       'left out of graph: in the assembly, but the graph builder dropped it',
       { kind: 'gap', fill: MISSING_INK, px: MISSING_PX },
     ],
-    ['of its own not read', { kind: 'gap', fill: OWN_GAP, px: WALK_GAP_PX }],
+    [
+      'own sequence not drawn: in the graph off the reference, between two stretches drawn here',
+      { kind: 'gap', fill: OWN_GAP, px: WALK_GAP_PX },
+    ],
   ])
 })
 
@@ -327,7 +330,7 @@ test("own sequence the cut did not read is the rest of the departure's own bp", 
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 0.4 kb left out of graph, 0.6 kb of its own not read',
+    '5.0 kb, of which 0.4 kb left out of graph, 0.6 kb own sequence not drawn',
   )
 })
 
@@ -411,7 +414,7 @@ test('a lifted walk states the bp its departures say the graph lacks', () => {
   const [walk] = walkLift(graph, [{ walk: 'HG002#1#chr1' }])!.walks
   expect(walk).toMatchObject({ missingBp: 300, ownBp: 300 })
   expect(walkKey(walk!).gaps).toBe(
-    ', 300 bp left out of graph, 300 bp of its own not read, 400 bp out of view',
+    ', 300 bp left out of graph, 300 bp own sequence not drawn, 400 bp out of view',
   )
 })
 

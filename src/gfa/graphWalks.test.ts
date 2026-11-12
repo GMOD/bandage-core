@@ -108,7 +108,7 @@ test('a gap states what the departure across it says: bp the graph lacks, own bp
   const { row } = await rowsOf('records.GRCh38', 1500, 3500)
   expect(row('HG002#1')).toMatchObject({
     readout:
-      '3.0 kb (+1.0 kb), of which 1.3 kb left out of graph, 0.7 kb of its own not read',
+      '3.0 kb (+1.0 kb), of which 1.3 kb left out of graph, 0.7 kb own sequence not drawn',
     gaps: [
       { start: 500, bp: 1300, cause: 'missing' },
       { start: 1800, bp: 700, cause: 'own' },
