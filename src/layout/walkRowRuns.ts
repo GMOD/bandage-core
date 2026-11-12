@@ -360,6 +360,7 @@ const steplessMeta = (
   head: PieceHead,
   own: Departure[],
   gapBp: number,
+  abridgedSteps = 0,
 ): WalkRowMeta => ({
   name: head.name,
   label: labelOf(head),
@@ -373,6 +374,7 @@ const steplessMeta = (
   axis: undefined,
   departures: own,
   stepless: true,
+  ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
   ...(own.some(placementChoice) ? { placementChoice: true as const } : {}),
 })
 
@@ -975,7 +977,7 @@ export function walkRowRuns(
         !extents.some(([a, b]) => d.hapStart > a && d.hapStart + d.ownBp < b),
     )
     return stepless
-      ? steplessMeta(head, own, departureGapBp)
+      ? steplessMeta(head, own, departureGapBp, abridgedSteps)
       : {
           name: head.name,
           label: labelOf(head),

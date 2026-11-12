@@ -54,9 +54,10 @@ function kb(bp: number) {
   return `${(bp / 1000).toFixed(bp < 10_000 ? 1 : 0)} kb`
 }
 
+const sized = (bp: number) => (bp < 1000 ? `${bp} bp` : kb(bp))
+
 function signedLength(delta: number) {
-  const size = Math.abs(delta)
-  return `${delta > 0 ? '+' : '−'}${size < 1000 ? `${size} bp` : kb(size)}`
+  return `${delta > 0 ? '+' : '−'}${sized(Math.abs(delta))}`
 }
 
 function units(bp: number, unit: number | undefined) {
@@ -188,7 +189,7 @@ export function walkRowReadout(
     return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
   }
   const unloaded = row.unloadedBp
-    ? ` · ${kb(row.unloadedBp)} ${NOT_LOADED_TEXT}`
+    ? ` · ${sized(row.unloadedBp)} ${NOT_LOADED_TEXT}`
     : ''
   const outside = `${unloaded}${gapsText(gapBp, row.runs, reference.name)}${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call

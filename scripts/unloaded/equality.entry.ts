@@ -92,10 +92,7 @@ function runsOf(runs: WalkRun[]) {
 }
 
 const withoutNotLoaded = (readout: string) =>
-  readout.replace(
-    new RegExp(` · [0-9.]+ kb ${NOT_LOADED_TEXT}`),
-    '',
-  )
+  readout.replace(new RegExp(` · [0-9.]+ (?:kb|bp) ${NOT_LOADED_TEXT}`), '')
 
 function shapeOf(row: WalkRow, reference: WalkRow | undefined) {
   return new Map(

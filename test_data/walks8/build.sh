@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Rebuilds the walk-file fixtures from their GFAs with gfa-to-tabix 4.0, in
-# walk format 7, with the tile each test's comment describes.
-# Usage: test_data/walks7/build.sh <gfa-to-tabix binary>
+# Rebuilds the walk-file fixtures from their GFAs with gfa-to-tabix 5.0, in
+# walk format 8, with the tile each test's comment describes. blocks,
+# drawnedge and interleaved are graph-walks' fixtures of those names, their
+# pieces abridged.
+# Usage: test_data/walks8/build.sh <gfa-to-tabix binary>
 set -euo pipefail
 cd "$(dirname "$0")"
 B=${1:?the gfa-to-tabix binary}
@@ -21,3 +23,6 @@ build records records.GRCh38.gfa --refs GRCh38 --tile 1000
 build revisit revisit.GRCh38.gfa --refs GRCh38 --tile 1000
 build rejoin rejoin.GRCh38.gfa --refs GRCh38 --tile 10000
 build clip clip.REF.gfa --refs REF --tile 1000
+build blocks blocks.R.gfa --refs R --tile 60 --abridge-bytes 1
+build drawnedge drawnedge.R.gfa --refs R --tile 10000 --abridge-steps 3
+build interleaved interleaved.R.gfa --refs R --tile 10 --stay 0 --abridge-steps 3

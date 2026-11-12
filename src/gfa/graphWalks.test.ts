@@ -6,12 +6,12 @@ import { walkRowRuns, walkRowsOf } from '../layout/walkRowRuns'
 import { walkRows } from '../layout/walkRows'
 import { graphFromTables } from './graphTables'
 
-// Walk format 7 files built by test_data/walks7/build.sh from the GFAs beside
-// them, cut by graph-walks 6 as the plugin and BandageJS cut them, on chr1 of
+// Walk format 8 files built by test_data/walks8/build.sh from the GFAs beside
+// them, cut by graph-walks 7 as the plugin and BandageJS cut them, on chr1 of
 // the reference the name ends in
 async function rowsOf(name: string, start: number, end: number, context = 0) {
   const reader = WalkReader.open(
-    `test_data/walks7/${name}.walks.gz`,
+    `test_data/walks8/${name}.walks.gz`,
     url => new LocalFile(url),
   )
   const { graph, kept, fragments, departures } = await reader.cut(
