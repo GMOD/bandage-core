@@ -10,6 +10,7 @@ import { figureSvg } from './figure'
 import { departureTable } from './gfa/departures'
 import { graphFromTables, graphTablesGFA } from './gfa/graphTables'
 import { writeRgfa } from './gfa/writeRgfa'
+import { placeholderHoverText } from './hoverText'
 import { ROW_HEIGHT_PX } from './layout/rowSpacing'
 import { sampleRowLayout } from './layout/sampleRowLayout'
 import {
@@ -46,6 +47,7 @@ import { walkKey } from './walkKey'
 
 import type { GraphTables } from './gfa/graphTables'
 import type { WalkRow, WalkRun } from './layout/walkRows'
+import type { TubeMapContext } from './tubeMap/draw'
 
 // Walk format 8 files built by test_data/walks8/build.sh, every piece
 // abridged, cut by graph-walks 7 as the plugin cuts a walk-rows window: with
@@ -243,6 +245,15 @@ test('a run not loaded draws as a loaded run off the path, flat or under the ram
       expect(drawn(unloaded)).toBe(drawn(loaded))
     }
   }
+})
+
+test('a placeholder hovered says whose route it stands in for, and no depth', () => {
+  const graph = loadGraph(twinTables(), 'cut')
+  const [a] = graph.nodes.filter(node => node.placeholder)
+  expect(placeholderHoverText(a!)).toBe(
+    "500 bp of A#1's route, nodes not shown",
+  )
+  expect(placeholderHoverText(graph.nodes[0]!)).toBeUndefined()
 })
 
 test('runs off the path draw as one, loaded or not, and runs under a pixel merge into the kind most of their bp is', () => {
@@ -557,27 +568,34 @@ test('a tube map box of steps not loaded is untinted and dashed, and says its no
   const dashes: number[] = []
   const texts: string[] = []
   let dash: number[] = []
-  const state: Record<string, unknown> = {}
-  const ctx = new Proxy(state, {
-    get: (target, key: string) =>
-      key === 'setLineDash'
-        ? (segments: number[]) => {
-            dash = segments
-          }
-        : key === 'stroke'
-          ? () => dashes.push(dash.length)
-          : key === 'fillText'
-            ? (text: string) => texts.push(text)
-            : key === 'measureText'
-              ? (text: string) => ({ width: text.length * 6 })
-              : key in target
-                ? target[key]
-                : () => {},
-    set: (target, key: string, value) => {
-      target[key] = value
-      return true
+  const ctx: TubeMapContext = {
+    beginPath: () => {},
+    bezierCurveTo: () => {},
+    closePath: () => {},
+    fill: () => {},
+    fillStyle: '',
+    fillText: text => {
+      texts.push(text)
     },
-  }) as unknown as CanvasRenderingContext2D
+    font: '',
+    globalAlpha: 1,
+    lineTo: () => {},
+    lineWidth: 1,
+    moveTo: () => {},
+    quadraticCurveTo: () => {},
+    rect: () => {},
+    setLineDash: segments => {
+      dash = segments
+    },
+    stroke: () => {
+      dashes.push(dash.length)
+    },
+    strokeStyle: '',
+    strokeText: () => {},
+    textAlign: 'center',
+    textBaseline: 'middle',
+    measureText: text => ({ width: text.length * 6 }),
+  }
   drawTubeMap(ctx, picture, {
     x: tx => tx * 10,
     y: ty => ty,
@@ -639,7 +657,7 @@ test('a node layout draws a placeholder as a hollow node of its bp under every s
   }
   expect(strokesOf(loadedOff.id)).toHaveLength(1)
   const svg = figureSvg(graph, layout, { width: 600 })
-  expect(svg).toContain('>not loaded</text>')
+  expect(svg).toContain('>nodes not shown</text>')
   expect(svg).toContain('rgb(217, 164, 65)')
   expect(svg).toContain('rgb(250, 240, 214)')
   const allLoaded = loadGraph(
@@ -653,7 +671,7 @@ test('a node layout draws a placeholder as a hollow node of its bp under every s
     figureSvg(allLoaded, layoutModeByValue('auto').run(allLoaded, undefined)!, {
       width: 600,
     }),
-  ).not.toContain('not loaded')
+  ).not.toContain('nodes not shown')
 })
 
 test('sample rows give no row for a placeholder, nor count it as sequence the reference lacks', async () => {
@@ -676,9 +694,9 @@ test('sample rows give no row for a placeholder, nor count it as sequence the re
   expect(await available(true)).toBe(true)
 })
 
-test('a graph over the node limit says how many of its nodes are runs not loaded', () => {
+test('a graph over the node limit says how many of its nodes stand for nodes not shown', () => {
   expect(() => loadGraph(twinTables(), 'cut', { maxNodes: 5 })).toThrow(
-    'Graph too large to draw: 6 nodes, 2 of them runs of steps not loaded (limit 5)',
+    'Graph too large to draw: 6 nodes, 2 of them stretches whose nodes are not shown (limit 5)',
   )
   expect(loadGraph(twinTables(), 'cut', { maxNodes: 6 }).nodes).toHaveLength(6)
 })
@@ -694,7 +712,7 @@ test('a lifted walk keeps a run not loaded in its own colour, counts its bp apar
   expect(a!.colors.get('0+')).not.toBe(NOT_LOADED_COLOR)
   expect(a).toMatchObject({ steps: 2, bp: 2500, unloadedBp: 500 })
   expect(c).toMatchObject({ steps: 3, bp: 2500, unloadedBp: 0 })
-  expect(walkKey(a!).gaps).toBe(', 500 bp not loaded')
+  expect(walkKey(a!).gaps).toBe(', 500 bp · nodes not shown')
   expect(walkKey(c!).gaps).toBe('')
 })
 
@@ -725,11 +743,11 @@ test('a bubble with a run not loaded inside is called neither insertion nor dele
   const kinds = (tables: GraphTables) =>
     graphBubbles(loadGraph(tables, 'cut')).map(bubble => classifyBubble(bubble))
   expect(kinds(twinTables())).toEqual([
-    { kind: 'complex', label: '500 bp–1 kb, 4 routes, not loaded' },
+    { kind: 'complex', label: '500 bp–1 kb, 4 routes, nodes not shown' },
   ])
   const loaded = kinds({
     ...twinTables(),
     nodes: { ...twinTables().nodes, placeholders: new Uint8Array(6) },
   })
-  expect(loaded.map(c => c.label).join(' ')).not.toContain('not loaded')
+  expect(loaded.map(c => c.label).join(' ')).not.toContain('not shown')
 })

@@ -168,7 +168,7 @@ export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
 // a gap with no cause: graph sequence the cut did not keep
 export const OUTSIDE_TEXT = 'outside the extracted subgraph'
 
-export const NOT_LOADED_TEXT = 'not loaded'
+export const NOT_LOADED_TEXT = 'nodes not shown'
 
 export interface GapPart {
   bp: number

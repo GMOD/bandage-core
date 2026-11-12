@@ -1,5 +1,9 @@
+import { NOT_LOADED_TEXT } from './gfa/departures'
+import { formatBp } from './graphLabels'
+import { panSNHaplotype } from './pansn'
+
 import type { DeletionEdge } from './deletionEdges'
-import type { GraphEdge } from './types'
+import type { GraphEdge, GraphNode } from './types'
 
 // A span as a reader states one: 1-based and inclusive, the way a node's own
 // location reads, so a deletion and the nodes around it can be compared.
@@ -31,4 +35,13 @@ export function edgeHoverText(
     : {
         ends: `${nameOf(edge.from)}${edge.fromStrand ?? ''} → ${nameOf(edge.to)}${edge.toStrand ?? ''}`,
       }
+}
+
+// What a hovered placeholder says in place of a node's name, length and
+// depth: whose route it is part of and that its nodes are not shown
+export function placeholderHoverText(node: GraphNode) {
+  const walk = node.stable?.refName ?? node.name
+  return node.placeholder
+    ? `${formatBp(node.length)} of ${panSNHaplotype(walk) ?? walk}'s route, ${NOT_LOADED_TEXT}`
+    : undefined
 }

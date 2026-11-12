@@ -1,5 +1,6 @@
 import { curvePaths, flattenPath, nodeOutlinePath } from '@jbrowse/tubemap-core'
 
+import { NOT_LOADED_TEXT } from '../gfa/departures'
 import { formatBp } from '../graphLabels'
 import { referenceWalkName } from '../layout/walkRows'
 import { pathOrigin } from '../pathAnchoring'
@@ -251,7 +252,7 @@ export function tubeMapPicture({
 }
 
 function trace(
-  ctx: CanvasRenderingContext2D,
+  ctx: TubeMapContext,
   commands: Command[],
   x: (tx: number) => number,
   y: (ty: number) => number,
@@ -309,7 +310,7 @@ export interface TubeMapFrame extends TubeMapTransform {
 // each. Which of two crossing tubes covers the other is then the order of
 // their colours, except that the reference goes over every other tube.
 function fillByColor<T extends Filled>(
-  ctx: CanvasRenderingContext2D,
+  ctx: TubeMapContext,
   items: T[],
   visible: (item: T) => boolean,
   colorOf: (item: T) => string,
@@ -341,6 +342,31 @@ function outlineAlpha(screenWidth: number) {
 }
 
 // A tinted box lets the tubes through it show, as the clear box's wash does
+// What the tube map draws with: a 2D canvas, or anything that takes the same
+// calls
+export type TubeMapContext = Pick<
+  CanvasRenderingContext2D,
+  | 'beginPath'
+  | 'bezierCurveTo'
+  | 'closePath'
+  | 'fill'
+  | 'fillStyle'
+  | 'fillText'
+  | 'font'
+  | 'globalAlpha'
+  | 'lineTo'
+  | 'lineWidth'
+  | 'moveTo'
+  | 'quadraticCurveTo'
+  | 'rect'
+  | 'setLineDash'
+  | 'stroke'
+  | 'strokeStyle'
+  | 'strokeText'
+  | 'textAlign'
+  | 'textBaseline'
+> & { measureText: (text: string) => { width: number } }
+
 const NODE_TINT_ALPHA = 0.55
 const NOT_SHOWN_DASH = [5, 4]
 const CAPTION_PAD_PX = 8
@@ -352,13 +378,13 @@ export function notShownCaption(
   widthPx: number,
   textPx: (text: string) => number,
 ) {
-  return [`${formatBp(bp)} · nodes not shown`, 'nodes not shown'].find(
+  return [`${formatBp(bp)} · ${NOT_LOADED_TEXT}`, NOT_LOADED_TEXT].find(
     text => textPx(text) + CAPTION_PAD_PX <= widthPx,
   )
 }
 
 function drawNotShown(
-  ctx: CanvasRenderingContext2D,
+  ctx: TubeMapContext,
   picture: TubeMapPicture,
   { x, y, width, darkMode }: TubeMapFrame,
 ) {
@@ -389,7 +415,7 @@ function drawNotShown(
 }
 
 export function drawTubeMap(
-  ctx: CanvasRenderingContext2D,
+  ctx: TubeMapContext,
   picture: TubeMapPicture,
   frame: TubeMapFrame,
 ) {
@@ -454,7 +480,7 @@ function outlineWidth(frame: TubeMapFrame) {
 
 // The lit box alone, for a hover layer over a tube map drawn without it
 export function drawTubeMapHighlight(
-  ctx: CanvasRenderingContext2D,
+  ctx: TubeMapContext,
   picture: TubeMapPicture,
   frame: TubeMapFrame,
 ) {
@@ -491,7 +517,7 @@ export function mismatchOnScreen(
 }
 
 function drawMismatches(
-  ctx: CanvasRenderingContext2D,
+  ctx: TubeMapContext,
   marks: readonly TubeMapMismatch[],
   frame: TubeMapFrame,
 ) {

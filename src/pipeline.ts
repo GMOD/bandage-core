@@ -70,7 +70,7 @@ export function loadGraph(
     const unloaded = graph.nodes.filter(node => node.placeholder).length
     throw new Error(
       unloaded > 0
-        ? `Graph too large to draw: ${graph.nodes.length.toLocaleString()} nodes, ${unloaded.toLocaleString()} of them runs of steps not loaded (limit ${opts.maxNodes.toLocaleString()}). Zoom in to a smaller region, show fewer haplotypes, or raise maxGraphNodes on this view.`
+        ? `Graph too large to draw: ${graph.nodes.length.toLocaleString()} nodes, ${unloaded.toLocaleString()} of them stretches whose nodes are not shown (limit ${opts.maxNodes.toLocaleString()}). Zoom in to a smaller region, show fewer haplotypes, or raise maxGraphNodes on this view.`
         : `Graph too large to draw: ${graph.nodes.length.toLocaleString()} nodes (limit ${opts.maxNodes.toLocaleString()}). Zoom in to a smaller region, or raise maxGraphNodes on this view.`,
     )
   }

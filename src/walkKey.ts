@@ -39,7 +39,7 @@ export function walkKey(
   const unstated = spanned - walk.bp - walk.missingBp - walk.ownBp
   const outside = walk.readBp ?? unstated
   const gaps = [
-    [walk.unloadedBp, NOT_LOADED_TEXT],
+    [walk.unloadedBp, `· ${NOT_LOADED_TEXT}`],
     [walk.missingBp, GAP_CAUSE_TEXT.missing],
     [walk.ownBp, GAP_CAUSE_TEXT.own],
     [

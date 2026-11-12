@@ -24,7 +24,7 @@ export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
 export { createForceLayoutCache } from './layout/forceCache'
 export { cutsWholeWalks, walkStripApplies } from './layout/walkStrip'
 export type { ForceLayoutCache } from './layout/forceCache'
-export { edgeHoverText, regionLabel } from './hoverText'
+export { edgeHoverText, placeholderHoverText, regionLabel } from './hoverText'
 export { layoutGeometryInputs } from './renderer/geometryInputs'
 export { FIGURE_DEFAULTS, figureSpecSettings } from './figureSettings'
 export type { FigureSettings } from './figureSettings'
@@ -93,7 +93,11 @@ export {
   tubeMapPicture,
   tubeMapTrackAt,
 } from './tubeMap/draw'
-export type { TubeMapFrame, TubeMapPicture } from './tubeMap/draw'
+export type {
+  TubeMapContext,
+  TubeMapFrame,
+  TubeMapPicture,
+} from './tubeMap/draw'
 export { tubeMapNodeColors } from './tubeMap/nodeColors'
 export { referenceKnots, warpX } from './tubeMap/warp'
 export { tubeMapFrame, tubeMapNodeAt } from './tubeMap/frame'
