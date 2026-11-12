@@ -9,6 +9,7 @@ import { serializeEl } from './el'
 import { figureSvg } from './figure'
 import { departureTable } from './gfa/departures'
 import { graphFromTables, graphTablesGFA } from './gfa/graphTables'
+import { writeRgfa } from './gfa/writeRgfa'
 import { ROW_HEIGHT_PX } from './layout/rowSpacing'
 import { sampleRowLayout } from './layout/sampleRowLayout'
 import {
@@ -433,6 +434,22 @@ test('GFA text of the tables tags a placeholder, and loading it keeps the flag',
   expect(gfa.match(/nl:i:1/g)).toHaveLength(2)
   expect(
     loadGraph(gfa, 'cut')
+      .nodes.filter(node => node.placeholder)
+      .map(node => node.name),
+  ).toEqual(['A#1#a:1000-1500', 'B#1#b:1000-1500'])
+})
+
+test('rGFA text of a graph tags a placeholder, and loading it keeps the flag', () => {
+  const tables = twinTables()
+  tables.nodes.refs[3] = 3
+  tables.nodes.refNames.push('C#1#c')
+  const rgfa = writeRgfa(loadGraph(tables, 'cut'))
+  expect(rgfa).toContain(
+    'S\tA#1#a:1000-1500\t*\tLN:i:500\tSN:Z:A#1#a\tSO:i:1000\tSR:i:1\tnl:i:1',
+  )
+  expect(rgfa.match(/nl:i:1/g)).toHaveLength(2)
+  expect(
+    loadGraph(rgfa, 'rgfa')
       .nodes.filter(node => node.placeholder)
       .map(node => node.name),
   ).toEqual(['A#1#a:1000-1500', 'B#1#b:1000-1500'])

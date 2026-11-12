@@ -1,3 +1,5 @@
+import { NOT_LOADED_TAG } from './graphTables'
+
 import type { Graph, GraphNode } from '../types'
 
 // A graph as rGFA text: each segment's length and stable coordinate as the
@@ -23,5 +25,6 @@ function segmentLine(node: GraphNode) {
     throw new Error(`segment ${node.name} has no stable coordinate to file`)
   }
   const samples = node.samples?.length ? `\tSM:Z:${node.samples.join(',')}` : ''
-  return `S\t${node.name}\t*\tLN:i:${node.length}\tSN:Z:${stable.refName}\tSO:i:${stable.start}\tSR:i:${stable.rank}${samples}`
+  const placeholder = node.placeholder ? `\t${NOT_LOADED_TAG}` : ''
+  return `S\t${node.name}\t*\tLN:i:${node.length}\tSN:Z:${stable.refName}\tSO:i:${stable.start}\tSR:i:${stable.rank}${samples}${placeholder}`
 }
