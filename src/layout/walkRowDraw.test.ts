@@ -352,7 +352,7 @@ test("a row takes the backbone's genes on its own contig, bare or PanSN", () => 
   ])
 })
 
-test('a readout goes inside its bar only where it fits there clear of the row name, else beside it', () => {
+test('a readout goes inside its bar only where it fits there clear of the row name, else beside it and the name', () => {
   const text = 'x'.repeat(50)
   expect(readoutPlacement(text, 100, 1000, 40)).toMatchObject({
     x: 106,
@@ -367,6 +367,10 @@ test('a readout goes inside its bar only where it fits there clear of the row na
     x: 306,
     anchor: 'start',
     halo: false,
+  })
+  expect(readoutPlacement(text, 20, 1000, 40)).toMatchObject({
+    x: 40,
+    anchor: 'start',
   })
   const svg = serializeEl(
     walkRowsTree(rows(), {

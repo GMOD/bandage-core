@@ -221,8 +221,8 @@ export function walkRowReadout(
 
 const READOUT_GAP_PX = 6
 
-// A readout right of its bar's end, or inside it where it would leave the
-// pane and fits right of `left`
+// A readout right of its bar's end and of `left`, or inside the bar where it
+// would leave the pane and fits right of `left`
 export function readoutPlacement(
   text: string,
   endX: number,
@@ -230,7 +230,7 @@ export function readoutPlacement(
   left = 0,
 ) {
   const textPx = text.length * LABEL_CHAR_PX
-  const beside = endX + READOUT_GAP_PX
+  const beside = Math.max(endX + READOUT_GAP_PX, left)
   const inside = endX - READOUT_GAP_PX
   return beside + textPx < width || inside - textPx < left
     ? { x: beside, anchor: 'start' as const, halo: false }
