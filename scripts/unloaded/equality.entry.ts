@@ -204,9 +204,7 @@ function attachedPlaceholders({ nodes, departures, gaps }: GraphTables) {
 
 function placeholderIds(tables: GraphTables) {
   const ids = tableNodeIds(tables)
-  return new Set(
-    ids.filter((_, i) => tables.nodes.placeholders?.[i] === 1),
-  )
+  return new Set(ids.filter((_, i) => tables.nodes.placeholders?.[i] === 1))
 }
 
 const rimmed = (rect: El) =>
@@ -364,7 +362,10 @@ async function compare(
   )
   counts.cuts++
   if (loadedPlaceholders.size > 0) {
-    differ(where, `the loaded cut holds ${loadedPlaceholders.size} placeholders`)
+    differ(
+      where,
+      `the loaded cut holds ${loadedPlaceholders.size} placeholders`,
+    )
   }
   if (!unloaded || !loaded) {
     if (unloaded || loaded) {

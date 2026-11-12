@@ -210,10 +210,10 @@ export function walkRowLinks(
  * Blocks of nodes off the reference's path that two or more rows walk: the
  * nodes one set of rows walks, joined where a row walks them within `join` bp
  * of each other. A run of steps not loaded is no node, in no block and not
- * counted off the path. Blocks rank by bp over every visit, so a block has one rank
- * in every row, set by neither the rows' order nor the build order that
- * created its nodes. A block under 0.3% of the bp off the path is left out.
- * Returns each row's stretches of each block.
+ * counted off the path. Blocks rank by bp over every visit, so a block has
+ * one rank in every row, set by neither the rows' order nor the build order
+ * that created its nodes. A block under 0.3% of the bp off the path is left
+ * out. Returns each row's stretches of each block.
  */
 export function walkRowBlocks(
   rows: WalkRow[],

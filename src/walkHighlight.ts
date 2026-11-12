@@ -27,8 +27,6 @@ export interface WalkHighlight {
   passes: Map<string, number>
   mostPasses: number
   route: readonly (readonly string[])[]
-  // the steps the cut loaded, and the bp of its runs of steps not loaded,
-  // which `bp` counts
   steps: number
   bp: number
   unloadedBp: number

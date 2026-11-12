@@ -36,8 +36,6 @@ export interface MinigraphBubble {
   // the bubble the whole drawing is, listed so its name still shows; opening
   // it would draw the same graph
   covering?: true
-  // one of its segments is a run of steps a walk-file cut did not load, so its
-  // routes' lengths are no insertion, deletion or substitution
   unloaded?: true
 }
 

@@ -42,7 +42,8 @@ const GAP_CAUSES = [
   'unread',
 ] as const
 const CAUSE_SHIFT = 3
-const RUN_UNLOADED = 64
+const RUN_UNLOADED =
+  1 << (CAUSE_SHIFT + Math.ceil(Math.log2(GAP_CAUSES.length)))
 
 const causeFlags = (cause: GapCause | undefined) =>
   GAP_CAUSES.indexOf(cause) << CAUSE_SHIFT
@@ -60,7 +61,6 @@ export interface WalkVisitColumns {
   start: Float64Array
   bp: Float64Array
   onReference: Uint8Array
-  // 1 for a run of steps the cut did not load, which is no node
   unloaded: Uint8Array
   names: ArrayLike<string>
 }

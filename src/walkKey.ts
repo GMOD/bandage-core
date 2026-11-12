@@ -17,9 +17,9 @@ export function rangeText(
 
 // A lifted walk's key in words, for a legend row or a facet panel's title: its
 // length against the reference, the bp of its steps not loaded, what its
-// pieces leave out, and the bp it runs reversed, and for a lane that shades, the stretch its scale runs over as
-// `contig:start-end (length)`, to write under a short bar of that scale. A
-// flat lane's stretch is `hover`.
+// pieces leave out, and the bp it runs reversed, and for a lane that shades,
+// the stretch its scale runs over as `contig:start-end (length)`, to write
+// under a short bar of that scale. A flat lane's stretch is `hover`.
 export function walkKey(
   walk: LiftedWalk,
   reference?: { name?: string; start: number; end: number },

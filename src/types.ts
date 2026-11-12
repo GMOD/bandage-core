@@ -27,8 +27,6 @@ export interface GraphNode {
   // reference (gfa-to-tabix --max-component), which an indexed cut reaches
   // only through the links into it: graph-walks tags it `mv:i:1`
   moved?: true
-  // a run of a walk's steps a walk-file cut did not load: its bp, on no node
-  // the cut names, so it is no other placeholder's node or sequence
   placeholder?: true
 }
 

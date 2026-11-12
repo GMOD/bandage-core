@@ -47,8 +47,6 @@ export interface WalkRun {
   near?: number
   // for a `mixed` gap, its bp not in the graph
   missingBp?: number
-  // steps the cut did not load: their bp, and nothing of which nodes they are
-  // or whether the reference walks them
   unloaded?: true
 }
 
@@ -81,8 +79,6 @@ export interface WalkVisit {
   start: number
   bp: number
   onReference: boolean
-  // a run of steps the cut did not load, which is no node and no other
-  // visit's
   unloaded?: true
 }
 
@@ -96,7 +92,6 @@ export interface WalkRow {
   // the haplotype's own bp between its departures' ends, which it draws no
   // bar of
   offReferenceBp: number
-  // bp of its runs the cut did not load, counted in `bp`
   unloadedBp?: number
   // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
   gapBp: number

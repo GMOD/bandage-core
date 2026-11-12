@@ -40,7 +40,6 @@ export const OFF_REFERENCE = '#8e3fbf'
 export const OUTSIDE_CUT = '#bdbdbd'
 export const MISSING_INK = '#8a8a8a'
 export const OWN_GAP = '#e2e2e2'
-// a run not loaded is a hollow bar: this rim round this fill
 export const NOT_LOADED = NOT_LOADED_CSS
 export const NOT_LOADED_FILL = NOT_LOADED_FILL_CSS
 export const GENE_INK = '#1c1c22'
@@ -508,16 +507,21 @@ export function walkRowsKey(
       label: `off ${bars.reference.label}'s path`,
     },
   ]
-  const runs = [bars.reference, ...bars.rows].flatMap(row => row.runs)
-  if (runs.some(run => run.unloaded)) {
+  const rows = [bars.reference, ...bars.rows]
+  if (rows.some(row => row.runs.some(run => run.unloaded))) {
     entries.push({
       swatch: { kind: 'bar', fill: NOT_LOADED_FILL, rim: NOT_LOADED },
       label: NOT_LOADED_TEXT,
     })
   }
-  const labels = new Set(
-    runs.filter(run => run.gap).map(run => gapStyle(run.cause).label),
-  )
+  const labels = new Set<string>()
+  for (const row of rows) {
+    for (const run of row.runs) {
+      if (run.gap) {
+        labels.add(gapStyle(run.cause).label)
+      }
+    }
+  }
   for (const cause of [
     undefined,
     'missing',
@@ -531,7 +535,7 @@ export function walkRowsKey(
       entries.push({ swatch: { kind: 'gap', fill, px }, label })
     }
   }
-  if ([bars.reference, ...bars.rows].some(row => row.placementChoice)) {
+  if (rows.some(row => row.placementChoice)) {
     entries.push({
       swatch: { kind: 'gene' },
       label: `${PLACEMENT_CHOICE_TEXT}: the writer chose which pass of a node the reference passes more than once a step takes`,

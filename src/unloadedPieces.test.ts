@@ -9,6 +9,8 @@ import { serializeEl } from './el'
 import { figureSvg } from './figure'
 import { departureTable } from './gfa/departures'
 import { graphFromTables, graphTablesGFA } from './gfa/graphTables'
+import { ROW_HEIGHT_PX } from './layout/rowSpacing'
+import { sampleRowLayout } from './layout/sampleRowLayout'
 import {
   NOT_LOADED,
   NOT_LOADED_FILL,
@@ -22,9 +24,7 @@ import {
 import { walkRowLayoutOf } from './layout/walkRowLayout'
 import { walkRowBlocks, walkRowLinks } from './layout/walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
-import { ROW_HEIGHT_PX } from './layout/rowSpacing'
 import { walkRows } from './layout/walkRows'
-import { sampleRowLayout } from './layout/sampleRowLayout'
 import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import {

@@ -189,7 +189,6 @@ function deletionKeySvg(x: number, y: number, note: string, color: string) {
   }
 }
 
-// a placeholder node's key: the hollow shape the drawing gives it
 function notLoadedKeySvg(x: number, y: number) {
   return {
     width: SWATCH_PX + 5 + NOT_LOADED_TEXT.length * LABEL_CHAR_PX,

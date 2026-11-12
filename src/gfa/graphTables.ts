@@ -44,8 +44,6 @@ export interface GraphTables {
     // how many times the reference's paths pass each node, 0 for a node
     // placed off the reference; absent from tables another source builds
     passes?: Int32Array
-    // 1 for a run of a walk's steps the cut did not load, which stands for no
-    // node of the graph; absent from tables another source builds
     placeholders?: Uint8Array
   }
   links: {
@@ -126,7 +124,6 @@ export interface DepartureTable {
   abridgedSteps?: Float64Array
 }
 
-// the S line tag of a placeholder, a run of steps the cut did not load
 export const NOT_LOADED_TAG = 'nl:i:1'
 
 // A P line states a walk's start only as a range on its name
