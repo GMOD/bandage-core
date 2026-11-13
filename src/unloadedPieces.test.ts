@@ -377,15 +377,16 @@ test('a run not loaded stays apart from the loaded steps off the reference besid
   }
 })
 
-// drawnedge.R.gfa at chr:6228-6233: H#1 walks the window twice, in two loaded
-// fragments, and the 600 bp of its own between them lie in an abridged piece,
-// which the cut attaches to the gap as one placeholder
+// drawnedge.R.gfa at chr:4900-6233: H#1 walks the window twice, in two loaded
+// fragments, and the 600 bp of its own between them lie in an abridged piece.
+// It rejoins at 4000, within the window's 1000 bp of context, so the cut
+// attaches them to the gap as one placeholder
 test("a placeholder among a gap's attached steps draws as a run not loaded", async () => {
-  const { row } = await cut('drawnedge', 'chr', 6228, 6233, { gaps: true })
+  const { row } = await cut('drawnedge', 'chr', 4900, 6233, { gaps: true })
   const h = row('H#1')
   expect(h.runs.filter(run => run.unloaded)).toEqual([
     {
-      start: 9000,
+      start: 11_000,
       bp: 600,
       onReference: false,
       referenceStart: undefined,
@@ -393,11 +394,27 @@ test("a placeholder among a gap's attached steps draws as a run not loaded", asy
     },
   ])
   expect(h).toMatchObject({ unloadedBp: 600, abridgedSteps: 9 })
-  const loaded = await cut('drawnedge', 'chr', 6228, 6233, {
+  const loaded = await cut('drawnedge', 'chr', 4900, 6233, {
     gaps: true,
     loaded: true,
   })
   expect(loadedShape(h)).toEqual(loadedShape(loaded.row('H#1')))
+})
+
+// The same walk at chr:6228-6233, where H#1 neither leaves nor rejoins on the
+// window or its context: the cut attaches no step, and the 600 bp are a gap
+test('own steps a cut does not attach draw as a gap, loaded or not', async () => {
+  for (const loaded of [false, true]) {
+    const { row } = await cut('drawnedge', 'chr', 6228, 6233, {
+      gaps: true,
+      loaded,
+    })
+    const h = row('H#1')
+    expect(h.runs.some(run => run.unloaded)).toBe(false)
+    expect(h.runs.filter(run => run.cause === 'own')).toEqual([
+      { start: 9000, bp: 600, onReference: false, gap: true, cause: 'own' },
+    ])
+  }
 })
 
 // GRCh38 over three 1 kb nodes. A and B each leave it after the first for
