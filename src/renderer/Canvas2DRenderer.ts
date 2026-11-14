@@ -116,10 +116,7 @@ export class Canvas2DRenderer implements Renderer {
     }
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    const { halos, edges, nodes, arrows } = this.paintedGroups(batch)
-    for (const { color, items } of halos) {
-      this.strokeNodes(items, color, t)
-    }
+    const { edges, nodes, arrows } = this.paintedGroups(batch)
     for (const { color, items } of edges) {
       this.strokeCurves(items, color, t)
     }
@@ -142,11 +139,6 @@ export class Canvas2DRenderer implements Renderer {
     const arrowRun = this.edgeRun(batch.arrowRuns)
     const lifted = this.liftedStrokes(batch)
     return (this.painted = {
-      halos: groupByPaint(batch.halos ?? [], h => ({
-        color: h.color,
-        weight: h.thickness,
-        last: false,
-      })),
       edges: groupByPaint(batch.edgeCurves, (e, i) => ({
         color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
         weight: e.thickness,
@@ -342,7 +334,6 @@ interface Paint {
 }
 
 interface PaintedGroups {
-  halos: Group<NodeStroke>[]
   edges: Group<EdgeCurveBatch>[]
   nodes: Group<NodeStroke>[]
   arrows: Group<Arrowhead>[]

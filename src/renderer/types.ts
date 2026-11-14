@@ -58,9 +58,6 @@ export interface Run {
 }
 
 export interface RenderBatch {
-  // wide translucent strokes along runs the drawing marks, drawn under all
-  // else and never hit: an inversion's halo
-  halos?: NodeStroke[]
   nodeStrokes: NodeStroke[]
   // node id -> its run of `nodeStrokes`
   nodeStrokeRuns: Map<string, Run>

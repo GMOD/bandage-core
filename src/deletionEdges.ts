@@ -395,8 +395,6 @@ export interface Inversion {
   across: string[]
   // the links that read them so
   edgeIndexes: number[]
-  // the nodes those links join, the run's own among them
-  joins: string[]
 }
 
 // Every run of the backbone a link reads backwards, once however many links
@@ -404,7 +402,7 @@ export interface Inversion {
 export function inversions(cut: Graph) {
   const { links, backbone } = backboneLinks(cut)
   const byRun = new Map<string, Inversion>()
-  for (const { edgeIndex, edge, refName, inverted } of links) {
+  for (const { edgeIndex, refName, inverted } of links) {
     const across = inverted
       ? bypassedNodes(backbone.get(refName), inverted.start, inverted.end)
       : []
@@ -413,9 +411,6 @@ export function inversions(cut: Graph) {
     if (inverted && across.length > 0) {
       if (run) {
         run.edgeIndexes.push(edgeIndex)
-        run.joins.push(
-          ...[edge.from, edge.to].filter(id => !run.joins.includes(id)),
-        )
       } else {
         byRun.set(key, {
           refName,
@@ -423,7 +418,6 @@ export function inversions(cut: Graph) {
           bp: inverted.end - inverted.start,
           across,
           edgeIndexes: [edgeIndex],
-          joins: edge.from === edge.to ? [edge.from] : [edge.from, edge.to],
         })
       }
     }
@@ -474,9 +468,6 @@ export interface DeletionDrawing {
   // the backbone each deletion bypasses by edge index, as the geometry and the
   // hit index take it
   bypassed: Map<number, string[]>
-  // the runs of backbone some link reads backwards; none where absent, as in
-  // a drawing a host built before there were any
-  inversions?: Inversion[]
   hidden: ReadonlySet<number>
 }
 
@@ -517,7 +508,6 @@ export function deletionDrawing(
     drawing = {
       shown: deletions.filter(d => !hidden.has(d.edgeIndex)),
       bypassed: new Map(deletions.map(d => [d.edgeIndex, d.bypassed])),
-      inversions: inversions(graph),
       hidden,
     }
     byShow.set(show, drawing)

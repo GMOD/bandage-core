@@ -1,7 +1,5 @@
 import { isBackbone } from '../anchoredNodes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
-import { HALO_FACTOR } from '../halo'
-import { HALO_OPACITY, INVERSION_COLOR } from '../inversionHalos'
 import { nodeWidthPx, walkLaneWidthPx, widthNorm } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
@@ -27,7 +25,7 @@ import {
 } from '../util/geometry'
 import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
-import { abgrToCssRgba, fadeAbgr, hexToAbgr, packAbgr } from './colorBits'
+import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import {
   THREAD_PITCH_PX,
   THREAD_PX,
@@ -41,7 +39,6 @@ import {
 
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
-import type { InversionHalo } from '../inversionHalos'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
@@ -77,7 +74,6 @@ const EDGE_PATH_FALLBACK_COLOR = packAbgr(136, 136, 136, 217) // ~0.533, alpha 0
 // position and only that.
 const EDGE_DELETION_COLOR = packAbgr(24, 24, 28, 240)
 const DELETION_THICKNESS_FACTOR = 2.2
-const INVERSION_HALO_COLOR = hexToAbgr(INVERSION_COLOR, HALO_OPACITY)
 // The builder draws a lifted walk's links in its lanes' colours and fades the
 // rest, to an alpha that keeps every colour scheme's hues, only dimmer, on any
 // background.
@@ -423,8 +419,6 @@ export interface BuildOptions {
   // LayoutResult.stranded
   stranded?: boolean
   hiddenEdges?: ReadonlySet<number>
-  // drawn under the ink (drawnInversionHalos)
-  inversionHalos?: InversionHalo[]
   // Bumped when a drag moves the positions in place, which their identity
   // cannot report. Only the shared curve cache reads it; see baseEdgeCurves.
   version?: number
@@ -891,7 +885,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     deletionRoutes,
     stranded,
     hiddenEdges,
-    inversionHalos = [],
     version = 0,
   } = options
   const widthScale = widthNorm(graph, nodeWidth)
@@ -1125,17 +1118,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   // than its head.
   const showArrows = scale > (linearLayout ? 1 : MIN_ARROW_SCALE)
 
-  // a flat inversion's links a lifted walk takes, which draw in its colours
-  // as a deletion's lane does, though the halo stands for them otherwise
-  const liftedUnderHalo = new Set(
-    highlight
-      ? inversionHalos
-          .filter(h => h.flat)
-          .flatMap(h => h.inversion.edgeIndexes)
-          .filter(ei => highlight.edgeIndexes.has(ei))
-      : [],
-  )
-
   for (let ei = 0; ei < graph.edges.length; ei++) {
     const edge = graph.edges[ei]!
     const fromSegments = nodePositions[edge.from]
@@ -1145,7 +1127,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       !fromSegments?.length ||
       !toSegments?.length ||
       !baseCurves ||
-      (hiddenEdges?.has(ei) && !liftedUnderHalo.has(ei))
+      hiddenEdges?.has(ei)
     ) {
       continue
     }
@@ -1514,16 +1496,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
-  const halos = inversionHalos.map(halo => ({
-    points: halo.points,
-    thickness: (contigThickness * HALO_FACTOR) / 2,
-    color: highlight
-      ? fadeAbgr(INVERSION_HALO_COLOR, FADED_ALPHA)
-      : INVERSION_HALO_COLOR,
-  }))
-
   return {
-    halos,
     nodeStrokes,
     nodeStrokeRuns,
     arrows,

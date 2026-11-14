@@ -10,17 +10,7 @@ import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
-import {
-  HALO_OPACITY,
-  INVERSION_COLOR,
-  INVERSION_LABEL,
-  inversionKey,
-} from './inversionHalos'
-import {
-  geneLabelCandidates,
-  geneLeader,
-  inversionLabelCandidates,
-} from './labelLayout'
+import { geneLabelCandidates, geneLeader } from './labelLayout'
 import {
   walkRowsKey,
   walkRowsKeyTree,
@@ -193,16 +183,6 @@ function deletionKeySvg(x: number, y: number, note: string, color: string) {
   }
 }
 
-// the halo's key, a short stretch of it round a node
-function inversionKeySvg(x: number, y: number, note: string) {
-  const line = `x1="4" x2="${SWATCH_PX - 4}" y1="9" y2="9" stroke-linecap="round"`
-  return {
-    width: SWATCH_PX + 5 + note.length * LABEL_CHAR_PX,
-    height: KEY_LINE_PX,
-    markup: `<g transform="translate(${x} ${y})" ${FONT}><line ${line} stroke="${INVERSION_COLOR}" stroke-opacity="${HALO_OPACITY}" stroke-width="10"/><line ${line} stroke="#888" stroke-width="3"/><text x="${SWATCH_PX + 5}" y="13">${escapeAttr(note)}</text></g>`,
-  }
-}
-
 function passesKeySvg(x: number, y: number, note: string) {
   const lines = [6, 9, 12]
     .map(
@@ -274,28 +254,8 @@ function screenPath(
   )
 }
 
-interface ChipLook {
-  ink: string
-  edge: string
-  italic: boolean
-}
-
-const GENE_CHIP: ChipLook = { ink: GENE_INK, edge: EXON_COLOR, italic: true }
-const INVERSION_CHIP: ChipLook = {
-  ink: INVERSION_COLOR,
-  edge: INVERSION_COLOR,
-  italic: false,
-}
-
-function chip(
-  x: number,
-  y: number,
-  w: number,
-  name: string,
-  note: string,
-  look: ChipLook,
-) {
-  return `<rect x="${x - w / 2}" y="${y - LABEL_PX - LABEL_PAD + 2}" width="${w}" height="${LABEL_PX + LABEL_PAD * 2 - 2}" rx="3" fill="#fff" fill-opacity="0.85" stroke="${look.edge}"/><text x="${x}" y="${y}" font-family="Helvetica, Arial, sans-serif" font-size="${LABEL_PX}" fill="${look.ink}" text-anchor="middle"><tspan${look.italic ? ' font-style="italic"' : ''} font-weight="600">${escapeAttr(name)}</tspan>${note ? escapeAttr(note) : ''}</text>`
+function chip(x: number, y: number, w: number, name: string, note: string) {
+  return `<rect x="${x - w / 2}" y="${y - LABEL_PX - LABEL_PAD + 2}" width="${w}" height="${LABEL_PX + LABEL_PAD * 2 - 2}" rx="3" fill="#fff" fill-opacity="0.85" stroke="${EXON_COLOR}"/><text x="${x}" y="${y}" font-family="Helvetica, Arial, sans-serif" font-size="${LABEL_PX}" fill="${GENE_INK}" text-anchor="middle"><tspan font-style="italic" font-weight="600">${escapeAttr(name)}</tspan>${note ? escapeAttr(note) : ''}</text>`
 }
 
 export function figureSvg(
@@ -318,7 +278,6 @@ export function figureSvg(
     referenceName,
     keyText,
     drawnDeletions,
-    inversions,
     contigThickness,
     nodeWidth,
     geometry,
@@ -361,23 +320,6 @@ export function figureSvg(
       y: p.y * t.scaleY + t.translateY,
     })
     const frame = { width: w, height: h }
-    const take = occupancy(frame)
-    for (const { x, y, w: cw, text } of placeLabels(
-      inversionLabelCandidates(inversions, screen, contigThickness),
-      frame,
-      take,
-    )) {
-      out.push(
-        chip(
-          x,
-          y,
-          cw,
-          INVERSION_LABEL,
-          text.slice(INVERSION_LABEL.length),
-          INVERSION_CHIP,
-        ),
-      )
-    }
     for (const { item: pin, x, y, w: cw, text } of placeLabels(
       geneLabelCandidates(
         pins,
@@ -386,19 +328,12 @@ export function figureSvg(
         nodesUnderBox(layout.nodePositions, t),
       ),
       frame,
-      take,
+      occupancy(frame),
     )) {
       const { y1, y2 } = geneLeader({ y }, screen(pin.at).y, contigThickness)
       out.push(
         `<line x1="${x}" x2="${x}" y1="${y1}" y2="${y2}" stroke="${GENE_INK}" stroke-width="0.8" stroke-opacity="0.6"/>`,
-        chip(
-          x,
-          y,
-          cw,
-          pin.gene.name,
-          text.slice(pin.gene.name.length),
-          GENE_CHIP,
-        ),
+        chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
       )
     }
     if (rows) {
@@ -571,9 +506,6 @@ export function figureSvg(
     }
     if (dashedDeletions(drawnDeletions.shown, lift).length > 0) {
       keys.push(deletionKeyAt)
-    }
-    if (inversions.length > 0) {
-      keys.push((x, y) => inversionKeySvg(x, y, inversionKey(referenceName)))
     }
     if (pins.some(pin => pin.exonsByNode.length > 0)) {
       keys.push((x, y) => exonKeySvg(x, y))

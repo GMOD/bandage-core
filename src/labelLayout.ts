@@ -1,6 +1,5 @@
 import { graphLabels, rowLabelBox } from './graphLabels'
 import { HALO_FACTOR } from './halo'
-import { INVERSION_LABEL } from './inversionHalos'
 import { legendBox } from './legendCorner'
 import {
   LABEL_CHAR_PX,
@@ -15,7 +14,6 @@ import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { DeletionEdge } from './deletionEdges'
 import type { GenePin } from './genes/genePins'
 import type { GraphLabel } from './graphLabels'
-import type { InversionHalo } from './inversionHalos'
 import type { DeletionRoutes } from './layout/deletionRoutes'
 import type { LegendCorner } from './legendCorner'
 import type { Box, PlacedLabel } from './overlayLabels'
@@ -47,8 +45,6 @@ export interface LabelLayoutSource {
   referenceStripZonePx?: number
   drawnRowLabels: { label: string; y: number }[]
   bubbleHalos: BubbleHalo[]
-  // drawnInversionHalos, named over their halos as bubbles are
-  inversionHalos?: InversionHalo[]
   genePins: GenePin[]
   poppedFrom?: { label: string }
   nodePositions?: Record<string, NodeSegment[]>
@@ -73,7 +69,6 @@ export interface BubbleTick {
 
 export interface LabelLayout {
   bubbles: PlacedLabel<BubbleHalo>[]
-  inversions: PlacedLabel<InversionHalo>[]
   ticks: BubbleTick[]
   genes: PlacedLabel<GenePin>[]
   sizes: GraphLabel[]
@@ -143,34 +138,12 @@ export function geneLeader(
     : { y1: label.y + LABEL_PAD, y2: pinY - contigThickness / 2 }
 }
 
-// a name stands this far over its halo
-const HALO_LABEL_GAP_PX = 6
-
-// Each inversion's `INV 37.6 kb` over its halo, the longest first
-export function inversionLabelCandidates(
-  halos: InversionHalo[],
-  screen: (p: { x: number; y: number }) => { x: number; y: number },
-  contigThickness: number,
-) {
-  const halo = contigThickness * HALO_FACTOR
-  return byExtent(halos, h => h.inversion.bp).map(h => {
-    const { x, y } = screen(h.labelAt)
-    return {
-      item: h,
-      x,
-      y: y - halo / 2 - HALO_LABEL_GAP_PX,
-      text: `${INVERSION_LABEL} ${h.note}`,
-      stack: BUBBLE_STACK,
-    }
-  })
-}
-
 function byExtent<T>(items: T[], extent: (item: T) => number) {
   return [...items].sort((a, b) => extent(b) - extent(a))
 }
 
-// The order is what survives a crowd: the bubble's name, then an inversion's,
-// then the gene's, then what a deletion skips, then who takes each route, and a node's length last.
+// The order is what survives a crowd: the bubble's name, then the gene's, then
+// what a deletion skips, then who takes each route, and a node's length last.
 export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   const { paneWidth: width, canvasHeight: height, translateX, translateY } = m
   const { scaleX, scaleY } = m.axisScale
@@ -234,11 +207,6 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     frame,
     take,
   )
-  const inversions = placeLabels(
-    inversionLabelCandidates(m.inversionHalos ?? [], screen, m.contigThickness),
-    frame,
-    take,
-  )
   const ticks = m.bubbleHalos
     .filter(h => h.tick)
     .map(h => ({ item: h, ...above(h, 2) }))
@@ -278,7 +246,6 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
       : []
   return {
     bubbles,
-    inversions,
     ticks,
     genes,
     sizes,

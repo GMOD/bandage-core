@@ -25,11 +25,7 @@ export { createForceLayoutCache } from './layout/forceCache'
 export { cutsWholeWalks, walkStripApplies } from './layout/walkStrip'
 export type { ForceLayoutCache } from './layout/forceCache'
 export { edgeHoverText, regionLabel } from './hoverText'
-export {
-  drawnInversionHalos,
-  hiddenLinks,
-  layoutGeometryInputs,
-} from './renderer/geometryInputs'
+export { layoutGeometryInputs } from './renderer/geometryInputs'
 export { FIGURE_DEFAULTS, figureSpecSettings } from './figureSettings'
 export type { FigureSettings } from './figureSettings'
 
@@ -122,20 +118,8 @@ export type { Connector } from './tubeMap/connectors'
 export { bundleRoutes } from './tubeMap/bundle'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
-export {
-  deletionDrawing,
-  deletionEdges,
-  deletionKey,
-  inversions,
-} from './deletionEdges'
-export type { DeletionDrawing, DeletionEdge, Inversion } from './deletionEdges'
-export {
-  INVERSION_COLOR,
-  INVERSION_LABEL,
-  inversionHalos,
-  inversionKey,
-} from './inversionHalos'
-export type { InversionHalo } from './inversionHalos'
+export { deletionDrawing, deletionEdges, deletionKey } from './deletionEdges'
+export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
@@ -290,7 +274,6 @@ export {
   LEGEND_INSET_PX,
   geneCoverageNote,
   geneLeader,
-  inversionLabelCandidates,
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
