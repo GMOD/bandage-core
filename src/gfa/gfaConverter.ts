@@ -1,6 +1,7 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
+import { linkKey } from './linkKey'
 import { REVERSED, orientSegments, respelled } from './segmentOrientation'
 
 import type { GFAGraph, GFANode, GFAPath, GFAWalk } from '../gfa-core/index'
@@ -163,7 +164,17 @@ function makeNode(
   }
 }
 
-export function convertGFAToGraph(gfaGraph: GFAGraph, name = 'Imported GFA') {
+export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
+  const linked = new Set<string>()
+  const gfaGraph = {
+    ...stated,
+    links: stated.links.filter(link => {
+      const key = linkKey(link.source, link.strand1, link.target, link.strand2)
+      const first = !linked.has(key)
+      linked.add(key)
+      return first
+    }),
+  }
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
 

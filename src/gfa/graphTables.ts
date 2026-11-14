@@ -2,6 +2,7 @@ import { REFERENCE_RANK } from '../anchoredNodes'
 import { panSNFields, panSNSample } from '../pansn'
 import { PathVisits } from '../pathVisits'
 import { stretchSegments } from './departures'
+import { linkKey } from './linkKey'
 import {
   REVERSED,
   orientSegments,
@@ -213,6 +214,33 @@ function tableOrientation(
   return orientSegments(n.names, backbone, l, reversals)
 }
 
+// The links with each one's first statement only, either way round, as
+// convertGFAToGraph keeps them (linkKey.ts)
+function distinctLinks(l: GraphTables['links']) {
+  const linked = new Set<string>()
+  const kept: number[] = []
+  for (let i = 0; i < l.from.length; i++) {
+    const strands = l.strands[i]!
+    const key = linkKey(
+      `${l.from[i]}`,
+      strands & 1 ? '-' : '+',
+      `${l.to[i]}`,
+      strands & 2 ? '-' : '+',
+    )
+    if (!linked.has(key)) {
+      linked.add(key)
+      kept.push(i)
+    }
+  }
+  return kept.length === l.from.length
+    ? l
+    : {
+        from: Int32Array.from(kept, i => l.from[i]!),
+        to: Int32Array.from(kept, i => l.to[i]!),
+        strands: Uint8Array.from(kept, i => l.strands[i]!),
+      }
+}
+
 const nodeIdsOf = (names: string[], orient: Uint8Array) =>
   names.map((segment, i) => `${segment}${orient[i] === REVERSED ? '-' : '+'}`)
 
@@ -220,7 +248,10 @@ const nodeIdsOf = (names: string[], orient: Uint8Array) =>
  * Each segment's Graph node id: its name and its one drawn orientation.
  */
 export function tableNodeIds(tables: Omit<GraphTables, 'departures'>) {
-  return nodeIdsOf(tables.nodes.names, tableOrientation(tables))
+  return nodeIdsOf(
+    tables.nodes.names,
+    tableOrientation({ ...tables, links: distinctLinks(tables.links) }),
+  )
 }
 
 /**
@@ -231,9 +262,10 @@ export function tableNodeIds(tables: Omit<GraphTables, 'departures'>) {
  * `departures` and each walk's trimmed bp.
  */
 export function graphFromTables(
-  { nodes: n, links: l, walks: w, departures, gaps }: GraphTables,
+  { nodes: n, links, walks: w, departures, gaps }: GraphTables,
   name = 'Imported GFA',
 ): Graph {
+  const l = distinctLinks(links)
   const count = n.names.length
   const declared = n.lengths.length
   const drawnWalks: number[] = []

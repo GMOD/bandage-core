@@ -81,6 +81,26 @@ test('a backbone segment a link first reads reversed is still drawn forward', ()
   ])
 })
 
+test('a link stated twice, either way round, is one edge, its first statement', () => {
+  const text = gfa(
+    'S\t1\tA',
+    'S\t2\tC',
+    'S\t3\tG',
+    'L\t1\t+\t2\t+\t0M',
+    'L\t2\t-\t1\t-\t0M',
+    'L\t1\t+\t2\t+\t*',
+    'L\t2\t+\t3\t-\t0M',
+    'L\t3\t+\t2\t-\t0M',
+    'L\t1\t+\t2\t-\t0M',
+  )
+  expectSameGraph(text)
+  expect(
+    graphFromTables(gfaTables(text)!).edges.map(
+      e => `${e.from}${e.fromStrand}${e.to}${e.toStrand}`,
+    ),
+  ).toEqual(['1++2++', '2++3--', '1++2+-'])
+})
+
 test('a GFA the tables cannot hold converts as text', () => {
   const base = ['S\t1\tA', 'S\t2\tC', 'L\t1\t+\t2\t+\t0M']
   for (const extra of [
