@@ -1,3 +1,72 @@
+## [14.0.0](https://github.com/GMOD/bandage-core/compare/v13.3.1...v14.0.0) (2026-11-14)
+
+Reads walk format 8 through @jbrowse/graph-walks 7 and refuses format 7 files:
+graph-walks 7 reads format 8 only, and bandage-core keeps no format 7 path or
+shim. Rebuild a format 7 walk file with gfa-to-tabix 5.
+
+### Breaking Changes
+
+- `GraphTables` is graph-walks 7's: `walks.abridgedBp` and the gap table's
+  `abridged` are gone, and `nodes.placeholders` marks each stretch whose nodes
+  the cut didn't load
+- A path's `abridged: { steps, bp }` is now `abridgedSteps`, and a node standing
+  for a stretch the cut didn't load has `placeholder: true`
+- `walkRowReadoutAt` replaces `readoutPlacement`
+
+### Other Changes
+
+- Lint with oxlint, format with oxfmt and typecheck with tsrs ([c7047f3](https://github.com/GMOD/bandage-core/commit/c7047f3a9516f6f3841f6ee9620ef66efce88c38))
+- Format with oxfmt ([9250f2b](https://github.com/GMOD/bandage-core/commit/9250f2bc68df15c3a16361745b400b7f3786bea2))
+- Turn off consistent-return, as graph-walks and the layout packages do ([c216a72](https://github.com/GMOD/bandage-core/commit/c216a72354cc3d10707085b61be2ce27d7c06c45))
+- Orient segments and spell links by the reference, not by the file ([a19a53b](https://github.com/GMOD/bandage-core/commit/a19a53b6bf3d7cb9df5d0bfb42437a2ff57ca8a2))
+- Follow graph-walks 7's placeholders: runs not loaded in loaded geometry ([d734ba8](https://github.com/GMOD/bandage-core/commit/d734ba8aad36093d4b722efd8c807e20eb531115))
+- Unit tests for runs not loaded, on format 8 fixtures ([b1084cd](https://github.com/GMOD/bandage-core/commit/b1084cdb0a6e2d20df89ca0d47744be2ca2e92eb))
+- Hollow bars and nodes for runs not loaded, the equality and render scripts ([367e13c](https://github.com/GMOD/bandage-core/commit/367e13cfbb21179177a2b51c6aa0248d1c8df24a))
+- Render a named set of haplotypes; lint ([4bddcb9](https://github.com/GMOD/bandage-core/commit/4bddcb9326625cc5835bac6da8061981c18fe8b1))
+- A bubble holding a run not loaded reads as not loaded, no insertion or deletion ([996e222](https://github.com/GMOD/bandage-core/commit/996e2227e41689770fd64ee90a0ac2f642f47d39))
+- Runs not loaded stay out of the shared blocks' off-path bp ([dca7600](https://github.com/GMOD/bandage-core/commit/dca7600396613c5eb5e870f7332cc82952fa39b7))
+- RunPaint as one expression ([475b8f9](https://github.com/GMOD/bandage-core/commit/475b8f9f7ad17e783ea810bd6df26529435d735e))
+- A readout too long for either side of its bar stays beside it, clear of the row's name ([3d48954](https://github.com/GMOD/bandage-core/commit/3d48954568ca3c263e66bb46982b3de5b20403d5))
+- Equality check: hold each run not loaded to where it lies, its placeholders, its readout and its rim ([0e9ddea](https://github.com/GMOD/bandage-core/commit/0e9ddeac41ada85c31b4852f56ddb230511f5b36))
+- Sample rows: a placeholder is no sequence the reference lacks ([5d06d5f](https://github.com/GMOD/bandage-core/commit/5d06d5f94e1bd86e5e2ab46c164ab0a4f053a814))
+- Count a row's unloaded pieces that reach it only through a departure or a gap ([a6e6f92](https://github.com/GMOD/bandage-core/commit/a6e6f92bd7f957036a971ef5b54675a5ead217fb))
+- A placeholder's GFA tag protects only bandage-core's own round trip ([dab1285](https://github.com/GMOD/bandage-core/commit/dab12854f8696b63d3d8ff394536ca36e2c67773))
+- Derive the unloaded run flag, keep the key from flattening every run, drop new comments ([37f7afb](https://github.com/GMOD/bandage-core/commit/37f7afbed9f40924063eca9d0a039af86d00bb58))
+- A readout beside a bar that ends under the row's name starts past the name ([dbb690f](https://github.com/GMOD/bandage-core/commit/dbb690fb8f3f7417002bb1a715a7db4bb959977b))
+- Hold Departure equal to graph-walks' less its abridged pieces; format the README ([8039b38](https://github.com/GMOD/bandage-core/commit/8039b383058128d0b36a73dacc7f32c23ea3cb76))
+- Type the PanSN helpers' adapter by the slots they read, so a JBrowse adapter fits ([c2fb3ec](https://github.com/GMOD/bandage-core/commit/c2fb3ec723260de1310ca2242e1e67ed70e34b88))
+- WriteRgfa tags a placeholder's S line nl:i:1, as graphTablesGFA does ([1bf98ff](https://github.com/GMOD/bandage-core/commit/1bf98ff398cfb93f4e7f9caae8d812824cf38567))
+- Tube map: a placeholder merges with no loaded node and stays not loaded ([10fa8ed](https://github.com/GMOD/bandage-core/commit/10fa8ed300739746c3c3ef5a3b5b8f88be104bed))
+- Lift the tube map's neighbour helper out of mergesPlaceholder, as lint asks ([454c414](https://github.com/GMOD/bandage-core/commit/454c4144a57d6b3710693eef64bf76d2ca168982))
+- Walk rows draw a run not loaded exactly as a loaded run off the path ([f02489b](https://github.com/GMOD/bandage-core/commit/f02489ba4aa9f0a3d586737f4c0b518994238a45))
+- Ribbons, shared blocks and the shared order leave out rows with runs not loaded, and count them ([25bd49a](https://github.com/GMOD/bandage-core/commit/25bd49afadcfe4152cd2f789293f026a5266b1f7))
+- Tube map: a box of steps not loaded is dashed and untinted, captioned in words ([e68e409](https://github.com/GMOD/bandage-core/commit/e68e4096ebc02dfa9a6ad5586229b727905b8543))
+- Type the tube map test fixture's placeholder flags as their default ([c30fce5](https://github.com/GMOD/bandage-core/commit/c30fce5feacb4115cf3a6a9ea30841c00e524c09))
+- Tube map: fit a box's caption by the canvas's own measure of its text ([3826cc8](https://github.com/GMOD/bandage-core/commit/3826cc8f29d60437426c009e0501e5633c613c23))
+- Node layouts say "nodes not shown", as the tube map does; a placeholder's hover text ([223d808](https://github.com/GMOD/bandage-core/commit/223d8080c9ea9a883a1ee524959002f7c8965e4b))
+- Walk rows: a key line for rows a comparison leaves out, readouts over solid bar, a marked strip under node layouts ([ac3fd43](https://github.com/GMOD/bandage-core/commit/ac3fd435f81dfbb3a3412377b4f8d2234c61795f))
+- Figure export: row names get a gutter of their own ([3a27007](https://github.com/GMOD/bandage-core/commit/3a27007d801eb6af1cfdd205e94c865a483b0c33))
+- Give each row its own index again; copy the dash a test records ([53c3470](https://github.com/GMOD/bandage-core/commit/53c3470220f50dbcc9a2d07572c10c338db07b41))
+- Readout wording: a row's left-out bp as parts of its total, in plain words ([b7b93eb](https://github.com/GMOD/bandage-core/commit/b7b93eb2692d38af1014baa34b0c6b6b1f57c664))
+- A readout with no room beside its bar drops whole parts from the end, closed with an ellipsis ([f44019d](https://github.com/GMOD/bandage-core/commit/f44019d2587c872255a92bd4646dc726e89292ec))
+- Hold the readout-over-gap test to its placement, now that the readout is also shortened ([e51b535](https://github.com/GMOD/bandage-core/commit/e51b5358c64d4b1fea51b908c6550f23fd029df1))
+- One readout placement for every host; say when a readout was cut; mark rows a comparison leaves out ([67f05e7](https://github.com/GMOD/bandage-core/commit/67f05e77c1b0a1aeb53efd0b23e19d1b5aa0e667))
+- Say what the user is looking at, not what the reader did: "not drawn" for "not read" ([aa93440](https://github.com/GMOD/bandage-core/commit/aa934406a0833a80ffa71a7e73ba44ab9041254d))
+- Figure export: clip a row layout's drawing to the right of the row names ([0fccc91](https://github.com/GMOD/bandage-core/commit/0fccc9129efb54f46a16e40de704a1de1dee3d10))
+- Compare the readout's x within rounding ([6b5aec3](https://github.com/GMOD/bandage-core/commit/6b5aec38f202d1449b575e8a3c23024522d62e4b))
+- Measure a readout at its font, or by the host's canvas, before cutting it ([6e05250](https://github.com/GMOD/bandage-core/commit/6e052509fafaf389f97f38134c094aa7bedb092e))
+- "near a position: in the graph, drawn on another stretch of the reference" ([93da081](https://github.com/GMOD/bandage-core/commit/93da0810dae90b0f415cb3c8a61c6a15746d6bda))
+- Figure export: back each row name with a pale box instead of clipping the drawing ([0688434](https://github.com/GMOD/bandage-core/commit/0688434da5445913c833f9ecc96aac3fe56e0de9))
+- Build the glyph width table without spreading strings or shadowing a name ([4d47fe9](https://github.com/GMOD/bandage-core/commit/4d47fe960ad329957ce8520c48de9e17d85d4318))
+- Rebuild the walk fixtures with gfa-to-tabix 5.0.0, and test attached own steps where the walk rejoins on the window's context ([8d58730](https://github.com/GMOD/bandage-core/commit/8d58730494fc7932d2a701f4f8c7d11ca1b5bd15))
+- Read a link a GFA states twice, either way round, as one ([4669940](https://github.com/GMOD/bandage-core/commit/4669940fec62077729735fb652bf745875d4622c))
+- Hold foldVariants to gfa-to-tabix 5.0.0's fold ([2ac9261](https://github.com/GMOD/bandage-core/commit/2ac9261da16ad83a72a5af91562320726ea3f3b0))
+- Draw a stretch whose nodes a cut didn't load in an untinted grey ([956f2b2](https://github.com/GMOD/bandage-core/commit/956f2b27140778fd18b27be4162b4de46d510214))
+- Depend on graph-walks 7.0.0, from its release tarball ([333dc59](https://github.com/GMOD/bandage-core/commit/333dc5952a52550a0797d9f70f80cdb3c8204778))
+- Graph-walks 7 and walk format 8, and a link read once ([2a00b6a](https://github.com/GMOD/bandage-core/commit/2a00b6aa1bedafaacdc9313d09929b7d244f0159))
+- Let the spell check read "2048ths of an em" ([cc314ad](https://github.com/GMOD/bandage-core/commit/cc314adfcaf96da99ba59a1f61f4dfab4ad9e95f))
+- Read where a departure's held steps break ([c2076f4](https://github.com/GMOD/bandage-core/commit/c2076f4c0b5c6d83bd33083290c639430ecbc76d))
+
 ## [13.3.1](https://github.com/GMOD/bandage-core/compare/v13.3.0...v13.3.1) (2026-11-08)
 
 ### Other Changes
