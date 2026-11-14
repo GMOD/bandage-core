@@ -73,8 +73,11 @@ reads them.
 - `walkRowReadoutAt` places a row's readout for every host: its full text, the
   text drawn, which is cut to the room beside the bar by whole parts with `…`,
   whether it was cut, and where it sits
-- In a node layout such a run is a node with `placeholder`, drawn hollow at its
-  bp under every color scheme. In the tube map, where loading turns one box into
+- In a node layout such a run is a node with `placeholder`, drawn hollow in an
+  untinted grey at its bp under every color scheme, so it reads as neither
+  sequence, an exon nor an allele off the reference. A host's key draws it as
+  `NOT_LOADED_CSS` around `NOT_LOADED_FILL_CSS` and names it `NOT_LOADED_TEXT`,
+  as `figureSvg`'s key does. In the tube map, where loading turns one box into
   its nodes, it is a box with a dashed outline and no tint, captioned
   `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts placeholders,
   which graph-walks' `nodeLimit` does not, and its refusal says how many there

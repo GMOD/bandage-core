@@ -738,6 +738,17 @@ test('a tube map box of steps not loaded is untinted and dashed, and says its no
   expect(notShownCaption(300, 60, textPx)).toBeUndefined()
 })
 
+test('a placeholder is untinted grey, apart from the exon outline and the off-reference charcoal', () => {
+  const channels = (css: string) => css.match(/\d+/g)!.map(Number)
+  for (const css of [NOT_LOADED_CSS, NOT_LOADED_FILL_CSS]) {
+    expect(new Set(channels(css)).size).toBe(1)
+  }
+  const [rim = 0] = channels(NOT_LOADED_CSS)
+  for (const charcoal of channels(REFERENCE_RAMP_ALT_CSS)) {
+    expect(rim).toBeGreaterThan(charcoal * 1.5)
+  }
+})
+
 test('a node layout draws a placeholder as a hollow node of its bp under every scheme, outside the colour ranges', () => {
   const graph = loadGraph(twinTables(), 'cut')
   const range = computeColorSchemeRange(graph)
@@ -786,8 +797,8 @@ test('a node layout draws a placeholder as a hollow node of its bp under every s
   expect(strokesOf(loadedOff.id)).toHaveLength(1)
   const svg = figureSvg(graph, layout, { width: 600 })
   expect(svg).toContain('>nodes not shown</text>')
-  expect(svg).toContain('rgb(217, 164, 65)')
-  expect(svg).toContain('rgb(250, 240, 214)')
+  expect(svg).toContain(NOT_LOADED_CSS)
+  expect(svg).toContain(NOT_LOADED_FILL_CSS)
   const allLoaded = loadGraph(
     {
       ...twinTables(),
