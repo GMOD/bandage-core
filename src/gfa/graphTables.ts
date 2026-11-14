@@ -123,6 +123,9 @@ export interface DepartureTable {
   steps: Int32Array
   reversed: Uint8Array
   abridgedSteps?: Float64Array
+  // how many of a departure's steps follow its leave step before they break,
+  // -1 where they run unbroken from the leave step to the rejoin step
+  breakAt?: Int32Array
 }
 
 export const NOT_LOADED_TAG = 'nl:i:1'

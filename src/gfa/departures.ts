@@ -20,7 +20,12 @@ export interface Departure {
   rejoinReversed: boolean
   rejoinPasses: number
   fromSteps: boolean
+  // set where the cut does not hold the departure's own steps as one run from
+  // its leave step to its rejoin step: how many of them follow the leave step
+  breakAt?: number
 }
+
+const brokenAt = (breakAt = -1) => (breakAt < 0 ? {} : { breakAt })
 
 export function departureAt(t: DepartureTable, k: number): Departure {
   return {
@@ -35,6 +40,7 @@ export function departureAt(t: DepartureTable, k: number): Departure {
     rejoinReversed: t.rejoinReversed[k] === 1,
     rejoinPasses: t.rejoinPasses[k]!,
     fromSteps: t.fromSteps[k] === 1,
+    ...brokenAt(t.breakAt?.[k]),
   }
 }
 

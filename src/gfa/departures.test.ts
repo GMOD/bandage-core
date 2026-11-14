@@ -128,6 +128,15 @@ test('a departure table reads back the departures it was built of', () => {
   expect(departureTable().names).toEqual([])
 })
 
+test('a departure reads where its held steps break, and nothing where they run unbroken', () => {
+  const table = {
+    ...departureTable([departure(), departure()]),
+    breakAt: Int32Array.of(-1, 2),
+  }
+  expect(departureAt(table, 0)).not.toHaveProperty('breakAt')
+  expect(departureAt(table, 1).breakAt).toBe(2)
+})
+
 test("departureKind and placementChoice say what graph-walks' do", () => {
   const ends = [
     { leavePos: 2000, rejoinPos: 3000 },
