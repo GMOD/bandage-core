@@ -182,56 +182,17 @@ function skipsBetween(
   return forwards ? leavesRight && arrivesLeft : !leavesRight && !arrivesLeft
 }
 
-// Whether a link reads exactly one of its ends against the reference at these
-// visits, landing on a node's far side: what lies between the sides it joins
-// is read backwards
-function invertsBetween(
-  edge: GraphEdge,
-  from: ReferenceVisit,
-  to: ReferenceVisit,
-) {
-  const { fromStrand, toStrand } = edge
-  return (
-    fromStrand !== undefined &&
-    toStrand !== undefined &&
-    (fromStrand === from.strand) !== (toStrand === to.strand)
-  )
-}
-
-// The reference between the sides a link joins at a pair of visits
-function joinedSpan(
-  edge: GraphEdge,
-  from: AnchoredNode,
-  to: AnchoredNode,
-  a: ReferenceVisit,
-  b: ReferenceVisit,
-) {
-  const fromAt = edge.fromStrand === a.strand ? a.start + from.length : a.start
-  const toAt = edge.toStrand === b.strand ? b.start : b.start + to.length
-  return { start: Math.min(fromAt, toAt), end: Math.max(fromAt, toAt) }
-}
-
-const spanLength = (span: { start: number; end: number }) =>
-  Math.abs(span.end - span.start)
-
-// What a link does to the reference, each measured at the reference visits
-// nearest each other that show it. `skipped` is the span it skips where it
-// joins facing sides as a deletion would: a link a collapsed repeat's second
+// The span a link skips, measured at the reference visits nearest each other
+// whose sides it joins as a deletion would: a link a collapsed repeat's second
 // copy walks joins its nodes there, and abuts, though their first visits lie a
-// copy apart. `inverted` is the span it reads backwards where it lands on one
-// node's far side, and is no inversion where some pair of visits has the link
-// abut as the reference's own step: in a collapsed repeat the reference walks
-// an inverted copy of the same nodes, so a link it walks there reads one end
-// against the strand of the other copy. Either is undefined where no pair of
-// visits shows it.
-function linkSpans(
+// copy apart. Undefined where no pair of visits has it skip forwards.
+function skippedSpan(
   edge: GraphEdge,
   from: AnchoredNode,
   to: AnchoredNode,
   visitsOf: (node: AnchoredNode) => ReferenceVisit[],
 ) {
-  let skipped: { start: number; end: number } | undefined
-  let inverted: { start: number; end: number } | undefined
+  let best: { start: number; end: number } | undefined
   for (const a of visitsOf(from)) {
     for (const b of visitsOf(to)) {
       const forwards = a.start <= b.start
@@ -240,20 +201,14 @@ function linkSpans(
         : { start: b.start + to.length, end: a.start }
       if (
         skipsBetween(edge, a, b, forwards) &&
-        (!skipped || spanLength(span) < spanLength(skipped))
+        (!best ||
+          Math.abs(span.end - span.start) < Math.abs(best.end - best.start))
       ) {
-        skipped = span
-      }
-      const run = invertsBetween(edge, a, b)
-        ? joinedSpan(edge, from, to, a, b)
-        : undefined
-      if (run && (!inverted || spanLength(run) < spanLength(inverted))) {
-        inverted = run
+        best = span
       }
     }
   }
-  const walked = skipped !== undefined && spanLength(skipped) === 0
-  return { skipped, inverted: walked ? undefined : inverted }
+  return best
 }
 
 // A skip this close to a collapsed repeat's copy length, as a share of it,
@@ -310,24 +265,12 @@ function switchesCopy(
 }
 
 // Every link between two backbone segments on one sequence, with the span it
-// skips where it joins facing sides of some pair of reference visits and the
-// span it reads backwards where it joins a far side. Which
+// skips where it joins facing sides of some pair of reference visits. Which
 // endpoint is upstream comes from the coordinates, since a file may state a
 // link from either strand; whether it skips what lies between comes from its
 // sides at those visits. A segment cut back to a window is measured in full:
 // its cut end is no gap.
-const linksByGraph = new WeakMap<Graph, ReturnType<typeof surveyLinks>>()
-
 function backboneLinks(cut: Graph) {
-  let found = linksByGraph.get(cut)
-  if (!found) {
-    found = surveyLinks(cut)
-    linksByGraph.set(cut, found)
-  }
-  return found
-}
-
-function surveyLinks(cut: Graph) {
   const graph = unclipped(cut)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const backbone = backboneBySequence(graph)
@@ -346,7 +289,7 @@ function surveyLinks(cut: Graph) {
             edgeIndex,
             edge,
             refName: from.stable.refName,
-            ...linkSpans(edge, from, to, visitsOf),
+            span: skippedSpan(edge, from, to, visitsOf),
           },
         ]
       : []
@@ -357,7 +300,7 @@ function surveyLinks(cut: Graph) {
 // Every edge that skips reference sequence, in graph.edges order
 export function deletionEdges(cut: Graph): DeletionEdge[] {
   const { links, backbone, copies } = backboneLinks(cut)
-  return links.flatMap(({ edgeIndex, edge, refName, skipped: span }) => {
+  return links.flatMap(({ edgeIndex, edge, refName, span }) => {
     const bp = span ? span.end - span.start : 0
     return span &&
       bp >= MIN_DELETION_BP &&
@@ -382,47 +325,6 @@ export function deletionEdges(cut: Graph): DeletionEdge[] {
         ]
       : []
   })
-}
-
-// A run of the backbone some haplotype reads backwards. The links into and
-// out of it both land across it, so one run stands for both.
-export interface Inversion {
-  refName: string
-  start: number
-  end: number
-  bp: number
-  // the backbone node ids read backwards, in reference order
-  across: string[]
-  // the links that read them so
-  edgeIndexes: number[]
-}
-
-// Every run of the backbone a link reads backwards, once however many links
-// land across it, in the order the first of them comes in graph.edges
-export function inversions(cut: Graph) {
-  const { links, backbone } = backboneLinks(cut)
-  const byRun = new Map<string, Inversion>()
-  for (const { edgeIndex, refName, inverted } of links) {
-    const across = inverted
-      ? bypassedNodes(backbone.get(refName), inverted.start, inverted.end)
-      : []
-    const key = `${refName}:${across.join(',')}`
-    const run = byRun.get(key)
-    if (inverted && across.length > 0) {
-      if (run) {
-        run.edgeIndexes.push(edgeIndex)
-      } else {
-        byRun.set(key, {
-          refName,
-          ...inverted,
-          bp: inverted.end - inverted.start,
-          across,
-          edgeIndexes: [edgeIndex],
-        })
-      }
-    }
-  }
-  return [...byRun.values()]
 }
 
 // The links a layout can leave out, by edge index: every one whose ends the
