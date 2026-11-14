@@ -180,8 +180,12 @@ function shuffle<T>(items: T[], int: (lo: number, hi: number) => number) {
   }
 }
 
+// The reference the path GFAs name, which gfa-to-tabix asks for once a GFA's
+// paths name more than one assembly
+const REFERENCE = 'ref'
+
 function bandageFold(gfa: string, below: number) {
-  const graph = loadGraph(gfa, 'parity.gfa')
+  const graph = loadGraph(gfa, 'parity.gfa', { referencePath: REFERENCE })
   return writeRgfa(foldVariants({ ...graph, paths: undefined }, below))
 }
 
@@ -204,12 +208,31 @@ function run(args: string[], stdin: string) {
   })
 }
 
+const flipped = (side: string) =>
+  `${side.slice(0, -1)}${side.endsWith('+') ? '-' : '+'}`
+
+// A link row in the one of its two spellings that sorts first: bandage-core
+// states a link as it reads along the reference, gfa-to-tabix's fold as the
+// file did, and `L a + b +` is `L b - a -`
+function oneSpelling(row: string) {
+  const cols = row.split('\t')
+  const [kind, from = '', to = ''] = cols.slice(3, 6)
+  const turned = [flipped(to), flipped(from)]
+  return kind === 'L' && turned.join('\t') < `${from}\t${to}`
+    ? [
+        ...cols.slice(0, 4),
+        ...turned,
+        ...cols.slice(10),
+        ...cols.slice(6, 10),
+      ].join('\t')
+    : row
+}
+
 function rows(prefix: string) {
-  return ['segs', 'links'].map(kind =>
-    new TextDecoder().decode(
-      gunzipSync(readFileSync(`${prefix}.${kind}.bed.gz`)),
-    ),
-  )
+  const [header = '', ...body] = new TextDecoder()
+    .decode(gunzipSync(readFileSync(`${prefix}.graph.bed.gz`)))
+    .split('\n')
+  return [header, ...body.map(oneSpelling).sort()].join('\n')
 }
 
 // The rows `gfa-to-tabix -` files bandage-fold's output under, and the rows
@@ -220,7 +243,17 @@ async function bothFolds(gfa: string, below: number, dir: string, tag: string) {
   await Promise.all([
     run(['-', '--layout', 'contig', '-o', js], bandageFold(gfa, below)),
     run(
-      ['fold', '-', '--below', `${below}`, '--layout', 'contig', '-o', rs],
+      [
+        'fold',
+        '-',
+        '--below',
+        `${below}`,
+        ...(/^P\t/m.test(gfa) ? ['--reference', REFERENCE] : []),
+        '--layout',
+        'contig',
+        '-o',
+        rs,
+      ],
       gfa,
     ),
   ])
@@ -458,8 +491,7 @@ describe.skipIf(!VERSION)(
   },
 )
 
-const sameRows = ({ js, rs }: { js: string[]; rs: string[] }) =>
-  js.join('') === rs.join('')
+const sameRows = ({ js, rs }: { js: string; rs: string }) => js === rs
 
 // Each graph on its own, which only a failed batch pays for
 async function failingSeeds(seeds: number[], below: number, dir: string) {
@@ -478,9 +510,9 @@ async function failingSeeds(seeds: number[], below: number, dir: string) {
   return failures
 }
 
-function rowDiff({ js, rs }: { js: string[]; rs: string[] }) {
-  const a = js.join('').split('\n')
-  const b = rs.join('').split('\n')
+function rowDiff({ js, rs }: { js: string; rs: string }) {
+  const a = js.split('\n')
+  const b = rs.split('\n')
   return [
     ...a
       .filter(row => !b.includes(row))
