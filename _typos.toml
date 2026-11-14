@@ -32,3 +32,6 @@ Reigon = "Reigon"
 GAM = "GAM"
 # E. coli's thr operon genes (thrL, thrA) in the reference tests
 thr = "thr"
+# The `ths` of `2048ths of an em`, a font's units per em in walkRowDraw's
+# glyph widths
+ths = "ths"
