@@ -15,11 +15,14 @@ npm install @jbrowse/bandage-core
 
 - `loadGraph` reads GFA or rGFA text. The caller decompresses a `.gfa.gz` first
 - `loadGraph` also takes `GraphTables`, the typed arrays that
-  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) 6 cuts from a
-  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) 4 walk file, format 7
-  (`.walks.gz` beside its `.idx` directory), for a region on the reference. A
-  worker can transfer them without copying, and `graphTablesGFA` writes their
-  nodes, links and walks as GFA
+  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) 7 cuts from a
+  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) 5 walk file, format 8
+  (`.walks.gz` beside its `.idx` directory), for a region on the reference.
+  graph-walks 7 refuses a format 7 file, which gfa-to-tabix 5 rebuilds. A worker
+  can transfer them without copying, and `graphTablesGFA` writes their nodes,
+  links and walks as GFA
+- A link a GFA states more than once, either way round, is read once, as its
+  first L line states it, as gfa-to-tabix reads it
 - `openGbz` and `cutGbzRegion` cut a window from a
   [gbz-base](https://github.com/jltsiren/gbz-base) database (`.gbz.db`) to GFA
   text
