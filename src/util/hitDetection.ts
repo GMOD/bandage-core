@@ -109,9 +109,9 @@ function getEdgeSpatialIndex(
   drawPaths: boolean,
   axis: AxisScale,
   version: number,
-  deletions?: Map<number, string[]>,
-  routes?: DeletionRoutes,
-  stranded = false,
+  deletions: Map<number, string[]> | undefined,
+  routes: DeletionRoutes | undefined,
+  stranded: boolean | undefined,
 ) {
   return edgeCache(
     nodePositions,
@@ -266,11 +266,13 @@ export function findHoveredEdge(
   graphY: number,
   axis: AxisScale,
   drawPaths: boolean,
-  version = 0,
-  deletions?: Map<number, string[]>,
-  hiddenEdges?: ReadonlySet<number>,
-  deletionRoutes?: DeletionRoutes,
-  stranded = false,
+  version: number,
+  deletions: Map<number, string[]> | undefined,
+  hiddenEdges: ReadonlySet<number> | undefined,
+  deletionRoutes: DeletionRoutes | undefined,
+  // LayoutResult.stranded, as the drawing was given it, so the curve tested
+  // joins the node ends the drawn link does
+  stranded: boolean | undefined,
 ) {
   const yToX = yToXOf(axis)
   const edgeThreshold = 10 / axis.scaleX

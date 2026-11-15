@@ -1,3 +1,4 @@
+import { baseEdgeCurves } from './edgeCurves'
 import {
   distanceToCubicBezier,
   distanceToSegment,
@@ -157,24 +158,36 @@ describe('findHoveredEdge', () => {
     ],
     edges: [{ from: 'A+', to: 'B+', pathIds: ['p1', 'p2', 'p3'] }],
   }
+  const hit = (x: number, y: number, drawPaths: boolean) =>
+    findHoveredEdge(
+      nodePositions,
+      graph,
+      x,
+      y,
+      iso(),
+      drawPaths,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      false,
+    )
 
   test('hits edge on center lane', () => {
-    expect(findHoveredEdge(nodePositions, graph, 100, 0, iso(), true)).toBe(0)
+    expect(hit(100, 0, true)).toBe(0)
   })
 
   test('hits edge on offset path lane', () => {
     // Outer lane sits ~3 units off center; 10/scale threshold easily covers it.
-    expect(findHoveredEdge(nodePositions, graph, 100, 3, iso(), true)).toBe(0)
+    expect(hit(100, 3, true)).toBe(0)
   })
 
   test('misses when far from all lanes', () => {
-    expect(
-      findHoveredEdge(nodePositions, graph, 100, 200, iso(), true),
-    ).toBeNull()
+    expect(hit(100, 200, true)).toBeNull()
   })
 
   test('drawPaths=false still hits on centerline', () => {
-    expect(findHoveredEdge(nodePositions, graph, 100, 0, iso(), false)).toBe(0)
+    expect(hit(100, 0, false)).toBe(0)
   })
 
   // A deletion is drawn bowed off its chord, and the tutorial tells the reader to
@@ -192,7 +205,19 @@ describe('findHoveredEdge', () => {
       ],
     }
     const at = (x: number, y: number, deletions?: Map<number, string[]>) =>
-      findHoveredEdge(withBypassed, graph, x, y, iso(), false, 0, deletions)
+      findHoveredEdge(
+        withBypassed,
+        graph,
+        x,
+        y,
+        iso(),
+        false,
+        0,
+        deletions,
+        undefined,
+        undefined,
+        false,
+      )
 
     test('is hoverable where it is drawn', () => {
       // 0.35 * 100 = 35 of bulge, so the curve's own midpoint is near y = 26
@@ -215,9 +240,63 @@ describe('findHoveredEdge', () => {
           0,
           bypassing,
           new Set([0]),
+          undefined,
+          false,
         ),
       ).toBeNull()
     })
+  })
+})
+
+// A+ to B- leaves A's end and enters B's end, B's far side from A, where a
+// force layout draws it; joined at the nearer ends it would stop at B's start
+describe('a hit test on a stranded drawing', () => {
+  const positions = {
+    'A+': [
+      { x: 0, y: 0 },
+      { x: 50, y: 0 },
+    ],
+    'B+': [
+      { x: 100, y: 0 },
+      { x: 150, y: 0 },
+    ],
+  }
+  const stranded: Graph = {
+    name: 't',
+    nodes: [
+      { id: 'A+', name: 'A', length: 50, depth: 1 },
+      { id: 'B+', name: 'B', length: 50, depth: 1 },
+    ],
+    edges: [{ from: 'A+', to: 'B+', fromStrand: '+', toStrand: '-' }],
+  }
+  const hit = (x: number, onEnds: boolean) =>
+    findHoveredEdge(
+      positions,
+      stranded,
+      x,
+      0,
+      iso(),
+      false,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      onEnds,
+    )
+
+  test('targets the link where it is drawn, into the end its strand names', () => {
+    const drawn = baseEdgeCurves(
+      positions,
+      stranded,
+      iso(),
+      undefined,
+      0,
+      undefined,
+      true,
+    ).get(0)!
+    expect(drawn.at(-1)!.x1).toBeCloseTo(150)
+    expect(hit(125, true)).toBe(0)
+    expect(hit(125, false)).toBeNull()
   })
 })
 
