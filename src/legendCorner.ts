@@ -30,6 +30,15 @@ export interface LegendCornerSource extends LegendFrame {
   labelsNodeSizes: boolean
 }
 
+// Walk rows run to the pane's right edge and write a readout past each bar, so
+// beside them the key takes a column of its own rather than lying over a row
+// or a readout: the px it keeps from the rows' width
+export function rowsLegendRoom({
+  legendSize,
+}: Pick<LegendFrame, 'legendSize'>) {
+  return legendSize.width > 0 ? legendSize.width + LEGEND_INSET_PX : 0
+}
+
 // The pane px a key in `corner` covers, out to the pane's edges it touches
 export function legendBox(corner: LegendCorner, m: LegendFrame) {
   const { width, height } = m.legendSize

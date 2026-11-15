@@ -1,4 +1,10 @@
-import { inkUnder, legendBox, legendCorner } from './legendCorner'
+import {
+  LEGEND_INSET_PX,
+  inkUnder,
+  legendBox,
+  legendCorner,
+  rowsLegendRoom,
+} from './legendCorner'
 
 import type { LegendCornerSource } from './legendCorner'
 import type { NodeSegment } from './types'
@@ -161,4 +167,12 @@ test('a line whose halo reaches the box counts as under it', () => {
   expect(inkUnder(box, { ...justBelow, contigThickness: 5 })).toBeGreaterThan(
     100,
   )
+})
+
+test("rows keep the key's width and inset clear of it, and nothing for an unmeasured key", () => {
+  expect(rowsLegendRoom(pane)).toBe(200 + LEGEND_INSET_PX)
+  expect(rowsLegendRoom(pane)).toBe(
+    pane.paneWidth - legendBox('top-right', pane).x0,
+  )
+  expect(rowsLegendRoom({ legendSize: { width: 0, height: 0 } })).toBe(0)
 })

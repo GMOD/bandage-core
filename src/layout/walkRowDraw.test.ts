@@ -138,6 +138,84 @@ test('shorter genes take their name room first', () => {
   ])
 })
 
+// Narrowed beside the key at amylase, the reference row's boxes for AMY2A,
+// AMY1A, AMY1B and AMY1C were too small for their names, which went missing
+test('a name too long for its box on the reference row goes above it, with a leader down to the box', () => {
+  const genes = [
+    { name: 'LONGGENE', start: 0, end: 100, exons: [] },
+    { name: 'AMY1A', start: 200, end: 205, exons: [] },
+    { name: 'AMY1B', start: 207, end: 212, exons: [] },
+  ]
+  const X = (bp: number) => bp * 2
+  const boxes = rowGeneBoxes(genes, X, 50, { namesAbove: 800 })
+  expect(boxes.map(b => [b.name, b.label?.leader !== undefined])).toEqual([
+    ['LONGGENE', false],
+    ['AMY1A', true],
+    ['AMY1B', true],
+  ])
+  const [, a, b] = boxes
+  for (const box of [a!, b!]) {
+    const { leader, y } = box.label!
+    expect(y).toBeLessThan(box.y)
+    expect(leader).toMatchObject({ x2: box.x + box.w / 2, y2: box.y })
+    expect(leader!.y1).toBeLessThan(box.y)
+  }
+  const half = (5 * 5.2) / 2
+  expect(a!.label!.x + half).toBeLessThan(b!.label!.x - half)
+  expect(rowGeneBoxes(genes, X, 50).map(box => box.label?.leader)).toEqual([
+    undefined,
+    undefined,
+    undefined,
+  ])
+  expect(
+    rowGeneBoxes(genes, X, 8, { namesAbove: 800 }).map(box => !!box.label),
+  ).toEqual([true, false, false])
+})
+
+test('names that crowd one line above the reference row take a second, widest gene first', () => {
+  const genes = [
+    { name: 'SHORT', start: 200, end: 203, exons: [] },
+    { name: 'WIDER', start: 199, end: 205, exons: [] },
+  ]
+  const [short, wider] = rowGeneBoxes(genes, bp => bp * 2, 50, {
+    namesAbove: 800,
+  })
+  expect(wider!.label!.y).toBeGreaterThan(short!.label!.y)
+  for (const box of [short!, wider!]) {
+    expect(box.label!.leader).toMatchObject({
+      x2: box.x + box.w / 2,
+      y2: box.y,
+    })
+  }
+})
+
+test('walk rows name genes above the reference row only', () => {
+  const bars = rows()
+  const tiny = (name: string) => [{ name, start: 0, end: 1, exons: [] }]
+  const svg = serializeEl(
+    walkRowsTree(
+      bars,
+      {
+        scaleX: 1,
+        scaleY: 1,
+        translateX: -900,
+        translateY: 60,
+        width: 800,
+        height: 400,
+      },
+      {
+        rowGenes: new Map([
+          [bars.reference.name, tiny('REFGENE')],
+          ['HG1#1#ctg1', tiny('ROWGENE')],
+        ]),
+      },
+    ),
+  )
+  expect(svg).toContain('>REFGENE</text>')
+  expect(svg).not.toContain('>ROWGENE</text>')
+  expect(svg.match(/<line [^>]*stroke-opacity="0.6"/g)).toHaveLength(1)
+})
+
 test('the readout states length, change and what the cut left out', () => {
   expect(
     walkRowReadout({ bp: 240_365, gapBp: 0, complete: true }, undefined),

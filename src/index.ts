@@ -286,7 +286,12 @@ export {
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
-export { inkUnder, legendBox, legendCorner } from './legendCorner'
+export {
+  inkUnder,
+  legendBox,
+  legendCorner,
+  rowsLegendRoom,
+} from './legendCorner'
 export type {
   LegendCorner,
   LegendCornerSource,
