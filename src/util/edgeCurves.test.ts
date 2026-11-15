@@ -1,8 +1,11 @@
 import { buildGeometry } from '../renderer/GeometryBuilder'
 import { EdgeSpatialIndex } from './SpatialIndex'
-import { baseEdgeCurves } from './edgeCurves'
+import { SKIP_LEVEL_PX, baseEdgeCurves } from './edgeCurves'
+import { curvePointAt } from './geometry'
 
+import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, GraphNode, NodeSegment } from '../types'
+import type { BezierCurve } from './geometry'
 
 const nodes: GraphNode[] = [
   { id: 'a+', name: 'a', length: 100, depth: 1 },
@@ -220,5 +223,130 @@ describe('a dragged node', () => {
       [115, 185],
       [215, 115],
     ])
+  })
+})
+
+// Six 10 bp backbone segments end to end, drawn 2 px each, with every skip's
+// route laid on the backbone as a force layout lays a short one: sv-49's 16 bp
+// skip and the 1 bp skips sharing its anchors were drawn over each other there
+describe('skips at one site', () => {
+  const scale = 0.2
+  const axis = { scaleX: scale, scaleY: scale }
+  // the widest a skip draws at the default connector, dashed
+  const widestSkipPx = 2 * 2.2
+  const backbone: GraphNode[] = [0, 1, 2, 3, 4, 5].map(i => ({
+    id: `n${i}+`,
+    name: `n${i}`,
+    length: 10,
+    depth: 1,
+    stable: { refName: 'chr1', start: i * 10, rank: 0 },
+  }))
+  const positions = () =>
+    Object.fromEntries(
+      backbone.map((n, i) => [
+        n.id,
+        [
+          { x: i * 10, y: 0 },
+          { x: i * 10 + 10, y: 0 },
+        ],
+      ]),
+    )
+  const skips = (links: [number, number, number[]][]) => {
+    const edges = links.map(([from, to]) => ({
+      from: `n${from}+`,
+      to: `n${to}+`,
+    }))
+    const routes: DeletionRoutes = Object.fromEntries(
+      links.map(([from, to], ei) => [
+        ei,
+        [
+          { x: from * 10 + 12, y: 0 },
+          { x: to * 10 - 2, y: 0 },
+        ],
+      ]),
+    )
+    return baseEdgeCurves(
+      positions(),
+      { name: 'site', nodes: backbone, edges },
+      axis,
+      new Map(
+        links.map(([, , bypassed], ei) => [ei, bypassed.map(i => `n${i}+`)]),
+      ),
+      0,
+      routes,
+    )
+  }
+  const points = (curves: BezierCurve[], steps = 64) =>
+    curves.flatMap(c =>
+      Array.from({ length: steps + 1 }, (_, k) => curvePointAt(c, k / steps)),
+    )
+  const heightPx = (curves: BezierCurve[]) =>
+    Math.max(...points(curves).map(p => Math.abs(p.y) * scale))
+  const heightAt = (curves: BezierCurve[], x: number) => {
+    const line = points(curves, 4096)
+    const i = line.findIndex(p => p.x >= x)
+    const a = line[Math.max(0, i - 1)]!
+    const b = line[i]!
+    return (
+      (b.x === a.x ? b.y : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x)) *
+      scale
+    )
+  }
+
+  test('two skips between the same anchors over different spans rise a stroke apart', () => {
+    const curves = skips([
+      [0, 3, [1]],
+      [0, 3, [1, 2]],
+    ])
+    expect(
+      heightPx(curves.get(1)!) - heightPx(curves.get(0)!),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  test('a skip inside a longer one draws inside it, whether or not they share an anchor', () => {
+    const curves = skips([
+      [0, 4, [1, 2, 3]],
+      [1, 3, [2]],
+      [0, 2, [1]],
+    ])
+    const outer = curves.get(0)!
+    for (const inner of [curves.get(1)!, curves.get(2)!]) {
+      for (const p of points(inner).slice(1, -1)) {
+        expect(Math.sign(heightAt(outer, p.x))).toBe(Math.sign(p.y))
+        expect(Math.abs(heightAt(outer, p.x))).toBeGreaterThan(
+          Math.abs(p.y * scale),
+        )
+      }
+    }
+  })
+
+  test('two skips over one span between the same anchors rise a stroke apart', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [0, 2, [1]],
+    ])
+    expect(
+      Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  test('a lifted skip keeps its feet on its anchors', () => {
+    const [arc] = skips([[0, 3, [1, 2]]]).get(0)!
+    expect(heightPx([arc!])).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    expect([arc!.x0, arc!.y0, arc!.x1, arc!.y1]).toEqual([10, 0, 30, 0])
+  })
+
+  test('a route that already rises past its level keeps its path', () => {
+    const p = positions()
+    const curves = baseEdgeCurves(
+      p,
+      { name: 'site', nodes: backbone, edges: [{ from: 'n0+', to: 'n3+' }] },
+      axis,
+      new Map([[0, ['n1+', 'n2+']]]),
+      0,
+      { 0: [{ x: 20, y: 200 }] },
+    )
+    expect(curves.get(0)!.length).toBeGreaterThan(1)
+    expect(heightPx(curves.get(0)!)).toBeGreaterThan(30)
   })
 })

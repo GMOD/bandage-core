@@ -420,7 +420,7 @@ function heldFacingSides(
 
 // A cubic whose two control points both sit `b` off the chord reaches 3b/4 at
 // its midpoint: (P0 + 3C0 + 3C1 + P1)/8 with the endpoints on the chord.
-const APEX_FRACTION = 0.75
+export const APEX_FRACTION = 0.75
 // How far past the run the apex goes, so the arc reads as passing AROUND the
 // reference it skips rather than through it.
 const BOW_CLEARANCE = 1.15
