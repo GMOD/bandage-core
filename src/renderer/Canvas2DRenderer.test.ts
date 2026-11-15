@@ -183,6 +183,40 @@ test('renderHighlights strokes only what is lit, over a clear', () => {
   expect(strokes).toEqual([litEdge, litNode])
 })
 
+test('a thin shallow node over a wide deep one is painted after it', () => {
+  const shallow = { id: 'S+', name: 'S', length: 2, depth: 1 }
+  const deep = { id: 'D+', name: 'D', length: 10, depth: 40 }
+  const { renderer, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(
+    buildGeometry({
+      nodePositions: {
+        'S+': [
+          { x: 4, y: 0 },
+          { x: 6, y: 0 },
+        ],
+        'D+': [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+      },
+      graph: { name: 'test', nodes: [shallow, deep], edges: [] },
+      nodeById: new Map([shallow, deep].map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      contigThickness: 6,
+      connectorThickness: 2,
+      drawPaths: false,
+      nodeWidth: 'depth',
+      axis: iso(),
+    }),
+  )
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  const [wide = 0, thin = 0] = lineWidths
+  expect(lineWidths).toHaveLength(2)
+  expect(thin).toBeLessThan(wide)
+})
+
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it
 // is the one term the dpr-scaled transform does not reach. Left alone, every
 // tube, connector and arrowhead came out 1/dpr of its weight on a hidpi

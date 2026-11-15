@@ -144,14 +144,16 @@ export class Canvas2DRenderer implements Renderer {
         weight: e.thickness,
         last: inRun(edgeRun, i),
       })),
-      nodes: groupByPaint(batch.nodeStrokes, (s, i) => {
-        const f = lifted.get(i)
-        return {
-          color: f === undefined ? s.color : brightenAbgr(s.color, f),
-          weight: s.thickness,
-          last: f !== undefined,
-        }
-      }),
+      nodes: widestFirst(
+        groupByPaint(batch.nodeStrokes, (s, i) => {
+          const f = lifted.get(i)
+          return {
+            color: f === undefined ? s.color : brightenAbgr(s.color, f),
+            weight: s.thickness,
+            last: f !== undefined,
+          }
+        }),
+      ),
       arrows: groupByPaint(batch.arrows, (a, i) => ({
         color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
         weight: 0,
@@ -183,11 +185,13 @@ export class Canvas2DRenderer implements Renderer {
       this.strokeCurves(items, color, t)
     }
     const lifted = [...this.liftedStrokes(batch)]
-    for (const { color, items } of groupByPaint(lifted, ([i, f]) => ({
-      color: brightenAbgr(batch.nodeStrokes[i]!.color, f),
-      weight: batch.nodeStrokes[i]!.thickness,
-      last: false,
-    }))) {
+    for (const { color, items } of widestFirst(
+      groupByPaint(lifted, ([i, f]) => ({
+        color: brightenAbgr(batch.nodeStrokes[i]!.color, f),
+        weight: batch.nodeStrokes[i]!.thickness,
+        last: false,
+      })),
+    )) {
       this.strokeNodes(
         items.map(([i]) => batch.nodeStrokes[i]!),
         color,
@@ -341,6 +345,8 @@ interface PaintedGroups {
 
 interface Group<T> {
   color: number
+  weight: number
+  last: boolean
   items: T[]
 }
 
@@ -361,8 +367,14 @@ function groupByPaint<T>(
     if (group) {
       group.items.push(item)
     } else {
-      into.set(key, { color, items: [item] })
+      into.set(key, { color, weight, last, items: [item] })
     }
   }
   return [...groups.values(), ...deferred.values()]
+}
+
+function widestFirst<T>(groups: Group<T>[]) {
+  return groups.toSorted(
+    (a, b) => Number(a.last) - Number(b.last) || b.weight - a.weight,
+  )
 }
