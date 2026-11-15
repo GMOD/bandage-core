@@ -28,6 +28,10 @@ export interface GraphNode {
   // only through the links into it: graph-walks tags it `mv:i:1`
   moved?: true
   placeholder?: true
+  // the visits shown walks make to this segment through their departures'
+  // own steps that no fragment of theirs holds there, which `depth` counts
+  // beside the fragments' steps (gfa/departures.ts ownStepRuns)
+  departureVisits?: PathVisit[]
 }
 
 export interface GraphEdge {

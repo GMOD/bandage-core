@@ -368,6 +368,8 @@ export type {
   GapPart,
 } from './gfa/departures'
 export { PathVisits, PathVisitsBuilder } from './pathVisits'
+export { walksThrough } from './walksThrough'
+export type { WalkThrough } from './walksThrough'
 
 export { engineKey } from './pipeline'
 export {

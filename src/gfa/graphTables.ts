@@ -17,6 +17,7 @@ import type {
   GraphNode,
   GraphPath,
   PathOrigin,
+  PathVisit,
 } from '../types'
 
 /**
@@ -316,9 +317,10 @@ export function tableNodeIds(
  * the text costs a string and several map lookups. GFA has no line for a
  * departure, a trimmed walk's bp or the source's count of nodes the reference
  * passes more than once, so only this Graph keeps the tables' `departures`,
- * each walk's trimmed bp and `revisited`, and counts into node depth and the
- * walks on links each walk's departures' own steps no fragment of it holds
- * (departures.ts ownStepRuns); the text counts its own walks.
+ * each walk's trimmed bp and `revisited`, and counts into node depth, as each
+ * node's `departureVisits`, and into the walks on links each walk's
+ * departures' own steps no fragment of it holds (departures.ts ownStepRuns);
+ * the text counts its own walks.
  */
 export function graphFromTables(
   { nodes: n, links, walks: w, departures, revisited, gaps }: GraphTables,
@@ -337,12 +339,25 @@ export function graphFromTables(
   const orient = tableOrientation({ nodes: n, links: l, walks: w }, traversals)
   const ids = nodeIdsOf(n.names, orient)
   const departed = ownStepRuns({ nodes: n, walks: w, departures })
-  const departedTraversals = new Int32Array(count)
+  const departureVisits = new Array<PathVisit[] | undefined>(count)
   let departedSteps = 0
-  for (const { steps, held } of departed) {
+  for (const { walk, steps, held, starts, reversed } of departed) {
+    const path = tablePath(w, walk).name
+    const sample = panSNSample(path)
     steps.forEach((node, i) => {
       if (!held[i]) {
-        departedTraversals[node]!++
+        const visit: PathVisit = {
+          path,
+          sample,
+          start: starts[i]!,
+          strand: reversed[i] ? '-' : '+',
+        }
+        const visits = departureVisits[node]
+        if (visits) {
+          visits.push(visit)
+        } else {
+          departureVisits[node] = [visit]
+        }
       }
     })
     departedSteps += steps.length
@@ -351,11 +366,12 @@ export function graphFromTables(
   const nodes: GraphNode[] = []
   for (let i = 0; i < declared; i++) {
     const ref = n.refs[i]!
+    const visits = departureVisits[i]
     nodes.push({
       id: ids[i]!,
       name: n.names[i]!,
       length: n.lengths[i]!,
-      depth: Math.max(traversals[i]! + departedTraversals[i]!, 1),
+      depth: Math.max(traversals[i]! + (visits?.length ?? 0), 1),
       stable:
         ref < 0
           ? undefined
@@ -366,6 +382,7 @@ export function graphFromTables(
             },
       samples: undefined,
       ...(n.placeholders?.[i] === 1 ? { placeholder: true as const } : {}),
+      ...(visits ? { departureVisits: visits } : {}),
     })
   }
 

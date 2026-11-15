@@ -362,14 +362,21 @@ function splitGap(
  * that an earlier departure of the walk gave, is `held`: it counts once, so a
  * departure repeating its fragment's steps adds nothing. A departure of a walk
  * with no fragment is of a haplotype not shown and gives no run. `walk` is a
- * fragment of the walk, which names it.
+ * fragment of the walk, which names it; each step's `starts` is where it
+ * starts on the walk's contig and `reversed` how the walk reads it.
  */
 export function ownStepRuns({
   nodes: n,
   walks: w,
   departures: d,
 }: Pick<GraphTables, 'nodes' | 'walks' | 'departures'>) {
-  const runs: { walk: number; steps: number[]; held: boolean[] }[] = []
+  const runs: {
+    walk: number
+    steps: number[]
+    held: boolean[]
+    starts: number[]
+    reversed: boolean[]
+  }[] = []
   const lengthOf = (node: number) =>
     node < n.lengths.length ? n.lengths[node]! : 0
   const stepStarts = new Float64Array(d.steps.length > 0 ? w.steps.length : 0)
@@ -428,7 +435,7 @@ export function ownStepRuns({
         s--
       }
       if (s >= w.offsets[p]! && stepStarts[s]! + lengthOf(w.steps[s]!) === at) {
-        return w.steps[s]!
+        return s
       }
     }
     return -1
@@ -437,7 +444,7 @@ export function ownStepRuns({
     for (const p of walk) {
       const s = stepAt(p, at, true)
       if (s < w.offsets[p + 1]! && stepStarts[s] === at) {
-        return w.steps[s]!
+        return s
       }
     }
     return -1
@@ -451,16 +458,16 @@ export function ownStepRuns({
     if (walk && last > first) {
       const breakAt = d.breakAt?.[k] ?? -1
       const split = breakAt < 0 ? last : first + breakAt
-      const starts = new Float64Array(last - first)
+      const places = new Float64Array(last - first)
       let ahead = d.hapStarts[k]!
       for (let j = first; j < split; j++) {
-        starts[j - first] = ahead
+        places[j - first] = ahead
         ahead += lengthOf(d.steps[j]!)
       }
       let behind = d.hapStarts[k]! + d.ownBp[k]!
       for (let j = last - 1; j >= split; j--) {
         behind -= lengthOf(d.steps[j]!)
-        starts[j - first] = behind
+        places[j - first] = behind
       }
       const parts: [number, number][] =
         breakAt < 0
@@ -473,12 +480,16 @@ export function ownStepRuns({
         if (to > from) {
           const steps: number[] = []
           const held: boolean[] = []
+          const starts: number[] = []
+          const reversed: boolean[] = []
           for (let j = from; j < to; j++) {
             const node = d.steps[j]!
-            const at = starts[j - first]!
+            const at = places[j - first]!
             const key = `${name}\t${at}\t${node}`
             steps.push(node)
             held.push(holds(walk, at, node) || given.has(key))
+            starts.push(at)
+            reversed.push(d.reversed[j] === 1)
             given.add(key)
           }
           const leave =
@@ -488,14 +499,18 @@ export function ownStepRuns({
               ? startingAt(walk, d.hapStarts[k]! + d.ownBp[k]!)
               : -1
           if (leave >= 0) {
-            steps.unshift(leave)
+            steps.unshift(w.steps[leave]!)
             held.unshift(true)
+            starts.unshift(stepStarts[leave]!)
+            reversed.unshift(w.reversed[leave] === 1)
           }
           if (rejoin >= 0) {
-            steps.push(rejoin)
+            steps.push(w.steps[rejoin]!)
             held.push(true)
+            starts.push(stepStarts[rejoin]!)
+            reversed.push(w.reversed[rejoin] === 1)
           }
-          runs.push({ walk: walk[0]!, steps, held })
+          runs.push({ walk: walk[0]!, steps, held, starts, reversed })
         }
       })
     }

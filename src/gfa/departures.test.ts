@@ -20,6 +20,7 @@ import { walkRows } from '../layout/walkRows'
 import { loadGraph } from '../pipeline'
 import { walkLift } from '../walkHighlight'
 import { walkKey } from '../walkKey'
+import { walksThrough } from '../walksThrough'
 import {
   departureAt,
   departureKind,
@@ -513,6 +514,41 @@ test("a node counts each shown walk that takes it as a departure's own step, onc
     ['6+', '4+', ['HG004#1#chr1', 'HG002#1#chr1', 'HG003#1#chr1']],
   ])
   expect(graph.nodes.find(node => node.name === '2')?.depth).toBe(4)
+})
+
+test('a node on fragments lists the walks that step on it', () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  const two = graph.nodes.find(node => node.name === '2')!
+  expect(walksThrough(graph, two)).toEqual([
+    { name: REFERENCE, passes: 1 },
+    { name: 'HG002#1#chr1', passes: 1 },
+    { name: 'HG003#1#chr1', passes: 1 },
+    { name: 'HG004#1#chr1', passes: 1 },
+  ])
+})
+
+test('a node reached through departures lists each shown walk once, where its own step lies on its contig, and no walk not shown', () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  const six = graph.nodes.find(node => node.name === '6')!
+  expect(walksThrough(graph, six)).toEqual([
+    { name: 'HG004#1#chr1', passes: 1 },
+    { name: 'HG002#1#chr1', passes: 1 },
+    { name: 'HG003#1#chr1', passes: 1 },
+  ])
+  expect(six.departureVisits).toEqual([
+    { path: 'HG002#1#chr1', sample: 'HG002', start: 2000, strand: '+' },
+    { path: 'HG003#1#chr1', sample: 'HG003', start: 2000, strand: '+' },
+  ])
+})
+
+test("every node's walks are as many as its depth", () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  for (const node of graph.nodes) {
+    expect([node.name, walksThrough(graph, node).length]).toEqual([
+      node.name,
+      node.depth,
+    ])
+  }
 })
 
 // HG002's own steps 6 and 7 break after 6: 6 follows its leave step, 2, and 7
