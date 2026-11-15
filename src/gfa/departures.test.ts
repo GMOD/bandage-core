@@ -465,3 +465,92 @@ test('a gap with no departure in it is out of view', () => {
     'out of view: in the graph, beyond the part drawn here',
   )
 })
+
+// HG002 and HG003 leave the reference after node 2 for node 6 and rejoin at
+// node 4, each in two fragments with node 6 a departure's own step alone;
+// HG004 takes node 6 in its one fragment and its departure repeats it; HG005
+// has no walk in the cut
+function departedThroughSix(): GraphTables {
+  const tables = gfaTables(
+    gfa(
+      'H\tVN:Z:1.1',
+      ...S(1, 2, 3, 4, 5, 6),
+      ...L([1, 2], [2, 3], [3, 4], [4, 5], [2, 6], [6, 4]),
+      W(REFERENCE, 0, 5000, '>1>2>3>4>5'),
+      W('HG002#1#chr1', 0, 2000, '>1>2'),
+      W('HG002#1#chr1', 3000, 5000, '>4>5'),
+      W('HG003#1#chr1', 0, 2000, '>1>2'),
+      W('HG003#1#chr1', 3000, 5000, '>4>5'),
+      W('HG004#1#chr1', 0, 5000, '>1>2>6>4>5'),
+    ),
+  )!
+  const six = tables.nodes.names.indexOf('6')
+  const names = ['HG002#1#chr1', 'HG003#1#chr1', 'HG004#1#chr1', 'HG005#1#chr1']
+  return {
+    ...tables,
+    departures: {
+      ...departureTable(
+        names.map(name =>
+          departure({ name, fromSteps: name === 'HG004#1#chr1' }),
+        ),
+      ),
+      offsets: Int32Array.of(0, 1, 2, 3, 4),
+      steps: Int32Array.of(six, six, six, six),
+      reversed: new Uint8Array(4),
+    },
+  }
+}
+
+test("a node counts each shown walk that takes it as a departure's own step, once, and no walk not shown", () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  expect(graph.nodes.find(node => node.name === '6')?.depth).toBe(3)
+  expect(
+    graph.edges
+      .filter(e => e.from === '6+' || e.to === '6+')
+      .map(e => [e.from, e.to, e.pathIds]),
+  ).toEqual([
+    ['2+', '6+', ['HG004#1#chr1', 'HG002#1#chr1', 'HG003#1#chr1']],
+    ['6+', '4+', ['HG004#1#chr1', 'HG002#1#chr1', 'HG003#1#chr1']],
+  ])
+  expect(graph.nodes.find(node => node.name === '2')?.depth).toBe(4)
+})
+
+// HG002's own steps 6 and 7 break after 6: 6 follows its leave step, 2, and 7
+// leads to its rejoin step, 4, and the cut has no link that takes it from 6
+// to 7
+test("a departure's broken own steps take the links either side of the break, not one across it", () => {
+  const tables = gfaTables(
+    gfa(
+      'H\tVN:Z:1.1',
+      ...S(1, 2, 3, 4, 5, 6, 7),
+      ...L([1, 2], [2, 3], [3, 4], [4, 5], [2, 6], [6, 7], [7, 4]),
+      W(REFERENCE, 0, 5000, '>1>2>3>4>5'),
+      W('HG002#1#chr1', 0, 2000, '>1>2'),
+      W('HG002#1#chr1', 4000, 6000, '>4>5'),
+    ),
+  )!
+  const { names } = tables.nodes
+  const graph = graphFromTables(
+    {
+      ...tables,
+      departures: {
+        ...departureTable([departure({ ownBp: 2000 })]),
+        offsets: Int32Array.of(0, 2),
+        steps: Int32Array.of(names.indexOf('6'), names.indexOf('7')),
+        reversed: new Uint8Array(2),
+        breakAt: Int32Array.of(1),
+      },
+    },
+    'cut',
+  )
+  expect(
+    graph.edges
+      .filter(e => ['6+', '7+'].includes(e.from))
+      .concat(graph.edges.filter(e => e.from === '2+' && e.to === '6+'))
+      .map(e => [e.from, e.to, e.pathIds]),
+  ).toEqual([
+    ['6+', '7+', undefined],
+    ['7+', '4+', ['HG002#1#chr1']],
+    ['2+', '6+', ['HG002#1#chr1']],
+  ])
+})

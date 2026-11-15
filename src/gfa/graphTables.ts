@@ -2,7 +2,7 @@ import { REFERENCE_RANK } from '../anchoredNodes'
 import { panSNFields, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
-import { stretchSegments } from './departures'
+import { ownStepRuns, stretchSegments } from './departures'
 import { linkKey } from './linkKey'
 import {
   REVERSED,
@@ -316,7 +316,9 @@ export function tableNodeIds(
  * the text costs a string and several map lookups. GFA has no line for a
  * departure, a trimmed walk's bp or the source's count of nodes the reference
  * passes more than once, so only this Graph keeps the tables' `departures`,
- * each walk's trimmed bp and `revisited`; the text counts its own walks.
+ * each walk's trimmed bp and `revisited`, and counts into node depth and the
+ * walks on links each walk's departures' own steps no fragment of it holds
+ * (departures.ts ownStepRuns); the text counts its own walks.
  */
 export function graphFromTables(
   { nodes: n, links, walks: w, departures, revisited, gaps }: GraphTables,
@@ -334,6 +336,17 @@ export function graphFromTables(
   const traversals = new Int32Array(count)
   const orient = tableOrientation({ nodes: n, links: l, walks: w }, traversals)
   const ids = nodeIdsOf(n.names, orient)
+  const departed = ownStepRuns({ nodes: n, walks: w, departures })
+  const departedTraversals = new Int32Array(count)
+  let departedSteps = 0
+  for (const { steps, held } of departed) {
+    steps.forEach((node, i) => {
+      if (!held[i]) {
+        departedTraversals[node]!++
+      }
+    })
+    departedSteps += steps.length
+  }
 
   const nodes: GraphNode[] = []
   for (let i = 0; i < declared; i++) {
@@ -342,7 +355,7 @@ export function graphFromTables(
       id: ids[i]!,
       name: n.names[i]!,
       length: n.lengths[i]!,
-      depth: Math.max(traversals[i]!, 1),
+      depth: Math.max(traversals[i]! + departedTraversals[i]!, 1),
       stable:
         ref < 0
           ? undefined
@@ -429,8 +442,10 @@ export function graphFromTables(
   // load, 1,816 fragments of 233 samples.
   const nameIndex = new Map<string, number>()
   const pathNames: string[] = []
-  // a walk crosses at most a list per step
-  const crossedList = new Int32Array(w.offsets[w.names.length] ?? 0)
+  // a walk or a departure's run crosses at most a list per step
+  const crossedList = new Int32Array(
+    (w.offsets[w.names.length] ?? 0) + departedSteps,
+  )
   const crossedName = new Int32Array(crossedList.length)
   let crossings = 0
   const lastWalk = new Int32Array(lists).fill(-1)
@@ -502,6 +517,17 @@ export function graphFromTables(
       start,
       length: pos - start,
     })
+  }
+  for (const { walk, steps, held } of departed) {
+    const edgeNamed = edgeNameIndex.get(tablePath(w, walk).name)!
+    for (let i = 1; i < steps.length; i++) {
+      const list =
+        held[i - 1] && held[i] ? -1 : listOf(steps[i - 1]!, steps[i]!)
+      if (list >= 0) {
+        crossedList[crossings] = list
+        crossedName[crossings++] = edgeNamed
+      }
+    }
   }
   const listNames = namesByList(
     crossedList.subarray(0, crossings),
