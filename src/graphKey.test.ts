@@ -396,6 +396,27 @@ const CUTS: [string, Graph, (g: Graph) => Scene][] = [
   ],
   ['short solid skips only', SKIPPED, () => ({ width: 120 })],
   [
+    'a lifted walk beside a dashed skip it does not take',
+    SKIPPED,
+    g => ({ lift: lifting(g, [REF]) }),
+  ],
+  [
+    'a lift leaving a placeholder out',
+    UNLOADED,
+    g => ({
+      lift: lifting(g, ['R#0#chr']),
+      layout: layoutModeByValue('auto').run(g, undefined)!,
+    }),
+  ],
+  [
+    'a lift through a placeholder',
+    UNLOADED,
+    g => ({
+      lift: lifting(g, ['A#1#chr']),
+      layout: layoutModeByValue('auto').run(g, undefined)!,
+    }),
+  ],
+  [
     'a dashed skip under the ramp',
     SKIPPED,
     g => ({ referenceRamp: computeReferenceRamp(g, { start: 0, end: 9 }) }),
