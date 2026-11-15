@@ -1,4 +1,4 @@
-import { dashedDeletions, deletionKey } from './deletionEdges'
+import { SHORT_SKIP_KEY, dashedDeletions, deletionKey } from './deletionEdges'
 import { escapeAttr, serializeEl } from './el'
 import {
   FACET_GAP_PX,
@@ -187,6 +187,14 @@ function deletionKeySvg(x: number, y: number, note: string, color: string) {
     width: SWATCH_PX + 5 + note.length * LABEL_CHAR_PX,
     height: KEY_LINE_PX,
     markup: `<g transform="translate(${x} ${y})" ${FONT}><line y1="9" y2="9" x2="${SWATCH_PX}" stroke="${color}" stroke-width="2" stroke-dasharray="4 3"/><text x="${SWATCH_PX + 5}" y="13">${note}</text></g>`,
+  }
+}
+
+function shortSkipKeySvg(x: number, y: number, color: string) {
+  return {
+    width: SWATCH_PX + 5 + SHORT_SKIP_KEY.length * LABEL_CHAR_PX,
+    height: KEY_LINE_PX,
+    markup: `<g transform="translate(${x} ${y})" ${FONT}><line y1="9" y2="9" x1="5" x2="${SWATCH_PX - 5}" stroke="${color}" stroke-width="1.5"/><text x="${SWATCH_PX + 5}" y="13">${SHORT_SKIP_KEY}</text></g>`,
   }
 }
 
@@ -427,6 +435,8 @@ export function figureSvg(
       deletionKey(referenceName),
       lift ? FADED : DELETION_INK,
     )
+  const shortSkipKeyAt: KeyAt = (x, y) =>
+    shortSkipKeySvg(x, y, lift ? FADED : DELETION_INK)
   const parts: string[] = []
   let height: number
   if (facets) {
@@ -434,7 +444,7 @@ export function figureSvg(
     const dashed = panels.some(
       panel => dashedDeletions(drawnDeletions.shown, panel).length > 0,
     )
-    const keyed = keyLines(dashed ? [deletionKeyAt] : [], width)
+    const keyed = keyLines(dashed ? [deletionKeyAt, shortSkipKeyAt] : [], width)
     parts.push(...keyed.markup)
     const header = dashed ? keyed.height + FACET_GAP_PX : 0
     const grid = facetGrid({
@@ -533,7 +543,7 @@ export function figureSvg(
       keys.push(notLoadedKeySvg)
     }
     if (dashedDeletions(drawnDeletions.shown, lift).length > 0) {
-      keys.push(deletionKeyAt)
+      keys.push(deletionKeyAt, shortSkipKeyAt)
     }
     if (pins.some(pin => pin.exonsByNode.length > 0)) {
       keys.push((x, y) => exonKeySvg(x, y))

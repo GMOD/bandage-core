@@ -1,3 +1,4 @@
+import { SHORT_SKIP_KEY } from './deletionEdges'
 import { FACET_TITLE_PX } from './facetGrid'
 import { figureSvg } from './figure'
 import { parseGFA } from './gfa-core/index'
@@ -246,7 +247,9 @@ test('one figure draws as it did', async () => {
   ).toMatchFileSnapshot('__snapshots__/figure_walks.svg')
 })
 
-test('a figure keys the dashed links it draws as skipped reference sequence', () => {
+// d719794 draws a skip whose span on screen holds fewer than three dashes as
+// one plain stroke, which the key left out
+test('a figure keys the dashed links it draws as skipped reference sequence, and the plain stroke of a skip too short to dash', () => {
   const skipped = anchorGraph(
     convertGFAToGraph(
       parseGFA(`${GFA}\nL\tv1\t+\tv3\t+\t0M\nW\tdel\t1\tchr\t0\t7\t>v1>v3`),
@@ -254,12 +257,16 @@ test('a figure keys the dashed links it draws as skipped reference sequence', ()
     'ref',
   )
   const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
-  expect(figureSvg(skipped, skippedLayout, { width: 600 })).toMatch(
-    /skips .+? sequence/,
+  const keyed = figureSvg(skipped, skippedLayout, { width: 600 })
+  expect(keyed).toMatch(
+    /stroke-dasharray="4 3"\/><text[^>]*>skips .+? sequence</,
   )
-  expect(figureSvg(graph, layout, { width: 600 })).not.toMatch(
-    /skips .+? sequence/,
+  expect(keyed).toMatch(
+    /<line [^>]*stroke-width="1.5"\/><text[^>]*>a skip too short to dash</,
   )
+  const plain = figureSvg(graph, layout, { width: 600 })
+  expect(plain).not.toMatch(/skips .+? sequence/)
+  expect(plain).not.toContain(SHORT_SKIP_KEY)
 })
 
 test('a figure split into panels keys the dashed links once, above the grid, only when a panel draws one', () => {
@@ -278,6 +285,7 @@ test('a figure split into panels keys the dashed links once, above the grid, onl
     facet: 'sample',
   })
   expect(svg.match(/skips .+? sequence/g)).toHaveLength(1)
+  expect(svg.split(SHORT_SKIP_KEY)).toHaveLength(2)
   const keyAt = svg.search(/skips .+? sequence/)
   expect(keyAt).toBeLessThan(svg.indexOf('<svg x="'))
   expect(
