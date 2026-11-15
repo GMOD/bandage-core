@@ -5,6 +5,7 @@ import {
   LABEL_CHAR_PX,
   LABEL_PAD,
   LABEL_PX,
+  labelWidth,
   occupancy,
   placeLabels,
 } from './overlayLabels'
@@ -90,7 +91,9 @@ export function geneCoverageNote(pin: GenePin) {
 // Each gene's name under its pin, or above it where the gene's node runs on
 // under the pin, the longest gene first, with how much of the gene the cut
 // covers where it covers less than all. A name over a node the gene does not
-// lie on reads as that node's, so it moves or goes.
+// lie on reads as that node's, so it moves: down or up a row, or sideways by up
+// to half its width, its leader still running to the pin. A gene is a
+// landmark, so its name gives way to a crowd only after all of that.
 export function geneLabelCandidates(
   pins: GenePin[],
   screen: (p: { x: number; y: number }) => { x: number; y: number },
@@ -101,14 +104,16 @@ export function geneLabelCandidates(
   return byExtent(pins, pin => pin.gene.end - pin.gene.start).map(pin => {
     const { x, y } = screen(pin.at)
     const note = geneCoverageNote(pin)
+    const text = note ? `${pin.gene.name} · ${note}` : pin.gene.name
     return {
       item: pin,
       x,
       y: y + contigThickness + GENE_PIN_DROP_PX,
       flipY: y - contigThickness - GENE_PIN_DROP_PX + LABEL_PX,
-      text: note ? `${pin.gene.name} · ${note}` : pin.gene.name,
+      text,
       fallback: note ? `${pin.gene.name} …` : undefined,
       stack: GENE_STACK,
+      slide: labelWidth(text) / 2,
       fits: (box: Box) =>
         [
           ...nodesUnder({
@@ -123,15 +128,25 @@ export function geneLabelCandidates(
 }
 
 // The line from a gene's name to the edge of its pin's node nearer the name,
-// with `pinY` the pin's screen y
+// `pin` in screen px; it leans where the name slid sideways
 export function geneLeader(
-  label: { y: number },
-  pinY: number,
+  label: { x: number; y: number },
+  pin: { x: number; y: number },
   contigThickness: number,
 ) {
-  return label.y > pinY
-    ? { y1: label.y - LABEL_PX - 2, y2: pinY + contigThickness / 2 }
-    : { y1: label.y + LABEL_PAD, y2: pinY - contigThickness / 2 }
+  return label.y > pin.y
+    ? {
+        x1: label.x,
+        y1: label.y - LABEL_PX - 2,
+        x2: pin.x,
+        y2: pin.y + contigThickness / 2,
+      }
+    : {
+        x1: label.x,
+        y1: label.y + LABEL_PAD,
+        x2: pin.x,
+        y2: pin.y - contigThickness / 2,
+      }
 }
 
 function byExtent<T>(items: T[], extent: (item: T) => number) {
@@ -202,6 +217,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     })),
     frame,
     take,
+    reserved,
   )
   const ticks = m.bubbleHalos
     .filter(h => h.tick)
@@ -221,6 +237,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     ),
     frame,
     take,
+    reserved,
   )
   const sizes =
     m.nodePositions &&

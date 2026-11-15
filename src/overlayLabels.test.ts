@@ -1,4 +1,6 @@
-import { occupancy, placeLabels } from './overlayLabels'
+import { LABEL_PAD, LABEL_PX, occupancy, placeLabels } from './overlayLabels'
+
+import type { Box } from './overlayLabels'
 
 const frame = { width: 400, height: 300 }
 
@@ -103,6 +105,60 @@ test('a label crowded out by other labels does not flip', () => {
     occupancy(frame),
   )
   expect(placed.map(p => p.item)).toEqual(['a', 'b'])
+})
+
+test('a label that may slide moves sideways, nearest first, to a free box on its row', () => {
+  const key = { x0: 300, x1: 400, y0: 0, y1: 300 }
+  const [placed] = placeLabels(
+    [{ item: 'g', x: 290, y: 50, text: 'GENE1', slide: 20 }],
+    frame,
+    occupancy(frame, [key]),
+    [key],
+  )
+  expect(placed).toMatchObject({ x: 274, y: 50 })
+  expect(
+    placeLabels(
+      [{ item: 'g', x: 290, y: 50, text: 'GENE1' }],
+      frame,
+      occupancy(frame, [key]),
+      [key],
+    ),
+  ).toEqual([])
+})
+
+// LOC124904594 at amylase slid along its own row onto AMY1A's leader, where
+// it read as naming AMY1A, though the row under its pin was free
+test('a label takes the next row unslid before a long slide on its own row', () => {
+  const pinX = 300
+  const besidePin = (box: Box) =>
+    box.y1 <= 104 && Math.abs((box.x0 + box.x1) / 2 - pinX) <= 16
+  const [placed] = placeLabels(
+    [
+      {
+        item: 'LOC',
+        x: pinX,
+        y: 100,
+        text: 'LOC124904594',
+        stack: 2,
+        slide: 40,
+        fits: box => !besidePin(box),
+      },
+    ],
+    frame,
+    occupancy(frame),
+  )
+  expect(placed).toMatchObject({ x: pinX, y: 100 + LABEL_PX + 2 * LABEL_PAD })
+})
+
+test('a label only a reserved box refused still flips', () => {
+  const key = { x0: 0, x1: 400, y0: 80, y1: 300 }
+  const placed = placeLabels(
+    [{ item: 'g', x: 100, y: 100, text: 'under the key', stack: 1, flipY: 60 }],
+    frame,
+    occupancy(frame, [key]),
+    [key],
+  )
+  expect(placed.map(p => [p.item, p.y])).toEqual([['g', 60]])
 })
 
 test('a chip the pane edge would cut is dropped', () => {

@@ -1,5 +1,10 @@
 import { LABEL_DEFAULTS } from './graphLabels'
-import { geneCoverageNote, geneLeader, layoutLabels } from './labelLayout'
+import {
+  LEGEND_INSET_PX,
+  geneCoverageNote,
+  geneLeader,
+  layoutLabels,
+} from './labelLayout'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
@@ -284,8 +289,8 @@ test("a gene's name never covers a node the gene does not lie on", () => {
 })
 
 // HPRC's KIV-2 cut lost its `LPA …` once the layout turned LPA's end node to
-// run down from its pin. Every row under the pin crossed a SNP allele drawn
-// beside that node, and placement never tried the free space above.
+// run down from its pin. Every row under the pin, slid either way, crossed a
+// SNP allele drawn beside that node, and placement never tried the free space above.
 test("a gene's name goes above its pin when its node runs on under it", () => {
   const at = { x: 300, y: 100 }
   const nodePositions = {
@@ -294,19 +299,50 @@ test("a gene's name goes above its pin when its node runs on under it", () => {
       { x: 304, y: 100 },
       { x: 304, y: 300 },
     ],
+    alt: [
+      { x: 296, y: 100 },
+      { x: 296, y: 300 },
+    ],
   }
   const [label] = layoutLabels(
     source({ genePins: [pin(at)], nodePositions }),
   ).genes
   expect(label!.y).toBeLessThan(at.y)
-  expect(geneLeader(label!, at.y, 6)).toEqual({
+  expect(geneLeader(label!, at, 6)).toEqual({
+    x1: label!.x,
     y1: label!.y + 4,
+    x2: at.x,
     y2: at.y - 3,
   })
 })
 
-test("a gene's leader runs from the chip's top down to a pin above it", () => {
-  expect(geneLeader({ y: 130 }, 100, 6)).toEqual({ y1: 117, y2: 103 })
+test("a gene's leader runs from the chip's top down to a pin above it, leaning where the chip slid", () => {
+  expect(geneLeader({ x: 90, y: 130 }, { x: 100, y: 100 }, 6)).toEqual({
+    x1: 90,
+    y1: 117,
+    x2: 100,
+    y2: 103,
+  })
+})
+
+// AMY1C at the amylase locus sat a few px left of the key, which runs the
+// pane's height there: every row under and over the pin reached into the key,
+// and the name was dropped
+test('a gene name next to the key slides clear of it rather than vanish', () => {
+  const keyLeft = 800 - LEGEND_INSET_PX - 200
+  const at = { x: keyLeft - 6, y: 100 }
+  const nodePositions = { bb: [{ x: keyLeft - 60, y: 100 }, at] }
+  const layout = layoutLabels(
+    source({
+      genePins: [pin(at)],
+      nodePositions,
+      legendSize: { width: 200, height: 400 },
+    }),
+  )
+  const [label] = layout.genes
+  expect(label).toBeDefined()
+  expect(label!.x + label!.w / 2).toBeLessThanOrEqual(keyLeft)
+  expect(geneLeader(label!, at, 6).x2).toBe(at.x)
 })
 
 test('a small variant stands as a tick above its nodes, with no chip', () => {

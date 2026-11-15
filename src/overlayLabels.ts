@@ -30,6 +30,8 @@ export interface LabelCandidate<T> {
   flipY?: number
   // whether the label may stand in a box, beyond its being free
   fits?: (box: Box) => boolean
+  // how far sideways, in px, the label may move to find a box on a row
+  slide?: number
 }
 
 export interface PlacedLabel<T> extends LabelCandidate<T> {
@@ -80,15 +82,38 @@ export function occupancy(frame: Frame, reserved: Box[] = []): TakeBox {
   }
 }
 
+const SLIDE_STEP_PX = 8
+
+// The sideways moves a label may try on a row, nearest first
+function slides(slide: number) {
+  const out = [0]
+  for (let d = SLIDE_STEP_PX; d <= slide; d += SLIDE_STEP_PX) {
+    out.push(-d, d)
+  }
+  return out
+}
+
+// A row another label took is a crowd, which keeps a dense gene track to one
+// lane; a row only a `reserved` box (the key, the strip, the row labels) took
+// is not, so a label it refuses still tries above
 export function placeLabels<T>(
   candidates: LabelCandidate<T>[],
   frame: Frame,
   take: TakeBox,
+  reserved: readonly Box[] = [],
 ): PlacedLabel<T>[] {
   const out: PlacedLabel<T>[] = []
   const row = LABEL_PX + LABEL_PAD * 2
-  // the label on the first free row from `from`, and whether another label
-  // took a row it could otherwise stand on
+  const boxAt = (x: number, y: number, w: number) => ({
+    x0: x - w / 2,
+    x1: x + w / 2,
+    y0: y - LABEL_PX - LABEL_PAD,
+    y1: y + LABEL_PAD,
+  })
+  // the label on the free spot nearest its anchor, rows down from `from` and
+  // slides sideways measured alike, so a row's long slide waits for the next
+  // row's short one; and whether another label took a spot it could otherwise
+  // stand on
   const stackFrom = (
     c: LabelCandidate<T>,
     text: string,
@@ -96,23 +121,25 @@ export function placeLabels<T>(
     direction: number,
   ) => {
     const w = labelWidth(text)
-    let crowded = false
+    const spots: { dx: number; y: number; distance: number }[] = []
     for (let tries = 0; tries <= (c.stack ?? 0); tries++) {
       const y = from + direction * tries * row
-      const box = {
-        x0: c.x - w / 2,
-        x1: c.x + w / 2,
-        y0: y - LABEL_PX - LABEL_PAD,
-        y1: y + LABEL_PAD,
-      }
-      if (offFrame(box, frame)) {
+      if (offFrame(boxAt(c.x, y, w), frame)) {
         break
       }
+      for (const dx of slides(c.slide ?? 0)) {
+        spots.push({ dx, y, distance: Math.hypot(dx, tries * row) })
+      }
+    }
+    spots.sort((a, b) => a.distance - b.distance)
+    let crowded = false
+    for (const { dx, y } of spots) {
+      const box = boxAt(c.x + dx, y, w)
       if (insideFrame(box, frame) && (c.fits?.(box) ?? true)) {
         if (take(box)) {
-          return { placed: { ...c, text, y, w }, crowded }
+          return { placed: { ...c, x: c.x + dx, text, y, w }, crowded }
         }
-        crowded = true
+        crowded ||= !reserved.some(r => overlaps(r, box))
       }
     }
     return { placed: undefined, crowded }
