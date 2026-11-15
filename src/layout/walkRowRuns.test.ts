@@ -6,6 +6,7 @@ import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
 import { walkRowReadout } from './walkRowDraw'
+import { walkRowLinks } from './walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
 
@@ -1043,6 +1044,148 @@ describe('a walk row over a window between 1 kb nodes', () => {
       'O#1': '≥ 1.5 kb · contig ends inside the window',
       'H#1': '≥ 1.1 kb · turns back out of the window',
     })
+  })
+})
+
+// The reference walks node 1 twice, at chr:0-10 and chr:30-40, filed as two
+// pieces out of order. `hap` walks every step of it, `late` starts on node 3
+// and `second` on node 1's second pass, and `short` ends on that pass.
+describe('a reference that passes one node twice', () => {
+  const rowsIn = (lines: string[], start: number, end: number) => {
+    const graph = loadGraph(lines.join('\n'), 'twice.gfa', {
+      referencePath: 'ref#0#chr',
+    })
+    const rows = walkRows(graph, { start, end }, undefined, { visits: true })!
+    return Object.fromEntries(
+      [rows.reference, ...rows.rows].map((row, i) => [
+        row.label,
+        {
+          row,
+          readout: walkRowReadout(row, i === 0 ? undefined : rows.reference),
+          placement: {
+            complete: row.complete,
+            windowBp: row.windowBp,
+            visits: row.visits?.map(v => v.node),
+            runs: row.runs.map(r => [r.start, r.bp, r.referenceStart]),
+          },
+        },
+      ]),
+    )
+  }
+  const links = (pairs: string[]) =>
+    pairs.map(l => `L\t${l.split(' ')[0]}\t+\t${l.split(' ')[1]}\t+\t0M`)
+  const over = (start: number, end: number) =>
+    rowsIn(
+      [
+        ...[1, 2, 3, 4, 5].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+        ...links(['1 2', '2 3', '3 1', '1 4', '4 5']),
+        'W\tref\t0\tchr\t20\t60\t>3>1>4>5',
+        'W\tref\t0\tchr\t0\t20\t>1>2',
+        'W\thap\t1\tc\t0\t60\t>1>2>3>1>4>5',
+        'W\tlate\t1\tl\t0\t30\t>3>1>4',
+        'W\tsecond\t1\ts\t0\t20\t>1>4',
+        'W\tshort\t1\tq\t0\t20\t>3>1',
+      ],
+      start,
+      end,
+    )
+
+  test('the node between its two passes is flanked by the second, and the rows link', () => {
+    const rows = over(20, 30)
+    const between = {
+      complete: true,
+      windowBp: 10,
+      visits: ['3+'],
+      runs: [[0, 10, 20]],
+    }
+    expect(rows['ref#0']!.placement).toEqual(between)
+    expect(rows['hap#1']!.placement).toEqual(between)
+    expect(walkRowLinks([rows['ref#0']!.row, rows['hap#1']!.row])).toEqual([
+      { row: 0, a0: 0, a1: 10, b0: 0, b1: 10 },
+    ])
+  })
+
+  test('its second pass inside the window follows the node before it in one run', () => {
+    const rows = over(20, 40)
+    const both = {
+      complete: true,
+      windowBp: 20,
+      visits: ['3+', '1+'],
+      runs: [[0, 20, 20]],
+    }
+    expect(rows['ref#0']!.placement).toEqual(both)
+    expect(rows['hap#1']!.placement).toEqual(both)
+    expect(walkRowLinks([rows['ref#0']!.row, rows['hap#1']!.row])).toEqual([
+      { row: 0, a0: 0, a1: 20, b0: 0, b1: 20 },
+    ])
+  })
+
+  test('a window inside its second pass counts the bp of that pass inside it', () => {
+    const rows = over(32, 38)
+    expect(rows['ref#0']!.row.windowBp).toBe(6)
+    expect(rows['hap#1']!.row.windowBp).toBe(6)
+    expect(rows['hap#1']!.row.complete).toBe(true)
+  })
+
+  test('a walk starting in the window reaches its second pass as its right flank', () => {
+    const { row, readout } = over(20, 30)['late#1']!
+    expect(readout).toBe('≥ 0.0 kb · contig ends inside the window')
+    expect(row.visits?.map(v => v.node)).toEqual(['3+'])
+    expect(row.axis).toEqual({ contig: 'l', start: 0, reversed: false })
+  })
+
+  test('a walk starting on its second pass is placed from the node after it', () => {
+    const { row, readout } = over(20, 30)['second#1']!
+    expect(readout).toBe('contig ends at the window')
+    expect(row.complete).toBe(false)
+  })
+
+  test('a contig ending on its second pass ends at the window after it', () => {
+    const { row, readout } = over(40, 50)['short#1']!
+    expect(readout).toBe('contig ends at the window')
+    expect(row.stop).toEqual({ contigEnds: true, shortBp: 0 })
+  })
+
+  // the reference walks b twice in a row, chr:10-20 and chr:20-30
+  test('each copy of a tandem repeat takes its own pass, whichever way the walk runs', () => {
+    const rows = rowsIn(
+      [
+        ...['a', 'b', 'c'].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+        ...links(['a b', 'b b', 'b c']),
+        'W\tref\t0\tchr\t0\t40\t>a>b>b>c',
+        'W\thap\t1\tc\t0\t40\t>a>b>b>c',
+        'W\trev\t1\tr\t0\t40\t<c<b<b<a',
+      ],
+      20,
+      30,
+    )
+    for (const label of ['ref#0', 'hap#1', 'rev#1']) {
+      expect(rows[label]!.row.complete).toBe(true)
+      expect(rows[label]!.row.windowBp).toBe(10)
+      expect(rows[label]!.row.visits?.map(v => v.node)).toHaveLength(1)
+    }
+    expect(rows['rev#1']!.row.axis?.reversed).toBe(true)
+  })
+
+  // the reference is two pieces 80 bp apart, each with a pass of r:
+  // chr:0-10 and chr:100-110
+  test('a piece of the reference that starts on the node keeps its own pass of it', () => {
+    const rows = rowsIn(
+      [
+        ...['r', 'x', 'z'].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+        ...links(['r x', 'r z']),
+        'W\tref\t0\tchr\t0\t20\t>r>x',
+        'W\tref\t0\tchr\t100\t120\t>r>z',
+        'W\thap\t1\tc\t0\t20\t>r>z',
+      ],
+      100,
+      110,
+    )
+    expect(rows['ref#0']!.row.windowBp).toBe(10)
+    expect(rows['ref#0']!.row.visits?.map(v => v.node)).toEqual(['r+'])
+    expect(rows['hap#1']!.readout).toBe(
+      '≥ 0.0 kb · contig ends inside the window',
+    )
   })
 })
 

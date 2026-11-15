@@ -461,9 +461,9 @@ export function walkRowRuns(
   // a cut hands a walk back as one record per piece inside its nodes
   const walks = groupBy(others, nameOf)
 
-  // each node's span on the reference's first visit, NaN where it never visits
+  // where each node starts on the reference's first visit, NaN where it never
+  // visits
   const spanStart = new Float64Array(names.length).fill(Number.NaN)
-  const spanEnd = new Float64Array(names.length)
   // every visit's start for a node the reference walks more than once, as a
   // collapsed repeat makes it
   const revisits = new Map<number, number[]>()
@@ -489,7 +489,6 @@ export function walkRowRuns(
         }
       } else {
         spanStart[node] = pos
-        spanEnd[node] = pos + len
         referenceLo = Math.min(referenceLo, pos)
         referenceHi = Math.max(referenceHi, pos + len)
         if (cut) {
@@ -511,7 +510,11 @@ export function walkRowRuns(
   // `cursor`, where the walk left the reference, so a copy of a collapsed
   // repeat follows the reference copy it continues; the first visit where
   // nothing precedes it
-  const placeNear = (id: number, cursor: number) => {
+  const placeNear = (
+    id: number,
+    cursor: number,
+    abutting?: 'start' | 'end',
+  ) => {
     const starts = revisits.get(id)
     if (!starts || Number.isNaN(cursor)) {
       return spanStart[id]!
@@ -524,7 +527,10 @@ export function walkRowRuns(
         Math.abs(start - cursor),
         Math.abs(start + len - cursor),
       )
-      if (gap < bestGap) {
+      const abuts =
+        abutting !== undefined &&
+        (abutting === 'start' ? start : start + len) === cursor
+      if (gap < bestGap || (gap === bestGap && abuts)) {
         best = start
         bestGap = gap
       }
@@ -538,6 +544,7 @@ export function walkRowRuns(
   // across rows
   let steps = new Int32Array(0)
   let stepStart = new Float64Array(0)
+  let stepPlace = new Float64Array(0)
 
   // Each of a stepless row's departures as a hairline under the stretch of
   // the reference row's bar between its ends; the bp of those runs
@@ -740,7 +747,7 @@ export function walkRowRuns(
       const tailEnd = endOf(true)
       const leadEnd = endOf(false)
       return near >= 0
-        ? near > flank === spanStart[steps[near]!]! > spanStart[steps[flank]!]!
+        ? near > flank === stepPlace[near]! > stepPlace[flank]!
         : fragHi > fragLo
           ? undefined
           : tailEnd.departure
@@ -763,8 +770,8 @@ export function walkRowRuns(
         shortBp: contigEnds
           ? Math.max(
               0,
-              cut!.start - spanEnd[steps[last]!]!,
-              spanStart[steps[last]!]! - cut!.end,
+              cut!.start - stepPlace[last]! - lengthOf(steps[last]!),
+              stepPlace[last]! - cut!.end,
             )
           : 0,
         ...(departure
@@ -804,10 +811,50 @@ export function walkRowRuns(
     let flankTo = -1
     let axisStart: number | undefined
     let stop: WalkStop | undefined
-    const placeStart = (i: number) => {
-      const id = steps[i]!
-      return id < 0 || partsAt.has(i) ? Number.NaN : spanStart[id]!
+    if (stepPlace.length < length) {
+      stepPlace = new Float64Array(steps.length)
     }
+    const placeable = (i: number) =>
+      steps[i]! >= 0 && !partsAt.has(i) && !placeholder(steps[i]!)
+    const passedOnce = (i: number) =>
+      placeable(i) &&
+      !Number.isNaN(spanStart[steps[i]!]!) &&
+      !revisits.has(steps[i]!)
+    const placeOutward = (origin: number, toward: 1 | -1) => {
+      let cursor = Number.NaN
+      let abutting: 'start' | 'end' | undefined
+      let neighbour = Number.NaN
+      for (let i = origin; i >= 0 && i < length; i += toward) {
+        const id = steps[i]!
+        const place = placeable(i)
+          ? placeNear(id, cursor, abutting)
+          : Number.NaN
+        stepPlace[i] = place
+        if (!Number.isNaN(place)) {
+          const placeEnd = place + lengthOf(id)
+          const turned =
+            toward > 0 ? placeEnd === neighbour : place === neighbour
+          const leftward = toward > 0 === turned
+          cursor = leftward ? place : placeEnd
+          abutting = leftward ? 'end' : 'start'
+          neighbour = toward > 0 ? place : placeEnd
+        }
+      }
+    }
+    if (walkName === reference) {
+      for (let i = 0; i < length; i++) {
+        stepPlace[i] = placeable(i) ? stepStart[i]! : Number.NaN
+      }
+    } else {
+      let firstPassedOnce = 0
+      while (firstPassedOnce < length && !passedOnce(firstPassedOnce)) {
+        firstPassedOnce++
+      }
+      const anchor = firstPassedOnce < length ? firstPassedOnce : 0
+      placeOutward(anchor, 1)
+      placeOutward(anchor, -1)
+    }
+    const placeStart = (i: number) => stepPlace[i]!
     const stopsInside = (i0: number, i1: number, inside: boolean) => {
       complete = false
       const side = i0 >= 0 || i1 >= 0 ? partialSide(i0, i1, inside) : undefined
@@ -988,10 +1035,7 @@ export function walkRowRuns(
         const id = steps[index]!
         const at = Number.isNaN(left) ? leftEnd : left
         const len = id < 0 ? -id : lengthOf(id)
-        const place =
-          id < 0 || placeholder(id) || partsAt.has(index)
-            ? Number.NaN
-            : placeNear(id, left)
+        const place = stepPlace[index]!
         total += len
         if (Number.isNaN(place)) {
           measured += outsideWindow(at) ? 0 : len
