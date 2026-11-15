@@ -1167,6 +1167,58 @@ describe('a reference that passes one node twice', () => {
     expect(rows['rev#1']!.row.axis?.reversed).toBe(true)
   })
 
+  // the reference walks a at chr:0-10 and chr:20-30, with b between
+  describe('with one node on both sides of another', () => {
+    const lines = [
+      ...['a', 'b'].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+      ...links(['a b', 'b a']),
+      'W\tref\t0\tchr\t0\t30\t>a>b>a',
+      'W\thap\t1\tc\t0\t30\t>a>b>a',
+      'W\tshort\t1\ts\t0\t20\t>a>b',
+    ]
+
+    test('its second pass is the flank on the right of the node between', () => {
+      const rows = rowsIn(lines, 10, 20)
+      for (const label of ['ref#0', 'hap#1']) {
+        expect(rows[label]!.placement).toEqual({
+          complete: true,
+          windowBp: 10,
+          visits: ['b+'],
+          runs: [[0, 10, 10]],
+        })
+      }
+    })
+
+    test('a cut that ends on its second pass has it as its outermost node', () => {
+      const t = gfaTables(lines.join('\n'))!
+      const rows = walkRowsOf(
+        walkRowRuns(
+          {
+            ...t,
+            walks: {
+              ...t.walks,
+              trimmedBefore: new Float64Array(3),
+              trimmedAfter: new Float64Array(3),
+            },
+          },
+          { start: 0, end: 30 },
+          { referencePath: 'ref#0#chr' },
+        )!,
+      )
+      expect(
+        Object.fromEntries(
+          rows.rows.map(row => [
+            row.label,
+            walkRowReadout(row, rows.reference),
+          ]),
+        ),
+      ).toEqual({
+        'hap#1': '0.0 kb',
+        'short#1': '≥ 0.0 kb · contig ends inside the window',
+      })
+    })
+  })
+
   // the reference is two pieces 80 bp apart, each with a pass of r:
   // chr:0-10 and chr:100-110
   test('a piece of the reference that starts on the node keeps its own pass of it', () => {

@@ -489,15 +489,15 @@ export function walkRowRuns(
         }
       } else {
         spanStart[node] = pos
-        referenceLo = Math.min(referenceLo, pos)
-        referenceHi = Math.max(referenceHi, pos + len)
-        if (cut) {
-          if (pos + len <= cut.start) {
-            flankEnd = Math.max(flankEnd, pos + len)
-          }
-          if (pos >= cut.end) {
-            flankStart = Math.min(flankStart, pos)
-          }
+      }
+      referenceLo = Math.min(referenceLo, pos)
+      referenceHi = Math.max(referenceHi, pos + len)
+      if (cut) {
+        if (pos + len <= cut.start) {
+          flankEnd = Math.max(flankEnd, pos + len)
+        }
+        if (pos >= cut.end) {
+          flankStart = Math.min(flankStart, pos)
         }
       }
       pos += len
