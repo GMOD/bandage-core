@@ -912,7 +912,7 @@ test("every line of a readout ends before the pane's right edge and starts past 
 
 // HG00126#1's readout at pggb chrY ran on past the key's edge as its first
 // clause, cut mid-word there; now it ends by whole clauses before the edge
-test('a readout with no breakdown to drop sheds whole clauses from its end', () => {
+test('a readout with no breakdown to drop sheds whole clauses and joined amounts from its end', () => {
   const bars = pggbRows()
   const frame = (room: number) => {
     const scaleX = 600 / 3000
@@ -932,6 +932,9 @@ test('a readout with no breakdown to drop sheds whole clauses from its end', () 
     "10 bp off GRCh38's path and 390 bp on GRCh38, …",
   )
   expect(walkRowReadoutAt(bars, 1, frame(300)).cut).toBe(true)
+  expect(walkRowReadoutAt(bars, 1, frame(200)).shown).toBe(
+    "10 bp off GRCh38's path and …",
+  )
 })
 
 // A 1.8 kb row, 1 kb of it left out of the graph, as the split fixture draws

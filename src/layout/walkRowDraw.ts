@@ -418,8 +418,9 @@ const ELLIPSIS = '…'
 
 // A readout cut to `roomPx` by whole parts from the end, closed with an
 // ellipsis: its breakdown's items, then the parts after its first, then the
-// first's own clauses, so its total and change against the reference stay
-// longest. Where not even an ellipsis fits, nothing is drawn.
+// first's own clauses and the amounts it joins with "and", so its total and
+// change against the reference stay longest. Where not even an ellipsis fits,
+// nothing is drawn.
 function fitReadout(
   text: string,
   roomPx: number,
@@ -444,11 +445,9 @@ function fitReadout(
       : rest
           .map((_, k) => rest.length - 1 - k)
           .map(k => `${[first, ...rest.slice(0, k)].join(' · ')} · ${ELLIPSIS}`)
-  const clauses = head.split(', ')
-  const clauseCuts = clauses
-    .map((_, k) => clauses.length - 1 - k)
-    .filter(k => k > 0)
-    .map(k => `${clauses.slice(0, k).join(', ')}, ${ELLIPSIS}`)
+  const clauseCuts = [...head.matchAll(/, | and /g)]
+    .reverse()
+    .map(m => `${head.slice(0, m.index)}${m[0]}${ELLIPSIS}`)
   return (
     [text, ...cuts, ...clauseCuts, ELLIPSIS].find(
       candidate => measure(candidate) <= roomPx,
