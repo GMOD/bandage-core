@@ -151,6 +151,7 @@ export class Canvas2DRenderer implements Renderer {
             color: f === undefined ? s.color : brightenAbgr(s.color, f),
             weight: s.thickness,
             last: f !== undefined,
+            placeholder: s.placeholder === true,
           }
         }),
       ),
@@ -190,6 +191,7 @@ export class Canvas2DRenderer implements Renderer {
         color: brightenAbgr(batch.nodeStrokes[i]!.color, f),
         weight: batch.nodeStrokes[i]!.thickness,
         last: false,
+        placeholder: batch.nodeStrokes[i]!.placeholder === true,
       })),
     )) {
       this.strokeNodes(
@@ -335,6 +337,8 @@ interface Paint {
   weight: number
   // drawn after everything else, so a highlight lands on top of its neighbours
   last: boolean
+  // drawn under every other node, so what is loaded lies over what is not
+  placeholder?: boolean
 }
 
 interface PaintedGroups {
@@ -347,6 +351,7 @@ interface Group<T> {
   color: number
   weight: number
   last: boolean
+  placeholder: boolean
   items: T[]
 }
 
@@ -360,14 +365,14 @@ function groupByPaint<T>(
   const deferred = new Map<string, Group<T>>()
   for (let i = 0, l = items.length; i < l; i++) {
     const item = items[i]!
-    const { color, weight, last } = paintOf(item, i)
+    const { color, weight, last, placeholder = false } = paintOf(item, i)
     const into = last ? deferred : groups
-    const key = `${color}:${weight}`
+    const key = `${color}:${weight}:${placeholder}`
     const group = into.get(key)
     if (group) {
       group.items.push(item)
     } else {
-      into.set(key, { color, weight, last, items: [item] })
+      into.set(key, { color, weight, last, placeholder, items: [item] })
     }
   }
   return [...groups.values(), ...deferred.values()]
@@ -375,6 +380,9 @@ function groupByPaint<T>(
 
 function widestFirst<T>(groups: Group<T>[]) {
   return groups.toSorted(
-    (a, b) => Number(a.last) - Number(b.last) || b.weight - a.weight,
+    (a, b) =>
+      Number(a.last) - Number(b.last) ||
+      Number(b.placeholder) - Number(a.placeholder) ||
+      b.weight - a.weight,
   )
 }

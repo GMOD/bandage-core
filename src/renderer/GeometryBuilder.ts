@@ -1474,12 +1474,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     if (drawable && node.placeholder && !faded) {
-      nodeStrokes.push({ points: segments, thickness: nodeThickness, color })
+      nodeStrokes.push({
+        points: segments,
+        thickness: nodeThickness,
+        color,
+        placeholder: true,
+      })
       if (nodeThickness > NOT_LOADED_RIM_PX) {
         nodeStrokes.push({
           points: segments,
           thickness: nodeThickness - NOT_LOADED_RIM_PX,
           color: NOT_LOADED_FILL_COLOR,
+          placeholder: true,
         })
       }
     } else if (drawable && lanes) {

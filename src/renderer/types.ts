@@ -37,6 +37,7 @@ export interface NodeStroke {
   offsetX?: number
   // a lane offset at each point, where it varies along the node
   offsets?: number[]
+  placeholder?: true
 }
 
 // One head per edge: its tip at (x, y) in layout units and its screen angle,

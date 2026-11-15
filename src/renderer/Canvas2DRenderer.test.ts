@@ -223,6 +223,7 @@ function depthBatch(
     name: string
     length: number
     depth: number
+    placeholder?: true
   }[],
 ) {
   return buildGeometry({
@@ -261,6 +262,30 @@ test('a wide hovered node is painted after a thin plain one', () => {
   const [thin = 0, wide = 0] = lineWidths
   expect(lineWidths).toHaveLength(2)
   expect(thin).toBeLessThan(wide)
+})
+
+test('a placeholder is painted under every loaded node, however wide they are', () => {
+  const { renderer, strokes, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(
+    depthBatch([
+      { id: 'A+', name: 'A', length: 2, depth: 1 },
+      { id: 'P+', name: 'P', length: 10, depth: 10, placeholder: true },
+      { id: 'R+', name: 'R', length: 10, depth: 40 },
+    ]),
+  )
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  const [rim = 0, fill = 0, reference = 0, allele = 0] = lineWidths
+  expect(strokes).toEqual([
+    'rgba(128,128,128,1)',
+    'rgba(244,244,244,1)',
+    expect.any(String),
+    expect.any(String),
+  ])
+  expect(fill).toBeLessThan(rim)
+  expect(rim).toBeLessThan(reference)
+  expect(allele).toBeLessThan(reference)
 })
 
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it
