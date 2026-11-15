@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest'
 
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { bubbleLabel, bubbleSegmentIds } from './bubbleLabel'
 import { bubbleKey, sameBubble } from './bubbleLine'
-import { bubbleLabel, bubbleSegmentIds } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
 import { graphBubbles, superbubblesFromGraph } from './superbubbles'
 

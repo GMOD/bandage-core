@@ -1,10 +1,10 @@
 import { isBackbone } from '../anchoredNodes'
 import { svgPath } from '../util/geometry'
-import { bubbleLabel, bubbleSegmentIds } from './classifyBubble'
+import { bubbleLabel, bubbleSegmentIds } from './bubbleLabel'
 
 import type { Graph, NodeSegment } from '../types'
+import type { RepeatSpan } from './bubbleLabel'
 import type { MinigraphBubble } from './bubbleLine'
-import type { RepeatSpan } from './classifyBubble'
 
 // A bubble drawn over the graph itself: a wide translucent stroke along the
 // nodes inside it, in layout coordinates, so the same halo follows the nodes

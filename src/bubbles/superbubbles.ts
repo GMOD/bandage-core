@@ -2,6 +2,7 @@ import { isBackbone } from '../anchoredNodes'
 import { strandSides } from '../util/geometry'
 import { pushTo } from '../util/groups'
 import { coversGraph } from './bubbleHalos'
+import { bubbleSegmentIds } from './bubbleLabel'
 import {
   bubblesFromGraph,
   derivedBubble,
@@ -9,7 +10,6 @@ import {
   walkIndexOf,
   walkRoutes,
 } from './bubblesFromGraph'
-import { bubbleSegmentIds } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
 
 import type { Graph, GraphNode } from '../types'

@@ -184,7 +184,7 @@ export {
   BUBBLE_HALO_COLOR,
   bubbleLabel,
   bubbleSegmentIds,
-} from './bubbles/classifyBubble'
+} from './bubbles/bubbleLabel'
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
 export { filterSamples, walkRows } from './layout/walkRows'

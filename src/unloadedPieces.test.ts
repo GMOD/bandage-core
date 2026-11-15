@@ -2,7 +2,7 @@ import { WalkReader } from '@jbrowse/graph-walks'
 import { LocalFile } from 'generic-filehandle2'
 
 import { isOffReference } from './anchoredNodes'
-import { bubbleLabel } from './bubbles/classifyBubble'
+import { bubbleLabel } from './bubbles/bubbleLabel'
 import { graphBubbles } from './bubbles/superbubbles'
 import { COLOR_SCHEMES } from './colorSchemes'
 import { serializeEl } from './el'

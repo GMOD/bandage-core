@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { bubbleLabel } from './bubbleLabel'
 import { bubblesFromGraph } from './bubblesFromGraph'
-import { bubbleLabel } from './classifyBubble'
 
 import type { Graph, GraphNode } from '../types'
 
