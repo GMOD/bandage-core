@@ -315,6 +315,44 @@ describe('skips at one site', () => {
     ).toBeGreaterThanOrEqual(widestSkipPx)
   })
 
+  test('two skips over spans apart on the reference whose feet land on the same pixels rise a stroke apart', () => {
+    const backboneLoop = {
+      ...positions(),
+      'n3+': [
+        { x: -10, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'n5+': [
+        { x: 20, y: 0 },
+        { x: 30, y: 0 },
+      ],
+    }
+    const curves = baseEdgeCurves(
+      backboneLoop,
+      {
+        name: 'site',
+        nodes: backbone,
+        edges: [
+          { from: 'n0+', to: 'n2+' },
+          { from: 'n3+', to: 'n5+' },
+        ],
+      },
+      axis,
+      new Map([
+        [0, ['n1+']],
+        [1, ['n4+']],
+      ]),
+      0,
+      {
+        0: [{ x: 15, y: 0 }],
+        1: [{ x: 15, y: 0 }],
+      },
+    )
+    expect(
+      Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
   test('a skip inside a longer one draws inside it, whether or not they share an anchor', () => {
     const curves = skips([
       [0, 4, [1, 2, 3]],

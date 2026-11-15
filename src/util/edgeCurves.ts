@@ -99,10 +99,20 @@ export function baseEdgeCurves(
             deletionEdges(graph).filter(d => deletions.has(d.edgeIndex)),
           ),
         )
-        for (const ei of curves.arcs) {
+        const levelOf = (ei: number) => levels.get(ei) ?? 1
+        const highestOnChord = new Map<string, number>()
+        for (const ei of Array.from(curves.arcs).sort(
+          (a, b) => levelOf(a) - levelOf(b) || a - b,
+        )) {
           const edge = graph.edges[ei]!
           const arc = curves.get(ei)!
-          const height = (levels.get(ei) ?? 1) * SKIP_LEVEL_PX
+          const chord = chordKey(arc, axis)
+          const level = Math.max(
+            levelOf(ei),
+            (highestOnChord.get(chord) ?? 0) + 1,
+          )
+          highestOnChord.set(chord, level)
+          const height = level * SKIP_LEVEL_PX
           const farthest = farthestPx(arc, axis)
           if (Math.abs(farthest) < height) {
             const from = nodeById.get(edge.from)?.stable?.start ?? 0
@@ -125,7 +135,8 @@ const levelCache = weakMemo<Map<number, string[]>, Map<number, number>>()
 
 // A skip's level is one above the highest of the skips inside its span, so a
 // skip nested in a longer one draws inside it; of two over one span, the later
-// edge nests the earlier. Taken by end, each skip finds the skips inside it
+// edge nests the earlier, and of two whose feet land on the same pixels, the
+// later rises above the earlier. Taken by end, each skip finds the skips inside it
 // among those taken before it that start no earlier, in a prefix-max tree over
 // its sequence's starts, latest first.
 function skipLevels(spans: DeletionEdge[]) {
@@ -150,6 +161,19 @@ function skipLevels(spans: DeletionEdge[]) {
     }
   }
   return levels
+}
+
+// Where an arc's feet land on screen, to the pixel and either way round: a
+// collapsed repeat draws skips of spans far apart on the reference between
+// the same two points
+function chordKey(curves: BezierCurve[], axis: AxisScale) {
+  const first = curves[0]!
+  const last = curves.at(-1)!
+  const ends = [
+    `${Math.round(first.x0 * axis.scaleX)},${Math.round(first.y0 * axis.scaleY)}`,
+    `${Math.round(last.x1 * axis.scaleX)},${Math.round(last.y1 * axis.scaleY)}`,
+  ].sort()
+  return ends.join(' ')
 }
 
 function screenChord(curves: BezierCurve[], axis: AxisScale) {
