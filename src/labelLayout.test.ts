@@ -321,24 +321,19 @@ test('the legend holds its own box, and no box when none is drawn', () => {
   ).toEqual([])
 })
 
-test('a key moved to the bottom left holds that box instead', () => {
+test("the key's column holds the pane's height under the key too", () => {
   const key = { legendSize: { width: 170, height: 40 } }
-  const corner = {
+  const below = {
     nodePositions: {
       s1: [
-        { x: 10, y: 380 },
-        { x: 100, y: 380 },
+        { x: 700, y: 380 },
+        { x: 790, y: 380 },
       ],
     },
     nodeLengths: new Map([['s1', 700]]),
   }
-  expect(
-    layoutLabels(source({ ...corner, ...key })).sizes.map(l => l.text),
-  ).toEqual(['700 bp'])
-  expect(
-    layoutLabels(source({ ...corner, ...key, legendCorner: 'bottom-left' }))
-      .sizes,
-  ).toEqual([])
+  expect(layoutLabels(source(below)).sizes.map(l => l.text)).toEqual(['700 bp'])
+  expect(layoutLabels(source({ ...below, ...key })).sizes).toEqual([])
 })
 
 test('a gene the cut carries only part of says how much, in its own unit', () => {
@@ -435,7 +430,7 @@ test("a gene's leader runs from the chip's top down to a pin above it, leaning w
 // pane's height there: every row under and over the pin reached into the key,
 // and the name was dropped
 test('a gene name next to the key slides clear of it rather than vanish', () => {
-  const keyLeft = 800 - LEGEND_INSET_PX - 200
+  const keyLeft = 800 - 2 * LEGEND_INSET_PX - 200
   const at = { x: keyLeft - 6, y: 100 }
   const nodePositions = { bb: [{ x: keyLeft - 60, y: 100 }, at] }
   const layout = layoutLabels(

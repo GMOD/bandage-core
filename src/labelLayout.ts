@@ -5,7 +5,7 @@ import {
   sizeLabelCandidates,
 } from './graphLabels'
 import { HALO_FACTOR } from './halo'
-import { legendBox } from './legendCorner'
+import { keyColumnBox } from './keyColumn'
 import {
   LABEL_CHAR_PX,
   LABEL_PAD,
@@ -19,13 +19,12 @@ import { nodesUnderBox } from './util/hitDetection'
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
 import type { GraphLabel, NodeKinds } from './graphLabels'
-import type { LegendCorner } from './legendCorner'
 import type { Box, PlacedLabel } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
 export { HALO_FACTOR } from './halo'
-export { LEGEND_INSET_PX } from './legendCorner'
+export { LEGEND_INSET_PX } from './keyColumn'
 const GENE_PIN_DROP_PX = 18
 // a gene's name drops a row or two rather than vanish under a bubble's
 const GENE_STACK = 2
@@ -42,9 +41,8 @@ export interface LabelLayoutSource {
   translateX: number
   translateY: number
   contigThickness: number
+  // the key's, whose column down the right edge no label enters
   legendSize: { width: number; height: number }
-  // where the key sits, top right unless it says otherwise
-  legendCorner?: LegendCorner
   // the band along the top a reference strip draws in
   referenceStripZonePx?: number
   drawnRowLabels: { label: string; y: number }[]
@@ -178,9 +176,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   if (stripPx > 0) {
     reserved.push({ x0: 0, x1: width, y0: 0, y1: stripPx })
   }
-  if (m.legendSize.width > 0) {
-    reserved.push(legendBox(m.legendCorner ?? 'top-right', m))
-  }
+  reserved.push(keyColumnBox(m))
   if (m.poppedFrom) {
     reserved.push({
       x0: 0,

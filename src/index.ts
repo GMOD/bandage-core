@@ -301,17 +301,8 @@ export {
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
-export {
-  inkUnder,
-  legendBox,
-  legendCorner,
-  rowsLegendRoom,
-} from './legendCorner'
-export type {
-  LegendCorner,
-  LegendCornerSource,
-  LegendFrame,
-} from './legendCorner'
+export { keyColumnBox, keyColumnPx, keyHeightPx } from './keyColumn'
+export type { KeyFrame } from './keyColumn'
 export { LABEL_DEFAULTS, formatBp, labelledNodeLengths } from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'
