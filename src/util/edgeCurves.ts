@@ -1,5 +1,6 @@
 import { edgeCurvesOf } from '../deletionEdges'
 import { APEX_FRACTION, curvePointAt, yToXOf } from './geometry'
+import { groupBy } from './groups'
 import { partitionPoint } from './partitionPoint'
 import { weakMemo } from './weakMemo'
 
@@ -92,7 +93,9 @@ export function baseEdgeCurves(
       }
       if (deletions) {
         const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-        const levels = skipLevels(skipSpans(curves.arcs, deletions, nodeById))
+        const levels = levelCache(deletions, [graph], () =>
+          skipLevels(skipSpans(deletions, nodeById)),
+        )
         for (const ei of curves.arcs) {
           const edge = graph.edges[ei]!
           const arc = curves.get(ei)!
@@ -122,16 +125,17 @@ interface SkipSpan {
   end: number
 }
 
-// Each arc's skipped span on the reference, from the backbone it bypasses
+const levelCache = weakMemo<Map<number, string[]>, Map<number, number>>()
+
+// Each skip's span on the reference, from the backbone it bypasses
 function skipSpans(
-  arcs: Set<number>,
   deletions: Map<number, string[]>,
   nodeById: Map<string, GraphNode>,
 ) {
   const spans: SkipSpan[] = []
-  for (const edgeIndex of arcs) {
+  for (const [edgeIndex, bypassed] of deletions) {
     let span: SkipSpan | undefined
-    for (const id of deletions.get(edgeIndex) ?? []) {
+    for (const id of bypassed) {
       const node = nodeById.get(id)
       const stable = node?.stable
       if (node && stable) {
@@ -156,36 +160,31 @@ function skipSpans(
   return spans
 }
 
-const byPlace = (a: SkipSpan, b: SkipSpan) =>
-  a.refName < b.refName ? -1 : a.refName > b.refName ? 1 : a.start - b.start
-
 // A skip's level is one above the highest of the skips inside its span, so a
 // skip nested in a longer one draws inside it; of two over one span, the later
-// edge nests the earlier
+// edge nests the earlier. Taken by end, each skip finds the skips inside it
+// among those taken before it that start no earlier, in a prefix-max tree over
+// its sequence's starts, latest first.
 function skipLevels(spans: SkipSpan[]) {
-  const byStart = spans.toSorted(byPlace)
   const levels = new Map<number, number>()
-  for (const span of spans.toSorted(
-    (a, b) => a.end - a.start - (b.end - b.start) || a.edgeIndex - b.edgeIndex,
-  )) {
-    let level = 1
-    for (
-      let i = partitionPoint(
-        byStart.length,
-        k => byPlace(byStart[k]!, span) < 0,
-      );
-      i < byStart.length &&
-      byStart[i]!.refName === span.refName &&
-      byStart[i]!.start <= span.end;
-      i++
-    ) {
-      const inner = byStart[i]!
-      const innerLevel = levels.get(inner.edgeIndex)
-      if (inner !== span && inner.end <= span.end && innerLevel !== undefined) {
-        level = Math.max(level, innerLevel + 1)
+  for (const group of groupBy(spans, s => s.refName).values()) {
+    const starts = Array.from(new Set(group.map(s => s.start))).sort(
+      (a, b) => b - a,
+    )
+    const highest = new Array<number>(starts.length + 1).fill(0)
+    for (const span of group.toSorted(
+      (a, b) => a.end - b.end || b.start - a.start || a.edgeIndex - b.edgeIndex,
+    )) {
+      const at = partitionPoint(starts.length, k => starts[k]! > span.start) + 1
+      let inside = 0
+      for (let i = at; i > 0; i -= i & -i) {
+        inside = Math.max(inside, highest[i]!)
+      }
+      levels.set(span.edgeIndex, inside + 1)
+      for (let i = at; i <= starts.length; i += i & -i) {
+        highest[i] = Math.max(highest[i]!, inside + 1)
       }
     }
-    levels.set(span.edgeIndex, level)
   }
   return levels
 }
