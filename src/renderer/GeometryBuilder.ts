@@ -90,17 +90,13 @@ export const LIFT_BACKDROP_CSS = abgrToCssRgba(
 // are geometry rather than a stroke style, because only one of the two backends
 // has one; see dashCurves.
 const DELETION_DASH_PX = 11
+// dashSpans draws a dash, a gap and a dash at the fewest
+const MIN_DASHED_SKIP_PX = 3 * DELETION_DASH_PX
 
-// A curve's length on screen by its control polygon, as dashSpans measures it
-function controlPolygonPx(curves: BezierCurve[], scale: number, yToX: number) {
-  let total = 0
-  for (const c of curves) {
-    total +=
-      Math.hypot(c.cx0 - c.x0, (c.cy0 - c.y0) * yToX) +
-      Math.hypot(c.cx1 - c.cx0, (c.cy1 - c.cy0) * yToX) +
-      Math.hypot(c.x1 - c.cx1, (c.y1 - c.cy1) * yToX)
-  }
-  return total * scale
+function spanPx(curves: BezierCurve[], scale: number, yToX: number) {
+  const first = curves[0]!
+  const last = curves.at(-1)!
+  return Math.hypot(last.x1 - first.x0, (last.y1 - first.y0) * yToX) * scale
 }
 
 // A node drawn under `drawPaths` is split into one lengthwise stripe per path in
@@ -1170,17 +1166,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const numPaths = edge.pathIds?.length ?? 0
     const bypassed = deletions?.get(ei)
     const isDeletion = bypassed !== undefined
-    // A skip is drawn at its true span on screen: dashed where it holds a dash
-    // period, plain and headless where shorter, so a few px of heavy dashes
-    // and a head cannot draw as a blob, and gone under a pixel, as any detail
-    // smaller than one is
+    // Dashed where the span a skip jumps on screen holds three dashes, one
+    // plain headless stroke where shorter, gone under a pixel. Its length
+    // along the curve would count the legs a short skip rises and falls on,
+    // whose dashes are dots under a head: a dart
     const skipPx = isDeletion
-      ? controlPolygonPx(baseCurves, scale, yToX)
+      ? spanPx(baseCurves, scale, yToX)
       : Number.POSITIVE_INFINITY
     if (skipPx < 1) {
       continue
     }
-    const dashed = isDeletion && skipPx >= DELETION_DASH_PX
+    const dashed = isDeletion && skipPx >= MIN_DASHED_SKIP_PX
     const onWalk = highlight?.edgeIndexes.has(ei) ?? false
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks

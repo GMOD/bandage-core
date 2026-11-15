@@ -1,3 +1,4 @@
+import { curvePointAt } from '../util/geometry'
 import {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
@@ -167,8 +168,8 @@ test('a deletion drawn by walks widens with them, no thinner than a link', () =>
       graph,
       nodeById: new Map(graph.nodes.map(n => [n.id, n])),
       colorScheme: 'uniform',
-      // A to B spans 20 px, long enough to dash
-      axis: iso(2),
+      // A to B spans 40 px, long enough to dash
+      axis: iso(4),
       contigThickness: 5,
       connectorThickness: 2,
       drawPaths: false,
@@ -915,10 +916,17 @@ describe('arrowhead placement', () => {
     expect(deletion.halfWidth).toBe(plain.halfWidth)
   })
 
-  // A skip at its true span: B starts 10 layout units past A's end
-  const skipAt = (scale: number) => {
+  // A skip at its true span: B starts 10 layout units past A's end, and a
+  // bowed one rises over what it bypasses between them
+  const skipAt = (scale: number, bypassed: string[] = []) => {
     const batch = buildGeometry({
-      nodePositions: simplePositions,
+      nodePositions: {
+        ...simplePositions,
+        'M+': [
+          { x: 12, y: -8 },
+          { x: 18, y: -8 },
+        ],
+      },
       graph: simpleGraph,
       nodeById: simpleNodeById,
       colorScheme: 'uniform',
@@ -926,7 +934,7 @@ describe('arrowhead placement', () => {
       connectorThickness: 2,
       drawPaths: false,
       axis: iso(scale),
-      deletions: new Map([[0, []]]),
+      deletions: new Map([[0, bypassed]]),
     })
     const run = batch.edgeCurveRuns.get(0)
     return {
@@ -937,17 +945,38 @@ describe('arrowhead placement', () => {
     }
   }
 
-  // HG02055's 50 bp deletion at chr1:27,853,212, about 27 px there
-  test('a skip a few dash periods long on screen is dashed', () => {
-    expect(skipAt(2.7).strokes.length).toBeGreaterThanOrEqual(2)
+  test('a skip three dashes long on screen is dashed, with a head', () => {
+    const { strokes, heads } = skipAt(4)
+    expect(strokes.length).toBeGreaterThanOrEqual(2)
+    expect(heads).toBe(1)
   })
 
-  // a few px of heavy dashes and a head drew as a black blob
-  test('a skip shorter than a dash period on screen is one plain stroke with no head', () => {
-    const { strokes, heads } = skipAt(0.6)
-    expect(strokes).toHaveLength(1)
-    expect(strokes[0]!.thickness).toBe(1)
-    expect(heads).toBe(0)
+  // HG02055's 50 bp skip at chr1:27,853,212, about 27 px there, drew as two
+  // or three heavy dashes under a head: a black dart on the backbone
+  test('a skip shorter than three dashes on screen is one plain stroke with no head', () => {
+    for (const scale of [0.6, 2.7, 3.2]) {
+      const { strokes, heads } = skipAt(scale)
+      expect(strokes).toHaveLength(1)
+      expect(strokes[0]!.thickness).toBe(1)
+      expect(heads).toBe(0)
+    }
+  })
+
+  // dashes on the legs a short skip rises and falls on are dots under a head
+  test('a bowed skip is dashed by the span it jumps, not its length along the bow', () => {
+    const bowed = skipAt(2.7, ['M+'])
+    expect(bowed.strokes).toHaveLength(1)
+    expect(bowed.heads).toBe(0)
+    let alongPx = 0
+    for (const c of bowed.strokes[0]!.curves) {
+      for (let i = 1; i <= 16; i++) {
+        const a = curvePointAt(c, (i - 1) / 16)
+        const b = curvePointAt(c, i / 16)
+        alongPx += Math.hypot(b.x - a.x, b.y - a.y) * 2.7
+      }
+    }
+    expect(alongPx).toBeGreaterThan(33)
+    expect(skipAt(4, ['M+']).strokes.length).toBeGreaterThanOrEqual(2)
   })
 
   // the 1-5 bp skips at the amylase locus, at 240 kb across the pane, drew
