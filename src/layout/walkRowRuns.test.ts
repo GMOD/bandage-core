@@ -805,6 +805,27 @@ test('a haplotype with no step in the window draws its departure under it', () =
   expect(a[0]!.departures).toEqual([rejoinsA])
 })
 
+test("a haplotype that walks the window counts its other contigs' departures over it on its row, and draws no row of them", () => {
+  const { rows, reference } = rowsOf({
+    ...tables,
+    departures: departureTable([
+      jumpF,
+      departure('A#1#b', { leavePos: 0, rejoinPos: 5000 }),
+      departure('A#1#b', { hapStart: 10, leavePos: 5000, rejoinPos: 0 }),
+      departure('GRCh38#0#alt', { leavePos: 0, rejoinPos: 5000 }),
+    ]),
+  })
+  expect(rows.map(r => r.name)).not.toContain('A#1#b')
+  expect(rows.map(r => r.name)).not.toContain('GRCh38#0#alt')
+  expect(rows.find(r => r.name === 'F#1#f')!.stepless).toBe(true)
+  const a = rows.find(r => r.name === 'A#1#a')!
+  expect(a.otherContigs).toEqual({ contigs: 1, departures: 2 })
+  expect(walkRowReadout(a, reference)).toMatch(
+    / · 2 departures on another contig$/,
+  )
+  expect(reference.otherContigs).toEqual({ contigs: 1, departures: 1 })
+})
+
 // The window starts and ends inside the repeat's node, so the reference's bar
 // runs out to its flanks, 2000..3000, and F's departure runs under all of it
 test("a stepless row's departure lines up under the reference's bar", () => {

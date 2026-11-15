@@ -152,6 +152,9 @@ export interface WalkRow {
   // the walk's departures a walk-file cut states outside the row, and the bp
   // of their own steps it holds
   outsideRow?: { count: number; stepsBp: number }
+  // the departures over the cut of its haplotype's contigs with no walk in it,
+  // on the haplotype's first row
+  otherContigs?: { contigs: number; departures: number }
   runs: WalkRun[]
   // walkRows fills it only when asked, since an object per step costs a big
   // cut far more than its runs

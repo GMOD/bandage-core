@@ -143,6 +143,11 @@ function causesParts(gaps: WalkRun[], refName: string | undefined) {
     .map(([bp, text]) => `${sized(bp)} ${text}`)
 }
 
+const otherContigsText = (counted: WalkRow['otherContigs']) =>
+  counted
+    ? ` · ${counted.departures} departure${counted.departures > 1 ? 's' : ''} on ${counted.contigs > 1 ? `${counted.contigs} other contigs` : 'another contig'}`
+    : ''
+
 // A stepless row's departures in words: the widest stretch's facts, how many
 // more, and a placement choice among the others
 function steplessText(
@@ -195,6 +200,7 @@ export function walkRowReadout(
     | 'placementChoice'
     | 'stepless'
     | 'outsideRow'
+    | 'otherContigs'
   > & {
     runs?: WalkRun[]
   },
@@ -203,13 +209,15 @@ export function walkRowReadout(
   call?: ReadoutCall,
 ) {
   const { bp, gapBp, complete, stop } = row
+  const others = otherContigsText(row.otherContigs)
   if (!reference) {
     const length = row.windowBp ?? bp
-    return `${sized(length)}${units(length, unit)}`
+    return `${sized(length)}${units(length, unit)}${others}`
   }
-  const beyond = row.outsideRow
+  const outside = row.outsideRow
     ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${sized(row.outsideRow.stepsBp)} of its own in the graph` : ''}`
     : ''
+  const beyond = `${outside}${others}`
   if (row.stepless) {
     return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
   }

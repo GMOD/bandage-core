@@ -39,7 +39,10 @@ reads them.
 - Walk rows draw the facts and make no call on what a departure is. A haplotype
   with no step in the window is a `stepless` row, a hairline under the reference
   between its departure's ends:
-  `no step on GRCh38 across 54 kb · 120 kb of its own, 3 kb left out of graph`
+  `no step on GRCh38 across 54 kb · 120 kb of its own, 3 kb left out of graph`.
+  A haplotype that walks the window draws no row for its other contigs'
+  departures over it; its first row counts them:
+  `· 20 departures on 4 other contigs`
 - A gap between two pieces of a walk splits into the bp the cut trimmed
   (`out of view`), the bp the departures inside it say the graph lacks
   (`left out of graph`), and the rest: the walk's own sequence the cut did not

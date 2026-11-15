@@ -307,6 +307,8 @@ function sampleOf(path: PieceHead) {
   return path.sample ?? panSNSample(path.name)
 }
 
+const haplotypeOf = (name: string) => panSNHaplotype(name) ?? name
+
 function labelOf(path: PieceHead) {
   return path.haplotype !== undefined && path.sample !== undefined
     ? `${path.sample}#${path.haplotype}`
@@ -1315,12 +1317,27 @@ export function walkRowRuns(
     meta: rowOf(pieces, bar),
     row: i + 1,
   }))
-  const drawn = new Set(walks.keys())
+  // a haplotype with a walk in the cut is drawn by it; its other contigs'
+  // departures over the window are counted on its first row, not drawn
+  const drawnHaplotypes = new Set(
+    [nameOf(first), ...walks.keys()].map(haplotypeOf),
+  )
+  const otherContigs = new Map<
+    string,
+    { contigs: number; departures: number }
+  >()
   for (const [name, own] of departuresOf) {
-    if (!drawn.has(name)) {
+    const haplotype = haplotypeOf(name)
+    if (!drawnHaplotypes.has(haplotype)) {
       rows.push({
         meta: steplessRowOf(name, own, bar),
         row: rows.length + 1,
+      })
+    } else if (!walks.has(name)) {
+      const counted = otherContigs.get(haplotype)
+      otherContigs.set(haplotype, {
+        contigs: (counted?.contigs ?? 0) + 1,
+        departures: (counted?.departures ?? 0) + own.length,
       })
     }
   }
@@ -1338,6 +1355,14 @@ export function walkRowRuns(
       b.meta.bp - a.meta.bp ||
       a.meta.label.localeCompare(b.meta.label),
   )
+  for (const meta of [referenceRow, ...rows.map(r => r.meta)]) {
+    const haplotype = haplotypeOf(meta.name)
+    const counted = otherContigs.get(haplotype)
+    if (counted) {
+      meta.otherContigs = counted
+      otherContigs.delete(haplotype)
+    }
+  }
   const order = [0, ...rows.map(r => r.row)]
   const offsets = runs.rowOffsets(order)
   const start = runs.reorder(order, 0, float64)
