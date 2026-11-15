@@ -305,3 +305,34 @@ test('a figure split into panels keys the dashed links once, above the grid, onl
     figureSvg(graph, layout, { width: 600, walks, facet: 'sample' }),
   ).not.toMatch(/skips .+? sequence/)
 })
+
+// R walks three reference nodes; A leaves it for a 75 kb loop the cut did not
+// load, a placeholder, and comes back
+const UNLOADED = `S\tr1\t*\tLN:i:20000
+S\tr2\t*\tLN:i:30000
+S\tr3\t*\tLN:i:25000
+S\tp1\t*\tLN:i:75000\tnl:i:1
+L\tr1\t+\tr2\t+\t0M
+L\tr2\t+\tr3\t+\t0M
+L\tr1\t+\tp1\t+\t0M
+L\tp1\t+\tr3\t+\t0M
+W\tR\t0\tchr\t0\t75000\t>r1>r2>r3
+W\tA\t1\tchr\t0\t120000\t>r1>p1>r3`
+
+test("a figure writes a placeholder's length whether or not node lengths are on, and every node's only when they are", () => {
+  const unloaded = anchorGraph(convertGFAToGraph(parseGFA(UNLOADED)), 'R')
+  const unloadedLayout = layoutModeByValue('auto').run(unloaded, undefined)!
+  expect(figureSvg(unloaded, unloadedLayout)).toContain(
+    '>nodes not shown</text>',
+  )
+  const written = (nodeLengths?: boolean) =>
+    [
+      ...figureSvg(unloaded, unloadedLayout, {
+        width: 900,
+        nodeLengths,
+      }).matchAll(/>(\d+ kb)<\/text>/g),
+    ].map(m => m[1])
+  expect(written()).toEqual(['75 kb'])
+  expect(written(false)).toEqual(['75 kb'])
+  expect(written(true)).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
+})

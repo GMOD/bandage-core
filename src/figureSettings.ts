@@ -1,3 +1,4 @@
+import { LABEL_DEFAULTS } from './graphLabels'
 import { ENGINE_DEFAULTS } from './pipeline'
 
 import type { ColorScheme } from './colorSchemes'
@@ -15,6 +16,8 @@ export interface FigureSettings extends Partial<EngineSettings> {
   edgeWidth?: EdgeWidth
   contigThickness?: number
   connectorThickness?: number
+  // every node's length written on it, not only a placeholder's
+  nodeLengths?: boolean
   // the interval the reference ramp spans where it is not the cut window
   colorDomain?: { start: number; end: number }
 }
@@ -28,6 +31,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   edgeWidth: 'uniform',
   contigThickness: 6,
   connectorThickness: 2,
+  nodeLengths: LABEL_DEFAULTS.nodeLengths,
 }
 
 // A spec names a setting only where it differs from what bandage-figure would

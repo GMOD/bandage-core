@@ -11,7 +11,8 @@ import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
 import { NOT_LOADED_TEXT } from './gfa/departures'
-import { geneLabelCandidates, geneLeader } from './labelLayout'
+import { labelledNodeLengths } from './graphLabels'
+import { geneLeader, layoutLabels } from './labelLayout'
 import {
   walkRowsKey,
   walkRowsKeyTree,
@@ -24,13 +25,7 @@ import {
   walkStripLabelsTree,
 } from './layout/walkStrip'
 import { nodeInk } from './nodeWidths'
-import {
-  LABEL_CHAR_PX,
-  LABEL_PAD,
-  LABEL_PX,
-  occupancy,
-  placeLabels,
-} from './overlayLabels'
+import { LABEL_CHAR_PX, LABEL_PAD, LABEL_PX } from './overlayLabels'
 import { FIT_PADDING, fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import {
@@ -40,7 +35,6 @@ import {
 } from './renderer/GeometryBuilder'
 import { svgCanvas } from './renderer/svgCanvas'
 import { THREAD_PX, passesKey, threadsPasses } from './renderer/walkLanes'
-import { nodesUnderBox } from './util/hitDetection'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
@@ -60,6 +54,7 @@ import type {
 import type { WalkRows } from './layout/walkRows'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
+import type { AxisScale } from './util/geometry'
 import type { WalkLayer } from './walkEncoding'
 import type { LiftedWalk, WalkLift } from './walkHighlight'
 
@@ -87,6 +82,8 @@ export interface FigureOptions {
   linearLayout?: boolean
   contigThickness?: number
   connectorThickness?: number
+  // every node's length written on it, not only a placeholder's
+  nodeLengths?: boolean
   // the window the graph was cut for, which the anchored layouts and the
   // reference-position ramp span
   region?: { refName: string; start: number; end: number }
@@ -134,6 +131,8 @@ const ROW_NAME_X = 6
 const FADED = 'rgb(160,160,160)'
 const DELETION_INK = 'rgb(24,24,28)'
 const GENE_INK = '#1c1c22'
+const SIZE_PX = 10
+const SIZE_INK = '#18181c'
 
 // A key at (x, y): a swatch or a short bar of its scale, bold `label` and
 // `after` beside it, and `under` on the line below. Returns its markup and
@@ -281,6 +280,12 @@ function chip(x: number, y: number, w: number, name: string, note: string) {
   return `<rect x="${x - w / 2}" y="${y - LABEL_PX - LABEL_PAD + 2}" width="${w}" height="${LABEL_PX + LABEL_PAD * 2 - 2}" rx="3" fill="#fff" fill-opacity="0.85" stroke="${EXON_COLOR}"/><text x="${x}" y="${y}" font-family="Helvetica, Arial, sans-serif" font-size="${LABEL_PX}" fill="${GENE_INK}" text-anchor="middle"><tspan font-style="italic" font-weight="600">${escapeAttr(name)}</tspan>${note ? escapeAttr(note) : ''}</text>`
 }
 
+// a node's length on a pale backing, as the plugin's exported SVG writes it
+function sizeChip(x: number, y: number, text: string) {
+  const w = text.length * SIZE_PX * 0.56 + 6
+  return `<rect x="${x - w / 2}" y="${y - SIZE_PX * 0.65}" width="${w}" height="${SIZE_PX * 1.3}" rx="3" fill="#fff" fill-opacity="0.8"/><text x="${x}" y="${y + SIZE_PX * 0.35}" font-family="Helvetica, Arial, sans-serif" font-size="${SIZE_PX}" fill="${SIZE_INK}" text-anchor="middle">${escapeAttr(text)}</text>`
+}
+
 export function figureSvg(
   graph: Graph,
   layout: LayoutResult,
@@ -316,6 +321,10 @@ export function figureSvg(
       : []
   const ink = nodeInk(graph, nodeById, contigThickness, nodeWidth)
   const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)
+  const nodeLengths = labelledNodeLengths(
+    graph.nodes,
+    o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
+  )
   const nameGutter = rowLabels.reduce(
     (most, { label }) =>
       Math.max(most, 2 * ROW_NAME_X + label.length * LABEL_CHAR_PX),
@@ -323,10 +332,12 @@ export function figureSvg(
   )
   let masks = 0
 
-  // Exons outlined round their stretch of each node, clear of its ink, and
-  // the genes named under their pins; a row layout names its rows
+  // Exons outlined round their stretch of each node, clear of its ink, the
+  // genes named under their pins and the nodes' lengths, placed as the canvas
+  // hosts place them; a row layout names its rows
   function overlays(
     highlight: WalkLift | undefined,
+    axis: AxisScale,
     t: {
       scaleX: number
       scaleY: number
@@ -348,17 +359,24 @@ export function figureSvg(
       x: p.x * t.scaleX + t.translateX,
       y: p.y * t.scaleY + t.translateY,
     })
-    const frame = { width: w, height: h }
-    for (const { item: pin, x, y, w: cw, text } of placeLabels(
-      geneLabelCandidates(
-        pins,
-        screen,
-        contigThickness,
-        nodesUnderBox(layout.nodePositions, t),
-      ),
-      frame,
-      occupancy(frame),
-    )) {
+    const labels = layoutLabels({
+      paneWidth: w,
+      canvasHeight: h,
+      axisScale: axis,
+      translateX: t.translateX,
+      translateY: t.translateY,
+      contigThickness,
+      legendSize: { width: 0, height: 0 },
+      drawnRowLabels: rowLabels,
+      bubbleHalos: [],
+      genePins: pins,
+      nodePositions: layout.nodePositions,
+      labelsNodeSizes: !layout.tubeMap && !highlight,
+      nodeLengths,
+      alleleDeletions: layout.alleleDeletions ?? [],
+      positionsVersion: 0,
+    })
+    for (const { item: pin, x, y, w: cw, text } of labels.genes) {
       const { x1, y1, x2, y2 } = geneLeader(
         { x, y },
         screen(pin.at),
@@ -368,6 +386,9 @@ export function figureSvg(
         `<line x1="${x1}" x2="${x2}" y1="${y1}" y2="${y2}" stroke="${GENE_INK}" stroke-width="0.8" stroke-opacity="0.6"/>`,
         chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
       )
+    }
+    for (const { x, y, text } of labels.sizes) {
+      out.push(sizeChip(x, y, text))
     }
     if (rows) {
       out.push(
@@ -425,7 +446,7 @@ export function figureSvg(
     }
     renderer.updateTransform({ ...t, dpr: 1 })
     renderer.render([1, 1, 1, 1])
-    return markup() + overlays(highlight, t, w, h)
+    return markup() + overlays(highlight, axis, t, w, h)
   }
 
   const deletionKeyAt: KeyAt = (x, y) =>
