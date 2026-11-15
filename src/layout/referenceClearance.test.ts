@@ -1,6 +1,7 @@
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
 import { engineSettingsOf, forceLayout } from '../pipeline'
-import { CLEARANCE_FIT, clearOfReference } from './referenceClearance'
+import { ASSUMED_FIT, fitRoom } from './fitAssumptions'
+import { clearOfReference } from './referenceClearance'
 
 import type { LayoutEngineKind } from '../layoutEngines'
 import type { Graph, GraphNode, NodeSegment } from '../types'
@@ -61,7 +62,7 @@ function inkReach(graph: Graph, node: GraphNode, width: number) {
   const half = (n: GraphNode) => nodeWidthPx(n, 6, 'depth', norm) / 2
   const reference = graph.nodes.filter(n => n.stable?.rank === 0)
   const widestReference = reference.reduce((w, n) => Math.max(w, half(n)), 0)
-  return ((widestReference + half(node)) * width) / CLEARANCE_FIT.width
+  return ((widestReference + half(node)) * width) / fitRoom(ASSUMED_FIT).width
 }
 
 test('an allele drawn on the reference line is laid beside it, clear of its ink, where the layout bent it', () => {
@@ -194,4 +195,33 @@ test('the stress engine, which lays the reference straight, has an allele on the
 test('FMMM, which bends the reference, has every node left where it laid it', async () => {
   const { laid, out } = await laidBy('fmmm')
   expect(out).toEqual(laid)
+})
+
+// how far the allele lands off the reference line, of the 3000-unit backbone
+function allelePushed(fit?: { width: number; height: number }) {
+  const { nodes, positions } = backbone(30)
+  const a = allele(0, 1050)
+  const graph: Graph = { name: 'g', nodes: [...nodes, a], edges: [] }
+  const laid = { ...positions, [a.id]: flat(1050, 1051, 0.3) }
+  const out = clearOfReference(graph, laid, extentOf(laid), fit)
+  return out[a.id]![0]!.y - 0.3
+}
+
+test('the clearance is sized for the fit a host passes: wider in layout units in a narrower pane, the same in px', () => {
+  const narrow = allelePushed({ width: 900, height: 280 })
+  const assumed = allelePushed({ width: 1200, height: 280 })
+  expect(narrow).toBeGreaterThan(assumed)
+  expect((narrow * (900 - 80)) / 3000).toBeCloseTo(
+    (assumed * (1200 - 80)) / 3000,
+  )
+})
+
+test('a tall pane narrows the clearance only where its height binds the fit', () => {
+  expect(allelePushed({ width: 1200, height: 800 })).toBe(
+    allelePushed({ width: 1200, height: 280 }),
+  )
+})
+
+test('with no fit the clearance is sized for the assumed one', () => {
+  expect(allelePushed()).toBe(allelePushed(ASSUMED_FIT))
 })

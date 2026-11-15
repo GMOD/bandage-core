@@ -17,7 +17,7 @@ import {
   layoutScaling,
   loopsOf,
 } from './layout/drawnScale'
-import { FIGURE_WIDTH_PX, FIT_PADDING } from './layout/fitAssumptions'
+import { FIT_PADDING, fitOrAssumed, fitRoom } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
 import { clearOfReference } from './layout/referenceClearance'
@@ -30,6 +30,7 @@ import { canonicalEdgeOrder } from './util/edgeOrder'
 import type { BubbleSpread } from './bubbleSpreads'
 import type { GraphTables } from './gfa/graphTables'
 import type { LayoutScaling } from './layout/drawnScale'
+import type { FitSize } from './layout/fitAssumptions'
 import type { LayoutNode } from './layout/referenceSeeds'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { Graph, LayoutResult, NodeSegment } from './types'
@@ -189,13 +190,21 @@ export function engineRequest(
 }
 
 // What a force layout of this graph is a function of, as a cache key: every
-// engine setting, whether it seeds, and the reference path the seeds follow.
-export function engineKey(graph: Graph, settings: EngineSettings) {
+// engine setting, whether it seeds, the reference path the seeds follow, and
+// the pane it is sized for.
+export function engineKey(
+  graph: Graph,
+  settings: EngineSettings,
+  fit?: FitSize,
+) {
   const anchored = graph.nodes.some(isBackbone)
+  const { width, height } = fitOrAssumed(fit)
   return [
     ...Object.values(engineSettingsOf(settings)),
     anchored,
     graph.referencePath ?? '',
+    width,
+    height,
   ].join('|')
 }
 
@@ -209,11 +218,18 @@ export function engineKey(graph: Graph, settings: EngineSettings) {
 // match, was prototyped and declined (scripts/layout-lab/continuity.ts): FMMM
 // keeps only its coarsest level's seeds, and the matched turn carried a
 // curled reference's angle forward, to 45 degrees by 125 kb at bovine DEFB.
+//
+// `fit` is the pane in px the host will fit the drawing into, the size it
+// hands fitTransform: the gap between the reference and what lies beside it,
+// and under compress the shortest loop off it, are sized in px at that fit.
+// Absent, or too small to hold a drawing, the layout assumes ASSUMED_FIT.
 export async function forceLayout(
   graph: Graph,
   settings: EngineSettings,
   engine: LayoutEngine,
+  fit?: FitSize,
 ) {
+  const sized = fitOrAssumed(fit)
   const spread = spreadFor(settings.bubbleSpread)
   const { shown: deletions, hidden: dropped } = deletionDrawing(
     graph,
@@ -226,7 +242,7 @@ export async function forceLayout(
     ...merged.graph,
     nodes: merged.graph.nodes.filter(n => !routed.ids.has(n.id)),
   }
-  const engineScaling = layoutScaling(runs, spread, LOOP_FLOOR)
+  const engineScaling = layoutScaling(runs, spread, loopFloor(sized))
   const drawnOf = drawnLengthOf(runs, spread)
   const { result, duration } = await engine(
     engineRequest(
@@ -286,6 +302,7 @@ export async function forceLayout(
         graph,
         routedPositions.nodePositions,
         fittedExtent(routedPositions.nodePositions, deletionRoutes, tails),
+        sized,
       )
     : routedPositions.nodePositions
   return {
@@ -386,8 +403,9 @@ export function layoutExtent(
 // the loop reaches past the widest band of lanes the reference draws with. A
 // loop spans its length over pi, and the fit lays the reference across the
 // pane.
-export const LOOP_FLOOR =
-  (Math.PI * MAX_BAND_PX) / (FIGURE_WIDTH_PX - 2 * FIT_PADDING)
+export function loopFloor(fit?: FitSize) {
+  return (Math.PI * MAX_BAND_PX) / fitRoom(fitOrAssumed(fit)).width
+}
 
 // The floor keeps a scale positive and finite, and has to clear the smallest
 // scale a real layout asks for: fitting a chromosome-scale rGFA (250 Mbp) into

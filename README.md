@@ -123,6 +123,11 @@ reads them.
   push along each node's own normal fanned loops into blobs round the bends and
   stood alleles off the line as teeth, so under FMMM `forceLayout` leaves every
   node where the engine laid it
+- A host passes `forceLayout` the size in px it will fit the drawing to, the
+  pane it hands `fitTransform`: under the stress engine the gap kept between the
+  reference and what lies beside it, and under `compress` the shortest loop off
+  it, are sized in px at that fit. The layout is the same for the same fit, and
+  a host that states none gets one sized for the default figure
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths

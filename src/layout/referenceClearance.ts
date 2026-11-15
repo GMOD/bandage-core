@@ -1,8 +1,9 @@
 import { isBackbone } from '../anchoredNodes'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
-import { FIGURE_WIDTH_PX, FIT_PADDING, TRACK_FLOOR_PX } from './fitAssumptions'
+import { ASSUMED_FIT, fitRoom } from './fitAssumptions'
 
 import type { Graph, GraphNode, NodeSegment } from '../types'
+import type { FitSize } from './fitAssumptions'
 
 type Positions = Record<string, NodeSegment[]>
 
@@ -21,15 +22,6 @@ interface Point {
 interface Segment {
   a: Point
   b: Point
-}
-
-// Widths are screen px and positions layout units, so the clearance is sized
-// for the smallest fit a host opens a graph at: the shortest track, and a
-// figure's pane less its padding. A larger pane or a closer zoom only widens
-// the gap.
-export const CLEARANCE_FIT = {
-  width: FIGURE_WIDTH_PX - 2 * FIT_PADDING,
-  height: TRACK_FLOOR_PX,
 }
 
 const SHIPPED_THICKNESS = 6
@@ -57,12 +49,13 @@ function widest(nodes: GraphNode[], norm: number) {
   return px
 }
 
-function fitScale(extent: Extent, fit: { width: number; height: number }) {
+function fitScale(extent: Extent, fit: FitSize) {
+  const room = fitRoom(fit)
   const w = extent.maxX - extent.minX
   const h = extent.maxY - extent.minY
   return Math.min(
-    w > 0 ? fit.width / w : Infinity,
-    h > 0 ? fit.height / h : Infinity,
+    w > 0 ? room.width / w : Infinity,
+    h > 0 ? room.height / h : Infinity,
   )
 }
 
@@ -149,8 +142,10 @@ function movedOut(
   return { ...p, x: q.x + out.x * d, y: q.y + out.y * d }
 }
 
-// Every node off the reference laid clear of the reference's ink at the fit:
-// a point within the clearance moves out by it, and the push fades to nothing
+// Every node off the reference laid clear of the reference's ink at the fit
+// to `fit`: widths are screen px and positions layout units, so the gap is
+// sized for the pane the host fits the drawing into, and a larger pane or a
+// closer zoom only widens it. A point within the clearance moves out by it, and the push fades to nothing
 // over the next FADE clearances. A node lying across the line goes to the side
 // most of it is on. A node the push would carry into another stretch of the
 // reference's ink, where the drawing folds back on itself, stays put.
@@ -158,7 +153,7 @@ export function clearOfReference(
   graph: Graph,
   positions: Positions,
   extent: Extent,
-  fit = CLEARANCE_FIT,
+  fit: FitSize = ASSUMED_FIT,
 ): Positions {
   const drawn = graph.nodes.filter(n => (positions[n.id]?.length ?? 0) > 0)
   const reference = drawn.filter(isReference)

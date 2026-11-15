@@ -1,6 +1,6 @@
 import { isBackbone } from './anchoredNodes'
 import { figureScene } from './figureScene'
-import { FIGURE_DEFAULTS } from './figureSettings'
+import { FIGURE_DEFAULTS, figureFit } from './figureSettings'
 import { parseRegion } from './gbzCut'
 import { EXON_COLOR } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
@@ -798,7 +798,14 @@ export async function laidOutGraph(
   )
   const layout =
     layoutModeByValue(spec.layout ?? 'force').run(graph, region) ??
-    (await forceLayout(graph, engineSettingsOf(spec), layoutEngine)).result
+    (
+      await forceLayout(
+        graph,
+        engineSettingsOf(spec),
+        layoutEngine,
+        figureFit(spec),
+      )
+    ).result
   return { graph, layout }
 }
 

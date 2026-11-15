@@ -35,6 +35,14 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
 }
 
+// The pane a figure fits its drawing into, which its force layout is sized for
+export function figureFit(s: Pick<FigureSettings, 'width' | 'height'>) {
+  return {
+    width: s.width ?? FIGURE_DEFAULTS.width,
+    height: s.height ?? FIGURE_DEFAULTS.height,
+  }
+}
+
 // A spec names a setting only where it differs from what bandage-figure would
 // do on its own, so a spec stays short and reads as what the view changed, and
 // a setting the view leaves alone cannot drift from the CLI's own reading of

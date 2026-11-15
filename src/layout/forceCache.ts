@@ -2,8 +2,9 @@ import { engineKey, forceLayout } from '../pipeline'
 
 import type { EngineSettings, LayoutEngine } from '../pipeline'
 import type { Graph, LayoutResult } from '../types'
+import type { FitSize } from './fitAssumptions'
 
-// Force layouts by graph and settings, so moving between two settings, or
+// Force layouts by graph, settings and fit, so moving between two settings, or
 // leaving a slow layout for a local one and coming back, picks the drawing up
 // rather than running the engine again.
 //
@@ -18,17 +19,22 @@ import type { Graph, LayoutResult } from '../types'
 const DEFAULT_SIZE = 4
 
 export interface ForceLayoutCache {
-  // The layout for these settings: the run in flight or already done where
-  // there is one, else a new run of the engine. A run that throws leaves
-  // nothing behind.
+  // The layout for these settings at this fit (forceLayout's): the run in
+  // flight or already done where there is one, else a new run of the engine.
+  // A run that throws leaves nothing behind.
   layout(
     graph: Graph,
     settings: EngineSettings,
     engine: LayoutEngine,
+    fit?: FitSize,
   ): Promise<{ result: LayoutResult; duration: number }>
-  // The layout for these settings where one has finished, for a caller that
-  // can draw this frame rather than await
-  ready(graph: Graph, settings: EngineSettings): LayoutResult | undefined
+  // The layout for these settings at this fit where one has finished, for a
+  // caller that can draw this frame rather than await
+  ready(
+    graph: Graph,
+    settings: EngineSettings,
+    fit?: FitSize,
+  ): LayoutResult | undefined
   // Re-anchoring builds a new Graph, and the force layout of it is the same
   // drawing: anchoring rewrites each node's stable name and samples and
   // touches neither the ids, the lengths, the depths nor the edges, which are
@@ -53,9 +59,9 @@ export function createForceLayoutCache(size = DEFAULT_SIZE): ForceLayoutCache {
     return cache
   }
   return {
-    layout(graph, settings, engine) {
+    layout(graph, settings, engine, fit) {
       const cache = cacheOf(graph)
-      const key = engineKey(graph, settings)
+      const key = engineKey(graph, settings, fit)
       const hit = cache.get(key)
       if (hit) {
         return hit.run
@@ -68,7 +74,7 @@ export function createForceLayoutCache(size = DEFAULT_SIZE): ForceLayoutCache {
       // this drawing are not necessarily the ones in hand when it lands, and
       // filing it under those would serve it up as a layout it is not.
       const entry: Entry = {
-        run: forceLayout(graph, settings, engine).then(r => {
+        run: forceLayout(graph, settings, engine, fit).then(r => {
           entry.done = r.result
           return { ...r, duration: r.duration || performance.now() - started }
         }),
@@ -81,8 +87,8 @@ export function createForceLayoutCache(size = DEFAULT_SIZE): ForceLayoutCache {
       cache.set(key, entry)
       return entry.run
     },
-    ready(graph, settings) {
-      return caches.get(graph)?.get(engineKey(graph, settings))?.done
+    ready(graph, settings, fit) {
+      return caches.get(graph)?.get(engineKey(graph, settings, fit))?.done
     },
     inherit(from, to) {
       const cache = caches.get(from)

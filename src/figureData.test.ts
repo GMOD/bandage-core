@@ -13,7 +13,14 @@ import { labelledNodeLengths } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { liftedRowInks, rowInkAt } from './layout/rowInks'
 import { walkRows } from './layout/walkRows'
-import { drawingBounds, fitTransform, loadGraph } from './pipeline'
+import { layoutEngine } from './layoutEngines'
+import {
+  drawingBounds,
+  engineSettingsOf,
+  fitTransform,
+  forceLayout,
+  loadGraph,
+} from './pipeline'
 import { graphBackbone } from './reference'
 import { abgrHex } from './renderer/colorBits'
 import { axisScaleOf } from './viewport'
@@ -163,6 +170,30 @@ test('each lifted walk is keyed with its colour stops as hex', async () => {
   expect(new Set(faceted.nodes.walk.filter(w => w !== null))).toEqual(
     new Set([0, 1]),
   )
+})
+
+test("a figure's force layout is sized for the figure's own width and height, and the figure's defaults where it states none", async () => {
+  const text = read('ecoli_rgfa_slice.gfa')
+  const atFit = async (fit?: { width: number; height: number }) =>
+    (
+      await forceLayout(
+        loadGraph(text, 'ecoli'),
+        engineSettingsOf({ engine: 'stress' }),
+        layoutEngine,
+        fit,
+      )
+    ).result.nodePositions
+  const laid = async (size: { width?: number; height?: number }) =>
+    (
+      await laidOutGraph(text, 'ecoli', undefined, {
+        engine: 'stress',
+        ...size,
+      })
+    ).layout.nodePositions
+  expect(await laid({ width: 900, height: 400 })).toEqual(
+    await atFit({ width: 900, height: 400 }),
+  )
+  expect(await laid({})).toEqual(await atFit({ width: 1200, height: 800 }))
 })
 
 test('a gene is pinned, its exons polylines along the nodes under them', async () => {

@@ -4,9 +4,9 @@ import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { departureTable } from './gfa/departures'
 import { drawnLengthFor, layoutScaling } from './layout/drawnScale'
+import { ASSUMED_FIT } from './layout/fitAssumptions'
 import { layoutEngine } from './layoutEngines'
 import {
-  LOOP_FLOOR,
   drawingBounds,
   engineKey,
   engineRequest,
@@ -15,9 +15,11 @@ import {
   forceLayout,
   layoutExtent,
   loadGraph,
+  loopFloor,
 } from './pipeline'
 
 import type { BubbleSpread } from './bubbleSpreads'
+import type { FitSize } from './layout/fitAssumptions'
 import type { Graph, GraphNode, NodeSegment } from './types'
 
 test('padTop moves the drawing down by the room it adds', () => {
@@ -69,6 +71,19 @@ test('a layout at another spacing is cached apart', () => {
     engineKey(graph, engine),
   )
   expect(engineKey(graph, { ...engine, showDeletionEdges: true })).toBe(
+    engineKey(graph, engine),
+  )
+})
+
+test('a layout sized for another fit is cached apart, and one with none is the assumed fit', () => {
+  expect(engineKey(graph, engine, { width: 900, height: 280 })).not.toBe(
+    engineKey(graph, engine),
+  )
+  expect(engineKey(graph, engine, { width: 1200, height: 600 })).not.toBe(
+    engineKey(graph, engine),
+  )
+  expect(engineKey(graph, engine, ASSUMED_FIT)).toBe(engineKey(graph, engine))
+  expect(engineKey(graph, engine, { width: 0, height: 0 })).toBe(
     engineKey(graph, engine),
   )
 })
@@ -304,11 +319,16 @@ const arcLength = (line: NodeSegment[] = []) =>
       0,
     )
 
-async function ownDrawn(g: Graph, bubbleSpread: 'auto' | 'compress') {
+async function ownDrawn(
+  g: Graph,
+  bubbleSpread: 'auto' | 'compress',
+  fit?: FitSize,
+) {
   const { result } = await forceLayout(
     g,
     engineSettingsOf({ bubbleSpread }),
     layoutEngine,
+    fit,
   )
   return arcLength(result.nodePositions.own)
 }
@@ -316,15 +336,47 @@ async function ownDrawn(g: Graph, bubbleSpread: 'auto' | 'compress') {
 const requested = (nodes: GraphNode[]) =>
   nodes.reduce((sum, n) => sum + n.length, 0) / 1000
 
-const loopFloor = (g: Graph) =>
-  LOOP_FLOOR *
+const loopFloorOf = (g: Graph, fit?: FitSize) =>
+  loopFloor(fit) *
   requested(layoutScaling(g, spreadFor('compress')).nodes.filter(isBackbone))
 
 test('under compress a 100 kb run off the reference draws at least the loop floor, and still shorter than its bp', async () => {
   const g = looped(true)
   const compressed = await ownDrawn(g, 'compress')
-  expect(compressed).toBeGreaterThanOrEqual(loopFloor(g))
+  expect(compressed).toBeGreaterThanOrEqual(loopFloorOf(g))
   expect(compressed).toBeLessThan((await ownDrawn(g, 'auto')) / 3)
+})
+
+test('the loop floor is sized for the fit a host passes: a narrower pane holds a longer share of the reference, the same in px', () => {
+  const narrow = { width: 900, height: 280 }
+  expect(loopFloor()).toBe(loopFloor(ASSUMED_FIT))
+  expect(loopFloor(narrow)).toBeGreaterThan(loopFloor())
+  expect(loopFloor(narrow) * (900 - 80)).toBeCloseTo(loopFloor() * (1200 - 80))
+})
+
+test('under compress a run off the reference draws at least the loop floor of the fit it was laid out for', async () => {
+  const g = looped(true)
+  const narrow = { width: 900, height: 280 }
+  expect(await ownDrawn(g, 'compress', narrow)).toBeGreaterThanOrEqual(
+    loopFloorOf(g, narrow),
+  )
+  expect(await ownDrawn(g, 'compress', narrow)).toBeGreaterThan(
+    await ownDrawn(g, 'compress'),
+  )
+})
+
+test('a force layout with no fit is the one at the assumed fit', async () => {
+  const g = looped(true)
+  const laidOut = (fit?: FitSize) =>
+    forceLayout(
+      g,
+      engineSettingsOf({ bubbleSpread: 'compress' }),
+      layoutEngine,
+      fit,
+    )
+  expect((await laidOut()).result.nodePositions).toEqual(
+    (await laidOut(ASSUMED_FIT)).result.nodePositions,
+  )
 })
 
 test('a layout under compress says its lengths are compressed, and one under a proportional spread does not', async () => {
@@ -339,7 +391,7 @@ test('a layout under compress says its lengths are compressed, and one under a p
 
 test('with no reference to hide under, compress pulls a 100 kb run in by its law alone', async () => {
   expect(await ownDrawn(looped(false), 'compress')).toBeLessThan(
-    loopFloor(looped(true)) / 2,
+    loopFloorOf(looped(true)) / 2,
   )
 })
 
@@ -347,9 +399,9 @@ test('the loop floor leaves the reference, and every proportional spread, as the
   const g = looped(true)
   const backbone = (floor: number) =>
     layoutScaling(g, spreadFor('compress'), floor).nodes.filter(isBackbone)
-  expect(backbone(LOOP_FLOOR)).toEqual(backbone(0))
+  expect(backbone(loopFloor())).toEqual(backbone(0))
   for (const spread of ['auto', 'open', 'wide']) {
-    expect(layoutScaling(g, spreadFor(spread), LOOP_FLOOR)).toEqual(
+    expect(layoutScaling(g, spreadFor(spread), loopFloor())).toEqual(
       layoutScaling(g, spreadFor(spread)),
     )
   }
@@ -395,7 +447,7 @@ function loops(): Graph {
 }
 
 const compressed = (g: Graph) =>
-  layoutScaling(g, spreadFor('compress'), LOOP_FLOOR).nodes
+  layoutScaling(g, spreadFor('compress'), loopFloor()).nodes
 
 const requestedOf = (g: Graph, ids: string[]) =>
   requested(compressed(g).filter(n => ids.includes(n.id)))
@@ -432,8 +484,10 @@ test('under compress a loop asks the engine for more length the more bp it holds
 
 test('under compress a loop of one run still draws at least the loop floor', () => {
   const g = loops()
-  expect(requestedOf(g, ['half'])).toBeGreaterThanOrEqual(loopFloor(g))
-  expect(requestedOf(g, ['lead', 'long'])).toBeGreaterThanOrEqual(loopFloor(g))
+  expect(requestedOf(g, ['half'])).toBeGreaterThanOrEqual(loopFloorOf(g))
+  expect(requestedOf(g, ['lead', 'long'])).toBeGreaterThanOrEqual(
+    loopFloorOf(g),
+  )
 })
 
 test('the runs of a loop split its length by bp', () => {
@@ -457,6 +511,6 @@ test("under compress the reference asks for its law's own length beside loops", 
 test('every proportional spread hands the engine the bp of each loop and its runs', () => {
   const g = loops()
   for (const spread of ['auto', 'open', 'wide']) {
-    expect(layoutScaling(g, spreadFor(spread), LOOP_FLOOR).nodes).toBe(g.nodes)
+    expect(layoutScaling(g, spreadFor(spread), loopFloor()).nodes).toBe(g.nodes)
   }
 })

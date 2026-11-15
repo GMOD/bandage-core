@@ -5,6 +5,7 @@
 // draws.
 
 export { FIT_PADDING } from './layout/fitAssumptions'
+export type { FitSize } from './layout/fitAssumptions'
 export {
   clampZoom,
   drawingBounds,
