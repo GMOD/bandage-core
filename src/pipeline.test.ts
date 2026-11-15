@@ -17,6 +17,7 @@ import {
   loadGraph,
 } from './pipeline'
 
+import type { BubbleSpread } from './bubbleSpreads'
 import type { Graph, GraphNode, NodeSegment } from './types'
 
 test('padTop moves the drawing down by the room it adds', () => {
@@ -324,6 +325,16 @@ test('under compress a 100 kb run off the reference draws at least the loop floo
   const compressed = await ownDrawn(g, 'compress')
   expect(compressed).toBeGreaterThanOrEqual(loopFloor(g))
   expect(compressed).toBeLessThan((await ownDrawn(g, 'auto')) / 4)
+})
+
+test('a layout under compress says its lengths are compressed, and one under a proportional spread does not', async () => {
+  const g = looped(true)
+  const laidOut = (bubbleSpread: BubbleSpread) =>
+    forceLayout(g, engineSettingsOf({ bubbleSpread }), layoutEngine)
+  expect((await laidOut('compress')).result.compressed).toBe(true)
+  for (const spread of ['auto', 'open', 'wide'] as const) {
+    expect((await laidOut(spread)).result.compressed).toBeUndefined()
+  }
 })
 
 test('with no reference to hide under, compress pulls a 100 kb run in by its law alone', async () => {

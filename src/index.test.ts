@@ -18,6 +18,7 @@ const ALLOWED = [
 const PUBLISHED = [
   'BUBBLE_HALO_COLOR',
   'BUBBLE_SPREADS',
+  'COMPRESSED_KEY',
   'COLOR_SCHEMES',
   'Canvas2DRenderer',
   'EXON_COLOR',

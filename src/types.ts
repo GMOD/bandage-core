@@ -204,4 +204,7 @@ export interface LayoutResult {
   // Set by the layouts that draw every node from its start to its end (the
   // force layout), so a link joins the ends its strands name
   stranded?: boolean
+  // Set by a force layout whose drawn lengths a spread compresses towards the
+  // mean, so a node's drawn length is not to scale (bubbleSpreads.ts)
+  compressed?: boolean
 }

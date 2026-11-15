@@ -100,7 +100,7 @@ export interface DrawnLengthLaw {
 
 export const PROPORTIONAL_LENGTH: DrawnLengthLaw = { power: 1, effect: 1 }
 
-function isProportional(law: DrawnLengthLaw) {
+export function isProportional(law: DrawnLengthLaw) {
   return law.power === 1 && law.effect === 1
 }
 

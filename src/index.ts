@@ -54,7 +54,7 @@ export {
 export type { NodeWidth } from './nodeWidths'
 export { EDGE_WIDTHS, busiestEdge, edgeWidthFactor } from './edgeWidths'
 export type { EdgeWidth } from './edgeWidths'
-export { BUBBLE_SPREADS } from './bubbleSpreads'
+export { BUBBLE_SPREADS, COMPRESSED_KEY } from './bubbleSpreads'
 export { LAYOUT_QUALITIES } from './layoutQualities'
 export type { LayoutQuality } from './layoutQualities'
 export type { BubbleSpread } from './bubbleSpreads'

@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
+import { COMPRESSED_KEY } from './bubbleSpreads'
 import {
   figureData,
   gfaFigureData,
@@ -14,6 +15,8 @@ import { graphBackbone } from './reference'
 import { abgrHex } from './renderer/colorBits'
 import { encodingStops } from './walkEncoding'
 import { walkLift } from './walkHighlight'
+
+import type { BubbleSpread } from './bubbleSpreads'
 
 const read = (name: string) =>
   readFileSync(join(__dirname, '..', 'test_data', name), 'utf8')
@@ -283,6 +286,22 @@ test('the dashed key is there only when a drawn deletion stays dashed', async ()
   expect(await keyOf()).toMatch(/^skips .+? sequence$/)
   expect(await keyOf(['ref#0#chr'])).toMatch(/^skips .+? sequence$/)
   expect(await keyOf(['a#1#c'])).toBeNull()
+})
+
+test('the key says a layout under compress is not to scale', async () => {
+  const gfa = [
+    ...[100, 10, 100].map((n, id) => `S\t${id}\t${'A'.repeat(n)}`),
+    'P\tref#0#chr\t0+,1+,2+\t*',
+    ...['0 1', '1 2'].map(pair => {
+      const [from, to] = pair.split(' ')
+      return `L\t${from}\t+\t${to}\t+\t0M`
+    }),
+  ].join('\n')
+  const keyOf = async (bubbleSpread: BubbleSpread) =>
+    (await gfaFigureData(gfa, 'chain', { engine: 'stress', bubbleSpread })).meta
+      .compressedKey
+  expect(await keyOf('compress')).toBe(COMPRESSED_KEY)
+  expect(await keyOf('auto')).toBeNull()
 })
 
 test("walk row tiles take their lifted walk's colours as walk rows draw them", () => {

@@ -1,3 +1,4 @@
+import { COMPRESSED_KEY } from './bubbleSpreads'
 import { SHORT_SKIP_KEY, dashedDeletions, deletionKey } from './deletionEdges'
 import { escapeAttr, serializeEl } from './el'
 import {
@@ -196,6 +197,14 @@ function shortSkipKeySvg(x: number, y: number, color: string) {
     width: SWATCH_PX + 5 + SHORT_SKIP_KEY.length * LABEL_CHAR_PX,
     height: KEY_LINE_PX,
     markup: `<g transform="translate(${x} ${y})" ${FONT}><line y1="9" y2="9" x1="5" x2="${SWATCH_PX - 5}" stroke="${color}" stroke-width="1.5"/><text x="${SWATCH_PX + 5}" y="13">${SHORT_SKIP_KEY}</text></g>`,
+  }
+}
+
+function compressedKeySvg(x: number, y: number) {
+  return {
+    width: COMPRESSED_KEY.length * LABEL_CHAR_PX,
+    height: KEY_LINE_PX,
+    markup: `<g transform="translate(${x} ${y})" ${FONT}><text y="13">${COMPRESSED_KEY}</text></g>`,
   }
 }
 
@@ -474,9 +483,13 @@ export function figureSvg(
     const dashed = panels.some(
       panel => dashedDeletions(drawnDeletions.shown, panel).length > 0,
     )
-    const keyed = keyLines(dashed ? [deletionKeyAt, shortSkipKeyAt] : [], width)
+    const keys = [
+      ...(dashed ? [deletionKeyAt, shortSkipKeyAt] : []),
+      ...(layout.compressed ? [compressedKeySvg] : []),
+    ]
+    const keyed = keyLines(keys, width)
     parts.push(...keyed.markup)
-    const header = dashed ? keyed.height + FACET_GAP_PX : 0
+    const header = keys.length > 0 ? keyed.height + FACET_GAP_PX : 0
     const grid = facetGrid({
       count: place.count,
       bounds,
@@ -577,6 +590,9 @@ export function figureSvg(
     }
     if (pins.some(pin => pin.exonsByNode.length > 0)) {
       keys.push((x, y) => exonKeySvg(x, y))
+    }
+    if (layout.compressed) {
+      keys.push(compressedKeySvg)
     }
     const keyed = keyLines(keys, width)
     parts.push(...keyed.markup)

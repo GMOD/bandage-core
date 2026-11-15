@@ -1,3 +1,4 @@
+import { COMPRESSED_KEY } from './bubbleSpreads'
 import { SHORT_SKIP_KEY } from './deletionEdges'
 import { FACET_TITLE_PX } from './facetGrid'
 import { figureSvg } from './figure'
@@ -270,6 +271,28 @@ test('a figure keys the dashed links it draws as skipped reference sequence, and
   const plain = figureSvg(graph, layout, { width: 600 })
   expect(plain).not.toMatch(/skips .+? sequence/)
   expect(plain).not.toContain(SHORT_SKIP_KEY)
+})
+
+test('a figure keys a layout whose lengths are compressed as not to scale, once', () => {
+  const compressed = figureSvg(
+    graph,
+    { ...layout, compressed: true },
+    { width: 600 },
+  )
+  expect(compressed).toMatch(
+    new RegExp(`<text y="13">${COMPRESSED_KEY}</text>`),
+  )
+  expect(compressed.split(COMPRESSED_KEY)).toHaveLength(2)
+  expect(figureSvg(graph, layout, { width: 600 })).not.toContain(COMPRESSED_KEY)
+  const panels = figureSvg(
+    graph,
+    { ...layout, compressed: true },
+    { width: 600, walks: walks.slice(0, 2), facet: 'sample' },
+  )
+  expect(panels.split(COMPRESSED_KEY)).toHaveLength(2)
+  expect(panels.indexOf(COMPRESSED_KEY)).toBeLessThan(
+    panels.indexOf('<svg x="'),
+  )
 })
 
 test('a figure split into panels keys the dashed links once, above the grid, only when a panel draws one', () => {

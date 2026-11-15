@@ -87,6 +87,9 @@ export const BUBBLE_SPREADS = [
 
 export type BubbleSpread = (typeof BUBBLE_SPREADS)[number]['value']
 
+// What a key says of a layout whose lengths a spread compresses
+export const COMPRESSED_KEY = 'node lengths compressed, not to scale'
+
 export const BUBBLE_SPREAD_VALUES = BUBBLE_SPREADS.map(s => s.value)
 
 // The law and floor behind a spread, resolved so the model has one place that

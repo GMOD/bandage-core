@@ -13,6 +13,7 @@ import {
 import {
   drawnLengthOf,
   drawnNodeLength,
+  isProportional,
   layoutScaling,
 } from './layout/drawnScale'
 import { FIGURE_WIDTH_PX, FIT_PADDING } from './layout/fitAssumptions'
@@ -271,6 +272,7 @@ export async function forceLayout(
       ...result,
       nodePositions,
       stranded: true,
+      ...(isProportional(spread.law) ? {} : { compressed: true }),
       ...(tails.size > 0
         ? {
             frame: layoutExtent(

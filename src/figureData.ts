@@ -1,4 +1,5 @@
 import { isBackbone } from './anchoredNodes'
+import { COMPRESSED_KEY } from './bubbleSpreads'
 import { dashedDeletions, deletionKey } from './deletionEdges'
 import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
@@ -464,6 +465,7 @@ export function figureData(
       )
         ? deletionKey(referenceName)
         : null,
+      compressedKey: layout.compressed ? COMPRESSED_KEY : null,
       // what the key for the drawing a lift fades says
       fadedKey: lift
         ? fadedKey(
