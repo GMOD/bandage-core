@@ -414,33 +414,17 @@ export function readoutTextPx(text: string) {
   return (em * READOUT_FONT_PX * 1.02) / 2048
 }
 
-// A readout right of its bar's end and of `left`, or inside the bar where it
-// would leave the pane and fits right of `left`
-function readoutPlacement(
-  text: string,
-  endX: number,
-  width: number,
-  left: number,
-  measure: (text: string) => number,
-) {
-  const textPx = measure(text)
-  const beside = Math.max(endX + READOUT_GAP_PX, left)
-  const inside = endX - READOUT_GAP_PX
-  return beside + textPx < width || inside - textPx < left
-    ? { x: beside, anchor: 'start' as const, halo: false }
-    : { x: inside, anchor: 'end' as const, halo: true }
-}
-
 const ELLIPSIS = '…'
 
-// A readout cut to `roomPx` by whole parts of its breakdown from the end,
-// closed with an ellipsis; its total and change against the reference stay
+// A readout cut to `roomPx` by whole parts from the end, closed with an
+// ellipsis: its breakdown's items, then the parts after its first, then the
+// first's own clauses, so its total and change against the reference stay
+// longest. Where not even an ellipsis fits, nothing is drawn.
 function fitReadout(
   text: string,
   roomPx: number,
   measure: (text: string) => number,
 ) {
-  const fits = (candidate: string) => measure(candidate) <= roomPx
   const [first = '', ...rest] = text.split(' · ')
   const tail = rest.map(part => ` · ${part}`).join('')
   const at = first.indexOf(', of which ')
@@ -460,7 +444,16 @@ function fitReadout(
       : rest
           .map((_, k) => rest.length - 1 - k)
           .map(k => `${[first, ...rest.slice(0, k)].join(' · ')} · ${ELLIPSIS}`)
-  return fits(text) ? text : (cuts.find(fits) ?? cuts.at(-1) ?? text)
+  const clauses = head.split(', ')
+  const clauseCuts = clauses
+    .map((_, k) => clauses.length - 1 - k)
+    .filter(k => k > 0)
+    .map(k => `${clauses.slice(0, k).join(', ')}, ${ELLIPSIS}`)
+  return (
+    [text, ...cuts, ...clauseCuts, ELLIPSIS].find(
+      candidate => measure(candidate) <= roomPx,
+    ) ?? ''
+  )
 }
 
 // A wrapped readout's two lines, this far apart and centred on the row, keep
@@ -494,12 +487,13 @@ export const NOT_COMPARED_TEXT = 'not compared'
 /**
  * Row `i`'s readout (0 the reference) as a pane of `frame` draws it: `text`
  * in full, `lines` as drawn, `shown` those lines as one string, `cut` whether
- * they leave any of `text` out, and where they sit. Beside the bar means right
- * of its end and of the row's name; inside, only over solid bar past its last
- * gap, its width by `frame.measure` or else readoutTextPx. A readout too long
- * for the room beside the bar wraps onto two lines where rows are at their
- * full pitch and two lines fit, and is cut where not. While `comparing`, a
- * row the comparison leaves out ends `· not compared`, which no cut drops.
+ * they leave any of `text` out, and `x`, where they start: right of the bar's
+ * end and of the row's name, never over a bar. Every line ends inside
+ * `frame.width`, measured by `frame.measure` or else readoutTextPx. A readout
+ * too long for the room wraps onto two lines where rows are at their full
+ * pitch and two lines fit, and is cut by whole parts where not. While
+ * `comparing`, a row the comparison leaves out ends `· not compared`, which
+ * only a readout cut to nothing drops.
  */
 export function walkRowReadoutAt(
   bars: WalkRowsWithCalls,
@@ -511,8 +505,6 @@ export function walkRowReadoutAt(
   o: { comparing?: boolean } = {},
 ) {
   const row = i === 0 ? bars.reference : bars.rows[i - 1]!
-  const along = (offset: number) =>
-    (bars.origin + offset) * frame.scaleX + frame.translateX
   const base = walkRowReadout(
     row,
     i === 0 ? undefined : bars.reference,
@@ -525,27 +517,20 @@ export function walkRowReadoutAt(
       : ''
   const text = `${base}${suffix}`
   const measure = frame.measure ?? readoutTextPx
-  const at = readoutPlacement(
-    text,
-    along(barEnd(row)),
-    frame.width,
-    Math.max(rowNameEnd(row.label), along(lastGapEnd(row.runs))),
-    measure,
-  )
-  const roomPx = frame.width - at.x
+  const endX = (bars.origin + barEnd(row)) * frame.scaleX + frame.translateX
+  const x = Math.max(endX + READOUT_GAP_PX, rowNameEnd(row.label))
+  const roomPx = frame.width - x
   const wrapped =
-    at.anchor === 'start' &&
     measure(text) > roomPx &&
     (frame.rowPx ?? ROW_HEIGHT_PX) >= 2 * READOUT_LINE_PX
       ? wrapReadout(text, roomPx, measure)
       : undefined
-  const lines: [string] | [string, string] =
-    wrapped ??
-    (at.anchor === 'start'
-      ? [`${fitReadout(base, roomPx - measure(suffix), measure)}${suffix}`]
-      : [text])
+  const kept = fitReadout(base, roomPx - measure(suffix), measure)
+  const lines: [string] | [string, string] = wrapped ?? [
+    kept === '' ? '' : `${kept}${suffix}`,
+  ]
   return {
-    ...at,
+    x,
     text,
     lines,
     shown: lines.join('\n'),
@@ -1502,7 +1487,8 @@ export function walkRowsTree(
             height: barPx + 2 * overhang,
             fill: callTickInk(call),
           }),
-        readout &&
+        readout !== undefined &&
+          readout.shown !== '' &&
           el(
             'text',
             {
@@ -1511,10 +1497,6 @@ export function walkRowsTree(
               'font-family': 'sans-serif',
               'font-size': 11,
               fill: call?.agrees === false ? DISAGREES : '#333',
-              stroke: readout.halo ? 'white' : undefined,
-              'stroke-width': readout.halo ? 3 : undefined,
-              'paint-order': 'stroke',
-              'text-anchor': readout.anchor,
             },
             readout.lines[1] === undefined
               ? readout.lines[0]
@@ -1569,13 +1551,4 @@ function group(attrs: ElAttrs, ...parts: (El | undefined | false)[][]): El {
     }
   }
   return { tag: 'g', attrs, children }
-}
-
-// Where a row's last gap ends, so a readout drawn inside the bar sits over
-// solid bar alone
-function lastGapEnd(runs: WalkRun[]) {
-  return runs.reduce(
-    (end, run) => (run.gap ? Math.max(end, run.start + run.bp) : end),
-    Number.NEGATIVE_INFINITY,
-  )
 }
