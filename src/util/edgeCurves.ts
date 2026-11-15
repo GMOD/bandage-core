@@ -94,8 +94,8 @@ export function baseEdgeCurves(
       }
       if (deletions) {
         const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-        const levels = levelCache(deletions, [graph], () =>
-          skipLevels(
+        const { levels, alone } = sitesCache(deletions, [graph], () =>
+          skipSites(
             deletionEdges(graph).filter(d => deletions.has(d.edgeIndex)),
           ),
         )
@@ -114,7 +114,7 @@ export function baseEdgeCurves(
           highestOnChord.set(chord, level)
           const height = level * SKIP_LEVEL_PX
           const farthest = farthestPx(arc, axis)
-          if (Math.abs(farthest) < height) {
+          if ((level > 1 || !alone.has(ei)) && Math.abs(farthest) < height) {
             const from = nodeById.get(edge.from)?.stable?.start ?? 0
             const to = nodeById.get(edge.to)?.stable?.start ?? 0
             const side = routes?.[ei]
@@ -131,16 +131,21 @@ export function baseEdgeCurves(
   )
 }
 
-const levelCache = weakMemo<Map<number, string[]>, Map<number, number>>()
+const sitesCache = weakMemo<
+  Map<number, string[]>,
+  ReturnType<typeof skipSites>
+>()
 
 // A skip's level is one above the highest of the skips inside its span, so a
 // skip nested in a longer one draws inside it; of two over one span, the later
 // edge nests the earlier, and of two whose feet land on the same pixels, the
-// later rises above the earlier. Taken by end, each skip finds the skips inside it
-// among those taken before it that start no earlier, in a prefix-max tree over
-// its sequence's starts, latest first.
-function skipLevels(spans: DeletionEdge[]) {
+// later rises above the earlier. Taken by end, each skip finds the skips
+// inside it among those taken before it that start no earlier, in a
+// prefix-max tree over its sequence's starts, latest first. A skip alone, its
+// span overlapping no other's, keeps the path it has.
+function skipSites(spans: DeletionEdge[]) {
   const levels = new Map<number, number>()
+  const overlapping = new Set<number>()
   for (const group of groupBy(spans, s => s.refName).values()) {
     const starts = Array.from(new Set(group.map(s => s.start))).sort(
       (a, b) => b - a,
@@ -159,8 +164,21 @@ function skipLevels(spans: DeletionEdge[]) {
         highest[i] = Math.max(highest[i]!, inside + 1)
       }
     }
+    let farthest: DeletionEdge | undefined
+    for (const span of group.toSorted((a, b) => a.start - b.start)) {
+      if (farthest && span.start < farthest.end) {
+        overlapping.add(span.edgeIndex)
+        overlapping.add(farthest.edgeIndex)
+      }
+      farthest = farthest && farthest.end >= span.end ? farthest : span
+    }
   }
-  return levels
+  return {
+    levels,
+    alone: new Set(
+      spans.flatMap(s => (overlapping.has(s.edgeIndex) ? [] : [s.edgeIndex])),
+    ),
+  }
 }
 
 // Where an arc's feet land on screen, to the pixel and either way round: a

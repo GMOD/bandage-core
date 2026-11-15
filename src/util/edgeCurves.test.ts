@@ -380,10 +380,38 @@ describe('skips at one site', () => {
     ).toBeGreaterThanOrEqual(widestSkipPx)
   })
 
-  test('a lifted skip keeps its feet on its anchors', () => {
-    const [arc] = skips([[0, 3, [1, 2]]]).get(0)!
-    expect(heightPx([arc!])).toBeCloseTo(SKIP_LEVEL_PX, 5)
-    expect([arc!.x0, arc!.y0, arc!.x1, arc!.y1]).toEqual([10, 0, 30, 0])
+  test('lifted skips keep their feet on their anchors, a level apart', () => {
+    const curves = skips([
+      [0, 3, [1, 2]],
+      [1, 3, [2]],
+    ])
+    const [outer] = curves.get(0)!
+    const [inner] = curves.get(1)!
+    expect(heightPx([outer!])).toBeCloseTo(2 * SKIP_LEVEL_PX, 5)
+    expect(heightPx([inner!])).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    expect([outer!.x0, outer!.y0, outer!.x1, outer!.y1]).toEqual([10, 0, 30, 0])
+    expect([inner!.x0, inner!.y0, inner!.x1, inner!.y1]).toEqual([20, 0, 30, 0])
+  })
+
+  test('a skip whose span overlaps no other keeps the path its layout gave it', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [3, 5, [4]],
+    ])
+    for (const arc of [curves.get(0)!, curves.get(1)!]) {
+      expect(arc.length).toBeGreaterThan(1)
+      expect(heightPx(arc)).toBeLessThan(1)
+    }
+  })
+
+  test('two skips over spans that overlap without nesting both rise', () => {
+    const curves = skips([
+      [0, 3, [1, 2]],
+      [1, 4, [2, 3]],
+    ])
+    for (const arc of [curves.get(0)!, curves.get(1)!]) {
+      expect(heightPx(arc)).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    }
   })
 
   test('a route that already rises past its level keeps its path', () => {
