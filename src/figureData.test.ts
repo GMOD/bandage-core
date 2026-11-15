@@ -8,11 +8,15 @@ import {
   laidOutGraph,
   walkRowInks,
 } from './figureData'
+import { EXON_COLOR } from './genes/exonOutline'
+import { labelledNodeLengths } from './graphLabels'
+import { layoutLabels } from './labelLayout'
 import { liftedRowInks, rowInkAt } from './layout/rowInks'
 import { walkRows } from './layout/walkRows'
-import { loadGraph } from './pipeline'
+import { drawingBounds, fitTransform, loadGraph } from './pipeline'
 import { graphBackbone } from './reference'
 import { abgrHex } from './renderer/colorBits'
+import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
 import { walkLift } from './walkHighlight'
 
@@ -280,12 +284,15 @@ test('the dashed key is there only when a drawn deletion stays dashed', async ()
       return `L\t${from}\t+\t${to}\t+\t0M`
     }),
   ].join('\n')
-  const keyOf = async (walks?: string[]) =>
-    (await gfaFigureData(gfa, 'skip', { engine: 'stress', walks })).meta
-      .deletionKey
+  const keyOf = async (walks?: string[]) => {
+    const { graphKey } = (
+      await gfaFigureData(gfa, 'skip', { engine: 'stress', walks })
+    ).meta
+    return graphKey.text.find((_, i) => graphKey.key[i] === 'deletion')
+  }
   expect(await keyOf()).toMatch(/^skips .+? sequence$/)
   expect(await keyOf(['ref#0#chr'])).toMatch(/^skips .+? sequence$/)
-  expect(await keyOf(['a#1#c'])).toBeNull()
+  expect(await keyOf(['a#1#c'])).toBeUndefined()
 })
 
 test('the key says a layout under compress is not to scale', async () => {
@@ -299,9 +306,9 @@ test('the key says a layout under compress is not to scale', async () => {
   ].join('\n')
   const keyOf = async (bubbleSpread: BubbleSpread) =>
     (await gfaFigureData(gfa, 'chain', { engine: 'stress', bubbleSpread })).meta
-      .compressedKey
-  expect(await keyOf('compress')).toBe(COMPRESSED_KEY)
-  expect(await keyOf('auto')).toBeNull()
+      .graphKey.text
+  expect(await keyOf('compress')).toContain(COMPRESSED_KEY)
+  expect(await keyOf('auto')).not.toContain(COMPRESSED_KEY)
 })
 
 test("walk row tiles take their lifted walk's colours as walk rows draw them", () => {
@@ -356,4 +363,100 @@ test("walk row tiles take their lifted walk's colours as walk rows draw them", (
     null,
     null,
   ])
+})
+
+// R walks three reference nodes; A leaves it for a 75 kb loop the cut did not
+// load, a placeholder, and comes back
+const UNLOADED = `S\tr1\t*\tLN:i:20000
+S\tr2\t*\tLN:i:30000
+S\tr3\t*\tLN:i:25000
+S\tp1\t*\tLN:i:75000\tnl:i:1
+L\tr1\t+\tr2\t+\t0M
+L\tr2\t+\tr3\t+\t0M
+L\tr1\t+\tp1\t+\t0M
+L\tp1\t+\tr3\t+\t0M
+W\tR\t0\tchr\t0\t75000\t>r1>r2>r3
+W\tA\t1\tchr\t0\t120000\t>r1>p1>r3`
+
+test("the labels table places the canvas's labels: a placeholder's length always, every node's with lengths on", async () => {
+  const { graph, layout } = await laidOutGraph(
+    UNLOADED,
+    'unloaded',
+    undefined,
+    {
+      layout: 'auto',
+      referencePath: 'R',
+    },
+  )
+  const width = 900
+  const height = 600
+  const d = figureData(graph, layout, { width, height, nodeLengths: true })
+  const fit = fitTransform(drawingBounds(layout, {}), width, height, true)!
+  const axis = axisScaleOf(fit.scale, true)
+  const placed = layoutLabels({
+    paneWidth: width,
+    canvasHeight: height,
+    axisScale: axis,
+    translateX: fit.translateX,
+    translateY: fit.translateY,
+    contigThickness: 6,
+    legendSize: { width: 0, height: 0 },
+    drawnRowLabels: layout.rowLabels ?? [],
+    bubbleHalos: [],
+    genePins: [],
+    nodePositions: layout.nodePositions,
+    labelsNodeSizes: true,
+    nodeLengths: labelledNodeLengths(graph.nodes, true),
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    alleleDeletions: layout.alleleDeletions ?? [],
+    positionsVersion: 0,
+  })
+  expect(d.labels.text).toEqual(placed.sizes.map(l => l.text))
+  expect(d.labels.kind[0]).toBe('placeholder')
+  expect(d.labels.text[0]).toBe('75 kb')
+  expect(d.labels.kind.slice(1).every(k => k === 'length')).toBe(true)
+  d.labels.x.forEach((x, i) => {
+    expect(x * axis.scaleX + fit.translateX).toBeCloseTo(placed.sizes[i]!.x)
+    expect(d.labels.y[i]! * axis.scaleY + fit.translateY).toBeCloseTo(
+      placed.sizes[i]!.y,
+    )
+  })
+  const plain = figureData(graph, layout, { width, height })
+  expect(plain.labels.text).toEqual(['75 kb'])
+  const hollow = plain.meta.graphKey.key.indexOf('not-shown')
+  expect(plain.meta.graphKey.swatch[hollow]).toBe('hollow')
+  expect(plain.meta.graphKey.color[hollow]).toBe(
+    plain.meta.inks.placeholderFill,
+  )
+  expect(plain.meta.graphKey.rim[hollow]).toBe(plain.meta.inks.placeholderRim)
+})
+
+test("a gene's name is labelled with its leader to its pin, and the inks are the canvas's", async () => {
+  const { graph, layout } = await laidOutGraph(
+    read('ecoli_rgfa_slice.gfa'),
+    'ecoli',
+    undefined,
+    { layout: 'auto' },
+  )
+  const { refName, start, end } = graphBackbone(graph)!.contigs[0]!
+  const d = figureData(graph, layout, {
+    genes: [
+      {
+        name: 'geneA',
+        refName,
+        start,
+        end,
+        strand: 1,
+        exons: [{ start: start + 10, end: end - 10 }],
+      },
+    ],
+  })
+  const gene = d.labels.kind.indexOf('gene')
+  expect(d.labels.item[gene]).toBe('geneA')
+  expect(d.labels.x1[gene]).not.toBeNull()
+  expect(d.labels.y2[gene]).not.toBeNull()
+  expect(d.meta.inks.exon).toBe(EXON_COLOR)
+  expect(d.meta.inks.ramp).toHaveLength(7)
+  const exon = d.meta.graphKey.key.indexOf('exon')
+  expect(d.meta.graphKey.color[exon]).toBe(EXON_COLOR)
 })

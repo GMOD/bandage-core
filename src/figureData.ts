@@ -1,19 +1,17 @@
 import { isBackbone } from './anchoredNodes'
-import { COMPRESSED_KEY } from './bubbleSpreads'
-import { dashedDeletions, deletionKey } from './deletionEdges'
 import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { parseRegion } from './gbzCut'
+import { EXON_COLOR } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
+import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnSkips, graphKey } from './graphKey'
+import { labelledNodeLengths, sizeLeader } from './graphLabels'
+import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAt, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
-import {
-  frequencyKey,
-  haplotypeCount,
-  nodeFrequency,
-  withFrequencies,
-} from './nodeWidths'
+import { haplotypeCount, nodeFrequency, withFrequencies } from './nodeWidths'
+import { LABEL_PX } from './overlayLabels'
 import { referenceVisitStarts } from './pathAnchoring'
 import {
   engineSettingsOf,
@@ -22,19 +20,25 @@ import {
   loadGraph,
 } from './pipeline'
 import { referencePositions } from './referenceSpan'
+import {
+  EDGE_DELETION_COLOR,
+  NOT_LOADED_COLOR,
+  NOT_LOADED_FILL_COLOR,
+  REFERENCE_RAMP_ALT_COLOR,
+} from './renderer/GeometryBuilder'
 import { abgrAlpha, abgrHex } from './renderer/colorBits'
 import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
-import { fadedKey } from './walkHighlight'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
+import type { GraphKeySection } from './graphKey'
 import type { RowInk } from './layout/rowInks'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { LayoutModeValue } from './layoutModes'
-import type { LaneSlide } from './renderer/types'
+import type { LaneSlide, RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
 import type { LiftedWalk, WalkLift } from './walkHighlight'
@@ -63,6 +67,7 @@ export type FigureDataOptions = Pick<
   | 'colorDomain'
   | 'fitToDrawing'
   | 'genes'
+  | 'nodeLengths'
 >
 
 type Columns<T> = { [K in keyof T]: T[K][] }
@@ -148,6 +153,40 @@ interface ExonRow {
   y: number
 }
 
+// a label the figure places, as the canvas places it: a node's length, a
+// placeholder's first, a gene's name, a bubble's, at the middle of its text,
+// `size` px tall, with the leader to what it names where it stands off
+interface LabelRow {
+  kind: 'placeholder' | 'length' | 'gene' | 'bubble'
+  item: string
+  text: string
+  size: number
+  x: number
+  y: number
+  x1: number | null
+  y1: number | null
+  x2: number | null
+  y2: number | null
+}
+
+// an entry of the graph's key, its colours as hex with their alpha
+interface GraphKeyRow {
+  section: string
+  group: string
+  key: string
+  text: string
+  strong: string
+  under: string
+  swatch: string
+  color: string
+  alpha: number
+  stops: string
+  px: number | null
+  dashed: boolean
+  rim: string
+  rimPx: number | null
+}
+
 interface ArrowRow {
   panel: string
   edge: number
@@ -173,6 +212,59 @@ function columns<T extends object>(out: Columns<T>) {
 
 const alphaOf = (c: number) => abgrAlpha(c) / 255
 
+// a name's baseline lies about this many of its px under its middle; a
+// length's label is placed by its middle already, in 10 px text
+const BASELINE_TO_MIDDLE = 0.35
+const SIZE_LABEL_PX = 10
+
+function graphKeyTable(sections: GraphKeySection[]) {
+  const table = columns<GraphKeyRow>({
+    section: [],
+    group: [],
+    key: [],
+    text: [],
+    strong: [],
+    under: [],
+    swatch: [],
+    color: [],
+    alpha: [],
+    stops: [],
+    px: [],
+    dashed: [],
+    rim: [],
+    rimPx: [],
+  })
+  for (const { id, group, entries } of sections) {
+    for (const entry of entries) {
+      const swatch = entry.swatch
+      const ink =
+        swatch && swatch.kind !== 'scale' && swatch.kind !== 'overhang'
+          ? swatch.ink
+          : undefined
+      table.push({
+        section: id,
+        group: group ?? '',
+        key: entry.key,
+        text: entry.text,
+        strong: entry.strong ?? '',
+        under: entry.under ?? '',
+        swatch: swatch?.kind ?? '',
+        color: ink === undefined ? '' : abgrHex(ink),
+        alpha: ink === undefined ? 1 : alphaOf(ink),
+        stops:
+          swatch?.kind === 'scale'
+            ? swatch.stops.map(s => abgrHex(s.ink)).join(',')
+            : '',
+        px: swatch?.kind === 'width' ? swatch.px : null,
+        dashed: swatch?.kind === 'line' && swatch.dashed,
+        rim: swatch?.kind === 'hollow' ? abgrHex(swatch.rim) : '',
+        rimPx: swatch?.kind === 'hollow' ? swatch.rimPx : null,
+      })
+    }
+  }
+  return table.out
+}
+
 export function figureData(
   graph: Graph,
   layout: LayoutResult,
@@ -194,6 +286,9 @@ export function figureData(
     labelOf,
     referenceName,
     keyText,
+    contigThickness,
+    nodeWidth,
+    nodeById,
     geometry,
   } = figureScene(graph, layout, o)
   const fit = fitTransform(bounds, width, height, pixelRows)
@@ -283,9 +378,10 @@ export function figureData(
     y: [],
   })
   let stretch = 0
-  for (const pin of o.genes?.length
+  const pinned = o.genes?.length
     ? genePins(graph, o.genes, layout.nodePositions)
-    : []) {
+    : []
+  for (const pin of pinned) {
     const gene = pin.gene.name
     pins.push({
       gene,
@@ -356,8 +452,10 @@ export function figureData(
     alpha: [],
   })
 
+  const batches: RenderBatch[] = []
   for (const { highlight, name: panel, firstKeyRow } of panels) {
     const batch = geometry(highlight, axis)
+    batches.push(batch)
     const keyRowOf = (walk?: number) =>
       walk === undefined ? null : firstKeyRow + walk
     const screen = ({ normal, offsetX }: LaneSlide) => ({
@@ -439,6 +537,106 @@ export function figureData(
     }
   }
 
+  const placed = layoutLabels({
+    paneWidth: width,
+    canvasHeight: height,
+    axisScale: axis,
+    translateX: fit.translateX,
+    translateY: fit.translateY,
+    contigThickness,
+    legendSize: { width: 0, height: 0 },
+    drawnRowLabels: layout.rowLabels ?? [],
+    bubbleHalos: [],
+    genePins: pinned,
+    nodePositions: layout.nodePositions,
+    labelsNodeSizes: !lift,
+    nodeLengths: labelledNodeLengths(
+      graph.nodes,
+      o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
+    ),
+    nodeById,
+    alleleDeletions: layout.alleleDeletions ?? [],
+    positionsVersion: 0,
+  })
+  const toX = (x: number) => (x - fit.translateX) / axis.scaleX
+  const toY = (y: number) => (y - fit.translateY) / axis.scaleY
+  const labels = columns<LabelRow>({
+    kind: [],
+    item: [],
+    text: [],
+    size: [],
+    x: [],
+    y: [],
+    x1: [],
+    y1: [],
+    x2: [],
+    y2: [],
+  })
+  const pushLabel = (
+    kind: LabelRow['kind'],
+    item: string,
+    text: string,
+    at: { x: number; y: number },
+    leader?: { x1: number; y1: number; x2: number; y2: number },
+  ) => {
+    labels.push({
+      kind,
+      item,
+      text,
+      size: kind === 'gene' || kind === 'bubble' ? LABEL_PX : SIZE_LABEL_PX,
+      x: toX(at.x),
+      y: toY(at.y),
+      x1: leader ? toX(leader.x1) : null,
+      y1: leader ? toY(leader.y1) : null,
+      x2: leader ? toX(leader.x2) : null,
+      y2: leader ? toY(leader.y2) : null,
+    })
+  }
+  for (const label of placed.sizes) {
+    pushLabel(
+      nodeById.get(label.node)?.placeholder ? 'placeholder' : 'length',
+      label.node,
+      label.text,
+      label,
+      sizeLeader(label),
+    )
+  }
+  for (const { item: pin, x, y, text } of placed.genes) {
+    const at = {
+      x: pin.at.x * axis.scaleX + fit.translateX,
+      y: pin.at.y * axis.scaleY + fit.translateY,
+    }
+    pushLabel(
+      'gene',
+      pin.gene.name,
+      text,
+      { x, y: y - LABEL_PX * BASELINE_TO_MIDDLE },
+      geneLeader({ x, y }, at, contigThickness),
+    )
+  }
+  for (const { item: halo, x, y, text } of placed.bubbles) {
+    pushLabel('bubble', halo.label, text, {
+      x,
+      y: y - LABEL_PX * BASELINE_TO_MIDDLE,
+    })
+  }
+
+  const key = graphKey(graph, layout, {
+    region: o.region,
+    referenceName,
+    referenceRamp,
+    lift,
+    panels: facets?.panels,
+    walkLabel: labelOf,
+    nodeWidth,
+    contigThickness,
+    edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
+    connectorThickness:
+      o.connectorThickness ?? FIGURE_DEFAULTS.connectorThickness,
+    skips: drawnSkips(batches),
+    genePins: pinned,
+  })
+
   const startsOf = referenceVisitStarts(graph)
   const positions = referencePositions(graph)
   const haplotypes = haplotypeCount(graph)
@@ -460,27 +658,18 @@ export function figureData(
           }
         : null,
       deletions: drawnDeletions.shown.length,
-      deletionKey: panels.some(
-        p => dashedDeletions(drawnDeletions.shown, p.highlight).length > 0,
-      )
-        ? deletionKey(referenceName)
-        : null,
-      compressedKey: layout.compressed ? COMPRESSED_KEY : null,
-      // what the key for the drawing a lift fades says
-      fadedKey: lift
-        ? fadedKey(
-            graph,
-            lift,
-            lift.walks.length === 1
-              ? labelOf(lift.walks[0]!.name)
-              : 'these walks',
-          )
-        : null,
-      // the widths a key shows where nodes are as wide as their frequency
-      frequencyKey:
-        o.nodeWidth === 'frequency'
-          ? frequencyKey(o.contigThickness ?? FIGURE_DEFAULTS.contigThickness)
-          : null,
+      // the inks the drawing paints what the key names with
+      inks: {
+        exon: EXON_COLOR,
+        ramp: RAMP_KEY_STOPS.map(s => abgrHex(s.ink)),
+        offReference: abgrHex(REFERENCE_RAMP_ALT_COLOR),
+        placeholderFill: abgrHex(NOT_LOADED_FILL_COLOR),
+        placeholderRim: abgrHex(NOT_LOADED_COLOR),
+        deletion: abgrHex(EDGE_DELETION_COLOR),
+        faded: abgrHex(FADED_KEY_INK),
+      },
+      // the graph's key, as every reader draws it (graphKey.ts)
+      graphKey: graphKeyTable(key),
     },
     panels: {
       panel: panels.map(p => p.name),
@@ -491,6 +680,7 @@ export function figureData(
     threadKeys: threadKeys.out,
     pins: pins.out,
     exons: exons.out,
+    labels: labels.out,
     walkNames: [...new Set((graph.paths ?? []).map(p => p.name))],
     nodes: nodes.out,
     edges: edges.out,

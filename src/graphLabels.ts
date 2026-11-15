@@ -120,6 +120,8 @@ export function rowLabelBox(text: string, screenY: number): Box {
 
 export interface GraphLabel {
   key: string
+  // the node whose length it writes
+  node: string
   text: string
   // screen pixels, already through the transform the canvas draws with: the
   // collision test needs them anyway, and returning layout units would have the
@@ -228,7 +230,7 @@ export interface SizeLabelCandidate {
 // down, slid sideways up to half the label, to the pane's edges `height`
 // tall, each with a leader to its spot
 function stackedSpots(
-  label: Pick<GraphLabel, 'key' | 'text'>,
+  label: Pick<GraphLabel, 'key' | 'node' | 'text'>,
   halfW: number,
   spots: { x: number; y: number }[],
   height: number,
@@ -319,7 +321,11 @@ export function sizeLabelCandidates({
         ? spots.length > 0
         : drawn >= (MIN_LABEL_HALF_WIDTH * 2) / MAX_LABEL_OVERHANG
     ) {
-      const label = { key: `node:${id}`, text: formatBp(nodeLengths.get(id)!) }
+      const label = {
+        key: `node:${id}`,
+        node: id,
+        text: formatBp(nodeLengths.get(id)!),
+      }
       const halfW = labelHalfWidth(label.text)
       const along =
         drawn >= (halfW * 2) / MAX_LABEL_OVERHANG
