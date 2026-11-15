@@ -162,8 +162,8 @@ export interface WalkRow {
   // undefined where a piece states no start or overlaps the one before, so
   // bar offsets don't map linearly onto the contig
   axis?: WalkAxis
-  // on the reference row, the walk file header's count of nodes the reference
-  // passes more than once, where the host states it (gfa/departures.ts
+  // on the reference row, the count of nodes the reference passes more than
+  // once that its tables or Graph state, or the host passes (gfa/departures.ts
   // ownIsExact)
   revisited?: number
 }

@@ -115,3 +115,40 @@ test('a GFA the tables cannot hold converts as text', () => {
     expect(gfaTables(gfa(...base, extra))).toBeUndefined()
   }
 })
+
+test("a GFA's tables count the segments its reference's walks pass more than once", () => {
+  const segments = ['a', 'b', 'c', 'd'].map(
+    (id, i) =>
+      `S\t${id}\t*\tLN:i:10\tSN:Z:GRCh38#0#chr1\tSO:i:${i * 10}\tSR:i:0`,
+  )
+  expect(
+    gfaTables(
+      gfa(
+        ...segments,
+        'W\tHG1\t1\tc\t0\t40\t>c>c>d>d',
+        'W\tGRCh38\t0\tchr1\t0\t40\t>a>b>a>b>b',
+        'W\tGRCh38\t0\tchr1\t50\t70\t>c>d',
+        'W\tGRCh38\t0\tchr1\t80\t90\t<c',
+      ),
+    )!.revisited,
+  ).toBe(3)
+  expect(
+    gfaTables(gfa(...segments, 'W\tGRCh38\t0\tchr1\t0\t40\t>a>b>c>d'))!
+      .revisited,
+  ).toBe(0)
+  expect(gfaTables(gfa(...segments))!.revisited).toBeNaN()
+})
+
+test('a GFA of P lines counts the segments its reference passes more than once as its W lines would', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(
+      gfa(
+        'S\ta\tAAAA',
+        'S\tb\tCC',
+        'P\tGRCh38#0#chr1\ta+,b+,a-\t*',
+        'P\tHG1#1#c\tb+,b+\t*',
+      ),
+    ),
+  )
+  expect(graph.revisited).toBe(1)
+})

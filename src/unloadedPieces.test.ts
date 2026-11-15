@@ -365,6 +365,7 @@ test('a run not loaded stays apart from the loaded steps off the reference besid
       abridgedSteps: Float64Array.of(NaN, 12),
     },
     departures: departureTable(),
+    revisited: 0,
   }
   for (const source of [tables, graphFromTables(tables)]) {
     const e = walkRowsOf(walkRowRuns(source)!).rows[0]!
@@ -460,6 +461,7 @@ function twinTables(): GraphTables {
       abridgedSteps: Float64Array.of(NaN, 40, 60, NaN, NaN),
     },
     departures: departureTable(),
+    revisited: 0,
   }
 }
 
@@ -643,6 +645,7 @@ function besideTableData(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
       abridgedSteps: Float64Array.of(NaN, 12, NaN),
     },
     departures: departureTable(),
+    revisited: 0,
   }
   return tables
 }

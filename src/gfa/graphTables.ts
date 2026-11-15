@@ -1,5 +1,6 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { panSNFields, panSNSample } from '../pansn'
+import { pathOrigin } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
 import { stretchSegments } from './departures'
 import { linkKey } from './linkKey'
@@ -76,10 +77,52 @@ export interface GraphTables {
   }
   // every departure from the reference over the cut, each once
   departures: DepartureTable
+  // how many nodes the reference's paths pass more than once, the walk file
+  // header's `revisited`, NaN where the source cannot state it: above 0, a
+  // run off the reference may be a copy of sequence it passes elsewhere
+  revisited: number
   // what lies between each walk's fragments, past its ends and in its
   // departures outside them, as graph-walks' ADR 0001 states it; absent from
   // tables another source builds
   gaps?: GapTable
+}
+
+// The reference walk's name, stripped of the range suffix odgi leaves on a P
+// record's name: `referencePath`, else the walk a rank 0 segment's tag names,
+// else the first walk, where gbz-base and walk-file cuts write it
+export function referenceOf(
+  names: string[],
+  referencePath: string | undefined,
+  rankZero: Set<string>,
+) {
+  return referencePath !== undefined && names.includes(referencePath)
+    ? referencePath
+    : (names.find(n => rankZero.has(n)) ?? names[0])
+}
+
+// How many segments the reference's walks pass more than once, as a walk
+// file's header counts them, of a graph whole: its reference is the one
+// `referenceOf` picks with no `referencePath`. NaN with no walk to be it.
+export function revisitedCount<T>(
+  walks: { name: string; segments: Iterable<T> }[],
+  rankZero: Set<string>,
+) {
+  const names = walks.map(w => pathOrigin(w.name).name)
+  const reference = referenceOf(names, undefined, rankZero)
+  const passes = new Map<T, number>()
+  let revisited = 0
+  walks.forEach((w, p) => {
+    if (names[p] === reference) {
+      for (const segment of w.segments) {
+        const n = (passes.get(segment) ?? 0) + 1
+        passes.set(segment, n)
+        if (n === 2) {
+          revisited++
+        }
+      }
+    }
+  })
+  return reference === undefined ? Number.NaN : revisited
 }
 
 // A stretch of a walk's contig per row: `walks` the walk the stretch follows,
@@ -202,7 +245,11 @@ function namesByList(
  * `traversals` when given one.
  */
 function tableOrientation(
-  { nodes: n, links: l, walks: w }: Omit<GraphTables, 'departures'>,
+  {
+    nodes: n,
+    links: l,
+    walks: w,
+  }: Omit<GraphTables, 'departures' | 'revisited'>,
   traversals?: Int32Array,
 ) {
   const backbone = new Uint8Array(n.names.length)
@@ -254,7 +301,9 @@ const nodeIdsOf = (names: string[], orient: Uint8Array) =>
 /**
  * Each segment's Graph node id: its name and its one drawn orientation.
  */
-export function tableNodeIds(tables: Omit<GraphTables, 'departures'>) {
+export function tableNodeIds(
+  tables: Omit<GraphTables, 'departures' | 'revisited'>,
+) {
   return nodeIdsOf(
     tables.nodes.names,
     tableOrientation({ ...tables, links: distinctLinks(tables.links) }),
@@ -265,11 +314,12 @@ export function tableNodeIds(tables: Omit<GraphTables, 'departures'>) {
  * The Graph `convertGFAToGraph` builds from `graphTablesGFA(tables)`, deep
  * equal, built by index: a step costs a few array reads and its visit, where
  * the text costs a string and several map lookups. GFA has no line for a
- * departure or a trimmed walk's bp, so only this Graph keeps the tables'
- * `departures` and each walk's trimmed bp.
+ * departure, a trimmed walk's bp or the source's count of nodes the reference
+ * passes more than once, so only this Graph keeps the tables' `departures`,
+ * each walk's trimmed bp and `revisited`; the text counts its own walks.
  */
 export function graphFromTables(
-  { nodes: n, links, walks: w, departures, gaps }: GraphTables,
+  { nodes: n, links, walks: w, departures, revisited, gaps }: GraphTables,
   name = 'Imported GFA',
 ): Graph {
   const l = distinctLinks(links)
@@ -485,6 +535,7 @@ export function graphFromTables(
         })
       : undefined,
     anchoredBy: nodes.some(node => node.stable) ? 'tags' : undefined,
+    revisited,
     ...(departures.names.length > 0 ? { departures } : {}),
     ...(gaps && gaps.names.length > 0 ? { gaps: graphGaps(gaps, ids) } : {}),
   }

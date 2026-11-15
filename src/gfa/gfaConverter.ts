@@ -1,6 +1,7 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
+import { revisitedCount } from './graphTables'
 import { linkKey } from './linkKey'
 import { REVERSED, orientSegments, respelled } from './segmentOrientation'
 
@@ -321,5 +322,20 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     // rGFA's own tags win wherever they are present; pathAnchoring only ever
     // fills in for a graph that carries none.
     anchoredBy: nodes.some(n => n.stable) ? 'tags' : undefined,
+    revisited: revisitedCount(
+      [
+        ...gfaGraph.paths.map(({ name: pathName }, i) => ({
+          name: pathName,
+          segments: pathSteps[i]!.steps.map(step => step.id),
+        })),
+        ...gfaGraph.walks.map(walk => ({
+          name: `${walk.sample}#${walk.haplotype}#${walk.contig}`,
+          segments: walk.segments.map(seg => seg.id),
+        })),
+      ],
+      new Set(
+        nodes.flatMap(n => (n.stable?.rank === 0 ? [n.stable.refName] : [])),
+      ),
+    ),
   } satisfies Graph
 }

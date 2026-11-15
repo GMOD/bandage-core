@@ -2,6 +2,7 @@ import { parseGFA } from '../gfa-core/index'
 import { loadGraph } from '../pipeline'
 import { departureTable } from './departures'
 import { convertGFAToGraph } from './gfaConverter'
+import { gfaTables } from './gfaTables'
 import { graphFromTables, graphTablesGFA } from './graphTables'
 
 import type { GraphTables } from './graphTables'
@@ -56,13 +57,20 @@ function tables({
       reversed: Uint8Array.from(steps, s => (s[1] ? 1 : 0)),
     },
     departures: departureTable(),
+    revisited: 0,
   }
 }
 
+// The tables' count is the source's, which the GFA of a cut cannot state; the
+// text counts its own walks as the tables written from it do
 function expectSameGraph(t: GraphTables) {
-  const fromText = convertGFAToGraph(parseGFA(graphTablesGFA(t)), 'cut')
+  const text = graphTablesGFA(t)
+  const fromText = convertGFAToGraph(parseGFA(text), 'cut')
   const fromTables = graphFromTables(t, 'cut')
-  expect(fromTables).toStrictEqual(fromText)
+  expect(fromTables).toStrictEqual({ ...fromText, revisited: t.revisited })
+  expect(gfaTables(text)?.revisited ?? fromText.revisited).toBe(
+    fromText.revisited,
+  )
   expect([...(fromTables.pathVisits?.keys() ?? [])]).toEqual([
     ...(fromText.pathVisits?.keys() ?? []),
   ])

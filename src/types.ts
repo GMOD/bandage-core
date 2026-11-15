@@ -109,6 +109,9 @@ export interface Graph {
   anchoredBy?: 'tags' | 'paths'
   // the path `anchoredBy: 'paths'` put on x
   referencePath?: string
+  // how many nodes the reference's paths pass more than once, from the
+  // tables the graph was built of (GraphTables.revisited)
+  revisited?: number
   // reads aligned to the graph, which the tube map draws under its paths
   reads?: GafRecord[]
   // every departure from the reference over a walk-file cut, which

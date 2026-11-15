@@ -268,7 +268,7 @@ test('a change under a kilobase reads in bp rather than rounding to 0.0 kb', () 
 })
 
 test('the reference from elsewhere under a kilobase reads in bp rather than rounding to 0.0 kb', () => {
-  const reference = { bp: 600, windowBp: 600, sample: 'GRCh38' }
+  const reference = { bp: 600, windowBp: 600, sample: 'GRCh38', revisited: 0 }
   expect(
     walkRowReadout(
       { bp: 769, windowBp: 600, gapBp: 0, complete: true, fromElsewhereBp: 20 },
@@ -292,7 +292,12 @@ test('the reference from elsewhere under a kilobase reads in bp rather than roun
 })
 
 test('a pass across a window edge calls only its bases off the reference its own, and names those on it and their direction', () => {
-  const reference = { bp: 6600, windowBp: 6600, sample: 'GRCh38' }
+  const reference = {
+    bp: 6600,
+    windowBp: 6600,
+    sample: 'GRCh38',
+    revisited: 0,
+  }
   const axis = { contig: 'c', start: 0, reversed: true }
   expect(
     walkRowReadout(
@@ -641,6 +646,7 @@ function longRow(): WalkRowsWithCalls {
       gapBp: 0,
       complete: true,
       runs: [on],
+      revisited: 0,
     },
     rows: [
       {
@@ -900,9 +906,10 @@ test("a stepless row reads as its departure's facts", () => {
   ] as const
   const readout = (
     d: Partial<Departure>,
-    reference: { bp: number; sample?: string } = {
+    reference: { bp: number; sample?: string; revisited?: number } = {
       bp: 50_000,
       sample: 'GRCh38',
+      revisited: 0,
     },
   ) =>
     walkRowReadout(
@@ -937,7 +944,7 @@ test("a stepless row reads as its departure's facts", () => {
   expect(readout({ rejoinPos: 23_267_960, ownBp: 120_000 })).toBe(
     'no step on GRCh38 across 490 kb · 120 kb of its own',
   )
-  expect(readout({ rejoinPos: 24_014_567 }, { bp: 50_000 })).toBe(
+  expect(readout({ rejoinPos: 24_014_567 }, { bp: 50_000, revisited: 0 })).toBe(
     'no step on the reference across 1.2 Mb · 0 bp of its own',
   )
   expect(readout({ rejoinPos: 22_780_850, missingBp: 40, ownBp: 40 })).toBe(

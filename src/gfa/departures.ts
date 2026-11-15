@@ -179,9 +179,8 @@ export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
 // once (`revisited` 0), a walk's bp off the reference are sequence the
 // reference lacks, its own. Where it counts some they may be a copy of a
 // repeat the reference holds elsewhere, and are only off the reference's
-// path. A source that states no count keeps the walk's own.
-export const ownIsExact = (revisited: number | undefined) =>
-  revisited === undefined || revisited === 0
+// path, and so are they where the source states no count (NaN, or none).
+export const ownIsExact = (revisited: number | undefined) => revisited === 0
 
 export const offPathText = (reference = 'the reference') =>
   `off ${reference}'s path`

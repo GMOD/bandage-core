@@ -6,7 +6,7 @@ import {
   segmentPart,
   stretchSegments,
 } from '../gfa/departures'
-import { tableNodeIds, tablePath } from '../gfa/graphTables'
+import { referenceOf, tableNodeIds, tablePath } from '../gfa/graphTables'
 import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
@@ -105,6 +105,7 @@ interface Pieces {
   reference: string | undefined
   placeholder: (node: number) => boolean
   departures: DepartureTable | undefined
+  revisited: number | undefined
   stretches: Stretches
 }
 
@@ -152,19 +153,6 @@ function stretchIndex(all: Stretch[]) {
 }
 
 type Stretches = ReturnType<typeof stretchIndex>
-
-// The reference walk's name, stripped of the range suffix odgi leaves on a P
-// record's name: `referencePath`, else the walk a rank 0 segment's tag names,
-// else the first walk, where gbz-base and walk-file cuts write it
-function referenceOf(
-  names: string[],
-  referencePath: string | undefined,
-  rankZero: Set<string>,
-) {
-  return referencePath !== undefined && names.includes(referencePath)
-    ? referencePath
-    : (names.find(n => rankZero.has(n)) ?? names[0])
-}
 
 export function referenceWalkName(
   graph: Pick<Graph, 'nodes' | 'paths' | 'referencePath'>,
@@ -239,6 +227,7 @@ function graphPieces(graph: Graph): Pieces {
     reference: referenceWalkName(graph),
     placeholder: node => placeholders.has(node),
     departures: graph.departures,
+    revisited: graph.revisited,
     stretches: stretchIndex(
       (graph.gaps ?? []).map(gap => ({
         ...gap,
@@ -289,6 +278,7 @@ function tablePieces(
     reference,
     placeholder: node => n.placeholders?.[node] === 1,
     departures: tables.departures,
+    revisited: tables.revisited,
     stretches: stretchIndex(
       gaps
         ? gaps.names.map((name, g) => ({
@@ -439,6 +429,10 @@ const steplessMeta = (
  * source that states no trimmed bp, GFA text or a gbz-base extract, clips its
  * paths at the subgraph's edge, so where they end says nothing and each walk
  * is the slice whole.
+ *
+ * The reference row carries the source's `revisited`, which `o.revisited`
+ * overrides, and which says whether a run off the reference reads as the
+ * walk's own (gfa/departures.ts ownIsExact).
  */
 export function walkRowRuns(
   source: Graph | GraphTables,
@@ -456,6 +450,7 @@ export function walkRowRuns(
     reference,
     placeholder,
     departures,
+    revisited,
     stretches,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
@@ -1305,9 +1300,10 @@ export function walkRowRuns(
     )
   }
 
+  const revisitCount = o.revisited ?? revisited
   const referenceRow = {
     ...rowOf(referencePieces),
-    ...(o.revisited === undefined ? {} : { revisited: o.revisited }),
+    ...(revisitCount === undefined ? {} : { revisited: revisitCount }),
   }
   const { axis } = referenceRow
   const bar = axis

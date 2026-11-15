@@ -66,6 +66,7 @@ function cut(n: number, h: number): GraphTables {
       reversed: new Uint8Array(steps.length),
     },
     departures: departureTable(),
+    revisited: 0,
   }
 }
 

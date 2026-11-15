@@ -232,7 +232,9 @@ export async function cutWindowTables(
     return compactTables(subgraphs[0]!.toCompactSubgraph())
   }
   const text = await joinedGFA(db, subgraphs)
-  return (text === '' ? undefined : gfaTables(text)) ?? text
+  const tables = text === '' ? undefined : gfaTables(text)
+  // a cut's walks are no count of the reference's passes past the window
+  return tables ? { ...tables, revisited: Number.NaN } : text
 }
 
 // A GBWT handle's index into `names`, which a handle to a node the cut does
@@ -336,5 +338,6 @@ export function compactTables(cut: CompactSubgraph): GraphTables {
       reversed,
     },
     departures: departureTable(),
+    revisited: Number.NaN,
   }
 }

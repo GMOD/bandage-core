@@ -65,6 +65,7 @@ const tables: GraphTables = {
     ),
   },
   departures: departureTable(),
+  revisited: 0,
 }
 const repeat = { start: 2000, end: 3000 }
 
@@ -426,7 +427,7 @@ test("a stated gap's readout gives a mixed part's amounts and where an unread wa
   const rows = Object.fromEntries(
     rowsOf(statedCut(), { start: 1000, end: 6000 }).rows.map(r => [r.label, r]),
   )
-  const reference = { bp: 7000, name: 'GRCh38#0#chr1' }
+  const reference = { bp: 7000, name: 'GRCh38#0#chr1', revisited: 0 }
   expect(walkRowReadout(rows['A#1']!, reference)).toContain(
     '600 bp left out of graph',
   )
@@ -482,6 +483,7 @@ function statedTables(
       trimmedAfter: new Float64Array(all.length),
     },
     departures: departureTable(),
+    revisited: 0,
     gaps: {
       names: ['A#1#a'],
       walks: Int32Array.of(1),
@@ -617,7 +619,7 @@ test("a partial row draws its stated row end past its last fragment, and its rea
   ])
   expect(row.stop?.goesOn).toMatchObject({ near: 9000, drawn: true })
   expect(
-    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' }),
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1', revisited: 0 }),
   ).not.toContain('of its own')
 })
 
@@ -634,9 +636,9 @@ test('a row states its departures outside it in the readout, and draws none of t
   const t = rowEndCut(3, { steps: [0, 1, 2, 3, 4], end: 5000 })
   const row = rowsOf(t, region).rows[0]!
   expect(row.outsideRow).toEqual({ count: 1, stepsBp: 400 })
-  expect(walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' })).toContain(
-    '1 departure outside the row, 400 bp of its own in the graph',
-  )
+  expect(
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1', revisited: 0 }),
+  ).toContain('1 departure outside the row, 400 bp of its own in the graph')
   expect(row.runs).toEqual(
     rowsOf({ ...t, gaps: undefined }, region).rows[0]!.runs,
   )
@@ -726,7 +728,7 @@ test('a stepless row does not count its own departures as outside it', () => {
   expect(row.stepless).toBe(true)
   expect(row.outsideRow).toBeUndefined()
   expect(
-    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' }),
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1', revisited: 0 }),
   ).not.toContain('outside the row')
 })
 
@@ -1329,7 +1331,7 @@ describe("tables that state each step's pass", () => {
 
   test('a step lies at the pass stated, not at the nearest', () => {
     expect(hapOver(stating(onSecond), firstPass)).toEqual({
-      readout: "its own 2.5 kb in place of ref's 2.0 kb",
+      readout: "2.5 kb off ref's path in place of ref's 2.0 kb",
       runs: [[0, 2500, undefined]],
     })
     expect(hapOver(stating(onSecond), secondPass)).toEqual({
@@ -1376,7 +1378,7 @@ describe("tables that state each step's pass", () => {
     expect(
       classesOver(stating([0, Number.NaN, Number.NaN, 4000]), firstPass),
     ).toEqual({
-      readout: "its own 3.5 kb in place of ref's 3.0 kb",
+      readout: "3.5 kb off ref's path in place of ref's 3.0 kb",
       runs: [[0, 3500, 'own']],
     })
     expect(
@@ -1392,7 +1394,7 @@ describe("tables that state each step's pass", () => {
       classesOver(stating([0, Number.NaN, 7000, 4000]), firstPass),
     ).toEqual({
       readout:
-        "its own 2.5 kb and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
+        "2.5 kb off ref's path and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
       runs: [
         [0, 2500, 'own'],
         [2500, 1000, 'elsewhere'],
@@ -1416,6 +1418,48 @@ describe("tables that state each step's pass", () => {
       )[1]!.label
     expect(offLabel(7000)).toBe("off ref#0's path, or ref#0 from elsewhere")
     expect(offLabel(Number.NaN)).toBe("off ref#0's path")
+  })
+
+  test('a walk row reads the count its tables or Graph state, and the option overrides it', () => {
+    const off = [0, Number.NaN, Number.NaN, 4000]
+    const readout = (
+      source: GraphTables | Graph,
+      o: { revisited?: number } = {},
+    ) => {
+      const rows = walkRowsOf(walkRowRuns(source, firstPass, o)!)
+      return {
+        revisited: rows.reference.revisited,
+        readout: walkRowReadout(rows.rows[0]!, rows.reference),
+      }
+    }
+    const offPath = "3.5 kb off ref's path in place of ref's 3.0 kb"
+    const own = "its own 3.5 kb in place of ref's 3.0 kb"
+    expect(readout(stating(off))).toEqual({ revisited: 1, readout: offPath })
+    expect(readout(stating(off), { revisited: 0 })).toEqual({
+      revisited: 0,
+      readout: own,
+    })
+    expect(readout({ ...stating(off), revisited: 0 })).toEqual({
+      revisited: 0,
+      readout: own,
+    })
+    expect(readout(graphFromTables(stating(off)))).toEqual({
+      revisited: 1,
+      readout: offPath,
+    })
+    expect(readout(graphFromTables({ ...stating(off), revisited: 0 }))).toEqual(
+      { revisited: 0, readout: own },
+    )
+  })
+
+  test("a source that cannot count the reference's revisits reads a walk's bp off the reference as off its path", () => {
+    const off = [0, Number.NaN, Number.NaN, 4000]
+    const rows = walkRowsOf(
+      walkRowRuns({ ...stating(off), revisited: Number.NaN }, firstPass)!,
+    )
+    expect(walkRowReadout(rows.rows[0]!, rows.reference)).toBe(
+      "3.5 kb off ref's path in place of ref's 3.0 kb",
+    )
   })
 
   test("a walk file that counts nodes the reference passes twice says a walk's bp off the reference are off its path, and one that counts none says they are its own", () => {

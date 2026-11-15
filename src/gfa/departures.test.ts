@@ -189,15 +189,19 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
         ownBp: 120_000,
       }),
       'GRCh38',
+      0,
     ),
     departureText(
       departure({ leavePos: 3000, rejoinPos: 2000, ownBp: 0 }),
       'GRCh38',
+      0,
     ),
     departureText(
       departure({ rejoinReversed: true, missingBp: 400, rejoinPasses: 2 }),
+      undefined,
+      0,
     ),
-    departureText(departure({ rejoinPos: 2000, ownBp: 300 }), 'GRCh38'),
+    departureText(departure({ rejoinPos: 2000, ownBp: 300 }), 'GRCh38', 0),
   ]
   expect(texts).toEqual([
     'no step on GRCh38 across 54 kb · 120 kb of its own',

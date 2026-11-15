@@ -46,5 +46,6 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
     pathVisits: graph.pathVisits,
     anchoredBy: graph.anchoredBy,
     referencePath: graph.referencePath,
+    revisited: graph.revisited,
   }
 }
