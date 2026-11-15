@@ -186,6 +186,9 @@ export interface LayoutResult {
   // renderer has no node for (walk rows, the tube map). The fit and the pane
   // height take the wider of this and the nodes.
   extent?: { minX?: number; minY?: number; maxX?: number; maxY?: number }
+  // What the fit frames in place of every node, where some reach off toward a
+  // place the cut does not hold (pipeline.ts departureTails)
+  frame?: { minX: number; minY: number; maxX: number; maxY: number }
   // The tube map's shapes, which TubeMapOverlay draws in place of the canvas's
   // nodes and edges.
   tubeMap?: TubeMapDrawing

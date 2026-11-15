@@ -260,17 +260,59 @@ export async function forceLayout(
       : positions,
     routed.routes,
   )
+  const tails = departureTails(graph)
   return {
     result: {
       ...result,
       nodePositions,
       stranded: true,
+      ...(tails.size > 0
+        ? {
+            frame: layoutExtent(
+              Object.fromEntries(
+                Object.entries(nodePositions).filter(([id]) => !tails.has(id)),
+              ),
+            ),
+          }
+        : {}),
       ...(deletions.length
         ? { deletionRoutes, extent: layoutExtent(deletionRoutes) }
         : {}),
     },
     duration,
   }
+}
+
+// The own steps no walk carries of each departure that leaves or rejoins the
+// reference past the cut's ends: a haplotype's sequence on its way to a place
+// the cut does not hold. They are drawn at their length like any node, and
+// the fit leaves them to run off the pane, as the reference runs on past the
+// cut.
+export function departureTails(graph: Graph) {
+  const tails = new Set<string>()
+  const d = graph.departures
+  const backbone = graph.nodes.filter(isBackbone)
+  if (d && backbone.length > 0) {
+    let start = Infinity
+    let end = -Infinity
+    for (const node of backbone) {
+      start = Math.min(start, node.stable.start)
+      end = Math.max(end, node.stable.start + node.length)
+    }
+    const off = (pos: number) => pos < start || pos > end
+    const carried = new Set(graph.paths?.flatMap(p => p.nodeIds))
+    for (let k = 0; k < d.names.length; k++) {
+      if (off(d.leavePos[k]!) || off(d.rejoinPos[k]!)) {
+        for (let j = d.offsets[k]!; j < d.offsets[k + 1]!; j++) {
+          const id = graph.nodes[d.steps[j]!]?.id
+          if (id !== undefined && !carried.has(id)) {
+            tails.add(id)
+          }
+        }
+      }
+    }
+  }
+  return tails
 }
 
 export function layoutExtent(
@@ -377,7 +419,8 @@ export function drawingBounds(
     extent?: LayoutResult['extent']
   } = {},
 ) {
-  let { minX, minY, maxX, maxY } = layoutExtent(layout.nodePositions)
+  let { minX, minY, maxX, maxY } =
+    layout.frame ?? layoutExtent(layout.nodePositions)
   const { region } = opts
   if (layout.referenceAxis && region && region.end > region.start) {
     minX = region.start

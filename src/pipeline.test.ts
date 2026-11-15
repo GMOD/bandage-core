@@ -1,14 +1,17 @@
 import { readFileSync } from 'node:fs'
 
 import { isBackbone } from './anchoredNodes'
+import { departureTable } from './gfa/departures'
 import { layoutScaling } from './layout/drawnScale'
 import { layoutEngine } from './layoutEngines'
 import {
+  drawingBounds,
   engineKey,
   engineRequest,
   engineSettingsOf,
   fitTransform,
   forceLayout,
+  layoutExtent,
   loadGraph,
 } from './pipeline'
 
@@ -147,4 +150,97 @@ test('FMMM draws a seeded reference close to straight', async () => {
     )
   }
   expect(deepest / length).toBeLessThan(0.03)
+})
+
+// HPRC chr1:103,618,800-103,620,300: HG00099#1 rejoins the reference inside
+// the window from 30 kb of its own sequence that left it 7 kb before the cut,
+// and the fit to every node drew the window's reference at a quarter of the
+// pane
+function tailedGraph(leavePos: number, walks: string[][] = []): Graph {
+  const departures = departureTable([
+    {
+      name: 'HG00099#1#c',
+      hapStart: 0,
+      ownBp: 20_000,
+      missingBp: 0,
+      leavePos,
+      leaveReversed: false,
+      leavePasses: 1,
+      rejoinPos: 1000,
+      rejoinReversed: false,
+      rejoinPasses: 1,
+      fromSteps: false,
+    },
+  ])
+  return {
+    name: 'tailed',
+    nodes: [
+      ...[0, 1, 2].map(i => ({
+        id: `r${i}`,
+        name: `r${i}`,
+        length: 1000,
+        depth: 1,
+        stable: { refName: 'GRCh38#0#chr1', start: i * 1000, rank: 0 },
+      })),
+      { id: 't0', name: 't0', length: 10_000, depth: 1 },
+      { id: 't1', name: 't1', length: 10_000, depth: 1 },
+    ],
+    edges: [
+      { from: 'r0', to: 'r1' },
+      { from: 'r1', to: 'r2' },
+      { from: 't0', to: 't1' },
+      { from: 't1', to: 'r1' },
+    ],
+    paths: [
+      { name: 'GRCh38#0#chr1', nodeIds: ['r0', 'r1', 'r2'] },
+      ...walks.map((nodeIds, i) => ({ name: `HG0000${i}#1#c`, nodeIds })),
+    ],
+    referencePath: 'GRCh38#0#chr1',
+    departures: {
+      ...departures,
+      offsets: Int32Array.of(0, 2),
+      steps: Int32Array.of(3, 4),
+      reversed: Uint8Array.of(0, 0),
+    },
+  }
+}
+
+async function stressBounds(tailed: Graph) {
+  const { result } = await forceLayout(
+    tailed,
+    engineSettingsOf({ engine: 'stress' }),
+    layoutEngine,
+  )
+  const reference = Object.fromEntries(
+    ['r0', 'r1', 'r2'].map(id => [id, result.nodePositions[id]!]),
+  )
+  return {
+    fit: drawingBounds(result),
+    nodes: layoutExtent(result.nodePositions),
+    reference: layoutExtent(reference),
+  }
+}
+
+test('the fit frames the cut without a departure running off past its end', async () => {
+  const { fit, nodes, reference } = await stressBounds(tailedGraph(-6000))
+  expect(nodes.maxX - nodes.minX).toBeGreaterThan(
+    2 * (reference.maxX - reference.minX),
+  )
+  expect(fit.minX).toBe(reference.minX)
+  expect(fit.w).toBe(reference.maxX - reference.minX)
+})
+
+test('the fit frames a departure that leaves and rejoins on the cut', async () => {
+  const { fit, nodes } = await stressBounds(tailedGraph(2500))
+  expect(fit).toEqual({
+    minX: nodes.minX,
+    minY: nodes.minY,
+    w: nodes.maxX - nodes.minX,
+    h: nodes.maxY - nodes.minY,
+  })
+})
+
+test('the fit frames the steps of a departure a walk carries', async () => {
+  const { fit, nodes } = await stressBounds(tailedGraph(-6000, [['t0', 't1']]))
+  expect(fit.w).toBe(nodes.maxX - nodes.minX)
 })
