@@ -217,6 +217,52 @@ test('a thin shallow node over a wide deep one is painted after it', () => {
   expect(thin).toBeLessThan(wide)
 })
 
+function depthBatch(
+  nodes: {
+    id: string
+    name: string
+    length: number
+    depth: number
+  }[],
+) {
+  return buildGeometry({
+    nodePositions: Object.fromEntries(
+      nodes.map(n => [
+        n.id,
+        [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+      ]),
+    ),
+    graph: { name: 'test', nodes, edges: [] },
+    nodeById: new Map(nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth: 'depth',
+    axis: iso(),
+  })
+}
+
+test('a wide hovered node is painted after a thin plain one', () => {
+  const { renderer, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(
+    depthBatch([
+      { id: 'S+', name: 'S', length: 2, depth: 1 },
+      { id: 'D+', name: 'D', length: 10, depth: 40 },
+    ]),
+  )
+  renderer.updateTransform(TRANSFORM)
+  renderer.setNodeHighlights(new Map([['D+', 1.4]]))
+  renderer.render([1, 1, 1, 1])
+
+  const [thin = 0, wide = 0] = lineWidths
+  expect(lineWidths).toHaveLength(2)
+  expect(thin).toBeLessThan(wide)
+})
+
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it
 // is the one term the dpr-scaled transform does not reach. Left alone, every
 // tube, connector and arrowhead came out 1/dpr of its weight on a hidpi
