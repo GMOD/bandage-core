@@ -66,6 +66,9 @@ export interface GraphPath {
   trimmedAfter?: number
   // the steps of the walk's pieces a walk-file cut did not load
   abridgedSteps?: number
+  // set on a walk-file cut's walk from its tables: where each step lies on
+  // the reference at the pass its row names, NaN off it
+  refStarts?: Float64Array
 }
 
 // One P or W record, named the way a coordinate is named: the range suffix

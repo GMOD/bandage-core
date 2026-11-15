@@ -294,6 +294,7 @@ function boxGraph(graph: Graph, { members, flipped }: BoxRuns): Graph {
     paths: graph.paths?.map(path => ({
       ...path,
       nodeIds: path.nodeIds.filter(id => !absorbed.has(id)),
+      refStarts: undefined,
     })),
     pathVisits: graph.pathVisits?.filter(
       () => true,

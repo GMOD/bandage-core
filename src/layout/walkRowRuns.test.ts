@@ -1,10 +1,12 @@
 import fs from 'node:fs'
 
+import { bubbleSubgraph } from '../bubbles/popBubble'
 import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
+import { trimToWindow } from './trimToWindow'
 import { walkRowReadout } from './walkRowDraw'
 import { walkRowLinks } from './walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
@@ -12,6 +14,7 @@ import { walkRows } from './walkRows'
 
 import type { Departure } from '../gfa/departures'
 import type { GraphTables } from '../gfa/graphTables'
+import type { Graph } from '../types'
 import type { WalkRow } from './walkRows'
 
 // GRCh38 runs 0..4 over chr1:0-5000, a kb a node, with node 5 (300 bp) an
@@ -1238,6 +1241,106 @@ describe('a reference that passes one node twice', () => {
     expect(rows['hap#1']!.readout).toBe(
       '≥ 0.0 kb · contig ends inside the window',
     )
+  })
+})
+
+// The reference walks r at chr:1000-2000 and chr:3000-4000, a kb a node. `hap`
+// walks x, 2.5 kb of its own, r once and z: the pass of r nearest x is its
+// first, and a walk file's tables state which one the step takes.
+describe("tables that state each step's pass", () => {
+  const referenceStarts = [0, 1000, 2000, 3000, 4000]
+  const stating = (hap?: number[]) => {
+    const t = gfaTables(
+      [
+        ...['x', 'r', 'y', 'z'].map(
+          (n, i) => `S\t${n}\t*\tLN:i:1000\tSN:Z:chr\tSO:i:${i * 1000}\tSR:i:0`,
+        ),
+        'S\ti\t*\tLN:i:2500',
+        'W\tref\t0\tchr\t0\t5000\t>x>r>y>r>z',
+        'W\thap\t1\tc\t0\t5500\t>x>i>r>z',
+      ].join('\n'),
+    )!
+    return hap
+      ? {
+          ...t,
+          walks: {
+            ...t.walks,
+            refStarts: Float64Array.from([...referenceStarts, ...hap]),
+          },
+        }
+      : t
+  }
+  const onSecond = [0, Number.NaN, 3000, 4000]
+  const onFirst = [0, Number.NaN, 1000, 4000]
+  const firstPass = { start: 1000, end: 2000 }
+  const secondPass = { start: 3000, end: 4000 }
+  const hapOver = (t: GraphTables, region: { start: number; end: number }) => {
+    const rows = walkRowsOf(walkRowRuns(t, region)!)
+    const row = rows.rows[0]!
+    return {
+      readout: walkRowReadout(row, rows.reference),
+      runs: row.runs.map(r => [r.start, r.bp, r.referenceStart]),
+    }
+  }
+
+  test('a step lies at the pass stated, not at the nearest', () => {
+    expect(hapOver(stating(onSecond), firstPass)).toEqual({
+      readout: "its own 2.5 kb in place of ref's 2.0 kb",
+      runs: [[0, 2500, undefined]],
+    })
+    expect(hapOver(stating(onSecond), secondPass)).toEqual({
+      readout: '1.0 kb',
+      runs: [
+        [0, 2500, undefined],
+        [2500, 1000, 3000],
+      ],
+    })
+    expect(hapOver(stating(onFirst), firstPass)).toEqual({
+      readout: '3.5 kb (+2.5 kb)',
+      runs: [
+        [0, 2500, undefined],
+        [2500, 1000, 1000],
+      ],
+    })
+    expect(hapOver(stating(onFirst), secondPass).readout).toBe(
+      '0.0 kb (−1.0 kb)',
+    )
+  })
+
+  test('tables that state none take the nearest pass', () => {
+    expect(hapOver(stating(), firstPass)).toEqual(
+      hapOver(stating(onFirst), firstPass),
+    )
+  })
+
+  test('a step stated off the reference, or at a pass the cut lacks, is off it', () => {
+    for (const r of [Number.NaN, 7000]) {
+      expect(hapOver(stating([0, Number.NaN, r, 4000]), firstPass)).toEqual({
+        readout: "its own 3.5 kb in place of ref's 3.0 kb",
+        runs: [[0, 3500, undefined]],
+      })
+    }
+  })
+
+  test('the Graph of the tables reads the same rows, cut to a bubble or a window too', () => {
+    const t = stating(onSecond)
+    const graph = graphFromTables(t)
+    for (const region of [firstPass, secondPass]) {
+      expect(walkRows(graph, region)).toEqual(
+        walkRowsOf(walkRowRuns(t, region)!),
+      )
+    }
+    const stepsOf = (g: Graph) =>
+      g.paths!.map(path =>
+        path.nodeIds.map((id, k) => `${id}@${path.refStarts![k]}`).join(' '),
+      )
+    expect(stepsOf(bubbleSubgraph(graph, ['r', 'y', 'z']))).toEqual([
+      'r+@1000 y+@2000 r+@3000 z+@4000',
+      'r+@3000 z+@4000',
+    ])
+    expect(stepsOf(trimToWindow(graph, { start: 2000, end: 3000 }))).toEqual([
+      'y+@2000',
+    ])
   })
 })
 

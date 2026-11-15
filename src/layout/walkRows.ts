@@ -86,8 +86,7 @@ export interface WalkPass {
 }
 
 // A step of a row's bar through a graph node: its bp offset from the bar's
-// start, its bp, and whether the reference walk visits the node anywhere in
-// the cut
+// start, its bp, and whether the step lies on the reference in the cut
 export interface WalkVisit {
   node: string
   start: number

@@ -62,6 +62,10 @@ export interface GraphTables {
     offsets: Int32Array
     steps: Int32Array
     reversed: Uint8Array
+    // where each step lies on the reference, at the pass its row names of a
+    // node the reference passes more than once, NaN for a step off it; absent
+    // from tables another source builds, which state no pass
+    refStarts?: Float64Array
     // bp of each walk a walk-file cut read but kept out, before and after it;
     // absent where the source states none, so a walk's ends say nothing
     trimmedBefore?: Float64Array
@@ -440,7 +444,8 @@ export function graphFromTables(
       }
       prev = node
     }
-    paths.push({ ...head, nodeIds })
+    const refStarts = w.refStarts?.subarray(first, w.offsets[p + 1])
+    paths.push({ ...head, nodeIds, ...(refStarts ? { refStarts } : {}) })
     anchorPaths.push({
       name: visitName,
       sample: visitSample,

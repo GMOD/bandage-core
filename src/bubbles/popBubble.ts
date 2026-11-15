@@ -30,6 +30,9 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
       {
         ...p,
         nodeIds,
+        ...(p.refStarts
+          ? { refStarts: p.refStarts.filter((_, i) => ids.has(p.nodeIds[i]!)) }
+          : {}),
         ...(p.start === undefined ? {} : { start: p.start + before }),
       },
     ]

@@ -411,7 +411,11 @@ export function coarsenTubeMap(
         }
       }
     })
-    coarsePaths.push({ ...path, nodeIds: steps.map(s => s.node.id) })
+    coarsePaths.push({
+      ...path,
+      nodeIds: steps.map(s => s.node.id),
+      refStarts: undefined,
+    })
     deviations.set(path.name, devs)
   }
 
