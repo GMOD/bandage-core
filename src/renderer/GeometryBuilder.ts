@@ -13,7 +13,7 @@ import {
   rampHueAt,
 } from '../referenceRampCss'
 import { referenceMidpoints } from '../referenceSpan'
-import { baseEdgeCurves } from '../util/edgeCurves'
+import { baseEdgeCurves, spanPx } from '../util/edgeCurves'
 import {
   dashSpans,
   pathRibbonOffsets,
@@ -92,12 +92,6 @@ export const LIFT_BACKDROP_CSS = abgrToCssRgba(
 const DELETION_DASH_PX = 11
 // dashSpans draws a dash, a gap and a dash at the fewest
 const MIN_DASHED_SKIP_PX = 3 * DELETION_DASH_PX
-
-function spanPx(curves: BezierCurve[], scale: number, yToX: number) {
-  const first = curves[0]!
-  const last = curves.at(-1)!
-  return Math.hypot(last.x1 - first.x0, (last.y1 - first.y0) * yToX) * scale
-}
 
 // A node drawn under `drawPaths` is split into one lengthwise stripe per path in
 // the graph, in the legend's own order, and a path that does not visit the node
@@ -1164,19 +1158,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
 
     const numPaths = edge.pathIds?.length ?? 0
-    const bypassed = deletions?.get(ei)
-    const isDeletion = bypassed !== undefined
+    const isDeletion = sharedCurves.arcs.has(ei)
     // Dashed where the span a skip jumps on screen holds three dashes, one
-    // plain headless stroke where shorter, gone under a pixel. Its length
-    // along the curve would count the legs a short skip rises and falls on,
-    // whose dashes are dots under a head: a dart
-    const skipPx = isDeletion
-      ? spanPx(baseCurves, scale, yToX)
-      : Number.POSITIVE_INFINITY
-    if (skipPx < 1) {
-      continue
-    }
-    const dashed = isDeletion && skipPx >= MIN_DASHED_SKIP_PX
+    // plain headless stroke where shorter. Its length along the curve would
+    // count the legs a short skip rises and falls on, whose dashes are dots
+    // under a head: a dart
+    const dashed = isDeletion && spanPx(baseCurves, axis) >= MIN_DASHED_SKIP_PX
     const onWalk = highlight?.edgeIndexes.has(ei) ?? false
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks

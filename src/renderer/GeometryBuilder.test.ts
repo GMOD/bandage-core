@@ -918,7 +918,7 @@ describe('arrowhead placement', () => {
 
   // A skip at its true span: B starts 10 layout units past A's end, and a
   // bowed one rises over what it bypasses between them
-  const skipAt = (scale: number, bypassed: string[] = []) => {
+  const skipAt = (scale: number, bypassed?: string[]) => {
     const batch = buildGeometry({
       nodePositions: {
         ...simplePositions,
@@ -934,7 +934,7 @@ describe('arrowhead placement', () => {
       connectorThickness: 2,
       drawPaths: false,
       axis: iso(scale),
-      deletions: new Map([[0, bypassed]]),
+      deletions: bypassed && new Map([[0, bypassed]]),
     })
     const run = batch.edgeCurveRuns.get(0)
     return {
@@ -946,8 +946,9 @@ describe('arrowhead placement', () => {
   }
 
   test('a skip three dashes long on screen is dashed, with a head', () => {
-    const { strokes, heads } = skipAt(4)
+    const { strokes, heads } = skipAt(4, [])
     expect(strokes.length).toBeGreaterThanOrEqual(2)
+    expect(strokes.every(s => s.skip)).toBe(true)
     expect(heads).toBe(1)
   })
 
@@ -955,9 +956,10 @@ describe('arrowhead placement', () => {
   // or three heavy dashes under a head: a black dart on the backbone
   test('a skip shorter than three dashes on screen is one plain stroke with no head', () => {
     for (const scale of [0.6, 2.7, 3.2]) {
-      const { strokes, heads } = skipAt(scale)
+      const { strokes, heads } = skipAt(scale, [])
       expect(strokes).toHaveLength(1)
       expect(strokes[0]!.thickness).toBe(1)
+      expect(strokes[0]!.skip).toBe(true)
       expect(heads).toBe(0)
     }
   })
@@ -980,9 +982,14 @@ describe('arrowhead placement', () => {
   })
 
   // the 1-5 bp skips at the amylase locus, at 240 kb across the pane, drew
-  // as loops along the backbone
-  test('a skip under a pixel on screen is not drawn', () => {
-    expect(skipAt(0.05)).toEqual({ strokes: [], heads: 0 })
+  // as loops along the backbone; dropping them left pggb chrY's 88,829 bp
+  // skip at 9.3 Mb, which seven haplotypes carry, drawn nowhere
+  test('a skip under a pixel on screen is drawn as the plain link it is', () => {
+    const plain = skipAt(0.05)
+    expect(plain.strokes).toHaveLength(1)
+    expect(plain.strokes[0]!.skip).toBeUndefined()
+    expect(skipAt(0.05, [])).toEqual(plain)
+    expect(skipAt(0.05, ['M+'])).toEqual(plain)
   })
 
   // a head is 10 px on a plain link, so it waits for 30 px of link
