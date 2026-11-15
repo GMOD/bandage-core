@@ -269,11 +269,14 @@ export async function forceLayout(
   )
   const { deletionRoutes } = routedPositions
   const tails = departureTails(graph)
-  const nodePositions = clearOfReference(
-    graph,
-    routedPositions.nodePositions,
-    fittedExtent(routedPositions.nodePositions, deletionRoutes, tails),
-  )
+  const referenceStraight = engineSettingsOf(settings).engine === 'stress'
+  const nodePositions = referenceStraight
+    ? clearOfReference(
+        graph,
+        routedPositions.nodePositions,
+        fittedExtent(routedPositions.nodePositions, deletionRoutes, tails),
+      )
+    : routedPositions.nodePositions
   return {
     result: {
       ...result,

@@ -1,6 +1,8 @@
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
+import { engineSettingsOf, forceLayout } from '../pipeline'
 import { CLEARANCE_FIT, clearOfReference } from './referenceClearance'
 
+import type { LayoutEngineKind } from '../layoutEngines'
 import type { Graph, GraphNode, NodeSegment } from '../types'
 
 const stable = (start: number, rank: number) => ({
@@ -167,4 +169,29 @@ test('a node the push would carry into another stretch of the reference, where t
   }
   const out = clearOfReference(graph, laid, extentOf(laid))
   expect(out[a.id]).toEqual(laid[a.id])
+})
+
+async function laidBy(engine: LayoutEngineKind) {
+  const { nodes, positions } = backbone(30)
+  const a = allele(0, 1050)
+  const graph: Graph = { name: 'g', nodes: [...nodes, a], edges: [] }
+  const laid = { ...positions, [a.id]: flat(1050, 1051, 0.3) }
+  const { result } = await forceLayout(
+    graph,
+    engineSettingsOf({ engine }),
+    () => Promise.resolve({ result: { nodePositions: laid }, duration: 0 }),
+  )
+  return { graph, a, laid, out: result.nodePositions }
+}
+
+test('the stress engine, which lays the reference straight, has an allele on the line laid beside it', async () => {
+  const { graph, a, out } = await laidBy('stress')
+  for (const p of out[a.id]!) {
+    expect(p.y).toBeGreaterThan(inkReach(graph, a, 3000))
+  }
+})
+
+test('FMMM, which bends the reference, has every node left where it laid it', async () => {
+  const { laid, out } = await laidBy('fmmm')
+  expect(out).toEqual(laid)
 })

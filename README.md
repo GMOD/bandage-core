@@ -116,6 +116,13 @@ reads them.
   [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout), and
   `forceLayout` runs it. The other layouts are ordered, anchored, sample rows,
   walk rows and tube map
+- Under the stress engine, which lays the reference straight, `forceLayout`
+  moves each node off the reference out of the reference's ink at the smallest
+  fit a host opens a graph at, so alleles denser than the pixels sit beside the
+  line on their links (`clearOfReference`). FMMM bends the reference, where a
+  push along each node's own normal fanned loops into blobs round the bends and
+  stood alleles off the line as teeth, so under FMMM `forceLayout` leaves every
+  node where the engine laid it
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths
