@@ -5,6 +5,7 @@ import { PathVisits } from '../pathVisits'
 import { ownStepRuns, stretchSegments } from './departures'
 import { linkKey } from './linkKey'
 import {
+  FORWARD,
   REVERSED,
   orientSegments,
   respelled,
@@ -253,9 +254,26 @@ function tableOrientation(
   }: Omit<GraphTables, 'departures' | 'revisited'>,
   traversals?: Int32Array,
 ) {
+  const referenceReversals = new Int32Array(n.names.length)
+  for (let p = 0; p < w.names.length; p++) {
+    const ref = n.refNames.indexOf(pathOrigin(w.names[p]!).name)
+    if (ref >= 0) {
+      for (let s = w.offsets[p]!; s < w.offsets[p + 1]!; s++) {
+        const node = w.steps[s]!
+        if (n.refs[node] === ref) {
+          referenceReversals[node]! += w.reversed[s] ? 1 : -1
+        }
+      }
+    }
+  }
   const backbone = new Uint8Array(n.names.length)
   for (let i = 0; i < n.lengths.length; i++) {
-    backbone[i] = n.refs[i]! >= 0 && n.ranks[i] === REFERENCE_RANK ? 1 : 0
+    backbone[i] =
+      n.refs[i]! >= 0 && n.ranks[i] === REFERENCE_RANK
+        ? referenceReversals[i]! > 0
+          ? REVERSED
+          : FORWARD
+        : 0
   }
   const reversals = new Int32Array(n.names.length)
   const stepCount = w.offsets[w.names.length] ?? 0

@@ -4,6 +4,7 @@ import { stressLayout } from '@jbrowse/graph-stress-layout'
 import { parseGFA } from '../gfa-core/index'
 import { layoutModeByValue } from '../layoutModes'
 import { forceLayout, loadGraph } from '../pipeline'
+import { buildGeometry } from '../renderer/GeometryBuilder'
 import { convertGFAToGraph } from './gfaConverter'
 import { gfaTables } from './gfaTables'
 import { graphFromTables } from './graphTables'
@@ -162,5 +163,62 @@ test('the order and spelling of the L lines change no layout', async () => {
   const [first, ...rest] = layouts
   for (const layout of rest) {
     expect(layout).toEqual(first)
+  }
+})
+
+// pggb's reference can read a window's segments backwards: GRCh38 steps c, b
+// then a, each reversed, where the L lines read a, b, c forward; x is an
+// allele in b's place
+const BACKWARDS = [
+  'S\ta\t*\tLN:i:1000\tSN:Z:GRCh38#0#chrY\tSO:i:2000\tSR:i:0',
+  'S\tb\t*\tLN:i:1000\tSN:Z:GRCh38#0#chrY\tSO:i:1000\tSR:i:0',
+  'S\tc\t*\tLN:i:1000\tSN:Z:GRCh38#0#chrY\tSO:i:0\tSR:i:0',
+  'S\tx\t*\tLN:i:800',
+  'L\ta\t+\tb\t+\t0M',
+  'L\tb\t+\tc\t+\t0M',
+  'L\ta\t+\tx\t+\t0M',
+  'L\tx\t+\tc\t+\t0M',
+  'W\tGRCh38\t0\tchrY\t0\t3000\t<c<b<a',
+  'W\tHG1\t1\tctg\t0\t2800\t<c<x<a',
+].join('\n')
+
+test('a backbone segment the reference steps backwards is drawn backwards', () => {
+  const graph = convertGFAToGraph(parseGFA(BACKWARDS))
+  expect(graph.nodes.map(n => n.id)).toEqual(['a-', 'b-', 'c-', 'x-'])
+  expect(linkSet(graph)).toEqual(['b->a-', 'c->b-', 'c->x-', 'x->a-'])
+  expect(graphFromTables(gfaTables(BACKWARDS)!, 'cut')).toStrictEqual(
+    convertGFAToGraph(parseGFA(BACKWARDS), 'cut'),
+  )
+})
+
+test("its links' arrowheads point the way the reference reads", () => {
+  const graph = convertGFAToGraph(parseGFA(BACKWARDS))
+  const along = (start: number) => [
+    { x: start / 10, y: 0 },
+    { x: start / 10 + 80, y: 0 },
+  ]
+  const nodePositions = Object.fromEntries(
+    graph.nodes.map(n => [n.id, along(n.stable?.start ?? 1000)]),
+  )
+  const { arrows } = buildGeometry({
+    nodePositions: {
+      ...nodePositions,
+      [graph.nodes.find(n => n.name === 'x')!.id]: [
+        { x: 100, y: 50 },
+        { x: 180, y: 50 },
+      ],
+    },
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    axis: { scaleX: 4, scaleY: 4 },
+    stranded: true,
+  })
+  expect(arrows).toHaveLength(4)
+  for (const head of arrows) {
+    expect(Math.cos(head.angle)).toBeGreaterThan(0)
   }
 })

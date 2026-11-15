@@ -3,7 +3,12 @@ import { stableCoordinate } from '../gfa-core/index'
 import { pathOrigin, surveyPaths } from '../pathAnchoring'
 import { revisitedCount } from './graphTables'
 import { linkKey } from './linkKey'
-import { REVERSED, orientSegments, respelled } from './segmentOrientation'
+import {
+  FORWARD,
+  REVERSED,
+  orientSegments,
+  respelled,
+} from './segmentOrientation'
 
 import type { GFAGraph, GFANode, GFAPath, GFAWalk } from '../gfa-core/index'
 import type { PathSteps } from '../pathAnchoring'
@@ -38,9 +43,12 @@ function surveySegments(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
     return i
   }
   const backbone: number[] = []
+  const referenceOf: (string | undefined)[] = []
   for (const node of gfaGraph.nodes) {
     const i = indexOf(node.id)
-    backbone[i] ??= stableCoordinate(node)?.rank === REFERENCE_RANK ? 1 : 0
+    const stable = stableCoordinate(node)
+    backbone[i] ??= stable?.rank === REFERENCE_RANK ? 1 : 0
+    referenceOf[i] ??= stable?.refName
   }
   const links = {
     from: gfaGraph.links.map(link => indexOf(link.source)),
@@ -51,20 +59,31 @@ function surveySegments(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
   }
   const traversals = new Map<string, number>()
   const reversals: number[] = []
-  const traverse = ({ id, strand }: { id: string; strand: '+' | '-' }) => {
-    const i = indexOf(id)
-    reversals[i] = (reversals[i] ?? 0) + (strand === '-' ? 1 : -1)
-    traversals.set(id, (traversals.get(id) ?? 0) + 1)
-  }
-  for (const { steps } of pathSteps) {
-    steps.forEach(traverse)
+  const referenceReversals: number[] = []
+  const traverse =
+    (walk: string) =>
+    ({ id, strand }: { id: string; strand: '+' | '-' }) => {
+      const i = indexOf(id)
+      const reading = strand === '-' ? 1 : -1
+      reversals[i] = (reversals[i] ?? 0) + reading
+      if (backbone[i] && referenceOf[i] === walk) {
+        referenceReversals[i] = (referenceReversals[i] ?? 0) + reading
+      }
+      traversals.set(id, (traversals.get(id) ?? 0) + 1)
+    }
+  for (const { name, steps } of pathSteps) {
+    steps.forEach(traverse(name))
   }
   for (const walk of gfaGraph.walks) {
-    walk.segments.forEach(traverse)
+    walk.segments.forEach(
+      traverse(`${walk.sample}#${walk.haplotype}#${walk.contig}`),
+    )
   }
   const orient = orientSegments(
     names,
-    Array.from(names, (_, i) => backbone[i] ?? 0),
+    Array.from(names, (_, i) =>
+      backbone[i] ? ((referenceReversals[i] ?? 0) > 0 ? REVERSED : FORWARD) : 0,
+    ),
     links,
     Array.from(names, (_, i) => reversals[i] ?? 0),
   )
