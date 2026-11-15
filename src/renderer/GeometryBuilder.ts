@@ -1325,26 +1325,27 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             lane,
             pass,
           )
-          const to = threaded
-            ? laneEndOf(edge.to, toFrames, toSegments, toAtStart, lane, toPass)
-            : from
+          const to = laneEndOf(
+            edge.to,
+            toFrames,
+            toSegments,
+            toAtStart,
+            lane,
+            toPass,
+          )
           const offsetX = single ? 0 : from.offset * worldPerScreenPx
-          const endOffsetX = threaded ? to.offset * worldPerScreenPx : offsetX
-          const curves = threaded
-            ? slideCurves(
+          const endOffsetX = single ? 0 : to.offset * worldPerScreenPx
+          const fromShift = threaded ? from.shift : NO_SHIFT
+          const toShift = threaded ? to.shift : NO_SHIFT
+          const curves = single
+            ? baseCurves
+            : slideCurves(
                 baseCurves,
-                from.shift.dx + from.normal.nx * offsetX,
-                from.shift.dy + (from.normal.ny * offsetX) / yToX,
-                to.shift.dx + to.normal.nx * endOffsetX,
-                to.shift.dy + (to.normal.ny * endOffsetX) / yToX,
+                fromShift.dx + from.normal.nx * offsetX,
+                fromShift.dy + (from.normal.ny * offsetX) / yToX,
+                toShift.dx + to.normal.nx * endOffsetX,
+                toShift.dy + (to.normal.ny * endOffsetX) / yToX,
               )
-            : offsetX === 0
-              ? baseCurves
-              : translateCurves(
-                  baseCurves,
-                  from.normal.nx * offsetX,
-                  (from.normal.ny * offsetX) / yToX,
-                )
           if (inView(curves)) {
             laneStroke(
               curves,

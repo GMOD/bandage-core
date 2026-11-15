@@ -243,3 +243,35 @@ test('a lifted walk leaving a one-point node draws its link', () => {
   })
   expect(batch.edgeCurveRuns.get(2)).toBeDefined()
 })
+
+// v2 stands upright, so its lanes sit across x where v1's sit across y
+test("a lifted walk's link joins its own lane at both nodes", () => {
+  const upright = {
+    ...positions,
+    'v2+': [
+      { x: 20, y: 0 },
+      { x: 20, y: 10 },
+    ],
+  }
+  const both = lift('ref#0#chr', 'alt#1#chr')!
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: upright,
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 20,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: both,
+  })
+  const laneOf = (id: string) =>
+    batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!.points
+  const link = batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves
+  const gap = (a: { x: number; y: number }, x: number, y: number) =>
+    Math.hypot(a.x - x, a.y - y)
+  expect(gap(laneOf('v1+').at(-1)!, link[0]!.x0, link[0]!.y0)).toBeLessThan(1)
+  expect(gap(laneOf('v2+')[0]!, link.at(-1)!.x1, link.at(-1)!.y1)).toBeLessThan(
+    1,
+  )
+})

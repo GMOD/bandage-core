@@ -124,7 +124,7 @@ test('every pass through a node draws one thread, however the walk runs', () => 
   }
 })
 
-test('walks lifted together that never repeat slide each link whole by its lane where it leaves', () => {
+test('walks lifted together that never repeat join each link to its own lane at both nodes', () => {
   const bent: Record<string, NodeSegment[]> = {
     ...flat,
     'v2+': [
@@ -137,22 +137,22 @@ test('walks lifted together that never repeat slide each link whole by its lane 
     ],
   }
   const gfa = `${LINE}\n${walk('alt', '>v1>v2>v3')}`
-  const alone = drawn(gfa, ['ref#0#chr'], bent)
   const both = drawn(gfa, ['ref#0#chr', 'alt#1#chr'], bent)
-  for (const edge of [0, 1]) {
-    const [base] = alone.links(edge)
+  const laneOf = (id: string, walkIndex: number | undefined) =>
+    both.strokes(id).find(s => s.walk === walkIndex)!.points
+  for (const [edge, from, to] of [
+    [0, 'v1+', 'v2+'],
+    [1, 'v2+', 'v3+'],
+  ] as const) {
     for (const lane of both.links(edge)) {
-      const [c] = lane.curves
-      const [b] = base!.curves
-      const dx = c!.x0 - b!.x0
-      const dy = c!.y0 - b!.y0
-      for (const k of ['cx0', 'cx1', 'x1'] as const) {
-        expect(c![k] - b![k]).toBeCloseTo(dx, 9)
-      }
-      for (const k of ['cy0', 'cy1', 'y1'] as const) {
-        expect(c![k] - b![k]).toBeCloseTo(dy, 9)
-      }
-      expect(lane.endOffsetX).toBe(lane.offsetX)
+      const first = lane.curves[0]!
+      const last = lane.curves.at(-1)!
+      const leaves = laneOf(from, lane.walk).at(-1)!
+      const enters = laneOf(to, lane.walk)[0]!
+      expect(first.x0).toBeCloseTo(leaves.x, 9)
+      expect(first.y0).toBeCloseTo(leaves.y, 9)
+      expect(last.x1).toBeCloseTo(enters.x, 9)
+      expect(last.y1).toBeCloseTo(enters.y, 9)
     }
   }
   for (const s of both.strokes('v1+')) {
