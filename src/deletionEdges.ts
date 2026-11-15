@@ -190,25 +190,129 @@ function skippedSpan(
   edge: GraphEdge,
   from: AnchoredNode,
   to: AnchoredNode,
-  visitsOf: (node: AnchoredNode) => ReferenceVisit[],
+  pairs: [ReferenceVisit, ReferenceVisit][],
 ) {
   let best: { start: number; end: number } | undefined
-  for (const a of visitsOf(from)) {
-    for (const b of visitsOf(to)) {
-      const forwards = a.start <= b.start
-      const span = forwards
-        ? { start: a.start + from.length, end: b.start }
-        : { start: b.start + to.length, end: a.start }
-      if (
-        skipsBetween(edge, a, b, forwards) &&
-        (!best ||
-          Math.abs(span.end - span.start) < Math.abs(best.end - best.start))
-      ) {
-        best = span
-      }
+  for (const [a, b] of pairs) {
+    const forwards = a.start <= b.start
+    const span = forwards
+      ? { start: a.start + from.length, end: b.start }
+      : { start: b.start + to.length, end: a.start }
+    if (
+      skipsBetween(edge, a, b, forwards) &&
+      (!best ||
+        Math.abs(span.end - span.start) < Math.abs(best.end - best.start))
+    ) {
+      best = span
     }
   }
   return best
+}
+
+function everyVisitPair(
+  from: AnchoredNode,
+  to: AnchoredNode,
+  visitsOf: (node: AnchoredNode) => ReferenceVisit[],
+) {
+  return visitsOf(from).flatMap(a =>
+    visitsOf(to).map((b): [ReferenceVisit, ReferenceVisit] => [a, b]),
+  )
+}
+
+function referenceVisitAt(graph: Graph) {
+  const { pathVisits } = graph
+  const pathOf = new Map<string, number>()
+  return (node: AnchoredNode, start: number) => {
+    let visit: ReferenceVisit | undefined
+    if (pathVisits) {
+      const { refName } = node.stable
+      const p = pathOf.get(refName) ?? pathVisits.pathIndex(refName)
+      pathOf.set(refName, p)
+      const slot = pathVisits.slot(node.name)
+      if (slot >= 0 && p >= 0) {
+        for (
+          let i = pathVisits.offsets[slot]!;
+          i < pathVisits.offsets[slot + 1]! && !visit;
+          i++
+        ) {
+          if (pathVisits.path[i] === p && pathVisits.start[i] === start) {
+            visit = { start, strand: pathVisits.strand(i) }
+          }
+        }
+      }
+    }
+    return visit
+  }
+}
+
+// By edge index, the distinct pairs of passes the steps crossing a link state,
+// `from` first; a step does not say which way it reads its node, so a crossing
+// counts for every link joining the two
+function statedCrossings(graph: Graph, edgeIndexes: number[]) {
+  const linksFrom = new Map<string, Map<string, number[]>>()
+  for (const edgeIndex of edgeIndexes) {
+    const { from, to } = graph.edges[edgeIndex]!
+    let byTo = linksFrom.get(from)
+    if (!byTo) {
+      byTo = new Map()
+      linksFrom.set(from, byTo)
+    }
+    const indexes = byTo.get(to)
+    if (indexes) {
+      indexes.push(edgeIndex)
+    } else {
+      byTo.set(to, [edgeIndex])
+    }
+  }
+  const passes = new Map<number, number[]>()
+  const cross = (edgeIndex: number, fromStart: number, toStart: number) => {
+    let pairs = passes.get(edgeIndex)
+    if (!pairs) {
+      pairs = []
+      passes.set(edgeIndex, pairs)
+    }
+    if (!Number.isNaN(fromStart) && !Number.isNaN(toStart)) {
+      let seen = false
+      for (let j = 0; j < pairs.length && !seen; j += 2) {
+        seen = pairs[j] === fromStart && pairs[j + 1] === toStart
+      }
+      if (!seen) {
+        pairs.push(fromStart, toStart)
+      }
+    }
+  }
+  for (const { nodeIds, refStarts } of graph.paths ?? []) {
+    if (refStarts) {
+      for (let k = 1; k < nodeIds.length; k++) {
+        const a = nodeIds[k - 1]!
+        const b = nodeIds[k]!
+        for (const edgeIndex of linksFrom.get(a)?.get(b) ?? []) {
+          cross(edgeIndex, refStarts[k - 1]!, refStarts[k]!)
+        }
+        for (const edgeIndex of linksFrom.get(b)?.get(a) ?? []) {
+          cross(edgeIndex, refStarts[k]!, refStarts[k - 1]!)
+        }
+      }
+    }
+  }
+  return passes
+}
+
+function statedVisitPairs(
+  from: AnchoredNode,
+  to: AnchoredNode,
+  passes: number[],
+  visitAt: (node: AnchoredNode, start: number) => ReferenceVisit | undefined,
+) {
+  const pairs: [ReferenceVisit, ReferenceVisit][] = []
+  for (let j = 0; j < passes.length; j += 2) {
+    const a = visitAt(from, passes[j]!)
+    const b = visitAt(to, passes[j + 1]!)
+    if (a && b) {
+      pairs.push([a, b])
+    }
+  }
+  return pairs
 }
 
 // A skip this close to a collapsed repeat's copy length, as a share of it,
@@ -268,14 +372,17 @@ function switchesCopy(
 // skips where it joins facing sides of some pair of reference visits. Which
 // endpoint is upstream comes from the coordinates, since a file may state a
 // link from either strand; whether it skips what lies between comes from its
-// sides at those visits. A segment cut back to a window is measured in full:
-// its cut end is no gap.
+// sides at those visits. Where the walks state each step's pass, a link a walk
+// crosses is measured between the passes its two steps take, as the walk rows
+// place them; one no walk crosses, and every link of a source that states no
+// pass, between any visits. A segment cut back to a window is measured in
+// full: its cut end is no gap.
 function backboneLinks(cut: Graph) {
   const graph = unclipped(cut)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const backbone = backboneBySequence(graph)
   const visitsOf = referenceVisits(graph)
-  const links = graph.edges.flatMap((edge, edgeIndex) => {
+  const candidates = graph.edges.flatMap((edge, edgeIndex) => {
     const from = byId.get(edge.from)
     const to = byId.get(edge.to)
     return !edge.foldBridge &&
@@ -284,15 +391,35 @@ function backboneLinks(cut: Graph) {
       isBackbone(from) &&
       isBackbone(to) &&
       from.stable.refName === to.stable.refName
-      ? [
-          {
-            edgeIndex,
-            edge,
-            refName: from.stable.refName,
-            span: skippedSpan(edge, from, to, visitsOf),
-          },
-        ]
+      ? [{ edgeIndex, edge, from, to }]
       : []
+  })
+  const stated =
+    graph.paths !== undefined &&
+    graph.paths.length > 0 &&
+    graph.paths.every(path => path.refStarts)
+  const crossings = stated
+    ? statedCrossings(
+        graph,
+        candidates.map(c => c.edgeIndex),
+      )
+    : new Map<number, number[]>()
+  const visitAt = referenceVisitAt(graph)
+  const links = candidates.map(({ edgeIndex, edge, from, to }) => {
+    const passes = crossings.get(edgeIndex)
+    return {
+      edgeIndex,
+      edge,
+      refName: from.stable.refName,
+      span: skippedSpan(
+        edge,
+        from,
+        to,
+        passes
+          ? statedVisitPairs(from, to, passes, visitAt)
+          : everyVisitPair(from, to, visitsOf),
+      ),
+    }
   })
   return { links, backbone, copies: repeatCopies(backbone, visitsOf) }
 }

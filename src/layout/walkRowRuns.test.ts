@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 import { bubbleSubgraph } from '../bubbles/popBubble'
+import { deletionEdges } from '../deletionEdges'
 import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
@@ -1439,6 +1440,77 @@ describe("tables that state each step's pass", () => {
         ],
       ],
     ])
+  })
+
+  // the same with its links, over the whole reference or cut to its pieces
+  // chr:0-3000 and chr:4000-5000, which hold r's first pass and not its second
+  const linked = (reference: string[], hap?: number[]) => {
+    const t = gfaTables(
+      [
+        ...[
+          ['x', 0],
+          ['r', 1000],
+          ['y', 2000],
+          ['z', 4000],
+        ].map(
+          ([n, at]) =>
+            `S\t${n}\t*\tLN:i:1000\tSN:Z:ref#0#chr\tSO:i:${at}\tSR:i:0`,
+        ),
+        'S\ti\t*\tLN:i:2500',
+        ...['x r', 'r y', 'y r', 'r z', 'x i', 'i r'].map(pair => {
+          const [from, to] = pair.split(' ')
+          return `L\t${from}\t+\t${to}\t+\t0M`
+        }),
+        ...reference,
+        'W\thap\t1\tc\t0\t5500\t>x>i>r>z',
+      ].join('\n'),
+    )!
+    const starts =
+      reference.length > 1 ? [0, 1000, 2000, 4000] : referenceStarts
+    return hap
+      ? {
+          ...t,
+          walks: {
+            ...t.walks,
+            refStarts: Float64Array.from([...starts, ...hap]),
+          },
+        }
+      : t
+  }
+  const whole = ['W\tref\t0\tchr\t0\t5000\t>x>r>y>r>z']
+  const pieces = [
+    'W\tref\t0\tchr\t0\t3000\t>x>r>y',
+    'W\tref\t0\tchr\t4000\t5000\t>z',
+  ]
+  const skipsOf = (t: GraphTables) =>
+    deletionEdges(graphFromTables(t)).map(d => [d.from, d.to, d.start, d.end])
+  const offReference = [0, Number.NaN, Number.NaN, 4000]
+  const passLacked = [0, Number.NaN, 7000, 4000]
+
+  test("the graph's link from r to z skips nothing where the reference takes it, whichever pass hap states", () => {
+    for (const hap of [
+      undefined,
+      onFirst,
+      onSecond,
+      offReference,
+      passLacked,
+    ]) {
+      expect(skipsOf(linked(whole, hap))).toEqual([])
+    }
+  })
+
+  test("the graph's link from r to z skips between the passes hap's steps state", () => {
+    expect(skipsOf(linked(pieces, onFirst))).toEqual([['r+', 'z+', 2000, 4000]])
+    expect(skipsOf(linked(pieces, onSecond))).toEqual([])
+  })
+
+  test("the graph's link from a step stated off the reference, or at a pass the cut lacks, skips nothing", () => {
+    expect(skipsOf(linked(pieces, offReference))).toEqual([])
+    expect(skipsOf(linked(pieces, passLacked))).toEqual([])
+  })
+
+  test("tables that state no pass measure the graph's link from the pass the cut holds", () => {
+    expect(skipsOf(linked(pieces))).toEqual([['r+', 'z+', 2000, 4000]])
   })
 
   test('a Graph whose walk states a position count other than its steps is refused', () => {
