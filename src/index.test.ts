@@ -83,6 +83,7 @@ const PUBLISHED = [
   'graphBackbone',
   'haplotypeWanted',
   'layoutGeometryInputs',
+  'labelledNodeLengths',
   'layoutLabels',
   'layoutModeByValue',
   'loadBandage',

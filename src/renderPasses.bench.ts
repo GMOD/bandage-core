@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { deletionEdges } from './deletionEdges'
+import { labelledNodeLengths } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { EdgeSpatialIndex, SpatialIndex } from './util/SpatialIndex'
@@ -91,7 +92,7 @@ for (const backbone of [1000, 5000]) {
   const graph = benchGraph(backbone)
   const nodePositions = benchLayout(graph)
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const nodeLengths = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const nodeLengths = labelledNodeLengths(graph.nodes, true)
   const deletions = deletionEdges(graph)
   const bypassed = new Map(deletions.map(d => [d.edgeIndex, d.bypassed]))
   const referenceRamp = computeReferenceRamp(graph, {
@@ -112,7 +113,6 @@ for (const backbone of [1000, 5000]) {
       genePins: [],
       nodePositions,
       labelsNodeSizes: true,
-      nodeLengthLabels: true,
       nodeLengths,
       alleleDeletions: [],
       positionsVersion: 0,

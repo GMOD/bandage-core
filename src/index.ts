@@ -297,7 +297,7 @@ export type {
   LegendCornerSource,
   LegendFrame,
 } from './legendCorner'
-export { LABEL_DEFAULTS, formatBp } from './graphLabels'
+export { LABEL_DEFAULTS, formatBp, labelledNodeLengths } from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'
 export { genePins } from './genes/genePins'

@@ -4,7 +4,7 @@ import { polylinePx } from './util/geometry'
 import { weakMemo } from './util/weakMemo'
 
 import type { Box, TakeBox } from './overlayLabels'
-import type { AlleleDeletion, NodeSegment } from './types'
+import type { AlleleDeletion, GraphNode, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
 // What to write on the drawing, and where. Bandage labels a node with its name,
@@ -36,10 +36,25 @@ import type { AxisScale } from './util/geometry'
 //
 // Collision is measured in SCREEN pixels, because that is where the text has its
 // size: the same two labels clear each other zoomed in and collide zoomed out,
-// so a wide view sheds labels on its own. The lengths themselves are off
-// unless a host turns them on: LABEL_DEFAULTS.nodeLengths.
+// so a wide view sheds labels on its own. A node's length is written only
+// where a host turns lengths on (LABEL_DEFAULTS.nodeLengths), but a
+// placeholder's always is: nothing else says how much sequence the steps it
+// stands in for hold.
 
 export const LABEL_DEFAULTS = { nodeLengths: false }
+
+export function labelledNodeLengths(
+  nodes: readonly GraphNode[],
+  nodeLengths = LABEL_DEFAULTS.nodeLengths,
+) {
+  const lengths = new Map<string, number>()
+  for (const node of nodes) {
+    if (nodeLengths || node.placeholder) {
+      lengths.set(node.id, node.length)
+    }
+  }
+  return lengths
+}
 
 // One node label per this much pane, and never fewer than a handful: at a
 // 1400 by 600 pane that is about twenty.

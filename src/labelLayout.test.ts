@@ -1,4 +1,4 @@
-import { LABEL_DEFAULTS } from './graphLabels'
+import { LABEL_DEFAULTS, labelledNodeLengths } from './graphLabels'
 import {
   LEGEND_INSET_PX,
   geneCoverageNote,
@@ -69,7 +69,6 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     bubbleHalos: [],
     genePins: [],
     labelsNodeSizes: true,
-    nodeLengthLabels: true,
     nodeLengths: new Map(),
     alleleDeletions: [],
     positionsVersion: 0,
@@ -112,23 +111,44 @@ test('a node length clear of every chip keeps its label', () => {
   expect(layout.sizes.map(l => l.text)).toEqual(['700 bp'])
 })
 
-test('a node writes its length only where the host turns lengths on', () => {
-  const lengths = (nodeLengthLabels?: boolean) =>
+// amylase's "nodes not shown" loops lost their 75 kb and 116 kb with node
+// lengths turned off, the only cue to how much sequence each one holds
+test('a node writes its length only where the host turns lengths on, a placeholder always', () => {
+  const nodes = [
+    { id: 'ref', name: 'ref', length: 700, depth: 1 },
+    { id: 'off', name: 'off', length: 900, depth: 1 },
+    {
+      id: 'loop',
+      name: 'loop',
+      length: 75_000,
+      depth: 1,
+      placeholder: true as const,
+    },
+  ]
+  const lengths = (nodeLengths?: boolean) =>
     layoutLabels(
       source({
         nodePositions: {
-          s1: [
-            { x: 200, y: 300 },
-            { x: 400, y: 300 },
+          ref: [
+            { x: 100, y: 100 },
+            { x: 300, y: 100 },
+          ],
+          off: [
+            { x: 100, y: 200 },
+            { x: 300, y: 200 },
+          ],
+          loop: [
+            { x: 100, y: 300 },
+            { x: 300, y: 300 },
           ],
         },
-        nodeLengths: new Map([['s1', 700]]),
-        nodeLengthLabels,
+        nodeLengths: labelledNodeLengths(nodes, nodeLengths),
       }),
     ).sizes.map(l => l.text)
   expect(LABEL_DEFAULTS.nodeLengths).toBe(false)
-  expect(lengths(undefined)).toEqual([])
-  expect(lengths(true)).toEqual(['700 bp'])
+  expect(lengths(undefined)).toEqual(['75 kb'])
+  expect(lengths(false)).toEqual(['75 kb'])
+  expect(lengths(true)).toEqual(['75 kb', '900 bp', '700 bp'])
 })
 
 test('a row label holds its space against a gene pin', () => {

@@ -1,4 +1,4 @@
-import { LABEL_DEFAULTS, graphLabels, rowLabelBox } from './graphLabels'
+import { graphLabels, rowLabelBox } from './graphLabels'
 import { HALO_FACTOR } from './halo'
 import { legendBox } from './legendCorner'
 import {
@@ -50,8 +50,7 @@ export interface LabelLayoutSource {
   // false where the drawing is not the canvas's nodes (the tube map), so a
   // length label would sit on a box's tubes rather than beside a node
   labelsNodeSizes: boolean
-  // whether a node's length is written on it, LABEL_DEFAULTS.nodeLengths unset
-  nodeLengthLabels?: boolean
+  // the lengths written on the drawing: labelledNodeLengths
   nodeLengths: Map<string, number>
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
@@ -240,9 +239,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     reserved,
   )
   const sizes =
-    m.nodePositions &&
-    m.labelsNodeSizes &&
-    (m.nodeLengthLabels ?? LABEL_DEFAULTS.nodeLengths)
+    m.nodePositions && m.labelsNodeSizes
       ? graphLabels({
           nodePositions: m.nodePositions,
           nodeLengths: m.nodeLengths,
