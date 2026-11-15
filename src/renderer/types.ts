@@ -20,8 +20,8 @@ export interface EdgeCurveBatch {
   endOffsetX?: number
   // a stroke of a link that skips reference sequence (deletionEdges())
   skip?: boolean
-  // a skip's span on screen as built, 0 where it falls back to a plain link;
-  // skips paint longest first
+  // a skip's span on screen as built, 0 where it falls back to a plain link,
+  // which paints with the plain links; the rest paint longest first
   span?: number
 }
 
