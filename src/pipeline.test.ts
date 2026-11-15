@@ -1,5 +1,16 @@
+import { readFileSync } from 'node:fs'
+
+import { isBackbone } from './anchoredNodes'
 import { layoutScaling } from './layout/drawnScale'
-import { engineKey, engineRequest, fitTransform, forceLayout } from './pipeline'
+import { layoutEngine } from './layoutEngines'
+import {
+  engineKey,
+  engineRequest,
+  engineSettingsOf,
+  fitTransform,
+  forceLayout,
+  loadGraph,
+} from './pipeline'
 
 import type { Graph } from './types'
 
@@ -103,4 +114,37 @@ test('an anchored graph seeds FMMM four times as far out as stress', () => {
   const stress = seeds('stress')
   expect(stress.some(([x]) => x! > 0)).toBe(true)
   expect(seeds('fmmm')).toEqual(stress.map(([x, y]) => [x! * 4, y! * 4]))
+})
+
+// Seeded at drawn length, FMMM bent the 571 bp gap's reference into waves
+// 7% of its length deep
+test('FMMM draws a seeded reference close to straight', async () => {
+  const gap571 = loadGraph(
+    readFileSync('test_data/hprc_gap571.gfa', 'utf8'),
+    'gap571',
+    { referencePath: 'GRCh38' },
+  )
+  const { result } = await forceLayout(
+    gap571,
+    engineSettingsOf({ engine: 'fmmm' }),
+    layoutEngine,
+  )
+  const line = gap571.nodes
+    .filter(isBackbone)
+    .sort((a, b) => a.stable.start - b.stable.start)
+    .flatMap(node => result.nodePositions[node.id] ?? [])
+  const first = line[0]!
+  const last = line.at(-1)!
+  const length = Math.hypot(last.x - first.x, last.y - first.y)
+  let deepest = 0
+  for (const p of line) {
+    deepest = Math.max(
+      deepest,
+      Math.abs(
+        (last.x - first.x) * (first.y - p.y) -
+          (first.x - p.x) * (last.y - first.y),
+      ) / length,
+    )
+  }
+  expect(deepest / length).toBeLessThan(0.03)
 })

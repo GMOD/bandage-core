@@ -132,8 +132,9 @@ export function engineSettingsOf(
   }
 }
 
-// FMMM's balanced length for the seeded chain is about 3.9x the seeds, so its
-// coarsest level buckled them into waves; any stretch from 3 to 6 straightens
+// FMMM's coarsest level buckled a chain seeded at drawn length into waves.
+// Fitted to FMMM's force law, not derived from it: any stretch from 3 to 6
+// straightens it
 const FMMM_SEED_STRETCH = 4
 
 // the engine's own gap between components, which `componentSeparation` scales
