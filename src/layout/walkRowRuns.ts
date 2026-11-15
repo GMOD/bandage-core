@@ -212,9 +212,14 @@ function graphPieces(graph: Graph): Pieces {
     }
     to[p] = steps.length
   })
-  const refStarts = heads.every(
-    path => path.refStarts?.length === path.nodeIds.length,
-  )
+  for (const path of heads) {
+    if (path.refStarts && path.refStarts.length !== path.nodeIds.length) {
+      throw new Error(
+        `walk ${path.name} states ${path.refStarts.length} reference positions for ${path.nodeIds.length} steps`,
+      )
+    }
+  }
+  const refStarts = heads.every(path => path.refStarts)
     ? new Float64Array(steps.length)
     : undefined
   heads.forEach((path, p) => {

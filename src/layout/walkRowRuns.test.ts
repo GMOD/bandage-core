@@ -1322,6 +1322,74 @@ describe("tables that state each step's pass", () => {
     }
   })
 
+  test('a lone flank beside a step at a pass the cut lacks reads its walk as partial', () => {
+    const t = gfaTables(
+      [
+        ...['x', 'r', 'y', 'z'].map(
+          (n, i) => `S\t${n}\t*\tLN:i:1000\tSN:Z:chr\tSO:i:${i * 1000}\tSR:i:0`,
+        ),
+        'S\ti\t*\tLN:i:2500',
+        'S\tj\t*\tLN:i:300',
+        'W\tref\t0\tchr\t0\t5000\t>x>r>y>r>z',
+        'W\tlone\t1\tl\t0\t4800\t>x>i>r>j',
+        'W\tlone2\t1\tm\t0\t4800\t>j>r>i>z',
+      ].join('\n'),
+    )!
+    const n = Number.NaN
+    const lones = {
+      ...t,
+      walks: {
+        ...t.walks,
+        refStarts: Float64Array.from([
+          ...referenceStarts,
+          0,
+          n,
+          7000,
+          n,
+          n,
+          7000,
+          n,
+          4000,
+        ]),
+      },
+    }
+    const rows = walkRowsOf(walkRowRuns(lones, firstPass)!)
+    expect(
+      rows.rows.map(row => [
+        row.label,
+        walkRowReadout(row, rows.reference),
+        row.runs.map(r => [r.start, r.bp, r.referenceStart]),
+      ]),
+    ).toEqual([
+      [
+        'lone#1',
+        '≥ 4.8 kb · partial walk',
+        [
+          [0, 1000, 0],
+          [1000, 3800, undefined],
+        ],
+      ],
+      [
+        'lone2#1',
+        '≥ 4.8 kb · partial walk',
+        [
+          [0, 3800, undefined],
+          [3800, 1000, 4000],
+        ],
+      ],
+    ])
+  })
+
+  test('a Graph whose walk states a position count other than its steps is refused', () => {
+    const graph = graphFromTables(stating(onSecond))
+    const paths = graph.paths!.map((path, i) =>
+      i === 1 ? { ...path, refStarts: path.refStarts!.subarray(1) } : path,
+    )
+    expect(() => walkRows({ ...graph, paths }, firstPass)).toThrow(
+      'walk hap#1#c states 3 reference positions for 4 steps',
+    )
+  })
+
   test('the Graph of the tables reads the same rows, cut to a bubble or a window too', () => {
     const t = stating(onSecond)
     const graph = graphFromTables(t)
