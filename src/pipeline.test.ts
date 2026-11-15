@@ -156,7 +156,11 @@ test('FMMM draws a seeded reference close to straight', async () => {
 // the window from 30 kb of its own sequence that left it 7 kb before the cut,
 // and the fit to every node drew the window's reference at a quarter of the
 // pane
-function tailedGraph(leavePos: number, walks: string[][] = []): Graph {
+function tailedGraph(
+  leavePos: number,
+  walks: string[][] = [],
+  rejoinPos = 1000,
+): Graph {
   const departures = departureTable([
     {
       name: 'HG00099#1#c',
@@ -166,7 +170,7 @@ function tailedGraph(leavePos: number, walks: string[][] = []): Graph {
       leavePos,
       leaveReversed: false,
       leavePasses: 1,
-      rejoinPos: 1000,
+      rejoinPos,
       rejoinReversed: false,
       rejoinPasses: 1,
       fromSteps: false,
@@ -223,6 +227,17 @@ async function stressBounds(tailed: Graph) {
 
 test('the fit frames the cut without a departure running off past its end', async () => {
   const { fit, nodes, reference } = await stressBounds(tailedGraph(-6000))
+  expect(nodes.maxX - nodes.minX).toBeGreaterThan(
+    2 * (reference.maxX - reference.minX),
+  )
+  expect(fit.minX).toBe(reference.minX)
+  expect(fit.w).toBe(reference.maxX - reference.minX)
+})
+
+test('the fit frames the cut without a departure that rejoins past its end', async () => {
+  const { fit, nodes, reference } = await stressBounds(
+    tailedGraph(500, [], 9000),
+  )
   expect(nodes.maxX - nodes.minX).toBeGreaterThan(
     2 * (reference.maxX - reference.minX),
   )
