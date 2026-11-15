@@ -80,14 +80,14 @@ test('a coarsened walk states no pass for its steps', () => {
   const coarse = coarsenTubeMap(
     {
       ...graph,
-      paths: graph.paths!.map(path => ({
-        ...path,
-        refStarts: new Float64Array(path.nodeIds.length),
+      paths: graph.paths!.map(stated => ({
+        ...stated,
+        refStarts: new Float64Array(stated.nodeIds.length),
       })),
     },
     50,
   )!
-  expect(coarse.graph.paths!.map(path => path.refStarts)).toEqual([
+  expect(coarse.graph.paths!.map(coarsened => coarsened.refStarts)).toEqual([
     undefined,
     undefined,
   ])

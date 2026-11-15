@@ -196,12 +196,12 @@ test('a walk through merged boxes states no pass for its steps', () => {
   const graph = snp('1+,2+,3+,5+,6+')
   const { tubeMap } = tubeMapLayout({
     ...graph,
-    paths: graph.paths!.map(path => ({
-      ...path,
-      refStarts: new Float64Array(path.nodeIds.length),
+    paths: graph.paths!.map(stated => ({
+      ...stated,
+      refStarts: new Float64Array(stated.nodeIds.length),
     })),
   })!
-  expect(tubeMap!.graph.paths!.map(path => path.refStarts)).toEqual([
+  expect(tubeMap!.graph.paths!.map(boxed => boxed.refStarts)).toEqual([
     undefined,
     undefined,
   ])
