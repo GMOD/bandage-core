@@ -1,8 +1,10 @@
 import { isBackbone } from './anchoredNodes'
 import { departureAt, gapParts } from './gfa/departures'
+import { linkKey } from './gfa/linkKey'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
+import { ownStrand } from './util/geometry'
 import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
 
 import type { GraphGap } from './gfa/departures'
@@ -110,12 +112,54 @@ function piecesOf(graph: Graph, name: string) {
 
 const nodesById = (graph: Graph) => new Map(graph.nodes.map(n => [n.id, n]))
 
+type Strand = '+' | '-'
+
+const strandOf = (reversed: boolean): Strand => (reversed ? '-' : '+')
+
+// Each link by the steps that take it, read either way along it, so two links
+// joining the same two nodes in different orientations stay two links
 function graphIndex(graph: Graph) {
-  const edgeAt = new Map<string, number>()
+  const linkAt = new Map<string, number>()
   graph.edges.forEach((e, i) => {
-    edgeAt.set(`${e.from}>${e.to}`, i)
+    linkAt.set(
+      linkKey(
+        e.from,
+        e.fromStrand ?? ownStrand(e.from),
+        e.to,
+        e.toStrand ?? ownStrand(e.to),
+      ),
+      i,
+    )
   })
-  return { byId: nodesById(graph), edgeAt }
+  return { byId: nodesById(graph), linkAt }
+}
+
+// The strand each step of a walk's records reads its node on: the walk's
+// visits replayed in path order, as tubeMapLayout's pathSteps reads them, and
+// the node's own strand where no visit is recorded
+function recordStrands(
+  graph: Graph,
+  byId: Map<string, GraphNode>,
+  origin: string,
+) {
+  const visits = graph.pathVisits
+  const next = visits?.replay()
+  const walk = visits?.pathIndex(origin) ?? -1
+  const strands = new Map<GraphPath, Strand[]>()
+  for (const path of graph.paths ?? []) {
+    if (pathOrigin(path.name).name === origin) {
+      strands.set(
+        path,
+        path.nodeIds.map(id => {
+          const node = byId.get(id)
+          const at =
+            visits && next && node ? next(visits.slot(node.name), walk) : -1
+          return at >= 0 && visits ? visits.strand(at) : ownStrand(id)
+        }),
+      )
+    }
+  }
+  return strands
 }
 
 export function walkHighlight(graph: Graph, name: string) {
@@ -125,7 +169,7 @@ export function walkHighlight(graph: Graph, name: string) {
 function highlightOf(
   graph: Graph,
   name: string,
-  { byId, edgeAt }: ReturnType<typeof graphIndex>,
+  { byId, linkAt }: ReturnType<typeof graphIndex>,
 ): WalkHighlight | undefined {
   const pieces = piecesOf(graph, name)
   const first = pieces[0]
@@ -159,6 +203,11 @@ function highlightOf(
   const rowEnds = stated.filter(
     g => g.edge !== 0 && drawnBp(g) === g.end - g.start,
   )
+  const strandsOf = recordStrands(graph, byId, origin)
+  const stranded = (steps: GraphPath, reversed: boolean[]) => {
+    strandsOf.set(steps, reversed.map(strandOf))
+    return steps
+  }
   const attached = [...pieces.map((_, p) => between(p)), ...rowEnds].flatMap(
     gap => {
       let at = gap?.start ?? 0
@@ -166,7 +215,7 @@ function highlightOf(
         const start = at
         at += x.bp
         return x.kind === 'steps' && x.nodes.length > 0
-          ? [{ name, nodeIds: x.nodes, start }]
+          ? [stranded({ name, nodeIds: x.nodes, start }, x.reversed)]
           : []
       })
     },
@@ -213,6 +262,8 @@ function highlightOf(
       previous.start !== undefined &&
       endOf(previous) === piece.start
     const last = previous?.nodeIds.at(-1)
+    const lastStrand = previous && strandsOf.get(previous)?.at(-1)
+    const strands = strandsOf.get(piece)
     piece.nodeIds.forEach((id, i) => {
       nodeIds.add(id)
       const passed = (passes.get(id) ?? 0) + 1
@@ -220,7 +271,14 @@ function highlightOf(
       mostPasses = Math.max(mostPasses, passed)
       const a = i > 0 ? piece.nodeIds[i - 1] : joins ? last : undefined
       if (a !== undefined) {
-        const index = edgeAt.get(`${a}>${id}`) ?? edgeAt.get(`${id}>${a}`)
+        const index = linkAt.get(
+          linkKey(
+            a,
+            (i > 0 ? strands?.[i - 1] : lastStrand) ?? ownStrand(a),
+            id,
+            strands?.[i] ?? ownStrand(id),
+          ),
+        )
         if (index !== undefined) {
           edgeIndexes.add(index)
         }

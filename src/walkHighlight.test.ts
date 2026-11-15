@@ -12,6 +12,8 @@ import {
 import { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 import { walkKey, walkPosition } from './walkKey'
 
+import type { Graph } from './types'
+
 // ref walks v1 v2 v3; alt walks v1 a1 v3, taking a1 in place of v2. The a1->v3
 // link is written the other way round in the file, so the walk's step has to
 // find it against the edge's direction.
@@ -380,4 +382,87 @@ test('ramps past the fourth walk split their family, the first taking the pale e
   expect(stops(first)[0]).toBe(stops(lifted(4)[0])[0])
   expect(stops(first).filter(c => stops(fifth).includes(c))).toEqual([])
   expect(stops(first).at(-1)).not.toBe(stops(fifth)[0])
+})
+
+// GRCh38 reads r4 r5 r6 forward; HAPA reads r5 inverted between them, on the
+// links r4+ r5- and r5- r6+ that join the same nodes as GRCh38's
+const SELFIES = [
+  'S\tr1\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:0\tSR:i:0',
+  'S\tr2\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:2000\tSR:i:0',
+  'S\tr3\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:4000\tSR:i:0',
+  'S\tr4\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:6000\tSR:i:0',
+  'S\tr5\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:8000\tSR:i:0',
+  'S\tr6\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:10000\tSR:i:0',
+  'S\ta\t*\tLN:i:2000',
+  'S\tg\t*\tLN:i:2000',
+  'S\th\t*\tLN:i:2000',
+  'L\tr1\t+\tr2\t+\t0M',
+  'L\tr2\t+\tr3\t+\t0M',
+  'L\tr3\t+\tr4\t+\t0M',
+  'L\tr4\t+\tr5\t+\t0M',
+  'L\tr5\t+\tr6\t+\t0M',
+  'L\tr1\t+\ta\t+\t0M',
+  'L\ta\t+\ta\t+\t0M',
+  'L\ta\t+\tr2\t+\t0M',
+  'L\tr3\t+\tg\t-\t0M',
+  'L\tg\t-\tg\t+\t0M',
+  'L\tg\t+\tr4\t+\t0M',
+  'L\tr4\t+\tr5\t-\t0M',
+  'L\tr5\t-\tr6\t+\t0M',
+  'L\tr2\t+\th\t+\t0M',
+  'L\th\t+\th\t-\t0M',
+  'W\tGRCh38\t0\tchrS\t0\t12000\t>r1>r2>r3>r4>r5>r6',
+  'W\tHAPA\t1\tctgA\t0\t20000\t>r1>a>a>r2>r3<g>g>r4<r5>r6',
+  'W\tHAPB\t1\tctgB\t0\t12000\t>r1>r2>h<h<r2<r1',
+].join('\n')
+
+const linksOf = (g: Graph, edges: Set<number>) =>
+  [...edges]
+    .map(i => g.edges[i]!)
+    .map(
+      e =>
+        `${e.from.slice(0, -1)}${e.fromStrand} ${e.to.slice(0, -1)}${e.toStrand}`,
+    )
+    .sort()
+
+test("a lifted walk's lane lies on the links it steps, not on another orientation's between the same nodes", () => {
+  const selfies = anchorGraph(convertGFAToGraph(parseGFA(SELFIES)), 'GRCh38')
+  const [reference, inverted] = walkLift(selfies, [
+    { walk: 'GRCh38#0#chrS' },
+    { walk: 'HAPA#1#ctgA' },
+  ])!.walks
+  const referenceLinks = linksOf(selfies, reference!.edgeIndexes)
+  expect(referenceLinks).toEqual(expect.arrayContaining(['r4+ r5+', 'r5+ r6+']))
+  expect(referenceLinks).not.toContain('r4+ r5-')
+  expect(referenceLinks).not.toContain('r5- r6+')
+  expect(linksOf(selfies, inverted!.edgeIndexes)).toEqual(
+    expect.arrayContaining(['r4+ r5-', 'r5- r6+']),
+  )
+  expect(linksOf(selfies, inverted!.edgeIndexes)).not.toContain('r4+ r5+')
+})
+
+// up reads b after a, down reads them both reversed, b first: two links join
+// a and b, a's end to b's start and b's end to a's start
+const BOTH_WAYS = `S\ta\tAAAA
+S\tb\tCC
+L\ta\t+\tb\t+\t0M
+L\tb\t+\ta\t+\t0M
+W\tup\t0\tchr\t0\t6\t>a>b
+W\tdown\t1\tchr\t0\t6\t<b<a
+W\tround\t2\tchr\t0\t6\t>b>a`
+
+test('two links between one pair of nodes each carry the walks that step them', () => {
+  const both = anchorGraph(convertGFAToGraph(parseGFA(BOTH_WAYS)), 'up')
+  const forward = both.edges.findIndex(e => e.from === 'a+' && e.to === 'b+')
+  const back = both.edges.findIndex(e => e.from === 'b+' && e.to === 'a+')
+  const lift = walkLift(both, [
+    { walk: 'up#0#chr' },
+    { walk: 'down#1#chr' },
+    { walk: 'round#2#chr' },
+  ])!
+  expect(lift.walks.map(w => [...w.edgeIndexes])).toEqual([
+    [forward],
+    [forward],
+    [back],
+  ])
 })

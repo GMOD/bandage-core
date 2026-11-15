@@ -235,6 +235,8 @@ export interface GapSegment {
   before: number
   after: number
   nodes: number[]
+  // whether each step reads its node reversed
+  reversed: boolean[]
 }
 
 export interface GraphGap {
@@ -279,8 +281,10 @@ export function stretchSegments<T>(
   const out = []
   for (let k = t.segmentOffsets[g]!; k < t.segmentOffsets[g + 1]!; k++) {
     const nodes = []
+    const reversed = []
     for (let j = s.stepOffsets[k]!; j < s.stepOffsets[k + 1]!; j++) {
       nodes.push(node(s.steps[j]!))
+      reversed.push(s.reversed[j] === 1)
     }
     out.push({
       kind: GAP_KINDS[s.kinds[k]!]!,
@@ -289,6 +293,7 @@ export function stretchSegments<T>(
       before: s.before[k]!,
       after: s.after[k]!,
       nodes,
+      reversed,
     })
   }
   return out
