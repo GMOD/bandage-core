@@ -275,3 +275,36 @@ test("a lifted walk's link joins its own lane at both nodes", () => {
     1,
   )
 })
+
+// v2 a stretch the cut did not load, drawn as one line with no lanes
+test("a lifted walk's link ends on the line of a node drawn without lanes", () => {
+  const unloaded = {
+    ...graph,
+    nodes: graph.nodes.map(n =>
+      n.id === 'v2+' ? { ...n, placeholder: true as const } : n,
+    ),
+  }
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: {
+      ...positions,
+      'v2+': [
+        { x: 20, y: 0 },
+        { x: 20, y: 10 },
+      ],
+    },
+    graph: unloaded,
+    nodeById: new Map(unloaded.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 20,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: walkLift(unloaded, [
+      { walk: 'ref#0#chr' },
+      { walk: 'alt#1#chr' },
+    ]),
+  })
+  const last =
+    batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves.at(-1)!
+  expect(Math.hypot(last.x1 - 20, last.y1)).toBeLessThan(1)
+})

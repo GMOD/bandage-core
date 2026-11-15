@@ -1058,7 +1058,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     return width
   }
   // where a lane's thread leaves or enters a node, from the node's frames
-  // by walk and visit
+  // by walk and visit; a node drawn without lanes, as a stretch not loaded
+  // or a single point is, holds it on its own line
   const laneEndOf = (
     id: string,
     frames: VisitFrame[][] | undefined,
@@ -1070,12 +1071,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const at = atStart ? 0 : segments.length - 1
     const frame = frames?.[lane]?.[visitOf(lane, id, thread)]
     const eased = frame?.offsets?.[at] ?? frame?.offset
+    const laned = segments.length >= 2 && !nodeById.get(id)?.placeholder
     return {
       normal: frame?.normals[at] ??
         plainNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
-      shift: frame?.shifts[at] ?? NO_SHIFT,
-      offset:
-        eased === undefined
+      shift: laned ? (frame?.shifts[at] ?? NO_SHIFT) : NO_SHIFT,
+      offset: !laned
+        ? 0
+        : eased === undefined
           ? laneOffset(id, laneWidthOf(id), lane, thread)
           : eased * thinned,
     }
