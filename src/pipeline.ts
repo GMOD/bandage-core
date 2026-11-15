@@ -19,6 +19,7 @@ import {
 import { FIGURE_WIDTH_PX, FIT_PADDING } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
+import { clearOfReference } from './layout/referenceClearance'
 import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
@@ -260,13 +261,19 @@ export async function forceLayout(
     ]),
   )
   const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
-  const { nodePositions, deletionRoutes } = takeRoutes(
+  const routedPositions = takeRoutes(
     graph.nodes.some(isBackbone)
       ? orientToReference(graph, positions)
       : positions,
     routed.routes,
   )
+  const { deletionRoutes } = routedPositions
   const tails = departureTails(graph)
+  const nodePositions = clearOfReference(
+    graph,
+    routedPositions.nodePositions,
+    fittedExtent(routedPositions.nodePositions, deletionRoutes, tails),
+  )
   return {
     result: {
       ...result,
@@ -320,6 +327,27 @@ export function departureTails(graph: Graph) {
     }
   }
   return tails
+}
+
+// What the fit frames of a force layout: its nodes but the departure tails it
+// leaves to run off the pane, and its deletion routes
+function fittedExtent(
+  nodePositions: Record<string, NodeSegment[]>,
+  deletionRoutes: Record<number, NodeSegment[]>,
+  tails: ReadonlySet<string>,
+) {
+  const nodes = layoutExtent(
+    Object.fromEntries(
+      Object.entries(nodePositions).filter(([id]) => !tails.has(id)),
+    ),
+  )
+  const routes = layoutExtent(deletionRoutes)
+  return {
+    minX: Math.min(nodes.minX, routes.minX),
+    minY: Math.min(nodes.minY, routes.minY),
+    maxX: Math.max(nodes.maxX, routes.maxX),
+    maxY: Math.max(nodes.maxY, routes.maxY),
+  }
 }
 
 export function layoutExtent(
