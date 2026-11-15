@@ -114,6 +114,7 @@ for (const backbone of [1000, 5000]) {
       nodePositions,
       labelsNodeSizes: true,
       nodeLengths,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
       alleleDeletions: [],
       positionsVersion: 0,
     } satisfies LabelLayoutSource

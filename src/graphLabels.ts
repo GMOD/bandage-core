@@ -1,4 +1,4 @@
-import { polylineMidpoint } from './layout/mergeRuns'
+import { polylinePointAt } from './layout/mergeRuns'
 import { labelWidth, occupancy } from './overlayLabels'
 import { polylinePx } from './util/geometry'
 import { weakMemo } from './util/weakMemo'
@@ -27,7 +27,10 @@ import type { AxisScale } from './util/geometry'
 // And a label is dropped when its box would overlap one already placed. Labels
 // go biggest-sequence-first, so what survives a crowd is the allele that
 // matters; this is also what fixes labels printing on top of each other ("−10
-// kb3.2 kb" in the amylase figure).
+// kb3.2 kb" in the amylase figure). A placeholder's length is the exception:
+// it goes before every other, outside the budget, and where its loop's middle
+// is taken it tries further along the loop, since nothing else on the drawing
+// says how much sequence the loop stands in for.
 //
 // Between them they hold at both ends of the scale a pangenome graph spans: 63
 // kb-scale nodes at the amylase locus nearly all carry a length, and a 154-node
@@ -145,28 +148,49 @@ export function formatBp(bp: number) {
 // space, while the order nodes are considered in depends only on the layout:
 // the cache keys weakly on the positions.
 
-// Node label candidates in the order they are considered, biggest allele
-// first, which depends on the sequence lengths alone.
+// Node label candidates in the order they are considered, placeholders first
+// and the biggest allele first among each, which depends on the sequence
+// lengths alone.
 const nodeOrderCache = weakMemo<
   Record<string, NodeSegment[]>,
-  [string, NodeSegment[]][]
+  { id: string; segments: NodeSegment[]; kept: boolean }[]
 >()
 
 function labelOrder(
   nodePositions: Record<string, NodeSegment[]>,
   nodeLengths: Map<string, number>,
+  nodeById: NodeKinds | undefined,
 ) {
-  return nodeOrderCache(nodePositions, [nodeLengths], () =>
+  return nodeOrderCache(nodePositions, [nodeLengths, nodeById], () =>
     Object.entries(nodePositions)
       .filter(([id, segments]) => segments.length > 0 && nodeLengths.has(id))
-      .sort(([a], [b]) => nodeLengths.get(b)! - nodeLengths.get(a)!),
+      .map(([id, segments]) => ({
+        id,
+        segments,
+        kept: nodeById?.get(id)?.placeholder === true,
+      }))
+      .sort((a, b) =>
+        a.kept === b.kept
+          ? nodeLengths.get(b.id)! - nodeLengths.get(a.id)!
+          : a.kept
+            ? -1
+            : 1,
+      ),
   )
 }
 
+// Where along its loop a placeholder's length may stand, nearest the middle
+// first
+const KEPT_LABEL_SPOTS = [0.5, 0.375, 0.625, 0.25, 0.75, 0.125, 0.875]
+
+export type NodeKinds = ReadonlyMap<string, Pick<GraphNode, 'placeholder'>>
+
 interface SizeLabelArgs {
   nodePositions: Record<string, NodeSegment[]>
-  // bp per node id, so this module never has to know what a GraphNode is
+  // bp per node id
   nodeLengths: Map<string, number>
+  // which nodes are placeholders, whose lengths are kept
+  nodeById?: NodeKinds
   // Alleles the layout drew over the reference they replace: their nodes
   // keep their lengths off the drawing, since a length written across a bar
   // drawn wider than it reads as the bar's size. See AlleleDeletion.
@@ -184,11 +208,18 @@ interface SizeLabelArgs {
 export interface SizeLabelCandidate {
   label: GraphLabel
   box: Box
+  // a placeholder's length, placed before the rest and outside the budget,
+  // at the first of its spots free
+  kept: boolean
+  // further spots along a placeholder's loop, tried in order where the
+  // first is taken
+  further: { label: GraphLabel; box: Box }[]
 }
 
 export function sizeLabelCandidates({
   nodePositions,
   nodeLengths,
+  nodeById,
   alleleDeletions,
   axis,
   translateX,
@@ -198,44 +229,44 @@ export function sizeLabelCandidates({
   const { scaleX, scaleY } = axis
   const barred = new Set(alleleDeletions?.flatMap(run => run.nodeIds))
   const candidates: SizeLabelCandidate[] = []
-  // Biggest allele first: in a crowd, the label that survives should be the one
-  // carrying the most sequence, not whichever node the layout happened to emit
-  // first. The order is `labelOrder`'s, cached across frames; the three rejects
-  // below are what a frame actually decides, cheapest first — a node barred by
-  // an allele deletion, then one whose row is off the pane (the box's height is
-  // a constant, so this needs no text), then one too short to hold the shortest
-  // label there is.
-  for (const [id, segments] of labelOrder(nodePositions, nodeLengths)) {
-    if (barred.has(id)) {
-      continue
-    }
-    const { x, y } = polylineMidpoint(segments)
-    const screenY = y * scaleY + translateY
-    if (
-      screenY + LABEL_HALF_HEIGHT <= 0 ||
-      screenY - LABEL_HALF_HEIGHT >= height
-    ) {
-      continue
-    }
-    const drawn = polylinePx(segments, scaleX, scaleY)
+  const onPane = (screenY: number) =>
+    screenY + LABEL_HALF_HEIGHT > 0 && screenY - LABEL_HALF_HEIGHT < height
+  // Placeholders first, then the biggest allele: in a crowd, the label that
+  // survives should be the one carrying the most sequence, not whichever node
+  // the layout happened to emit first. The order is `labelOrder`'s, cached
+  // across frames; the rejects below are what a frame actually decides,
+  // cheapest first — a node barred by an allele deletion, then one with no
+  // spot on the pane (the box's height is a constant, so this needs no text),
+  // then one too short to hold the shortest label there is.
+  for (const { id, segments, kept } of labelOrder(
+    nodePositions,
+    nodeLengths,
+    nodeById,
+  )) {
+    const spots = barred.has(id)
+      ? []
+      : (kept ? KEPT_LABEL_SPOTS : [0.5])
+          .map(fraction => {
+            const { x, y } = polylinePointAt(segments, fraction)
+            return { x: x * scaleX + translateX, y: y * scaleY + translateY }
+          })
+          .filter(spot => onPane(spot.y))
+    const drawn = spots.length > 0 ? polylinePx(segments, scaleX, scaleY) : 0
     // The same comparison the real fit test makes, against the narrowest box
     // any label can have — so nothing that would have passed is rejected here.
-    if (drawn < (MIN_LABEL_HALF_WIDTH * 2) / MAX_LABEL_OVERHANG) {
-      continue
-    }
-    const text = formatBp(nodeLengths.get(id)!)
-    const halfW = labelHalfWidth(text)
-    if (drawn >= (halfW * 2) / MAX_LABEL_OVERHANG) {
-      const screenX = x * scaleX + translateX
-      candidates.push({
-        label: {
-          key: `node:${id}`,
-          text,
-          x: screenX,
-          y: screenY,
-        },
-        box: boxAt(halfW, screenX, screenY),
-      })
+    if (drawn >= (MIN_LABEL_HALF_WIDTH * 2) / MAX_LABEL_OVERHANG) {
+      const text = formatBp(nodeLengths.get(id)!)
+      const halfW = labelHalfWidth(text)
+      const [first, ...further] =
+        drawn >= (halfW * 2) / MAX_LABEL_OVERHANG
+          ? spots.map(({ x, y }) => ({
+              label: { key: `node:${id}`, text, x, y },
+              box: boxAt(halfW, x, y),
+            }))
+          : []
+      if (first) {
+        candidates.push({ ...first, kept, further })
+      }
     }
   }
 
@@ -254,18 +285,21 @@ export function nodeLabelBudget(width: number, height: number) {
   )
 }
 
+// Each candidate at its first free spot while the budget lasts, a
+// placeholder's whatever the budget, as `placed` labels already spent it
 export function placeSizeLabels(
   candidates: SizeLabelCandidate[],
   take: TakeBox,
   budget = Infinity,
+  placed = 0,
 ) {
   const labels: GraphLabel[] = []
-  for (const { label, box } of candidates) {
-    if (labels.length >= budget) {
-      break
-    }
-    if (take(box)) {
-      labels.push(label)
+  for (const candidate of candidates) {
+    if (candidate.kept || placed + labels.length < budget) {
+      const spot = [candidate, ...candidate.further].find(s => take(s.box))
+      if (spot) {
+        labels.push(spot.label)
+      }
     }
   }
   return labels

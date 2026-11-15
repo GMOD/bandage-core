@@ -70,6 +70,7 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     genePins: [],
     labelsNodeSizes: true,
     nodeLengths: new Map(),
+    nodeById: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
     ...overrides,
@@ -143,12 +144,97 @@ test('a node writes its length only where the host turns lengths on, a placehold
           ],
         },
         nodeLengths: labelledNodeLengths(nodes, nodeLengths),
+        nodeById: new Map(nodes.map(n => [n.id, n])),
       }),
     ).sizes.map(l => l.text)
   expect(LABEL_DEFAULTS.nodeLengths).toBe(false)
   expect(lengths(undefined)).toEqual(['75 kb'])
   expect(lengths(false)).toEqual(['75 kb'])
   expect(lengths(true)).toEqual(['75 kb', '900 bp', '700 bp'])
+})
+
+// At KIV-2 (chr6:160,616,004-160,646,753) the small loop beside LPA lost its
+// "11.1 kb": LPA's name, placed first and slid left, took a box 0.1 px into
+// the loop's label, and with lengths on, twenty bigger nodes would have spent
+// the budget before it
+test("a placeholder's length is placed before a gene's name and every bigger node's length", () => {
+  const big = Array.from({ length: 20 }, (_, i) => ({
+    id: `n${i}`,
+    length: 50_000 + i * 1000,
+    at: { x: 20 + (i % 5) * 150, y: 250 + Math.floor(i / 5) * 40 },
+  }))
+  const nodes = [
+    { id: 'bb', name: 'bb', length: 30_000, depth: 8 },
+    {
+      id: 'loop',
+      name: 'loop',
+      length: 11_084,
+      depth: 1,
+      placeholder: true as const,
+    },
+    ...big.map(n => ({ id: n.id, name: n.id, length: n.length, depth: 1 })),
+  ]
+  const at = { x: 300, y: 100 }
+  const lpa = {
+    ...pin(at),
+    gene: { ...pin(at).gene, name: 'LPA', start: 0, end: 132_800 },
+    covered: 32_800 / 132_800,
+  }
+  const layout = layoutLabels(
+    source({
+      genePins: [lpa],
+      nodePositions: {
+        bb: [
+          { x: 100, y: 100 },
+          { x: 500, y: 100 },
+        ],
+        loop: [
+          { x: 330, y: 105 },
+          { x: 390, y: 105 },
+        ],
+        ...Object.fromEntries(
+          big.map(n => [n.id, [n.at, { x: n.at.x + 100, y: n.at.y }]]),
+        ),
+      },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  const texts = layout.sizes.map(l => l.text)
+  expect(texts[0]).toBe('11.1 kb')
+  expect(texts).toHaveLength(8)
+  expect(texts.slice(1)).toEqual(
+    big
+      .slice(-7)
+      .reverse()
+      .map(n => `${n.length / 1000} kb`),
+  )
+  expect(layout.genes.map(l => l.text)).toEqual(['LPA · 32.8 of 132.8 kb'])
+})
+
+test('a placeholder whose middle is taken writes its length further along its loop', () => {
+  const nodes = ['a', 'b'].map(id => ({
+    id,
+    name: id,
+    length: 11_084,
+    depth: 1,
+    placeholder: true as const,
+  }))
+  const line = [
+    { x: 300, y: 200 },
+    { x: 300, y: 300 },
+  ]
+  const layout = layoutLabels(
+    source({
+      nodePositions: { a: line, b: line },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(layout.sizes.map(l => [l.text, l.y])).toEqual([
+    ['11.1 kb', 250],
+    ['11.1 kb', 225],
+  ])
 })
 
 test('a row label holds its space against a gene pin', () => {

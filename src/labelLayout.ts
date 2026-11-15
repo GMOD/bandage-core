@@ -1,4 +1,9 @@
-import { graphLabels, rowLabelBox } from './graphLabels'
+import {
+  nodeLabelBudget,
+  placeSizeLabels,
+  rowLabelBox,
+  sizeLabelCandidates,
+} from './graphLabels'
 import { HALO_FACTOR } from './halo'
 import { legendBox } from './legendCorner'
 import {
@@ -13,7 +18,7 @@ import { nodesUnderBox } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
-import type { GraphLabel } from './graphLabels'
+import type { GraphLabel, NodeKinds } from './graphLabels'
 import type { LegendCorner } from './legendCorner'
 import type { Box, PlacedLabel } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
@@ -52,6 +57,8 @@ export interface LabelLayoutSource {
   labelsNodeSizes: boolean
   // the lengths written on the drawing: labelledNodeLengths
   nodeLengths: Map<string, number>
+  // the drawn nodes by id, which says which are placeholders
+  nodeById: NodeKinds | undefined
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
 }
@@ -152,8 +159,10 @@ function byExtent<T>(items: T[], extent: (item: T) => number) {
   return [...items].sort((a, b) => extent(b) - extent(a))
 }
 
-// The order is what survives a crowd: the bubble's name, then the gene's, and
-// a node's length last.
+// The order is what survives a crowd: a placeholder's length, which has no
+// place but beside its loop and no other words saying how much sequence the
+// loop stands in for; the bubble's name; the gene's, which slides and stacks
+// clear; and any other node's length last.
 export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   const { paneWidth: width, canvasHeight: height, translateX, translateY } = m
   const { scaleX, scaleY } = m.axisScale
@@ -181,6 +190,24 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     })
   }
   const take = occupancy(frame, reserved)
+  const sizeCandidates =
+    m.nodePositions && m.labelsNodeSizes
+      ? sizeLabelCandidates({
+          nodePositions: m.nodePositions,
+          nodeLengths: m.nodeLengths,
+          nodeById: m.nodeById,
+          alleleDeletions: m.alleleDeletions,
+          axis: m.axisScale,
+          translateX,
+          translateY,
+          width,
+          height,
+        })
+      : []
+  const placeholderSizes = placeSizeLabels(
+    sizeCandidates.filter(c => c.kept),
+    take,
+  )
 
   // On a row layout a bubble's name goes in the band above the top row, which
   // is the reference it varies, and stays at the pane's top edge once that row
@@ -238,20 +265,15 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     take,
     reserved,
   )
-  const sizes =
-    m.nodePositions && m.labelsNodeSizes
-      ? graphLabels({
-          nodePositions: m.nodePositions,
-          nodeLengths: m.nodeLengths,
-          alleleDeletions: m.alleleDeletions,
-          axis: m.axisScale,
-          translateX,
-          translateY,
-          width,
-          height,
-          take,
-        })
-      : []
+  const sizes = [
+    ...placeholderSizes,
+    ...placeSizeLabels(
+      sizeCandidates.filter(c => !c.kept),
+      take,
+      nodeLabelBudget(width, height),
+      placeholderSizes.length,
+    ),
+  ]
   return {
     bubbles,
     ticks,
