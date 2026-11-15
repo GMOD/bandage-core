@@ -54,6 +54,7 @@ const PUBLISHED = [
   'cutWindowGFA',
   'cutsWholeWalks',
   'deletionEdges',
+  'depthKey',
   'drawTubeMap',
   'drawingBounds',
   'edgeHoverText',

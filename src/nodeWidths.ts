@@ -113,14 +113,29 @@ export function frequencyKey(contigThickness: number) {
   }))
 }
 
-function depthWidthFactor(node: GraphNode, mean: number) {
-  if (!(mean > 0) || !(node.depth > 0)) {
+function depthWidthFactor(depth: number, mean: number) {
+  if (!(mean > 0) || !(depth > 0)) {
     return 1
   }
-  return Math.min(
-    MAX_FACTOR,
-    Math.max(MIN_FACTOR, Math.sqrt(node.depth / mean)),
-  )
+  return Math.min(MAX_FACTOR, Math.max(MIN_FACTOR, Math.sqrt(depth / mean)))
+}
+
+// The ends of the depth scale, thickest first, each as wide as a node of that
+// depth draws; none where every node has one depth
+export function depthKey(graph: Graph, contigThickness: number) {
+  let min = Infinity
+  let max = -Infinity
+  for (const { depth } of graph.nodes) {
+    min = Math.min(min, depth)
+    max = Math.max(max, depth)
+  }
+  const mean = meanDepth(graph)
+  return min < max
+    ? [max, min].map(depth => ({
+        depth,
+        widthPx: contigThickness * depthWidthFactor(depth, mean),
+      }))
+    : []
 }
 
 // How wide a node is drawn, in screen px. One function for the geometry and
@@ -135,7 +150,7 @@ export function nodeWidthPx(
   return (
     contigThickness *
     (nodeWidth === 'depth'
-      ? depthWidthFactor(node, norm)
+      ? depthWidthFactor(node.depth, norm)
       : nodeWidth === 'frequency'
         ? frequencyWidthFactor(node, norm)
         : 1)

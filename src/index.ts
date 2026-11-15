@@ -40,6 +40,7 @@ export { COLOR_SCHEMES, resolveColorScheme } from './colorSchemes'
 export type { ColorScheme, ResolvedColorScheme } from './colorSchemes'
 export {
   NODE_WIDTHS,
+  depthKey,
   frequencyKey,
   haplotypeCount,
   maxNodeWidthPx,
