@@ -373,6 +373,7 @@ export function figureSvg(
       nodePositions: layout.nodePositions,
       labelsNodeSizes: !layout.tubeMap && !highlight,
       nodeLengths,
+      nodeById,
       alleleDeletions: layout.alleleDeletions ?? [],
       positionsVersion: 0,
     })
