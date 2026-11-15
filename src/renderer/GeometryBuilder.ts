@@ -1233,6 +1233,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // available, unused, and says what it draws: sequence that is not there.
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
+    const skipMark = isDeletion ? { skip: true } : {}
     const dashesOf = (curves: BezierCurve[]) =>
       dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
@@ -1241,11 +1242,11 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       color: number,
     ) => {
       if (!dashed) {
-        edgeCurves.push({ curves, thickness, color })
+        edgeCurves.push({ curves, thickness, color, ...skipMark })
         return
       }
       for (const dash of dashesOf(curves)) {
-        edgeCurves.push({ curves: dash.curves, thickness, color })
+        edgeCurves.push({ curves: dash.curves, thickness, color, ...skipMark })
       }
     }
     const laneStroke = (
@@ -1269,6 +1270,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         offsetX,
         endNormal,
         endOffsetX,
+        ...skipMark,
       })
     }
     const arrowOn = (curves: BezierCurve[]) => {

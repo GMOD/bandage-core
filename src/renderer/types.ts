@@ -18,6 +18,8 @@ export interface EdgeCurveBatch {
   offsetX?: number
   endNormal?: LaneSlide['normal']
   endOffsetX?: number
+  // a stroke of a link that skips reference sequence (deletionEdges())
+  skip?: boolean
 }
 
 export interface LaneSlide {

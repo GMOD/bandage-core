@@ -1,5 +1,6 @@
 import { Canvas2DRenderer, arrowheadOutline } from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
+import { abgrToCssRgba } from './colorBits'
 import { recordingCanvas } from './recordingCanvas'
 
 import type { TransformUniform } from './types'
@@ -286,6 +287,81 @@ test('a placeholder is painted under every loaded node, however wide they are', 
   expect(fill).toBeLessThan(rim)
   expect(rim).toBeLessThan(reference)
   expect(allele).toBeLessThan(reference)
+})
+
+function skipBatch(scale: number) {
+  return buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 40, y: 0 },
+        { x: 50, y: 0 },
+      ],
+      'C+': [
+        { x: 80, y: 0 },
+        { x: 90, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes,
+      edges: [
+        { from: 'A+', to: 'B+' },
+        { from: 'B+', to: 'C+' },
+        { from: 'A+', to: 'C+' },
+      ],
+    },
+    nodeById: new Map(nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(scale),
+    deletions: new Map([[2, ['B+']]]),
+  })
+}
+
+function paintsOf(batch: ReturnType<typeof skipBatch>) {
+  const css = (edge: number) =>
+    abgrToCssRgba(batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.color)
+  return {
+    link: css(0),
+    skip: css(2),
+    node: abgrToCssRgba(batch.nodeStrokes[0]!.color),
+  }
+}
+
+describe('a link that skips the reference is painted over the nodes it skips', () => {
+  test.each([
+    ['dashed', 1],
+    ['too short to dash', 0.3],
+  ])('%s', (_, scale) => {
+    const { renderer, strokes } = makeRenderer()
+    const batch = skipBatch(scale)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+
+    const { link, node, skip } = paintsOf(batch)
+    expect(skip).not.toBe(link)
+    expect(strokes).toEqual([link, node, skip])
+  })
+
+  test('a hovered node is painted over the skip', () => {
+    const { renderer, strokes } = makeRenderer()
+    const batch = skipBatch(1)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.setNodeHighlights(new Map([['B+', 1.4]]))
+    renderer.render([1, 1, 1, 1])
+
+    const { link, node, skip } = paintsOf(batch)
+    expect(strokes).toEqual([link, node, skip, expect.any(String)])
+    expectBrighter(strokes[3]!, node)
+  })
 })
 
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it

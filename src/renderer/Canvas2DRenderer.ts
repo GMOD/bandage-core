@@ -21,6 +21,8 @@ import type {
 // same 15k-node graph took 414 ms a frame as one fill per mesh triangle and 11
 // ms as batched strokes (agent-docs/GRAPH_SCALE_AND_LOD.md). Highlighted things
 // are drawn last, in their own paths, so they sit on top of what they brighten.
+// A link that skips reference sequence is drawn over the nodes it skips, since
+// the dashes are the only mark a deletion has; a plain link lies under them.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
@@ -116,11 +118,18 @@ export class Canvas2DRenderer implements Renderer {
     }
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    const { edges, nodes, arrows } = this.paintedGroups(batch)
-    for (const { color, items } of edges) {
+    const { links, nodes, skips, liftedNodes, arrows } =
+      this.paintedGroups(batch)
+    for (const { color, items } of links) {
       this.strokeCurves(items, color, t)
     }
     for (const { color, items } of nodes) {
+      this.strokeNodes(items, color, t)
+    }
+    for (const { color, items } of skips) {
+      this.strokeCurves(items, color, t)
+    }
+    for (const { color, items } of liftedNodes) {
       this.strokeNodes(items, color, t)
     }
     for (const { color, items } of arrows) {
@@ -138,23 +147,28 @@ export class Canvas2DRenderer implements Renderer {
     const edgeRun = this.edgeRun(batch.edgeCurveRuns)
     const arrowRun = this.edgeRun(batch.arrowRuns)
     const lifted = this.liftedStrokes(batch)
+    const edges = groupByPaint(batch.edgeCurves, (e, i) => ({
+      color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
+      weight: e.thickness,
+      last: inRun(edgeRun, i),
+      skip: e.skip === true,
+    }))
+    const nodes = widestFirst(
+      groupByPaint(batch.nodeStrokes, (s, i) => {
+        const f = lifted.get(i)
+        return {
+          color: f === undefined ? s.color : brightenAbgr(s.color, f),
+          weight: s.thickness,
+          last: f !== undefined,
+          placeholder: s.placeholder === true,
+        }
+      }),
+    )
     return (this.painted = {
-      edges: groupByPaint(batch.edgeCurves, (e, i) => ({
-        color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
-        weight: e.thickness,
-        last: inRun(edgeRun, i),
-      })),
-      nodes: widestFirst(
-        groupByPaint(batch.nodeStrokes, (s, i) => {
-          const f = lifted.get(i)
-          return {
-            color: f === undefined ? s.color : brightenAbgr(s.color, f),
-            weight: s.thickness,
-            last: f !== undefined,
-            placeholder: s.placeholder === true,
-          }
-        }),
-      ),
+      links: edges.filter(g => !g.skip),
+      nodes: nodes.filter(g => !g.last),
+      skips: edges.filter(g => g.skip),
+      liftedNodes: nodes.filter(g => g.last),
       arrows: groupByPaint(batch.arrows, (a, i) => ({
         color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
         weight: 0,
@@ -339,11 +353,15 @@ interface Paint {
   last: boolean
   // drawn under every other node, so what is loaded lies over what is not
   placeholder?: boolean
+  // a link drawn over the nodes rather than under them
+  skip?: boolean
 }
 
 interface PaintedGroups {
-  edges: Group<EdgeCurveBatch>[]
+  links: Group<EdgeCurveBatch>[]
   nodes: Group<NodeStroke>[]
+  skips: Group<EdgeCurveBatch>[]
+  liftedNodes: Group<NodeStroke>[]
   arrows: Group<Arrowhead>[]
 }
 
@@ -352,6 +370,7 @@ interface Group<T> {
   weight: number
   last: boolean
   placeholder: boolean
+  skip: boolean
   items: T[]
 }
 
@@ -365,14 +384,20 @@ function groupByPaint<T>(
   const deferred = new Map<string, Group<T>>()
   for (let i = 0, l = items.length; i < l; i++) {
     const item = items[i]!
-    const { color, weight, last, placeholder = false } = paintOf(item, i)
+    const {
+      color,
+      weight,
+      last,
+      placeholder = false,
+      skip = false,
+    } = paintOf(item, i)
     const into = last ? deferred : groups
-    const key = `${color}:${weight}:${placeholder}`
+    const key = `${color}:${weight}:${placeholder}:${skip}`
     const group = into.get(key)
     if (group) {
       group.items.push(item)
     } else {
-      into.set(key, { color, weight, last, placeholder, items: [item] })
+      into.set(key, { color, weight, last, placeholder, skip, items: [item] })
     }
   }
   return [...groups.values(), ...deferred.values()]
