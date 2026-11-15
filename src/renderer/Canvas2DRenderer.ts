@@ -147,12 +147,13 @@ export class Canvas2DRenderer implements Renderer {
     const edgeRun = this.edgeRun(batch.edgeCurveRuns)
     const arrowRun = this.edgeRun(batch.arrowRuns)
     const lifted = this.liftedStrokes(batch)
-    const edges = groupByPaint(batch.edgeCurves, (e, i) => ({
+    const edgePaint = (e: EdgeCurveBatch, i: number) => ({
       color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
       weight: e.thickness,
       last: inRun(edgeRun, i),
       skip: e.skip === true,
-    }))
+    })
+    const skipOrder = longestSkipsFirst(batch.edgeCurves)
     const nodes = widestFirst(
       groupByPaint(batch.nodeStrokes, (s, i) => {
         const f = lifted.get(i)
@@ -165,9 +166,12 @@ export class Canvas2DRenderer implements Renderer {
       }),
     )
     return (this.painted = {
-      links: edges.filter(g => !g.skip),
+      links: groupByPaint(batch.edgeCurves, edgePaint).filter(g => !g.skip),
       nodes: nodes.filter(g => !g.last),
-      skips: edges.filter(g => g.skip),
+      skips: paintRuns(
+        skipOrder.map(i => batch.edgeCurves[i]!),
+        (e, k) => edgePaint(e, skipOrder[k]!),
+      ),
       liftedNodes: nodes.filter(g => g.last),
       arrows: groupByPaint(batch.arrows, (a, i) => ({
         color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
@@ -401,6 +405,45 @@ function groupByPaint<T>(
     }
   }
   return [...groups.values(), ...deferred.values()]
+}
+
+// Items in their own order, a group per run of one paint, with the `last`
+// ones after the rest
+function paintRuns<T>(
+  items: T[],
+  paintOf: (item: T, index: number) => Paint,
+): Group<T>[] {
+  const runs: Group<T>[] = []
+  const deferred: Group<T>[] = []
+  for (let i = 0, l = items.length; i < l; i++) {
+    const item = items[i]!
+    const {
+      color,
+      weight,
+      last,
+      placeholder = false,
+      skip = false,
+    } = paintOf(item, i)
+    const into = last ? deferred : runs
+    const run = into.at(-1)
+    if (
+      run?.color === color &&
+      run.weight === weight &&
+      run.placeholder === placeholder &&
+      run.skip === skip
+    ) {
+      run.items.push(item)
+    } else {
+      into.push({ color, weight, last, placeholder, skip, items: [item] })
+    }
+  }
+  return [...runs, ...deferred]
+}
+
+function longestSkipsFirst(edgeCurves: EdgeCurveBatch[]) {
+  return edgeCurves
+    .flatMap((e, i) => (e.skip ? [i] : []))
+    .toSorted((a, b) => (edgeCurves[b]!.span ?? 0) - (edgeCurves[a]!.span ?? 0))
 }
 
 function widestFirst<T>(groups: Group<T>[]) {

@@ -1163,7 +1163,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // plain headless stroke where shorter. Its length along the curve would
     // count the legs a short skip rises and falls on, whose dashes are dots
     // under a head: a dart
-    const dashed = isDeletion && spanPx(baseCurves, axis) >= MIN_DASHED_SKIP_PX
+    const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
+    const dashed = arcPx >= MIN_DASHED_SKIP_PX
     const onWalk = highlight?.edgeIndexes.has(ei) ?? false
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks
@@ -1220,7 +1221,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // available, unused, and says what it draws: sequence that is not there.
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
-    const skipMark = deletions?.has(ei) ? { skip: true } : {}
+    const skipMark = deletions?.has(ei) ? { skip: true, span: arcPx } : {}
     const dashesOf = (curves: BezierCurve[]) =>
       dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (

@@ -364,6 +364,60 @@ describe('a link that skips the reference is painted over the nodes it skips', (
   })
 })
 
+test('a short skip is painted after a long one it crosses', () => {
+  const four = [...nodes, { id: 'D+', name: 'D', length: 10, depth: 1 }]
+  const batch = buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 12, y: 0 },
+        { x: 14, y: 0 },
+      ],
+      'C+': [
+        { x: 16, y: 0 },
+        { x: 26, y: 0 },
+      ],
+      'D+': [
+        { x: 100, y: 0 },
+        { x: 110, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes: four,
+      edges: [
+        { from: 'A+', to: 'B+' },
+        { from: 'B+', to: 'C+' },
+        { from: 'C+', to: 'D+' },
+        { from: 'A+', to: 'C+' },
+        { from: 'A+', to: 'D+' },
+      ],
+    },
+    nodeById: new Map(four.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    deletions: new Map([
+      [3, ['B+']],
+      [4, ['B+', 'C+']],
+    ]),
+  })
+  const widthOf = (edge: number) =>
+    batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness * 2
+  const { renderer, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(batch)
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  expect(widthOf(3)).not.toBe(widthOf(4))
+  expect(lineWidths.slice(-2)).toEqual([widthOf(4), widthOf(3)])
+})
+
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it
 // is the one term the dpr-scaled transform does not reach. Left alone, every
 // tube, connector and arrowhead came out 1/dpr of its weight on a hidpi

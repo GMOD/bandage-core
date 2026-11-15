@@ -990,7 +990,7 @@ describe('arrowhead placement', () => {
     expect(link.strokes[0]!.skip).toBeUndefined()
     const overNodes = {
       ...link,
-      strokes: [{ ...link.strokes[0]!, skip: true }],
+      strokes: [{ ...link.strokes[0]!, skip: true, span: 0 }],
     }
     expect(skipAt(0.05, [])).toEqual(overNodes)
     expect(skipAt(0.05, ['M+'])).toEqual(overNodes)
