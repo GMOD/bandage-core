@@ -89,6 +89,10 @@ export interface WalkPass {
   reversed: boolean
   // of `bp`, the bp of steps on the reference from elsewhere
   fromElsewhereBp?: number
+  // where it has `replacedBp`, its bp on the reference in the cut, and its bp
+  // in gaps
+  onReferenceBp?: number
+  gapBp?: number
 }
 
 // A step of a row's bar through a graph node: its bp offset from the bar's
@@ -127,6 +131,8 @@ export interface WalkRow {
   // which leaves it no length over the window: the reference's bp between the
   // walk's flanks, which its `bp` replaces
   replacedBp?: number
+  // with `replacedBp`, the bp of the pass on the reference in the cut
+  onReferenceBp?: number
   // each further pass the walk makes over the window, in its contig's order,
   // where it passes more than once; the row draws its first
   morePasses?: WalkPass[]

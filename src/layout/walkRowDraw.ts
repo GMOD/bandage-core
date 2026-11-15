@@ -166,6 +166,11 @@ function steplessText(
     : ''
 }
 
+type Crossing = Pick<
+  WalkPass,
+  'bp' | 'onReferenceBp' | 'fromElsewhereBp' | 'gapBp' | 'reversed'
+>
+
 // The text at the end of a bar: its length, what it carries against the
 // reference row, the reference from elsewhere it carries, and what the cut
 // left out, by cause where its gaps state one. A walk reaching one flank
@@ -182,6 +187,8 @@ export function walkRowReadout(
     | 'windowBp'
     | 'replacedBp'
     | 'fromElsewhereBp'
+    | 'onReferenceBp'
+    | 'axis'
     | 'morePasses'
     | 'stop'
     | 'departures'
@@ -224,21 +231,45 @@ export function walkRowReadout(
     : ''
   if (complete) {
     const of = reference.windowBp ?? reference.bp
-    const carried = (pass: Pick<WalkPass, 'bp' | 'fromElsewhereBp'>) => {
+    // A pass across a window edge by what it holds: its own bp off the
+    // reference, its bp on the reference, the reference's from elsewhere, and
+    // for a pass the row does not draw, or one holding nothing else, its bp
+    // in gaps, which the row's parts state for the pass it draws
+    const replacing = (pass: Crossing, replacedBp: number, drawn: boolean) => {
+      const on = pass.onReferenceBp ?? 0
       const from = pass.fromElsewhereBp ?? 0
-      const own = pass.bp - from
-      return [
-        ...(own > 0 || from === 0 ? [`its own ${sized(own)}`] : []),
+      const gaps = pass.gapBp ?? 0
+      const own = pass.bp - on - from - gaps
+      const alone = own <= 0 && on === 0 && from === 0
+      const inPlace =
+        own > 0 || from > 0 || gaps > 0
+          ? ` in place of ${name}'s ${sized(replacedBp)}`
+          : ''
+      const held = [
+        ...(own > 0 || pass.bp === 0 ? [`its own ${sized(own)}`] : []),
+        ...(on > 0 ? [`${sized(on)} on ${name}`] : []),
         ...(from > 0 ? [elsewhereText(from)] : []),
-      ].join(' and ')
+        ...(gaps > 0 && (!drawn || alone)
+          ? [`${sized(gaps)} ${GAP_CAUSE_TEXT.unread}`]
+          : []),
+      ]
+      const onAt = held.findIndex(text => text.endsWith(` on ${name}`))
+      return `${held
+        .map((text, i) =>
+          i === onAt && pass.reversed
+            ? `${text}, reversed${i < held.length - 1 || inPlace ? ',' : ''}`
+            : text,
+        )
+        .join(' and ')}${inPlace}`
     }
     const lengthOf = (
-      pass: Pick<WalkPass, 'bp' | 'replacedBp' | 'fromElsewhereBp'>,
+      pass: Crossing & Pick<WalkPass, 'replacedBp'>,
       length: number,
+      drawn: boolean,
     ) => {
       const delta = length - of
       return pass.replacedBp !== undefined
-        ? `${carried(pass)} in place of ${name}'s ${sized(pass.replacedBp)}`
+        ? replacing(pass, pass.replacedBp, drawn)
         : `${sized(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
     }
     const length =
@@ -248,10 +279,15 @@ export function walkRowReadout(
     const again = (row.morePasses ?? [])
       .map(
         pass =>
-          ` · passes again${pass.reversed ? ', reversed' : ''}: ${lengthOf(pass, pass.windowBp)}`,
+          ` · passes again${pass.reversed ? ', reversed' : ''}: ${lengthOf({ ...pass, reversed: false }, pass.windowBp, false)}`,
       )
       .join('')
-    return `${lengthOf(row, length)}${again}${parts}${after}${called}`
+    const first = {
+      ...row,
+      gapBp,
+      reversed: row.axis?.reversed ?? false,
+    }
+    return `${lengthOf(first, length, true)}${again}${parts}${after}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   if (stop?.contigEnds && bp === 0) {

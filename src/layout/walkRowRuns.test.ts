@@ -1006,9 +1006,9 @@ describe('a walk row over a window between 1 kb nodes', () => {
         ],
       ),
     ).toEqual({
-      'A#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
+      'A#1': "its own 1.0 kb and 2.0 kb on GRCh38 in place of GRCh38's 3.0 kb",
       'B#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
-      'G#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
+      'G#1': "its own 1.0 kb and 2.0 kb on GRCh38 in place of GRCh38's 3.0 kb",
       'I#1': '2.3 kb (+300 bp)',
       'C#1': '500 bp (−1.5 kb)',
     })

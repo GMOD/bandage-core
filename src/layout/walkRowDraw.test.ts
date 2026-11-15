@@ -264,6 +264,61 @@ test('the reference from elsewhere under a kilobase reads in bp rather than roun
   )
 })
 
+test('a pass across a window edge calls only its bases off the reference its own, and names those on it and their direction', () => {
+  const reference = { bp: 6600, windowBp: 6600, sample: 'GRCh38' }
+  const axis = { contig: 'c', start: 0, reversed: true }
+  expect(
+    walkRowReadout(
+      {
+        bp: 6600,
+        replacedBp: 6600,
+        onReferenceBp: 6600,
+        gapBp: 0,
+        complete: true,
+        axis,
+      },
+      reference,
+    ),
+  ).toBe('6.6 kb on GRCh38, reversed')
+  expect(
+    walkRowReadout(
+      {
+        bp: 1600,
+        replacedBp: 1400,
+        onReferenceBp: 1200,
+        gapBp: 0,
+        complete: true,
+      },
+      reference,
+    ),
+  ).toBe("its own 400 bp and 1.2 kb on GRCh38 in place of GRCh38's 1.4 kb")
+  expect(
+    walkRowReadout(
+      {
+        bp: 1700,
+        replacedBp: 1400,
+        onReferenceBp: 1200,
+        gapBp: 500,
+        complete: true,
+        axis,
+        morePasses: [
+          {
+            bp: 900,
+            windowBp: 0,
+            reversed: true,
+            replacedBp: 900,
+            onReferenceBp: 600,
+            gapBp: 300,
+          },
+        ],
+      },
+      reference,
+    ),
+  ).toBe(
+    "1.2 kb on GRCh38, reversed, in place of GRCh38's 1.4 kb · passes again, reversed: 600 bp on GRCh38 and 300 bp not drawn in place of GRCh38's 900 bp, of which 500 bp out of view",
+  )
+})
+
 test('a partial walk states a lower bound and why it stops', () => {
   const reference = { bp: 700 }
   const call = { bp: 8600 }

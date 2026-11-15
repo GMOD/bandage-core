@@ -1074,6 +1074,8 @@ export function walkRowRuns(
       let measured = 0
       let total = 0
       let elsewhereBp = 0
+      let onBp = 0
+      let unreadBp = 0
       let crosses = false
       let away = false
       let left = Number.NaN
@@ -1088,11 +1090,13 @@ export function walkRowRuns(
         if (Number.isNaN(place)) {
           measured += outsideWindow(at) ? 0 : len
           elsewhereBp += fromElsewhere(index) ? len : 0
+          unreadBp += id < 0 ? len : 0
           away = true
         } else {
           crosses ||= away && across(at, place)
           away = false
           measured += len - between(place, place + len)
+          onBp += len
           left = place + len === lastPlace ? place : place + len
           lastPlace = place
         }
@@ -1105,6 +1109,8 @@ export function walkRowRuns(
         crosses,
         reversed,
         fromElsewhereBp: elsewhereBp,
+        onReferenceBp: onBp,
+        gapBp: unreadBp,
       }
     }
 
@@ -1207,14 +1213,20 @@ export function walkRowRuns(
         windowBp: m.windowBp,
         reversed: m.reversed,
         ...(m.crosses
-          ? { replacedBp: placeStart(p.i1) - placedEnd(p.i0) }
+          ? {
+              replacedBp: placeStart(p.i1) - placedEnd(p.i0),
+              onReferenceBp: m.onReferenceBp,
+              gapBp: m.gapBp,
+            }
           : {}),
         ...(m.fromElsewhereBp > 0
           ? { fromElsewhereBp: m.fromElsewhereBp }
           : {}),
       }
     }
-    const measured: Pick<WalkPass, 'windowBp' | 'replacedBp'> | undefined =
+    const measured:
+      | Pick<WalkPass, 'windowBp' | 'replacedBp' | 'onReferenceBp'>
+      | undefined =
       flankFrom >= 0
         ? passMeta({ i0: flankFrom, i1: flankTo })
         : loneFlank >= 0
@@ -1246,7 +1258,10 @@ export function walkRowRuns(
           gapBp,
           complete,
           ...(measured?.replacedBp !== undefined
-            ? { replacedBp: measured.replacedBp }
+            ? {
+                replacedBp: measured.replacedBp,
+                onReferenceBp: measured.onReferenceBp ?? 0,
+              }
             : measured
               ? { windowBp: measured.windowBp }
               : {}),
