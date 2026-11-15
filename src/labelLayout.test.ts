@@ -288,6 +288,31 @@ test('a placeholder whose every spot is taken stacks its length beside the neare
   expect(sizeLeader(onLoop!)).toBeUndefined()
 })
 
+// At the amylase locus the stacked length first stood on the reference bar
+// beside the loops, where it read as that bar's length
+test("a stacked placeholder length keeps off other nodes' ink where it can", () => {
+  const nodes = placeholders([75_000, 75_000])
+  const spot = [
+    { x: 300, y: 200 },
+    { x: 324, y: 200 },
+  ]
+  const below = [
+    { x: 250, y: 216 },
+    { x: 380, y: 216 },
+  ]
+  const lengths = new Map(nodes.map(n => [n.id, n.length]))
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: { p0: spot, p1: spot, bb: below },
+      nodeLengths: lengths,
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes.map(l => l.text)).toEqual(['75 kb', '75 kb'])
+  expect(sizes[1]!.y).toBe(184)
+  expect(sizes[1]!.leader).toBeDefined()
+})
+
 // The amylase locus under FMMM drew three 75 kb loops crossing beside one
 // another, and the third lost its length
 test('three loops crossing in one place each keep their length, none over another', () => {

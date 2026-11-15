@@ -210,6 +210,7 @@ interface SizeLabelArgs {
 }
 
 export interface SizeLabelCandidate {
+  id: string
   label: GraphLabel
   box: Box
   // a placeholder's length, placed before the rest and outside the budget,
@@ -326,6 +327,7 @@ export function sizeLabelCandidates({
       if (first) {
         candidates.push({
           ...first,
+          id,
           kept,
           further,
           stacked: kept
@@ -352,20 +354,27 @@ export function nodeLabelBudget(width: number, height: number) {
 }
 
 // Each candidate at its first free spot while the budget lasts, a
-// placeholder's whatever the budget, stacked off its loop where no spot along
-// it is free, as `placed` labels already spent it
+// placeholder's whatever the budget, as `placed` labels already spent it.
+// Where no spot along a placeholder's loop is free, its length stacks off the
+// loop, clear of every other node's ink where `clear` finds a spot that is,
+// since a length over another node reads as that node's; else at the nearest
+// free spot.
 export function placeSizeLabels(
   candidates: SizeLabelCandidate[],
   take: TakeBox,
   budget = Infinity,
   placed = 0,
+  clear: (box: Box, id: string) => boolean = () => true,
 ) {
   const labels: GraphLabel[] = []
   for (const candidate of candidates) {
     if (candidate.kept || placed + labels.length < budget) {
+      const along = [candidate, ...candidate.further].find(s => take(s.box))
+      const stacked = along ? undefined : candidate.stacked?.()
       const spot =
-        [candidate, ...candidate.further].find(s => take(s.box)) ??
-        candidate.stacked?.().find(s => take(s.box))
+        along ??
+        stacked?.find(s => clear(s.box, candidate.id) && take(s.box)) ??
+        stacked?.find(s => take(s.box))
       if (spot) {
         labels.push(spot.label)
       }

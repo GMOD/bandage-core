@@ -200,9 +200,26 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
           height,
         })
       : []
+  const ink = m.contigThickness / 2
+  const nodesUnder = nodesUnderBox(
+    m.nodePositions ?? {},
+    { scaleX, scaleY, translateX, translateY },
+    m.positionsVersion,
+  )
   const placeholderSizes = placeSizeLabels(
     sizeCandidates.filter(c => c.kept),
     take,
+    Infinity,
+    0,
+    (box, id) =>
+      [
+        ...nodesUnder({
+          x0: box.x0 - ink,
+          x1: box.x1 + ink,
+          y0: box.y0 - ink,
+          y1: box.y1 + ink,
+        }),
+      ].every(under => under === id),
   )
 
   // On a row layout a bubble's name goes in the band above the top row, which
@@ -247,16 +264,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     .filter(t => t.x >= 0 && t.x <= width && t.y >= 0 && t.y <= height)
 
   const genes = placeLabels(
-    geneLabelCandidates(
-      m.genePins,
-      screen,
-      m.contigThickness,
-      nodesUnderBox(
-        m.nodePositions ?? {},
-        { scaleX, scaleY, translateX, translateY },
-        m.positionsVersion,
-      ),
-    ),
+    geneLabelCandidates(m.genePins, screen, m.contigThickness, nodesUnder),
     frame,
     take,
     reserved,
