@@ -38,6 +38,10 @@ export interface WalkHighlight {
   // (gfa/departures.ts gapParts)
   missingBp: number
   ownBp: number
+  // what ownBp is measured off, and Graph.revisited, which says whether it is
+  // the walk's own sequence or only off that path (gfa/departures.ts ownIsExact)
+  referencePath: string | undefined
+  revisited: number | undefined
   // where a walk-file cut states its stretches: bp it read and kept out, and
   // bp of the contig it did not read
   readBp?: number
@@ -307,6 +311,8 @@ function highlightOf(
     ),
     missingBp,
     ownBp,
+    referencePath: graph.referencePath,
+    revisited: graph.revisited,
     ...(stated.length > 0 ? { readBp, unreadBp } : {}),
   }
 }

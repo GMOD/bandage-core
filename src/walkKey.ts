@@ -1,5 +1,6 @@
-import { GAP_CAUSE_TEXT, OUTSIDE_TEXT } from './gfa/departures'
+import { GAP_CAUSE_TEXT, OUTSIDE_TEXT, ownGapText } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
+import { panSNHaplotype } from './pansn'
 
 import type { LiftedWalk } from './walkHighlight'
 
@@ -41,7 +42,14 @@ export function walkKey(
   const gaps = [
     [walk.unloadedBp, 'whose nodes are not shown'],
     [walk.missingBp, GAP_CAUSE_TEXT.missing],
-    [walk.ownBp, GAP_CAUSE_TEXT.own],
+    [
+      walk.ownBp,
+      ownGapText(
+        walk.referencePath &&
+          (panSNHaplotype(walk.referencePath) ?? walk.referencePath),
+        walk.revisited,
+      ),
+    ],
     [
       walk.readBp === undefined ? 0 : unstated - walk.readBp,
       GAP_CAUSE_TEXT.unread,

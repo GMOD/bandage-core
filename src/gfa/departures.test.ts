@@ -432,17 +432,27 @@ test('a row walked backwards meets the parts of a gap last first', () => {
   ])
 })
 
-test('a lifted walk states the bp its departures say the graph lacks', () => {
-  const graph = loadGraph(
-    twoFragments([departure({ missingBp: 300 })], { after: 400 }),
-    'cut',
-    { referencePath: REFERENCE },
-  )
-  const [walk] = walkLift(graph, [{ walk: 'HG002#1#chr1' }])!.walks
-  expect(walk).toMatchObject({ missingBp: 300, ownBp: 300 })
-  expect(walkKey(walk!).gaps).toBe(
+test('a lifted walk states the bp its departures say the graph lacks, and its bp off the reference as its own only where the walk file counts no node the reference passes twice', () => {
+  const keyOf = (revisited: number) => {
+    const graph = loadGraph(
+      {
+        ...twoFragments([departure({ missingBp: 300 })], { after: 400 }),
+        revisited,
+      },
+      'cut',
+      { referencePath: REFERENCE },
+    )
+    const [walk] = walkLift(graph, [{ walk: 'HG002#1#chr1' }])!.walks
+    expect(walk).toMatchObject({ missingBp: 300, ownBp: 300 })
+    return walkKey(walk!).gaps
+  }
+  expect(keyOf(0)).toBe(
     ', 300 bp left out of graph, 300 bp own sequence not drawn, 400 bp out of view',
   )
+  expect(keyOf(2)).toBe(
+    ", 300 bp left out of graph, 300 bp off GRCh38#0's path and not drawn, 400 bp out of view",
+  )
+  expect(keyOf(Number.NaN)).toBe(keyOf(2))
 })
 
 test('a gap with no departure in it is out of view', () => {
