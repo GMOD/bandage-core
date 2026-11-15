@@ -127,7 +127,8 @@ reads them.
   pane it hands `fitTransform`: under the stress engine the gap kept between the
   reference and what lies beside it, and under `compress` the shortest loop off
   it, are sized in px at that fit. The layout is the same for the same fit, and
-  a host that states none gets one sized for the default figure
+  a host that states none gets one sized for the default figure's width and a
+  JBrowse track's default height
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths
