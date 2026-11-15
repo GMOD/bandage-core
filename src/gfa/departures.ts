@@ -129,7 +129,11 @@ export function roughBp(bp: number) {
  * writer's choice. `no step on GRCh38 across 54 kb · 120 kb of its own, 3 kb
  * left out of graph`
  */
-export function departureText(d: Departure, reference = 'the reference') {
+export function departureText(
+  d: Departure,
+  reference = 'the reference',
+  revisited?: number,
+) {
   const { start, end } = departureSpan(d)
   const apart = roughBp(end - start)
   const kind = departureKind(d)
@@ -143,7 +147,7 @@ export function departureText(d: Departure, reference = 'the reference') {
           : `between adjacent steps on ${reference}`
   return [
     ends,
-    `${roughBp(d.ownBp)} of its own${d.missingBp > 0 ? `, ${d.missingBp >= d.ownBp ? 'all' : roughBp(d.missingBp)} ${GAP_CAUSE_TEXT.missing}` : ''}`,
+    `${ownAmount(roughBp(d.ownBp), reference, revisited)}${d.missingBp > 0 ? `, ${d.missingBp >= d.ownBp ? 'all' : roughBp(d.missingBp)} ${GAP_CAUSE_TEXT.missing}` : ''}`,
     ...(placementChoice(d) ? [PLACEMENT_CHOICE_TEXT] : []),
   ].join(' · ')
 }
@@ -170,6 +174,36 @@ export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
   // across the window, which says nothing of what it carries instead
   departure: 'no step on the reference',
 }
+
+// Where a walk file's header counts no node the reference passes more than
+// once (`revisited` 0), a walk's bp off the reference are sequence the
+// reference lacks, its own. Where it counts some they may be a copy of a
+// repeat the reference holds elsewhere, and are only off the reference's
+// path. A source that states no count keeps the walk's own.
+export const ownIsExact = (revisited: number | undefined) =>
+  revisited === undefined || revisited === 0
+
+export const offPathText = (reference = 'the reference') =>
+  `off ${reference}'s path`
+
+// `120 kb of its own`, or `120 kb off GRCh38's path`
+export const ownAmount = (
+  amount: string,
+  reference: string | undefined,
+  revisited: number | undefined,
+) =>
+  ownIsExact(revisited)
+    ? `${amount} of its own`
+    : `${amount} ${offPathText(reference)}`
+
+// the words for an `own` gap
+export const ownGapText = (
+  reference: string | undefined,
+  revisited: number | undefined,
+) =>
+  ownIsExact(revisited)
+    ? GAP_CAUSE_TEXT.own
+    : `${offPathText(reference)} and not drawn`
 
 // a gap with no cause: graph sequence the cut did not keep
 export const OUTSIDE_TEXT = 'out of view'

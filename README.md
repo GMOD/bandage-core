@@ -61,6 +61,12 @@ reads them.
   reference
 - A row whose departure has an end on a node the reference passes more than once
   says `placement choice`: the file's writer chose that pass
+- A run off the reference is the walk's own sequence only where the walk file's
+  header counts no node the reference passes more than once (`revisited` 0);
+  elsewhere it may be a copy of a repeat the reference holds. A host passes the
+  header's `revisited` to `walkRowRuns` or `walkRows`, and where it is above 0
+  every amount that would read `of its own`, `its own` or
+  `own sequence not drawn` reads `off GRCh38's path` instead
 - Each row's `departures` lists those its runs do not draw as steps, for a
   host's hover
 - A piece of a walk the cut did not load draws exactly as the loaded piece does:

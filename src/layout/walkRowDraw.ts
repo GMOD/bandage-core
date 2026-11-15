@@ -7,6 +7,10 @@ import {
   PLACEMENT_CHOICE_TEXT,
   departureSpan,
   departureText,
+  offPathText,
+  ownAmount,
+  ownGapText,
+  ownIsExact,
   placementChoice,
   roughBp,
 } from '../gfa/departures'
@@ -89,8 +93,9 @@ function partsText(
   gapBp: number,
   runs: WalkRun[] | undefined,
   refName: string | undefined,
+  ownGap: string,
 ) {
-  const stated = [...drawn, ...gapsParts(gapBp, runs, refName)]
+  const stated = [...drawn, ...gapsParts(gapBp, runs, refName, ownGap)]
   return stated.length > 0 ? `, of which ${stated.join(', ')}` : ''
 }
 
@@ -98,16 +103,21 @@ function gapsParts(
   gapBp: number,
   runs: WalkRun[] | undefined,
   refName: string | undefined,
+  ownGap: string,
 ) {
   const gaps = (runs ?? []).filter(r => r.gap)
   return gapBp <= 0
     ? []
     : !gaps.some(g => g.cause)
       ? [`${sized(gapBp)} ${OUTSIDE_TEXT}`]
-      : causesParts(gaps, refName)
+      : causesParts(gaps, refName, ownGap)
 }
 
-function causesParts(gaps: WalkRun[], refName: string | undefined) {
+function causesParts(
+  gaps: WalkRun[],
+  refName: string | undefined,
+  ownGap: string,
+) {
   const bpOf = (cause: GapCause | undefined) =>
     gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
   const mixedMissing = gaps
@@ -131,7 +141,7 @@ function causesParts(gaps: WalkRun[], refName: string | undefined) {
   const parts = [
     [bpOf('missing') + mixedMissing, GAP_CAUSE_TEXT.missing],
     [bpOf('elsewhere'), `near ${placesOf('elsewhere')}`],
-    [bpOf('own') + bpOf('mixed') - mixedMissing, GAP_CAUSE_TEXT.own],
+    [bpOf('own') + bpOf('mixed') - mixedMissing, ownGap],
     [
       bpOf('unread'),
       `${GAP_CAUSE_TEXT.unread}${lastSeen ? ` (last seen near ${lastSeen})` : ''}`,
@@ -153,6 +163,7 @@ const otherContigsText = (counted: WalkRow['otherContigs']) =>
 function steplessText(
   departures: NonNullable<WalkRow['departures']>,
   reference: string | undefined,
+  revisited: number | undefined,
 ) {
   const widest = [...departures].sort((a, b) => {
     const x = departureSpan(a)
@@ -162,7 +173,7 @@ function steplessText(
   const more = departures.length - 1
   return widest
     ? [
-        departureText(widest, reference),
+        departureText(widest, reference, revisited),
         ...(more > 0 ? [`${more} more departure${more > 1 ? 's' : ''}`] : []),
         ...(!placementChoice(widest) && departures.some(placementChoice)
           ? [PLACEMENT_CHOICE_TEXT]
@@ -214,14 +225,15 @@ export function walkRowReadout(
     const length = row.windowBp ?? bp
     return `${sized(length)}${units(length, unit)}${others}`
   }
+  const { revisited } = reference
+  const name = reference.sample ?? 'the reference'
   const outside = row.outsideRow
-    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${sized(row.outsideRow.stepsBp)} of its own in the graph` : ''}`
+    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${ownAmount(sized(row.outsideRow.stepsBp), name, revisited)} in the graph` : ''}`
     : ''
   const beyond = `${outside}${others}`
   if (row.stepless) {
-    return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
+    return `${steplessText(row.departures ?? [], reference.sample, revisited)}${beyond}`
   }
-  const name = reference.sample ?? 'the reference'
   const elsewhereText = (stretchBp: number) =>
     `${sized(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
   const elsewhere = row.fromElsewhereBp ?? 0
@@ -232,6 +244,7 @@ export function walkRowReadout(
     gapBp,
     row.runs,
     reference.name,
+    ownGapText(name, revisited),
   )
   const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
@@ -254,7 +267,13 @@ export function walkRowReadout(
           ? ` in place of ${name}'s ${sized(replacedBp)}`
           : ''
       const held = [
-        ...(own > 0 || pass.bp === 0 ? [`its own ${sized(own)}`] : []),
+        ...(own > 0 || pass.bp === 0
+          ? [
+              ownIsExact(revisited)
+                ? `its own ${sized(own)}`
+                : `${sized(own)} ${offPathText(name)}`,
+            ]
+          : []),
         ...(on > 0 ? [`${sized(on)} on ${name}`] : []),
         ...(from > 0 ? [elsewhereText(from)] : []),
         ...(gaps > 0 && (!drawn || alone)
@@ -309,7 +328,7 @@ export function walkRowReadout(
       : stop.turnsBack
         ? `turns back out of the ${region}`
         : stop.goesOn
-          ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${roughBp(stop.goesOn.departure.ownBp)} of its own`}`
+          ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${ownAmount(roughBp(stop.goesOn.departure.ownBp), name, revisited)}`}`
           : 'does not rejoin the reference in view'
   const least = row.windowBp ?? bp
   const stated =
@@ -552,7 +571,10 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
 // a band, bases the graph lacks as a hairline the walk jumps along, and its
 // own sequence the cut did not read as a pale band. The stretch between a
 // stepless row's departure's ends is a hairline too.
-export function gapStyle(cause: GapCause | undefined) {
+export function gapStyle(
+  cause: GapCause | undefined,
+  ownGap: string = GAP_CAUSE_TEXT.own,
+) {
   return cause === 'missing'
     ? {
         fill: MISSING_INK,
@@ -565,7 +587,7 @@ export function gapStyle(cause: GapCause | undefined) {
         ? {
             fill: OWN_GAP,
             px: GAP_PX,
-            label: `${GAP_CAUSE_TEXT.own}: in the graph off the reference, between two stretches drawn here`,
+            label: `${ownGap}: in the graph off the reference, between two stretches drawn here`,
           }
         : cause === 'mixed'
           ? {
@@ -908,6 +930,7 @@ export function walkRowsKey(
   const rows = [bars.reference, ...bars.rows]
   const reference = bars.reference.label
   const elsewhere = rows.some(row => row.runs.some(run => run.fromElsewhere))
+  const ownGap = ownGapText(reference, bars.reference.revisited)
   const entries: KeyEntry[] = [
     {
       swatch: o.ramp
@@ -933,7 +956,7 @@ export function walkRowsKey(
   for (const row of rows) {
     for (const run of row.runs) {
       if (run.gap) {
-        labels.add(gapStyle(run.cause).label)
+        labels.add(gapStyle(run.cause, ownGap).label)
       }
     }
   }
@@ -946,7 +969,7 @@ export function walkRowsKey(
     'mixed',
     'unread',
   ] as const) {
-    const { fill, px, label } = gapStyle(cause)
+    const { fill, px, label } = gapStyle(cause, ownGap)
     if (labels.has(label)) {
       entries.push({ swatch: { kind: 'gap', fill, px }, label })
     }

@@ -443,7 +443,7 @@ const steplessMeta = (
 export function walkRowRuns(
   source: Graph | GraphTables,
   region?: { start: number; end: number },
-  o: { visits?: boolean; referencePath?: string } = {},
+  o: { visits?: boolean; referencePath?: string; revisited?: number } = {},
 ): WalkRowRuns | undefined {
   const {
     heads,
@@ -1305,7 +1305,10 @@ export function walkRowRuns(
     )
   }
 
-  const referenceRow = rowOf(referencePieces)
+  const referenceRow = {
+    ...rowOf(referencePieces),
+    ...(o.revisited === undefined ? {} : { revisited: o.revisited }),
+  }
   const { axis } = referenceRow
   const bar = axis
     ? {

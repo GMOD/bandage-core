@@ -346,6 +346,46 @@ test('a pass across a window edge calls only its bases off the reference its own
   )
 })
 
+test("a gap of the walk's bp off the reference reads as its own, or off the reference's path where the walk file counts nodes the reference passes twice, in the readout and the key", () => {
+  const runs = [
+    { start: 0, bp: 400, onReference: true },
+    {
+      start: 400,
+      bp: 600,
+      onReference: false,
+      gap: true as const,
+      cause: 'own' as const,
+    },
+  ]
+  const row = { bp: 1000, windowBp: 1000, gapBp: 600, complete: true, runs }
+  const reference = (revisited: number) => ({
+    bp: 1000,
+    windowBp: 1000,
+    sample: 'GRCh38',
+    revisited,
+  })
+  expect(walkRowReadout(row, reference(0))).toBe(
+    '1.0 kb, of which 600 bp own sequence not drawn',
+  )
+  expect(walkRowReadout(row, reference(2))).toBe(
+    "1.0 kb, of which 600 bp off GRCh38's path and not drawn",
+  )
+  const keyLabels = (revisited: number) => {
+    const bars = rows()
+    return walkRowsKey({
+      ...bars,
+      reference: { ...bars.reference, revisited },
+      rows: [{ ...bars.rows[0]!, runs }],
+    }).map(e => e.label)
+  }
+  expect(keyLabels(0)).toContain(
+    'own sequence not drawn: in the graph off the reference, between two stretches drawn here',
+  )
+  expect(keyLabels(2)).toContain(
+    "off GRCh38#0's path and not drawn: in the graph off the reference, between two stretches drawn here",
+  )
+})
+
 test('a partial walk states a lower bound and why it stops', () => {
   const reference = { bp: 700 }
   const call = { bp: 8600 }

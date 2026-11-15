@@ -166,6 +166,20 @@ test("departureKind and placementChoice say what graph-walks' do", () => {
   expect(placementChoice(departure({ rejoinPasses: 2 }))).toBe(true)
 })
 
+test('a departure in a walk file that counts nodes the reference passes twice states its bp off the reference path, not as its own', () => {
+  const d = departure({
+    leavePos: 160_620_000,
+    rejoinPos: 160_674_000,
+    ownBp: 120_000,
+  })
+  expect(departureText(d, 'GRCh38', 0)).toBe(
+    'no step on GRCh38 across 54 kb · 120 kb of its own',
+  )
+  expect(departureText(d, 'GRCh38', 2)).toBe(
+    "no step on GRCh38 across 54 kb · 120 kb off GRCh38's path",
+  )
+})
+
 test('a departure in words states its stretch, ends and own bp, and makes no call', () => {
   const texts = [
     departureText(

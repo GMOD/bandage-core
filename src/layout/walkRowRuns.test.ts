@@ -1418,6 +1418,27 @@ describe("tables that state each step's pass", () => {
     expect(offLabel(Number.NaN)).toBe("off ref#0's path")
   })
 
+  test("a walk file that counts nodes the reference passes twice says a walk's bp off the reference are off its path, and one that counts none says they are its own", () => {
+    const readout = (hap: number[], revisited: number) => {
+      const rows = walkRowsOf(
+        walkRowRuns(stating(hap), firstPass, { revisited })!,
+      )
+      return walkRowReadout(rows.rows[0]!, rows.reference)
+    }
+    const off = [0, Number.NaN, Number.NaN, 4000]
+    const elsewhere = [0, Number.NaN, 7000, 4000]
+    expect(readout(off, 0)).toBe("its own 3.5 kb in place of ref's 3.0 kb")
+    expect(readout(off, 2)).toBe(
+      "3.5 kb off ref's path in place of ref's 3.0 kb",
+    )
+    expect(readout(elsewhere, 0)).toBe(
+      "its own 2.5 kb and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
+    )
+    expect(readout(elsewhere, 2)).toBe(
+      "2.5 kb off ref's path and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
+    )
+  })
+
   test('a lone flank beside a step at a pass the cut lacks reads its walk as partial', () => {
     const t = gfaTables(
       [
