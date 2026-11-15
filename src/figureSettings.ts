@@ -1,5 +1,5 @@
 import { LABEL_DEFAULTS } from './graphLabels'
-import { ENGINE_DEFAULTS } from './pipeline'
+import { ENGINE_DEFAULTS, FIGURE_WIDTH_PX } from './pipeline'
 
 import type { ColorScheme } from './colorSchemes'
 import type { EdgeWidth } from './edgeWidths'
@@ -24,7 +24,7 @@ export interface FigureSettings extends Partial<EngineSettings> {
 
 export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   ...ENGINE_DEFAULTS,
-  width: 1200,
+  width: FIGURE_WIDTH_PX,
   height: 800,
   colorScheme: 'auto',
   nodeWidth: 'depth',

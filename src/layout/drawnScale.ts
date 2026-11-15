@@ -1,3 +1,5 @@
+import { isBackbone } from '../anchoredNodes'
+
 import type { Graph, GraphNode } from '../types'
 
 export interface BandageScaleOpts {
@@ -162,9 +164,13 @@ export interface LayoutScaling {
   opts: BandageScaleOpts
 }
 
+// `loopFloor` is the share of the reference's drawn length below which a law
+// may not pull a node off the reference, unless the node is shorter than that
+// at proportional length.
 export function layoutScaling(
   graph: Graph,
   spread: NodeLengthSpread = PROPORTIONAL_SPREAD,
+  loopFloor = 0,
 ): LayoutScaling {
   const { law, minNodeLength } = spread
   const opts = bandageAutoScale(graph, minNodeLength)
@@ -177,10 +183,22 @@ export function layoutScaling(
     return { nodes: graph.nodes, opts }
   }
   const drawn = drawnLengthFor(graph, law)
+  const floor =
+    loopFloor *
+    graph.nodes
+      .filter(isBackbone)
+      .reduce((sum, node) => sum + drawn(node.length), 0)
+  const held = (node: GraphNode) =>
+    isBackbone(node)
+      ? drawn(node.length)
+      : Math.max(
+          drawn(node.length),
+          Math.min(drawnNodeLength(opts, node.length), floor),
+        )
   return {
     nodes: graph.nodes.map(node => ({
       ...node,
-      length: Math.round(drawn(node.length) * LAYOUT_LENGTH_PRECISION),
+      length: Math.round(held(node) * LAYOUT_LENGTH_PRECISION),
     })),
     opts: {
       ...opts,

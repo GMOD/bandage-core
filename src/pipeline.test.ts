@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs'
 
 import { isBackbone } from './anchoredNodes'
+import { spreadFor } from './bubbleSpreads'
 import { departureTable } from './gfa/departures'
 import { layoutScaling } from './layout/drawnScale'
 import { layoutEngine } from './layoutEngines'
 import {
+  LOOP_FLOOR,
   drawingBounds,
   engineKey,
   engineRequest,
@@ -15,7 +17,7 @@ import {
   loadGraph,
 } from './pipeline'
 
-import type { Graph } from './types'
+import type { Graph, GraphNode, NodeSegment } from './types'
 
 test('padTop moves the drawing down by the room it adds', () => {
   const bounds = { minX: 0, minY: 0, w: 100, h: 100 }
@@ -258,4 +260,86 @@ test('the fit frames a departure that leaves and rejoins on the cut', async () =
 test('the fit frames the steps of a departure a walk carries', async () => {
   const { fit, nodes } = await stressBounds(tailedGraph(-6000, [['t0', 't1']]))
   expect(fit.w).toBe(nodes.maxX - nodes.minX)
+})
+
+// 20 kb of reference then 199 nodes of 500 bp, a 1 bp allele beside each
+// join, and a 100 kb run of a haplotype's own leaving and rejoining the middle
+function looped(anchor: boolean): Graph {
+  const node = (id: string, length: number, start: number, rank: number) => ({
+    id,
+    name: id,
+    length,
+    depth: 1,
+    ...(anchor ? { stable: { refName: 'chr1', start, rank } } : {}),
+  })
+  const reference = Array.from({ length: 200 }, (_, i) =>
+    i === 0
+      ? node('r0', 20_000, 0, 0)
+      : node(`r${i}`, 500, 19_500 + i * 500, 0),
+  )
+  const alleles = reference
+    .slice(1)
+    .map((_, i) => node(`a${i}`, 1, 20_000 + i * 500, 1))
+  return {
+    name: 'looped',
+    nodes: [...reference, ...alleles, node('own', 100_000, 69_500, 1)],
+    edges: [
+      ...alleles.flatMap((a, i) => [
+        { from: `r${i}`, to: `r${i + 1}` },
+        { from: `r${i}`, to: a.id },
+        { from: a.id, to: `r${i + 1}` },
+      ]),
+      { from: 'r99', to: 'own' },
+      { from: 'own', to: 'r100' },
+    ],
+  }
+}
+
+const arcLength = (line: NodeSegment[] = []) =>
+  line
+    .slice(1)
+    .reduce(
+      (sum, p, i) => sum + Math.hypot(p.x - line[i]!.x, p.y - line[i]!.y),
+      0,
+    )
+
+async function ownDrawn(g: Graph, bubbleSpread: 'auto' | 'compress') {
+  const { result } = await forceLayout(
+    g,
+    engineSettingsOf({ bubbleSpread }),
+    layoutEngine,
+  )
+  return arcLength(result.nodePositions.own)
+}
+
+const requested = (nodes: GraphNode[]) =>
+  nodes.reduce((sum, n) => sum + n.length, 0) / 1000
+
+const loopFloor = (g: Graph) =>
+  LOOP_FLOOR *
+  requested(layoutScaling(g, spreadFor('compress')).nodes.filter(isBackbone))
+
+test('under compress a 100 kb run off the reference draws at least the loop floor, and still shorter than its bp', async () => {
+  const g = looped(true)
+  const compressed = await ownDrawn(g, 'compress')
+  expect(compressed).toBeGreaterThanOrEqual(loopFloor(g))
+  expect(compressed).toBeLessThan((await ownDrawn(g, 'auto')) / 4)
+})
+
+test('with no reference to hide under, compress pulls a 100 kb run in by its law alone', async () => {
+  expect(await ownDrawn(looped(false), 'compress')).toBeLessThan(
+    loopFloor(looped(true)) / 2,
+  )
+})
+
+test('the loop floor leaves the reference, and every proportional spread, as they were', () => {
+  const g = looped(true)
+  const backbone = (floor: number) =>
+    layoutScaling(g, spreadFor('compress'), floor).nodes.filter(isBackbone)
+  expect(backbone(LOOP_FLOOR)).toEqual(backbone(0))
+  for (const spread of ['auto', 'open', 'wide']) {
+    expect(layoutScaling(g, spreadFor(spread), LOOP_FLOOR)).toEqual(
+      layoutScaling(g, spreadFor(spread)),
+    )
+  }
 })

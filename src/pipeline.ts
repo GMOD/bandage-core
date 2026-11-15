@@ -20,6 +20,7 @@ import { orientToReference } from './layout/orientToReference'
 import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
+import { MAX_BAND_PX } from './renderer/walkLanes'
 import { canonicalEdgeOrder } from './util/edgeOrder'
 
 import type { BubbleSpread } from './bubbleSpreads'
@@ -221,7 +222,7 @@ export async function forceLayout(
     ...merged.graph,
     nodes: merged.graph.nodes.filter(n => !routed.ids.has(n.id)),
   }
-  const engineScaling = layoutScaling(runs, spread)
+  const engineScaling = layoutScaling(runs, spread, LOOP_FLOOR)
   const drawnOf = drawnLengthOf(runs, spread)
   const { result, duration } = await engine(
     engineRequest(
@@ -236,7 +237,10 @@ export async function forceLayout(
             routed.routes,
             drawnOf,
             engineScaling.opts,
-            runs.nodes.reduce((sum, n) => sum + drawnOf(n.length), 0),
+            engineScaling.nodes.reduce(
+              (sum, n) => sum + drawnNodeLength(engineScaling.opts, n.length),
+              0,
+            ),
           ),
         ],
       },
@@ -335,6 +339,14 @@ export function layoutExtent(
 
 // Gap between the drawing and the edge of the pane, on all four sides.
 export const FIT_PADDING = 40
+
+export const FIGURE_WIDTH_PX = 1200
+
+// A run off the reference draws as a loop beside it, and shows only where the
+// loop reaches past the widest band of lanes the reference draws with. A loop
+// spans its length over pi, and the fit lays the reference across the pane.
+export const LOOP_FLOOR =
+  (Math.PI * MAX_BAND_PX) / (FIGURE_WIDTH_PX - 2 * FIT_PADDING)
 
 // The floor keeps a scale positive and finite, and has to clear the smallest
 // scale a real layout asks for: fitting a chromosome-scale rGFA (250 Mbp) into
