@@ -206,7 +206,7 @@ export function walkRowReadout(
   }
   const name = reference.sample ?? 'the reference'
   const elsewhereText = (stretchBp: number) =>
-    `${kb(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
+    `${sized(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
   const elsewhere = row.fromElsewhereBp ?? 0
   const parts = partsText(
     row.replacedBp === undefined && elsewhere > 0

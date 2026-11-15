@@ -240,6 +240,30 @@ test('a change under a kilobase reads in bp rather than rounding to 0.0 kb', () 
   ).toBe('2.1 kb (+316 bp)')
 })
 
+test('the reference from elsewhere under a kilobase reads in bp rather than rounding to 0.0 kb', () => {
+  const reference = { bp: 600, windowBp: 600, sample: 'GRCh38' }
+  expect(
+    walkRowReadout(
+      { bp: 769, windowBp: 600, gapBp: 0, complete: true, fromElsewhereBp: 20 },
+      reference,
+    ),
+  ).toBe('0.6 kb, of which 20 bp GRCh38 from elsewhere')
+  expect(
+    walkRowReadout(
+      {
+        bp: 1520,
+        replacedBp: 1300,
+        gapBp: 0,
+        complete: true,
+        fromElsewhereBp: 20,
+      },
+      reference,
+    ),
+  ).toBe(
+    "its own 1.5 kb and 20 bp GRCh38 from elsewhere in place of GRCh38's 1.3 kb",
+  )
+})
+
 test('a partial walk states a lower bound and why it stops', () => {
   const reference = { bp: 700 }
   const call = { bp: 8600 }
