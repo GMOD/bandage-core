@@ -24,8 +24,8 @@ import {
   skipDashes,
 } from './renderer/GeometryBuilder'
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
-import { passesKey, threadsPasses } from './renderer/walkLanes'
-import { NO_VALUE_COLOR, encodingStops } from './walkEncoding'
+import { passesKey } from './renderer/walkLanes'
+import { encodingStops } from './walkEncoding'
 import { fadedKey } from './walkHighlight'
 import { rangeText, walkKey } from './walkKey'
 
@@ -101,29 +101,67 @@ export interface GraphKeySection {
   entries: GraphKeyEntry[]
 }
 
-// Which marks a skip draws as in a drawing's batches: dashed, and one plain
-// stroke where its span on screen is too short to hold the dashes. A lifted
-// walk's lane on a skip is its walk's, keyed by the walk.
-export function drawnSkips(
-  batches: readonly Pick<RenderBatch, 'edgeCurves'>[],
+// The classes of mark a drawing's batches hold, which the key names: a skip
+// dashed, or one plain stroke where its span on screen is too short to hold
+// the dashes; a node hollow for the bp a cut did not load; a node or link in
+// no lifted walk's lane, which under a lift is faded; a node in the
+// off-reference charcoal, plain or in a lane; a lane's second thread through a
+// node; nodes of more than one thickness. A lifted walk's lane on a skip is
+// its walk's, keyed by the walk.
+export function drawnMarks(
+  batches: readonly Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'>[],
 ) {
-  let dashed = false
-  let short = false
-  for (const { edgeCurves } of batches) {
+  const marks = {
+    dashedSkip: false,
+    shortSkip: false,
+    placeholder: false,
+    plainNode: false,
+    plainLink: false,
+    offReference: false,
+    threads: false,
+    widthsVary: false,
+  }
+  let width: number | undefined
+  for (const { edgeCurves, nodeStrokes } of batches) {
     for (const { skip, span = 0, walk } of edgeCurves) {
-      if (skip && walk === undefined && span > 0) {
-        if (skipDashes(span)) {
-          dashed = true
-        } else {
-          short = true
+      if (walk === undefined) {
+        if (!skip) {
+          marks.plainLink = true
+        } else if (span > 0) {
+          if (skipDashes(span)) {
+            marks.dashedSkip = true
+          } else {
+            marks.shortSkip = true
+          }
         }
       }
     }
+    for (const {
+      placeholder,
+      walk,
+      pass = 0,
+      color,
+      thickness,
+    } of nodeStrokes) {
+      if (placeholder) {
+        marks.placeholder = true
+      } else {
+        marks.plainNode ||= walk === undefined
+        marks.widthsVary ||= width !== undefined && width !== thickness
+        width = thickness
+      }
+      if (color === REFERENCE_RAMP_ALT_COLOR) {
+        marks.offReference = true
+      }
+      if (pass > 0) {
+        marks.threads = true
+      }
+    }
   }
-  return { dashed, short }
+  return marks
 }
 
-export type DrawnSkips = ReturnType<typeof drawnSkips>
+export type DrawnMarks = ReturnType<typeof drawnMarks>
 
 export interface GraphKeyOptions {
   // the window the graph was cut for, which names the reference
@@ -142,7 +180,8 @@ export interface GraphKeyOptions {
   connectorThickness?: number
   // whether the layout draws nodes, as a tube map and walk rows' bars do not
   drawsNodes?: boolean
-  skips: DrawnSkips
+  // the marks the drawing holds: drawnMarks of its batches
+  marks: DrawnMarks
   genePins?: readonly GenePin[]
   // where the genes came from, named after their outline's entry
   genesFrom?: string
@@ -210,15 +249,6 @@ export function walkKeyEntry(
   }
 }
 
-const paintsOffReference = (lifts: readonly WalkLift[]) =>
-  lifts.some(lift =>
-    lift.walks.some(
-      w =>
-        w.encoding.field !== 'walk' &&
-        [...w.colors.values()].includes(NO_VALUE_COLOR),
-    ),
-  )
-
 export function graphKey(
   graph: Graph,
   layout: Pick<LayoutResult, 'tubeMap' | 'compressed'>,
@@ -248,9 +278,12 @@ export function graphKey(
             under: rangeText(undefined, ramp.start, ramp.start + ramp.span),
             swatch: { kind: 'scale', stops: RAMP_KEY_STOPS },
           },
-          ...((drawsNodes || layout.tubeMap) &&
-          graph.nodes.some(
-            n => !n.placeholder && rampFraction(n, ramp) === undefined,
+          ...((
+            layout.tubeMap
+              ? graph.nodes.some(
+                  n => !n.placeholder && rampFraction(n, ramp) === undefined,
+                )
+              : drawsNodes && o.marks.offReference
           )
             ? [offReference('off')]
             : []),
@@ -269,8 +302,25 @@ export function graphKey(
         ) ?? [],
     ),
   )
-  const faded =
-    fadedTexts.size > 1 ? "not on the panel's walk" : [...fadedTexts][0]
+  // a faded node keyed by what it is, else the faded links alone
+  const fadedNode = lifted && o.marks.plainNode && fadedTexts.size > 0
+  const faded = fadedNode
+    ? [
+        entry(
+          'faded',
+          fadedTexts.size > 1 ? "not on the panel's walk" : [...fadedTexts][0]!,
+          { kind: 'chip', ink: FADED_KEY_INK },
+        ),
+      ]
+    : lifted && o.marks.plainLink
+      ? [
+          entry(
+            'faded-links',
+            `links not on ${o.panels ? "the panel's walk" : walksLabel(lifts[0]!)}`,
+            { kind: 'line', ink: FADED_KEY_INK, dashed: false },
+          ),
+        ]
+      : []
   const domain = o.lift?.referenceDomain
   const walkReference = domain && { ...domain, name: reference }
   const walkEntries: GraphKeyEntry[] = [
@@ -279,11 +329,9 @@ export function graphKey(
       : (o.lift?.walks ?? []).map(w =>
           walkKeyEntry(w, label(w.name), walkReference),
         )),
-    ...(paintsOffReference(lifts) ? [offReference('lift-off')] : []),
-    ...(faded
-      ? [entry('faded', faded, { kind: 'chip', ink: FADED_KEY_INK })]
-      : []),
-    ...(!o.panels && o.lift && threadsPasses(o.lift.walks)
+    ...(lifted && o.marks.offReference ? [offReference('lift-off')] : []),
+    ...faded,
+    ...(!o.panels && o.lift && o.marks.threads
       ? [
           entry('walk-passes', passesKey(o.lift.walks), {
             kind: 'threads',
@@ -300,7 +348,7 @@ export function graphKey(
   // a walk looping through a repeat passes its nodes more than once, and
   // each pass counts
   const passes = (depths[0]?.depth ?? 0) > walkCount
-  const nodeWidthEntries: GraphKeyEntry[] = !drawsNodes
+  const nodeWidthEntries: GraphKeyEntry[] = !(drawsNodes && o.marks.widthsVary)
     ? []
     : o.nodeWidth === 'frequency'
       ? frequencyKey(thickness).map(({ label: share, widthPx }) =>
@@ -343,7 +391,7 @@ export function graphKey(
 
   const skipInk = lifted ? FADED_KEY_INK : EDGE_DELETION_COLOR
   const skipEntries: GraphKeyEntry[] = [
-    ...(o.skips.dashed
+    ...(o.marks.dashedSkip
       ? [
           entry('deletion', deletionKey(reference), {
             kind: 'line',
@@ -352,7 +400,7 @@ export function graphKey(
           }),
         ]
       : []),
-    ...(o.skips.short
+    ...(o.marks.shortSkip
       ? [
           entry('short-skip', SHORT_SKIP_KEY, {
             kind: 'line',
@@ -363,10 +411,6 @@ export function graphKey(
       : []),
   ]
 
-  const shownPlaceholder = graph.nodes.some(
-    n =>
-      n.placeholder && (!lifted || lifts.some(lift => lift.nodeIds.has(n.id))),
-  )
   const marked = (o.genePins ?? []).filter(pin => pin.exonsByNode.length > 0)
   const wholeGenes = marked.every(({ gene: g }) =>
     g.exons.every(e => e.start <= g.start && e.end >= g.end),
@@ -396,7 +440,7 @@ export function graphKey(
       id: 'not-shown',
       group: 'Marks',
       entries:
-        drawsNodes && shownPlaceholder
+        drawsNodes && o.marks.placeholder
           ? [
               {
                 key: 'not-shown',

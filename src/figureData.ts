@@ -4,7 +4,7 @@ import { FIGURE_DEFAULTS } from './figureSettings'
 import { parseRegion } from './gbzCut'
 import { EXON_COLOR } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
-import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnSkips, graphKey } from './graphKey'
+import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnMarks, graphKey } from './graphKey'
 import { labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAt, rowInkOf } from './layout/rowInks'
@@ -633,7 +633,7 @@ export function figureData(
     edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
     connectorThickness:
       o.connectorThickness ?? FIGURE_DEFAULTS.connectorThickness,
-    skips: drawnSkips(batches),
+    marks: drawnMarks(batches),
     genePins: pinned,
   })
 

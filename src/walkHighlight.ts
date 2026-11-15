@@ -71,12 +71,11 @@ export interface WalkLift {
   names: Set<string>
 }
 
-// What a lift's faded key says, or nothing where it fades nothing: that the
-// faded drawing is other haplotypes' sequence when every node it fades lies on
-// a walk the lift leaves out, or, fading no node, every link it fades does.
-// Faded nodes decide alone where there are any, since a cut keeps the source
-// graph's links between the nodes it keeps even where it drops the walks that
-// take them.
+// What a lift's faded key says of the nodes it fades, or nothing where it
+// fades none: that they are other haplotypes' sequence when every one lies on
+// a walk the lift leaves out. Links don't decide it, since a cut keeps the
+// source graph's links between the nodes it keeps even where it drops the
+// walks that take them.
 export function fadedKey(graph: Graph, lift: WalkLift, walks: string) {
   const lifted = new Set([...lift.names].map(n => pathOrigin(n).name))
   const other = (name: string) => !lifted.has(pathOrigin(name).name)
@@ -98,16 +97,11 @@ export function fadedKey(graph: Graph, lift: WalkLift, walks: string) {
     }
   }
   const nodes = graph.nodes.filter(n => !lift.nodeIds.has(n.id))
-  const links = graph.edges.filter((_, i) => !lift.edgeIndexes.has(i))
   return nodes.length > 0
     ? nodes.every(n => onOthers.has(n.id))
       ? 'only in other haplotypes'
       : `nodes and links not on ${walks}`
-    : links.length > 0
-      ? links.every(e => e.pathIds?.some(other))
-        ? 'only in other haplotypes'
-        : `links not on ${walks}`
-      : undefined
+    : undefined
 }
 
 const isReference = (graph: Graph, name: string) =>

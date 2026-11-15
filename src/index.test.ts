@@ -57,7 +57,7 @@ const PUBLISHED = [
   'cutsWholeWalks',
   'deletionEdges',
   'depthKey',
-  'drawnSkips',
+  'drawnMarks',
   'drawTubeMap',
   'drawingBounds',
   'edgeHoverText',

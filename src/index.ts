@@ -138,12 +138,12 @@ export {
   EXON_INK,
   FADED_KEY_INK,
   RAMP_KEY_STOPS,
-  drawnSkips,
+  drawnMarks,
   graphKey,
   walkKeyEntry,
 } from './graphKey'
 export type {
-  DrawnSkips,
+  DrawnMarks,
   GraphKey,
   GraphKeyEntry,
   GraphKeyOptions,

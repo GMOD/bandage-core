@@ -65,7 +65,7 @@ test('a key too wide for the figure wraps onto more lines above the drawing', ()
   const keys = [
     ...header.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)"/g),
   ].map(m => ({ x: Number(m[1]), y: Number(m[2]) }))
-  expect(keys.length).toBeGreaterThan(walks.length)
+  expect(keys).toHaveLength(walks.length)
   expect(new Set(keys.map(k => k.y)).size).toBeGreaterThan(1)
   expect(Math.max(...keys.map(k => k.x))).toBeLessThan(200)
   const drawingAt = Number(/<svg y="([\d.]+)"/.exec(svg)![1])

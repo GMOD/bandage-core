@@ -9,7 +9,7 @@ import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
-import { drawnSkips, graphKey, walkKeyEntry } from './graphKey'
+import { drawnMarks, graphKey, walkKeyEntry } from './graphKey'
 import { labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { FIT_PADDING } from './layout/fitAssumptions'
@@ -479,7 +479,7 @@ export function figureSvg(
         connectorThickness:
           o.connectorThickness ?? FIGURE_DEFAULTS.connectorThickness,
         drawsNodes: !rows && !layout.tubeMap,
-        skips: drawnSkips(views.flatMap(v => (v ? [v.batch] : []))),
+        marks: drawnMarks(views.flatMap(v => (v ? [v.batch] : []))),
         genePins: pins,
       }),
       'key',
