@@ -1,5 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
+import { FIGURE_WIDTH_PX, FIT_PADDING, TRACK_FLOOR_PX } from './fitAssumptions'
 
 import type { Graph, GraphNode, NodeSegment } from '../types'
 
@@ -23,10 +24,13 @@ interface Segment {
 }
 
 // Widths are screen px and positions layout units, so the clearance is sized
-// for the smallest fit a host opens a graph at: a JBrowse track's default
-// 300 px canvas less its strip and padding, a figure's 1200 px pane less its
-// padding. A larger pane or a closer zoom only widens the gap.
-export const CLEARANCE_FIT = { width: 1120, height: 200 }
+// for the smallest fit a host opens a graph at: the shortest track, and a
+// figure's pane less its padding. A larger pane or a closer zoom only widens
+// the gap.
+export const CLEARANCE_FIT = {
+  width: FIGURE_WIDTH_PX - 2 * FIT_PADDING,
+  height: TRACK_FLOOR_PX,
+}
 
 const SHIPPED_THICKNESS = 6
 

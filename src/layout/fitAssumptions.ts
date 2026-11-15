@@ -7,4 +7,5 @@ export const FIGURE_WIDTH_PX = 1200
 // Gap between the drawing and the edge of the pane, on all four sides.
 export const FIT_PADDING = 40
 
+// a JBrowse track's default 300 px canvas less its strip and padding
 export const TRACK_FLOOR_PX = 200
