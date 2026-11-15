@@ -1,5 +1,6 @@
 import { el } from '../el'
 import {
+  FROM_ELSEWHERE_TEXT,
   GAP_CAUSE_TEXT,
   NOT_LOADED_TEXT,
   OUTSIDE_TEXT,
@@ -79,22 +80,34 @@ export interface ReadoutCall {
 const near = (refName: string | undefined, pos: number) =>
   `${refName === undefined ? '' : `${panSNContig(refName)}:`}${pos < 1e6 ? `${Math.round(pos / 1000)} kb` : `${(pos / 1e6).toFixed(1)} Mb`}`
 
-// What of a row's bp the cut left out, as parts of it, by the cause its gaps
-// state: `, of which 19 kb left out of graph, 34 kb near chr22:20.3 Mb`, where
-// the departure out of the gap rejoins the reference, or for gaps stating
-// none `, of which 19 kb out of view`
-function gapsText(
+// Parts of a row's bp: `drawn` ones first, then what the cut left out, by the
+// cause its gaps state: `, of which 19 kb left out of graph, 34 kb near
+// chr22:20.3 Mb`, where the departure out of the gap rejoins the reference,
+// or for gaps stating none `, of which 19 kb out of view`
+function partsText(
+  drawn: string[],
   gapBp: number,
   runs: WalkRun[] | undefined,
   refName: string | undefined,
 ) {
-  if (gapBp <= 0) {
-    return ''
-  }
+  const stated = [...drawn, ...gapsParts(gapBp, runs, refName)]
+  return stated.length > 0 ? `, of which ${stated.join(', ')}` : ''
+}
+
+function gapsParts(
+  gapBp: number,
+  runs: WalkRun[] | undefined,
+  refName: string | undefined,
+) {
   const gaps = (runs ?? []).filter(r => r.gap)
-  if (!gaps.some(g => g.cause)) {
-    return `, of which ${kb(gapBp)} ${OUTSIDE_TEXT}`
-  }
+  return gapBp <= 0
+    ? []
+    : !gaps.some(g => g.cause)
+      ? [`${kb(gapBp)} ${OUTSIDE_TEXT}`]
+      : causesParts(gaps, refName)
+}
+
+function causesParts(gaps: WalkRun[], refName: string | undefined) {
   const bpOf = (cause: GapCause | undefined) =>
     gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
   const mixedMissing = gaps
@@ -125,10 +138,7 @@ function gapsText(
     ],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
-  const stated = parts
-    .filter(([bp]) => bp > 0)
-    .map(([bp, text]) => `${kb(bp)} ${text}`)
-  return stated.length > 0 ? `, of which ${stated.join(', ')}` : ''
+  return parts.filter(([bp]) => bp > 0).map(([bp, text]) => `${kb(bp)} ${text}`)
 }
 
 // A stepless row's departures in words: the widest stretch's facts, how many
@@ -155,11 +165,12 @@ function steplessText(
 }
 
 // The text at the end of a bar: its length, what it carries against the
-// reference row, and what the cut left out, by cause where its gaps state
-// one. A walk reaching one flank states a lower bound, none where it has no
-// bp in the window, and why it stops, or where on the reference and by how
-// much of its own it goes on by a departure, and a stepless row its
-// departures' facts. A row with a departure the writer placed says so.
+// reference row, the reference from elsewhere it carries, and what the cut
+// left out, by cause where its gaps state one. A walk reaching one flank
+// states a lower bound, none where it has no bp in the window, and why it
+// stops, or where on the reference and by how much of its own it goes on by
+// a departure, and a stepless row its departures' facts. A row with a
+// departure the writer placed says so.
 export function walkRowReadout(
   row: Pick<
     WalkRow,
@@ -168,6 +179,7 @@ export function walkRowReadout(
     | 'complete'
     | 'windowBp'
     | 'replacedBp'
+    | 'fromElsewhereBp'
     | 'morePasses'
     | 'stop'
     | 'departures'
@@ -192,20 +204,39 @@ export function walkRowReadout(
   if (row.stepless) {
     return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
   }
-  const parts = gapsText(gapBp, row.runs, reference.name)
+  const name = reference.sample ?? 'the reference'
+  const elsewhereText = (stretchBp: number) =>
+    `${kb(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
+  const elsewhere = row.fromElsewhereBp ?? 0
+  const parts = partsText(
+    row.replacedBp === undefined && elsewhere > 0
+      ? [elsewhereText(elsewhere)]
+      : [],
+    gapBp,
+    row.runs,
+    reference.name,
+  )
   const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
   if (complete) {
     const of = reference.windowBp ?? reference.bp
+    const carried = (pass: Pick<WalkPass, 'bp' | 'fromElsewhereBp'>) => {
+      const from = pass.fromElsewhereBp ?? 0
+      const own = pass.bp - from
+      return [
+        ...(own > 0 || from === 0 ? [`its own ${kb(own)}`] : []),
+        ...(from > 0 ? [elsewhereText(from)] : []),
+      ].join(' and ')
+    }
     const lengthOf = (
-      pass: Pick<WalkPass, 'bp' | 'replacedBp'>,
+      pass: Pick<WalkPass, 'bp' | 'replacedBp' | 'fromElsewhereBp'>,
       length: number,
     ) => {
       const delta = length - of
       return pass.replacedBp !== undefined
-        ? `its own ${kb(pass.bp)} in place of ${reference.sample ?? 'the reference'}'s ${kb(pass.replacedBp)}`
+        ? `${carried(pass)} in place of ${name}'s ${kb(pass.replacedBp)}`
         : `${kb(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
     }
     const length =
@@ -788,6 +819,9 @@ export function walkRowsKey(
   } = {},
 ): KeyEntry[] {
   const noun = o.annotation ?? 'gene'
+  const rows = [bars.reference, ...bars.rows]
+  const reference = bars.reference.label
+  const elsewhere = rows.some(row => row.runs.some(run => run.fromElsewhere))
   const entries: KeyEntry[] = [
     {
       swatch: o.ramp
@@ -800,10 +834,9 @@ export function walkRowsKey(
         kind: 'bar',
         fill: o.ramp ? REFERENCE_RAMP_ALT_CSS : OFF_REFERENCE,
       },
-      label: `off ${bars.reference.label}'s path`,
+      label: `off ${reference}'s path${elsewhere ? `, or ${reference} ${FROM_ELSEWHERE_TEXT}` : ''}`,
     },
   ]
-  const rows = [bars.reference, ...bars.rows]
   if (o.markUnloaded && rows.some(row => row.runs.some(run => run.unloaded))) {
     entries.push({
       swatch: { kind: 'bar', fill: NOT_LOADED_FILL_CSS, rim: NOT_LOADED_CSS },

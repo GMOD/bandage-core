@@ -343,6 +343,7 @@ export {
 } from './gfa/graphTables'
 export type { DepartureTable, GraphTables } from './gfa/graphTables'
 export {
+  FROM_ELSEWHERE_TEXT,
   GAP_CAUSE_TEXT,
   NOT_LOADED_TEXT,
   OUTSIDE_TEXT,

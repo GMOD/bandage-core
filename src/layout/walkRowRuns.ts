@@ -45,6 +45,7 @@ const GAP_CAUSES = [
 const CAUSE_SHIFT = 3
 const RUN_UNLOADED =
   1 << (CAUSE_SHIFT + Math.ceil(Math.log2(GAP_CAUSES.length)))
+const RUN_FROM_ELSEWHERE = RUN_UNLOADED << 1
 
 const causeFlags = (cause: GapCause | undefined) =>
   GAP_CAUSES.indexOf(cause) << CAUSE_SHIFT
@@ -404,7 +405,9 @@ const steplessMeta = (
  * `referencePath`, as loadGraph does.
  *
  * A step lies on the reference where the cut's reference walk holds the pass
- * the source states for it, as a walk file's tables do. A source that states
+ * the source states for it, as a walk file's tables do; one stated at a pass
+ * the cut lacks is reference from elsewhere, off it here but not the walk's
+ * own. A source that states
  * none, GFA text or a gbz-base extract, has a step on a node the reference
  * passes more than once take the pass nearest the step beside it.
  *
@@ -895,6 +898,10 @@ export function walkRowRuns(
       placeOutward(anchor, -1)
     }
     const placeStart = (i: number) => stepPlace[i]!
+    const fromElsewhere = (i: number) =>
+      placeable(i) &&
+      Number.isNaN(stepPlace[i]!) &&
+      Number.isFinite(stepStated[i]!)
     const stopsInside = (i0: number, i1: number, inside: boolean) => {
       complete = false
       const side = i0 >= 0 || i1 >= 0 ? partialSide(i0, i1, inside) : undefined
@@ -1066,6 +1073,7 @@ export function walkRowRuns(
       }
       let measured = 0
       let total = 0
+      let elsewhereBp = 0
       let crosses = false
       let away = false
       let left = Number.NaN
@@ -1079,6 +1087,7 @@ export function walkRowRuns(
         total += len
         if (Number.isNaN(place)) {
           measured += outsideWindow(at) ? 0 : len
+          elsewhereBp += fromElsewhere(index) ? len : 0
           away = true
         } else {
           crosses ||= away && across(at, place)
@@ -1090,12 +1099,19 @@ export function walkRowRuns(
       }
       crosses ||=
         away && across(Number.isNaN(left) ? leftEnd : left, rightStart)
-      return { bp: total, windowBp: measured, crosses, reversed }
+      return {
+        bp: total,
+        windowBp: measured,
+        crosses,
+        reversed,
+        fromElsewhereBp: elsewhereBp,
+      }
     }
 
     let bp = 0
     let offReferenceBp = 0
     let unloadedBp = 0
+    let fromElsewhereBp = 0
     let gapBp = 0
     // which way the last run steps through the reference, 0 while it holds
     // one node
@@ -1139,7 +1155,14 @@ export function walkRowRuns(
       const forward =
         on && placed && step >= 0 && lastRef + (runBp[last] ?? 0) === at
       const back = on && placed && step <= 0 && at + len === lastRef
-      const flags = on ? RUN_ON_REFERENCE : unloaded ? RUN_UNLOADED : 0
+      const elsewhere = fromElsewhere(index)
+      const flags = on
+        ? RUN_ON_REFERENCE
+        : unloaded
+          ? RUN_UNLOADED
+          : elsewhere
+            ? RUN_FROM_ELSEWHERE
+            : 0
       if (!on && last >= 0 && lastFlags === flags) {
         runBp[last]! += len
       } else if (forward || back) {
@@ -1163,6 +1186,7 @@ export function walkRowRuns(
         unloadedBp += len
       } else if (!on) {
         offReferenceBp += len
+        fromElsewhereBp += elsewhere ? len : 0
       }
     }
     const placedEnd = (i: number) => placeStart(i) + lengthOf(steps[i]!)
@@ -1184,6 +1208,9 @@ export function walkRowRuns(
         reversed: m.reversed,
         ...(m.crosses
           ? { replacedBp: placeStart(p.i1) - placedEnd(p.i0) }
+          : {}),
+        ...(m.fromElsewhereBp > 0
+          ? { fromElsewhereBp: m.fromElsewhereBp }
           : {}),
       }
     }
@@ -1230,6 +1257,7 @@ export function walkRowRuns(
           axis,
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
           ...(unloadedBp > 0 ? { unloadedBp } : {}),
+          ...(fromElsewhereBp > 0 ? { fromElsewhereBp } : {}),
           ...(undrawn.length > 0 ? { departures: undrawn } : {}),
           ...outsideOf(walkName),
           ...(own.some(placementChoice)
@@ -1409,6 +1437,9 @@ export function runAt(t: WalkRowRuns, k: number): WalkRun {
   }
   if (f & RUN_UNLOADED) {
     run.unloaded = true
+  }
+  if (f & RUN_FROM_ELSEWHERE) {
+    run.fromElsewhere = true
   }
   return run
 }

@@ -7,7 +7,7 @@ import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
 import { trimToWindow } from './trimToWindow'
-import { walkRowReadout } from './walkRowDraw'
+import { walkRowReadout, walkRowsKey } from './walkRowDraw'
 import { walkRowLinks } from './walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
@@ -1313,13 +1313,67 @@ describe("tables that state each step's pass", () => {
     )
   })
 
-  test('a step stated off the reference, or at a pass the cut lacks, is off it', () => {
-    for (const r of [Number.NaN, 7000]) {
-      expect(hapOver(stating([0, Number.NaN, r, 4000]), firstPass)).toEqual({
-        readout: "its own 3.5 kb in place of ref's 3.0 kb",
-        runs: [[0, 3500, undefined]],
-      })
+  const classesOver = (
+    t: GraphTables,
+    region: { start: number; end: number },
+  ) => {
+    const rows = walkRowsOf(walkRowRuns(t, region)!)
+    const row = rows.rows[0]!
+    return {
+      readout: walkRowReadout(row, rows.reference),
+      runs: row.runs.map(r => [
+        r.start,
+        r.bp,
+        r.onReference ? 'on' : r.fromElsewhere ? 'elsewhere' : 'own',
+      ]),
     }
+  }
+  const across = { start: 1000, end: 4000 }
+
+  test('a step stated off the reference is its own', () => {
+    expect(
+      classesOver(stating([0, Number.NaN, Number.NaN, 4000]), firstPass),
+    ).toEqual({
+      readout: "its own 3.5 kb in place of ref's 3.0 kb",
+      runs: [[0, 3500, 'own']],
+    })
+    expect(
+      classesOver(stating([0, Number.NaN, Number.NaN, 4000]), across),
+    ).toEqual({
+      readout: '3.5 kb (+500 bp)',
+      runs: [[0, 3500, 'own']],
+    })
+  })
+
+  test('a step stated at a pass the cut lacks is off it, and reads as the reference from elsewhere beside its own', () => {
+    expect(
+      classesOver(stating([0, Number.NaN, 7000, 4000]), firstPass),
+    ).toEqual({
+      readout:
+        "its own 2.5 kb and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
+      runs: [
+        [0, 2500, 'own'],
+        [2500, 1000, 'elsewhere'],
+      ],
+    })
+    expect(classesOver(stating([0, Number.NaN, 7000, 4000]), across)).toEqual({
+      readout: '3.5 kb (+500 bp), of which 1.0 kb ref from elsewhere',
+      runs: [
+        [0, 2500, 'own'],
+        [2500, 1000, 'elsewhere'],
+      ],
+    })
+  })
+
+  test("the key names the reference from elsewhere beside what is off the reference's path, where a row holds any", () => {
+    const offLabel = (stated: number) =>
+      walkRowsKey(
+        walkRowsOf(
+          walkRowRuns(stating([0, Number.NaN, stated, 4000]), firstPass)!,
+        ),
+      )[1]!.label
+    expect(offLabel(7000)).toBe("off ref#0's path, or ref#0 from elsewhere")
+    expect(offLabel(Number.NaN)).toBe("off ref#0's path")
   })
 
   test('a lone flank beside a step at a pass the cut lacks reads its walk as partial', () => {
@@ -1358,22 +1412,31 @@ describe("tables that state each step's pass", () => {
       rows.rows.map(row => [
         row.label,
         walkRowReadout(row, rows.reference),
-        row.runs.map(r => [r.start, r.bp, r.referenceStart]),
+        row.runs.map(r => [
+          r.start,
+          r.bp,
+          r.referenceStart,
+          ...(r.fromElsewhere ? ['elsewhere'] : []),
+        ]),
       ]),
     ).toEqual([
       [
         'lone#1',
-        '≥ 4.8 kb · partial walk',
+        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
         [
           [0, 1000, 0],
-          [1000, 3800, undefined],
+          [1000, 2500, undefined],
+          [3500, 1000, undefined, 'elsewhere'],
+          [4500, 300, undefined],
         ],
       ],
       [
         'lone2#1',
-        '≥ 4.8 kb · partial walk',
+        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
         [
-          [0, 3800, undefined],
+          [0, 300, undefined],
+          [300, 1000, undefined, 'elsewhere'],
+          [1300, 2500, undefined],
           [3800, 1000, 4000],
         ],
       ],

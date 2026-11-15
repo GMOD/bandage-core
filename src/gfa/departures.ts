@@ -176,6 +176,10 @@ export const OUTSIDE_TEXT = 'out of view'
 
 export const NOT_LOADED_TEXT = 'nodes not shown'
 
+// steps the source states on the reference at passes the cut does not hold,
+// after an amount and the reference's name: `0.9 kb GRCh38 from elsewhere`
+export const FROM_ELSEWHERE_TEXT = 'from elsewhere'
+
 export interface GapPart {
   bp: number
   cause?: GapCause

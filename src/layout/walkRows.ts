@@ -48,6 +48,10 @@ export interface WalkRun {
   // for a `mixed` gap, its bp left out of graph
   missingBp?: number
   unloaded?: true
+  // off the reference in the cut, the source stating its steps on the
+  // reference at passes the cut does not hold: reference sequence from
+  // elsewhere, not the walk's own
+  fromElsewhere?: true
 }
 
 // Where a row's bar lies on the walk's own contig: the contig position at the
@@ -83,6 +87,8 @@ export interface WalkPass {
   windowBp: number
   replacedBp?: number
   reversed: boolean
+  // of `bp`, the bp of steps on the reference from elsewhere
+  fromElsewhereBp?: number
 }
 
 // A step of a row's bar through a graph node: its bp offset from the bar's
@@ -106,6 +112,8 @@ export interface WalkRow {
   // bar of
   offReferenceBp: number
   unloadedBp?: number
+  // of `offReferenceBp`, the bp of `fromElsewhere` runs
+  fromElsewhereBp?: number
   // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
   gapBp: number
   // false when the walk does not reach both flanking reference nodes; one

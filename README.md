@@ -67,6 +67,12 @@ reads them.
   pieces, for a host to load or offer to load
 - A bar off the path (charcoal under the reference ramp) is sequence off the
   reference path as far as the cut has read it
+- A step the walk file states on the reference at a pass the cut does not hold
+  draws off the path too, as a `WalkRun` with `fromElsewhere`, and reads as the
+  reference's sequence, never the walk's own:
+  `its own 2.5 kb and 1.0 kb GRCh38 from elsewhere in place of GRCh38's 3.0 kb`,
+  or as a part of the row's bp, `, of which 1.0 kb GRCh38 from elsewhere`. The
+  key then reads `off GRCh38#0's path, or GRCh38#0 from elsewhere`
 - Ribbons, shared blocks and the shared row order compare nodes, which a run not
   loaded does not name, so they leave out a row holding one;
   `rowsNeedingRoutes(rows)` says how many rows they left out, for a host to load
