@@ -5,6 +5,7 @@ import {
   geneLeader,
   layoutLabels,
 } from './labelLayout'
+import { LABEL_PAD } from './overlayLabels'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
@@ -484,7 +485,7 @@ test('a gene the cut carries only part of says how much, in its own unit', () =>
 // `pangenome/pggb_bubble_tier` labelled K12's IS5 node `oppA`: oppA's chip
 // hangs under its pin on the backbone, which is the rank-1 row, where the IS5
 // node lies, and oppA starts past the element.
-test("a gene's name never covers a node the gene does not lie on", () => {
+test("a gene's name never covers a node, the gene's own included", () => {
   const at = { x: 300, y: 100 }
   const backbone = {
     bb: [
@@ -517,7 +518,7 @@ test("a gene's name never covers a node the gene does not lie on", () => {
       nodePositions: { ...backbone, ...element },
     }),
   )
-  expect(own.genes.map(l => l.y)).toEqual([pinY])
+  expect(own.genes.map(l => l.y)).toEqual(layout.genes.map(l => l.y))
 })
 
 // HPRC's KIV-2 cut lost its `LPA …` once the layout turned LPA's end node to
@@ -546,6 +547,34 @@ test("a gene's name goes above its pin when its node runs on under it", () => {
     x2: at.x,
     y2: at.y - 3,
   })
+})
+
+// GSTM1 under the reference clearance hung its alleles under the line, and
+// GSTM2's name, stacking up from under its pin in the pane's lower half, sat
+// on the reference line over its own exons
+test("a gene's name whose spots below the line are taken goes above it, never on its node", () => {
+  const at = { x: 300, y: 300 }
+  const alleles = Object.fromEntries(
+    Array.from({ length: 41 }, (_, i) => [
+      `al${i}`,
+      [
+        { x: 200 + i * 5, y: 313 },
+        { x: 200 + i * 5, y: 340 },
+      ],
+    ]),
+  )
+  const nodePositions = {
+    bb: [
+      { x: 0, y: 300 },
+      { x: 800, y: 300 },
+    ],
+    ...alleles,
+  }
+  const [label] = layoutLabels(
+    source({ genePins: [pin(at)], nodePositions }),
+  ).genes
+  expect(label!.text).toBe('hemA')
+  expect(label!.y + LABEL_PAD).toBeLessThan(at.y - 3)
 })
 
 test("a gene's leader runs from the chip's top down to a pin above it, leaning where the chip slid", () => {

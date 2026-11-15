@@ -93,11 +93,12 @@ export function geneCoverageNote(pin: GenePin) {
 }
 
 // Each gene's name under its pin, or above it where the gene's node runs on
-// under the pin, the longest gene first, with how much of the gene the cut
-// covers where it covers less than all. A name over a node the gene does not
-// lie on reads as that node's, so it moves: down or up a row, or sideways by up
-// to half its width, its leader still running to the pin. A gene is a
-// landmark, so its name gives way to a crowd only after all of that.
+// under the pin or the spots under it are taken, the longest gene first, with
+// how much of the gene the cut covers where it covers less than all. A name
+// over another node reads as that node's, and over the gene's own covers the
+// line and exons it names, so it moves: down or up a row, or sideways by up to
+// half its width, its leader still running to the pin. A gene is a landmark,
+// so its name gives way to a crowd only after all of that.
 export function geneLabelCandidates(
   pins: GenePin[],
   screen: (p: { x: number; y: number }) => { x: number; y: number },
@@ -119,14 +120,12 @@ export function geneLabelCandidates(
       stack: GENE_STACK,
       slide: labelWidth(text) / 2,
       fits: (box: Box) =>
-        [
-          ...nodesUnder({
-            x0: box.x0 - ink,
-            x1: box.x1 + ink,
-            y0: box.y0 - ink,
-            y1: box.y1 + ink,
-          }),
-        ].every(id => pin.nodeIds.has(id)),
+        nodesUnder({
+          x0: box.x0 - ink,
+          x1: box.x1 + ink,
+          y0: box.y0 - ink,
+          y1: box.y1 + ink,
+        }).size === 0,
     }
   })
 }
