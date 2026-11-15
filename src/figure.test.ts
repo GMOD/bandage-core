@@ -339,3 +339,31 @@ test("a figure writes a placeholder's length whether or not node lengths are on,
   expect(written(false)).toEqual(['75 kb'])
   expect(written(true)).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
 })
+
+test("a figure stacks a placeholder's length whose loop another's covers, with a leader to its loop", () => {
+  const twin = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        `${UNLOADED}\nS\tp2\t*\tLN:i:75000\tnl:i:1\nL\tr1\t+\tp2\t+\t0M\nL\tp2\t+\tr3\t+\t0M`,
+      ),
+    ),
+    'R',
+  )
+  const laid = layoutModeByValue('auto').run(twin, undefined)!
+  const ids = Object.keys(laid.nodePositions)
+  const [start] = laid.nodePositions[ids.find(id => id.startsWith('r2'))!]!
+  const short = [start!, { ...start!, x: start!.x + 3000 }]
+  const svg = figureSvg(twin, {
+    ...laid,
+    nodePositions: {
+      ...laid.nodePositions,
+      ...Object.fromEntries(
+        ids.filter(id => id.startsWith('p')).map(id => [id, short]),
+      ),
+    },
+  })
+  expect([...svg.matchAll(/>75 kb<\/text>/g)]).toHaveLength(2)
+  expect(svg).toMatch(
+    /<line [^>]*stroke="#18181c" stroke-width="0.8" stroke-opacity="0.6"\/>/,
+  )
+})

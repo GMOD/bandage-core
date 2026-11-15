@@ -29,8 +29,9 @@ import type { AxisScale } from './util/geometry'
 // matters; this is also what fixes labels printing on top of each other ("−10
 // kb3.2 kb" in the amylase figure). A placeholder's length is the exception:
 // it goes before every other, outside the budget, and where its loop's middle
-// is taken it tries further along the loop, since nothing else on the drawing
-// says how much sequence the loop stands in for.
+// is taken it tries further along the loop, then stacks beside the nearest
+// spot with a leader to it, as a gene's name stacks off its pin, since nothing
+// else on the drawing says how much sequence the loop stands in for.
 //
 // Between them they hold at both ends of the scale a pangenome graph spans: 63
 // kb-scale nodes at the amylase locus nearly all carry a length, and a 154-node
@@ -124,6 +125,9 @@ export interface GraphLabel {
   // caller redo the arithmetic that decided which labels there are
   x: number
   y: number
+  // the point on its loop a placeholder's length stacked off the loop names,
+  // which a leader joins it to
+  leader?: { x: number; y: number }
 }
 
 // Locale-independent, unlike toLocaleString: a figure regenerated on a machine
@@ -214,6 +218,61 @@ export interface SizeLabelCandidate {
   // further spots along a placeholder's loop, tried in order where the
   // first is taken
   further: { label: GraphLabel; box: Box }[]
+  // a placeholder's spots stacked off its loop, tried where every spot along
+  // it is taken; built only then
+  stacked?: () => { label: GraphLabel; box: Box }[]
+}
+
+// A label's spots stacked off `spots`, nearest a spot first and the spot
+// nearer the loop's middle where two are as near: a row at a time up and
+// down, slid sideways up to half the label, to the pane's edges `height`
+// tall, each with a leader to its spot
+function stackedSpots(
+  label: GraphLabel,
+  halfW: number,
+  spots: { x: number; y: number }[],
+  height: number,
+) {
+  const row = 2 * LABEL_HALF_HEIGHT
+  const rows = Math.ceil(height / row)
+  const slides = [0]
+  for (let d = STACK_SLIDE_PX; d <= halfW; d += STACK_SLIDE_PX) {
+    slides.push(-d, d)
+  }
+  return spots
+    .flatMap((spot, order) =>
+      Array.from({ length: rows }, (_, k) => k + 1).flatMap(k =>
+        [1, -1].flatMap(direction =>
+          slides.map(dx => ({
+            spot,
+            order,
+            x: spot.x + dx,
+            y: spot.y + direction * k * row,
+            distance: Math.hypot(dx, k * row),
+          })),
+        ),
+      ),
+    )
+    .sort((a, b) => a.distance - b.distance || a.order - b.order)
+    .map(({ spot, x, y }) => ({
+      label: { ...label, x, y, leader: spot },
+      box: boxAt(halfW, x, y),
+    }))
+}
+
+const STACK_SLIDE_PX = 8
+
+// The line from a stacked placeholder length's box to the point on its loop
+// it names, from the box's edge nearer the loop
+export function sizeLeader({ x, y, leader }: GraphLabel) {
+  return leader
+    ? {
+        x1: x,
+        y1: leader.y > y ? y + LABEL_HEIGHT_PX / 2 : y - LABEL_HEIGHT_PX / 2,
+        x2: leader.x,
+        y2: leader.y,
+      }
+    : undefined
 }
 
 export function sizeLabelCandidates({
@@ -265,7 +324,14 @@ export function sizeLabelCandidates({
             }))
           : []
       if (first) {
-        candidates.push({ ...first, kept, further })
+        candidates.push({
+          ...first,
+          kept,
+          further,
+          stacked: kept
+            ? () => stackedSpots(first.label, halfW, spots, height)
+            : undefined,
+        })
       }
     }
   }
@@ -286,7 +352,8 @@ export function nodeLabelBudget(width: number, height: number) {
 }
 
 // Each candidate at its first free spot while the budget lasts, a
-// placeholder's whatever the budget, as `placed` labels already spent it
+// placeholder's whatever the budget, stacked off its loop where no spot along
+// it is free, as `placed` labels already spent it
 export function placeSizeLabels(
   candidates: SizeLabelCandidate[],
   take: TakeBox,
@@ -296,7 +363,9 @@ export function placeSizeLabels(
   const labels: GraphLabel[] = []
   for (const candidate of candidates) {
     if (candidate.kept || placed + labels.length < budget) {
-      const spot = [candidate, ...candidate.further].find(s => take(s.box))
+      const spot =
+        [candidate, ...candidate.further].find(s => take(s.box)) ??
+        candidate.stacked?.().find(s => take(s.box))
       if (spot) {
         labels.push(spot.label)
       }

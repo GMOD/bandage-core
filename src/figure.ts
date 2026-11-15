@@ -11,7 +11,7 @@ import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
 import { NOT_LOADED_TEXT } from './gfa/departures'
-import { labelledNodeLengths } from './graphLabels'
+import { labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { liftedRowInks } from './layout/rowInks'
 import {
@@ -389,8 +389,14 @@ export function figureSvg(
         chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
       )
     }
-    for (const { x, y, text } of labels.sizes) {
-      out.push(sizeChip(x, y, text))
+    for (const label of labels.sizes) {
+      const leader = sizeLeader(label)
+      if (leader) {
+        out.push(
+          `<line x1="${leader.x1}" x2="${leader.x2}" y1="${leader.y1}" y2="${leader.y2}" stroke="${SIZE_INK}" stroke-width="0.8" stroke-opacity="0.6"/>`,
+        )
+      }
+      out.push(sizeChip(label.x, label.y, label.text))
     }
     if (rows) {
       out.push(

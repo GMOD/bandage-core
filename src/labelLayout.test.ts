@@ -1,4 +1,4 @@
-import { LABEL_DEFAULTS, labelledNodeLengths } from './graphLabels'
+import { LABEL_DEFAULTS, labelledNodeLengths, sizeLeader } from './graphLabels'
 import {
   LEGEND_INSET_PX,
   geneCoverageNote,
@@ -235,6 +235,91 @@ test('a placeholder whose middle is taken writes its length further along its lo
     ['11.1 kb', 250],
     ['11.1 kb', 225],
   ])
+})
+
+const placeholders = (lengths: number[]) =>
+  lengths.map((length, i) => ({
+    id: `p${i}`,
+    name: `p${i}`,
+    length,
+    depth: 1,
+    placeholder: true as const,
+  }))
+
+// A size label's box as the canvas draws it: 10 px text at 5.7 px a
+// character in 6 px of padding and a 3 px gap, on a 13 px line
+const sizeBox = (l: { text: string; x: number; y: number }) => {
+  const halfW = (l.text.length * 5.7 + 9) / 2
+  return { x0: l.x - halfW, x1: l.x + halfW, y0: l.y - 8, y1: l.y + 8 }
+}
+const apart = (a: ReturnType<typeof sizeBox>, b: ReturnType<typeof sizeBox>) =>
+  a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0
+
+// two placeholders the layout drew on one spot: every spot along the one
+// loop is the other's
+test('a placeholder whose every spot is taken stacks its length beside the nearest, with a leader to it', () => {
+  const nodes = placeholders([75_000, 75_000])
+  const spot = [
+    { x: 300, y: 200 },
+    { x: 324, y: 200 },
+  ]
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: { p0: spot, p1: spot },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes.map(l => l.text)).toEqual(['75 kb', '75 kb'])
+  const [onLoop, stacked] = sizes
+  expect(onLoop!.leader).toBeUndefined()
+  expect(stacked!.leader).toBeDefined()
+  expect(stacked!.leader!.y).toBe(200)
+  expect(stacked!.leader!.x).toBeGreaterThanOrEqual(300)
+  expect(stacked!.leader!.x).toBeLessThanOrEqual(324)
+  expect(Math.abs(stacked!.y - 200)).toBe(16)
+  expect(apart(sizeBox(onLoop!), sizeBox(stacked!))).toBe(true)
+  expect(sizeLeader(stacked!)).toEqual({
+    x1: stacked!.x,
+    y1: stacked!.y > 200 ? stacked!.y - 6.5 : stacked!.y + 6.5,
+    x2: stacked!.leader!.x,
+    y2: 200,
+  })
+  expect(sizeLeader(onLoop!)).toBeUndefined()
+})
+
+// The amylase locus under FMMM drew three 75 kb loops crossing beside one
+// another, and the third lost its length
+test('three loops crossing in one place each keep their length, none over another', () => {
+  const nodes = placeholders([116_000, 75_000, 75_000])
+  const loop = (dx: number, dy: number) => [
+    { x: 400 + dx, y: 150 + dy },
+    { x: 430 + dx, y: 135 + dy },
+    { x: 440 + dx, y: 165 + dy },
+    { x: 400 + dx, y: 150 + dy },
+  ]
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: { p0: loop(0, 0), p1: loop(6, 4), p2: loop(-4, 6) },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes.map(l => l.key).sort()).toEqual([
+    'node:p0',
+    'node:p1',
+    'node:p2',
+  ])
+  sizes.forEach((a, i) => {
+    for (const b of sizes.slice(i + 1)) {
+      expect(apart(sizeBox(a), sizeBox(b))).toBe(true)
+    }
+  })
+  for (const label of sizes.filter(l => l.leader)) {
+    expect(
+      Math.hypot(label.x - label.leader!.x, label.y - label.leader!.y),
+    ).toBeLessThan(60)
+  }
 })
 
 test('a row label holds its space against a gene pin', () => {

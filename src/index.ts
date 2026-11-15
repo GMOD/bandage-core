@@ -303,7 +303,12 @@ export {
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
 export { keyColumnBox, keyColumnPx, keyHeightPx } from './keyColumn'
 export type { KeyFrame } from './keyColumn'
-export { LABEL_DEFAULTS, formatBp, labelledNodeLengths } from './graphLabels'
+export {
+  LABEL_DEFAULTS,
+  formatBp,
+  labelledNodeLengths,
+  sizeLeader,
+} from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'
 export { genePins } from './genes/genePins'
