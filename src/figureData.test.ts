@@ -1,8 +1,19 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-import { figureData, gfaFigureData, laidOutGraph } from './figureData'
+import {
+  figureData,
+  gfaFigureData,
+  laidOutGraph,
+  walkRowInks,
+} from './figureData'
+import { liftedRowInks, rowInkAt } from './layout/rowInks'
+import { walkRows } from './layout/walkRows'
+import { loadGraph } from './pipeline'
 import { graphBackbone } from './reference'
+import { abgrHex } from './renderer/colorBits'
+import { encodingStops } from './walkEncoding'
+import { walkLift } from './walkHighlight'
 
 const read = (name: string) =>
   readFileSync(join(__dirname, '..', 'test_data', name), 'utf8')
@@ -121,6 +132,9 @@ test('each lifted walk is keyed with its colour stops as hex', async () => {
   })
   expect(ramped.keys.field).toEqual(['progress'])
   expect(ramped.keys.color).toEqual([''])
+  expect(ramped.keys.contig).toEqual(['chr'])
+  expect(ramped.keys.start).toEqual([1004500])
+  expect(ramped.keys.end).toEqual([1004961])
   expect(d.threadKeys.note).toEqual([])
   const lifted = d.nodes.walk.filter(w => w !== null)
   expect(new Set(lifted)).toEqual(new Set([0, 1]))
@@ -269,4 +283,58 @@ test('the dashed key is there only when a drawn deletion stays dashed', async ()
   expect(await keyOf()).toMatch(/^skips .+? sequence$/)
   expect(await keyOf(['ref#0#chr'])).toMatch(/^skips .+? sequence$/)
   expect(await keyOf(['a#1#c'])).toBeNull()
+})
+
+test("walk row tiles take their lifted walk's colours as walk rows draw them", () => {
+  const gfa = [
+    'S\ta\tAAAAAAAAAA',
+    'S\tb\tAAAAAAAAAA',
+    'S\tx\tCCCCC',
+    'S\tc\tAAAAAAAAAA',
+    'W\tGRCh38\t0\tchr1\t1000\t1030\t>a>b>c',
+    'W\tHG1\t1\tctg1\t500\t525\t>a>x>c',
+    'W\tHG2\t1\tctg2\t0\t25\t<c<x<a',
+  ].join('\n')
+  const graph = loadGraph(gfa, 'test')
+  const lift = walkLift(graph, [
+    { walk: 'HG1#1#ctg1', color: { field: 'progress' } },
+    { walk: 'GRCh38#0#chr1', color: { field: 'reference' } },
+  ])!
+  const keys = {
+    name: lift.walks.map(w => w.name),
+    stops: lift.walks.map(w =>
+      encodingStops(w.encoding)
+        .map(s => abgrHex(s.abgr))
+        .join(','),
+    ),
+    field: lift.walks.map(w => w.encoding.field),
+    contig: lift.walks.map(w => w.range?.contig ?? null),
+    start: lift.walks.map(w => w.range?.start ?? null),
+    end: lift.walks.map(w => w.range?.end ?? null),
+  }
+  const bars = walkRows(graph)!
+  const all = [bars.reference, ...bars.rows]
+  const rows = {
+    name: all.map(r => r.name),
+    bp: all.map(r => r.bp),
+    contig: all.map(r => r.axis?.contig ?? null),
+    contigStart: all.map(r => r.axis?.start ?? null),
+    backward: all.map(r => !!r.axis?.reversed),
+  }
+  const hg1 = all.findIndex(r => r.name === 'HG1#1#ctg1')
+  const hg2 = all.findIndex(r => r.name === 'HG2#1#ctg2')
+  const inks = walkRowInks(keys, rows, {
+    row: [hg1, hg1, hg2, 0],
+    offset: [0, 7, 3, 3],
+  })
+  const ink = liftedRowInks(lift.walks)[0]!
+  expect(inks.key[hg1]).toBe(keys.name.indexOf('HG1#1#ctg1'))
+  expect(inks.key[0]).toBe(keys.name.indexOf('GRCh38#0#chr1'))
+  expect(inks.key[hg2]).toBeNull()
+  expect(inks.color).toEqual([
+    rowInkAt(ink, all[hg1]!, 0),
+    rowInkAt(ink, all[hg1]!, 7),
+    null,
+    null,
+  ])
 })

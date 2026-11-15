@@ -21,6 +21,10 @@ export function abgrAlpha(c: number) {
   return (c >>> 24) & 0xff
 }
 
+export function abgrHex(c: number) {
+  return `#${[abgrRed(c), abgrGreen(c), abgrBlue(c)].map(v => v.toString(16).padStart(2, '0')).join('')}`
+}
+
 export function abgrToCssRgba(c: number) {
   return `rgba(${abgrRed(c)},${abgrGreen(c)},${abgrBlue(c)},${abgrAlpha(c) / 255})`
 }

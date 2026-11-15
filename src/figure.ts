@@ -13,6 +13,7 @@ import { genePins } from './genes/genePins'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { labelledNodeLengths } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
+import { liftedRowInks } from './layout/rowInks'
 import {
   walkRowsKey,
   walkRowsKeyTree,
@@ -588,8 +589,14 @@ export function figureSvg(
   const strip = o.walkStrip
   if (strip && !rows && !layout.tubeMap) {
     const frame = walkStripFrame(strip.rows, { width })
+    const inks = liftedRowInks(
+      facets
+        ? facets.panels.map(panel => panel.walks[0]!)
+        : (lift?.walks ?? []),
+    )
     const key = walkRowsKeyTree(
       walkRowsKey(strip.rows, {
+        inks,
         ramp: rampInterval,
         genes: stripGeneGaps(frame, strip.rowGenes, strip.rowGeneGaps),
         annotation: o.rowAnnotation,
@@ -603,6 +610,7 @@ export function figureSvg(
       `<line x1="0" x2="${width}" y1="${height + 0.5}" y2="${height + 0.5}" stroke="#ddd"/>`,
       `<svg y="${height}" width="${width}" height="${frame.height}">${serializeEl(
         walkRowsTree(strip.rows, frame, {
+          inks,
           ramp: rampInterval,
           rowGenes: strip.rowGenes,
           idPrefix: 'strip',

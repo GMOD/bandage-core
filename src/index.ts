@@ -136,7 +136,7 @@ export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
-export { figureData, gfaFigureData } from './figureData'
+export { figureData, gfaFigureData, walkRowInks } from './figureData'
 export type { FigureDataOptions, GfaFigureSpec } from './figureData'
 export {
   genesFromBed,
@@ -193,7 +193,7 @@ export {
 } from './bubbles/bubbleLabel'
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
-export { filterSamples, walkRows } from './layout/walkRows'
+export { filterSamples, rowHaplotype, walkRows } from './layout/walkRows'
 export { runAt, walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
 export type {
   WalkRowMeta,
@@ -227,6 +227,7 @@ export {
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,
   NOT_COMPARED_TEXT as WALK_NOT_COMPARED_TEXT,
   UNBACKED_TICK as WALK_UNBACKED_TICK,
+  ON_PATH_STRIP_INK as WALK_ON_PATH_STRIP_INK,
   alongRow,
   barEnd,
   callTickInk,
@@ -257,6 +258,14 @@ export type {
   WalkRowsFrame,
   WalkRowsWithCalls,
 } from './layout/walkRowDraw'
+export {
+  liftedRowInks,
+  rowInkAt,
+  rowInkOf,
+  rowInkStops,
+  walkNamesRow,
+} from './layout/rowInks'
+export type { RowInk } from './layout/rowInks'
 export {
   LABELLED_ROW_PX,
   WALK_STRIP_CEILING_PX,

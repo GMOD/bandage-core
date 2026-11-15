@@ -176,6 +176,16 @@ function oklabToRgb([L, a, b]: number[]) {
   ].map(c => toGamma(Math.max(0, Math.min(1, c))) * 255)
 }
 
+const hexOf = (rgb: number[]) =>
+  `#${rgb.map(c => Math.round(c).toString(16).padStart(2, '0')).join('')}`
+
+// Two hex colours mixed in OKLab, `t` of the way from the first
+export function mixHex(from: string, to: string, t: number) {
+  const a = oklab(from)
+  const b = oklab(to)
+  return hexOf(oklabToRgb(a.map((v, i) => v + (b[i]! - v) * t)))
+}
+
 const endsCache = new Map<WalkScheme, number[][] | undefined>()
 
 function oklabEnds(scheme: WalkScheme) {

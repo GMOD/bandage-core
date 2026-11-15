@@ -1,6 +1,8 @@
 import { serializeEl } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { loadGraph } from '../pipeline'
+import { walkLift } from '../walkHighlight'
+import { liftedRowInks, rowInkAt, rowInkOf } from './rowInks'
 import {
   MISSING_INK,
   MISSING_PX,
@@ -967,4 +969,130 @@ test("a stepless row's bar ends past its stretch, since it has no bp", () => {
   }
   expect(barEnd({ bp: 0, runs: [run] })).toBe(1000)
   expect(barEnd({ bp: 1500, runs: [{ ...run, bp: 1500 }] })).toBe(1500)
+})
+
+describe('rows in the lifted walks colours', () => {
+  const graph = loadGraph(GFA, 'test')
+  const bars = walkRows(graph, region)!
+  const lift = walkLift(graph, [
+    { walk: 'GRCh38#0#chr1', color: { field: 'progress' } },
+    { walk: 'HG1#1#ctg1', color: { field: 'progress' } },
+  ])!
+  const inks = liftedRowInks(lift.walks)
+  const frame = {
+    scaleX: 10,
+    scaleY: 1,
+    translateX: 100 - bars.origin * 10,
+    translateY: 20,
+    width: 800,
+    height: 400,
+    rowPx: 20,
+    barPx: 12,
+  }
+  const along = (offset: number) =>
+    (bars.origin + offset) * 10 + frame.translateX
+  const hg1 = bars.rows.find(r => r.name === 'HG1#1#ctg1')!
+  const onlyRow = (row: typeof hg1) => ({ ...bars, rows: [row] })
+  const svg = serializeEl(
+    walkRowsTree(bars, frame, {
+      inks,
+      ramp: { start: 1000, end: 1050 },
+      idPrefix: 'p',
+    }),
+  )
+  const rowSvg = (name: string) => {
+    const i = [bars.reference, ...bars.rows].findIndex(r => r.name === name)
+    return svg.split('<g data-testid="graph-walk-')[i + 1]!
+  }
+
+  test("a lifted walk's row runs along its walk's ramp over the stretch of contig the bar covers", () => {
+    const ink = rowInkOf(hg1, inks)!
+    expect(ink.range).toEqual({ contig: 'ctg1', start: 500, end: 545 })
+    const row = rowSvg('HG1#1#ctg1')
+    const gradient =
+      /<linearGradient id="(p-\d+-ink)" gradientUnits="userSpaceOnUse" x1="([\d.]+)" x2="([\d.]+)"[^>]*>(.*?)<\/linearGradient>/.exec(
+        row,
+      )!
+    expect(+gradient[2]!).toBeCloseTo(along(0))
+    expect(+gradient[3]!).toBeCloseTo(along(hg1.bp))
+    const colors = [...gradient[4]!.matchAll(/stop-color="([^"]+)"/g)].map(
+      m => m[1],
+    )
+    // the bar starts 10 bp into the walk's 45 and ends 10 bp short of its end
+    expect(colors[0]).toBe(rowInkAt(ink, hg1, 0))
+    expect(colors.at(-1)).toBe(rowInkAt(ink, hg1, hg1.bp))
+    expect(colors[0]).not.toBe(ink.stops[0])
+    expect(colors.at(-1)).not.toBe(ink.stops.at(-1))
+    // its runs on and off the path take one paint, so they draw as one rect
+    // with no seams between them
+    const bar = [
+      ...row.matchAll(
+        /<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="12" fill="([^"]+)"/g,
+      ),
+    ]
+    expect(bar).toHaveLength(1)
+    expect(+bar[0]![1]!).toBeCloseTo(along(0))
+    expect(+bar[0]![2]!).toBeCloseTo(hg1.bp * 10)
+    expect(bar[0]![3]).toBe(`url(#${gradient[1]})`)
+  })
+
+  test('a row no lifted walk names keeps the reference-position ramp', () => {
+    const row = rowSvg('HG2#2#ctg2')
+    expect(row).not.toContain('-ink')
+    expect(row).not.toContain('graph-walk-on-path')
+    expect(row).toMatch(
+      /<linearGradient id="p-\d+-\d+"><stop offset="0" stop-color="hsl\(/,
+    )
+  })
+
+  test("a grey strip over a lifted walk's row marks where it runs on the reference's path", () => {
+    const strips = [
+      ...rowSvg('HG1#1#ctg1').matchAll(
+        /<rect data-testid="graph-walk-on-path" x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="2" fill="#8c8c8c"/g,
+      ),
+    ].map(m => ({ x: +m[1]!, y: +m[2]!, w: +m[3]! }))
+    // x, off the path, then c and d on it
+    const [off, on] = hg1.runs
+    expect(off!.onReference).toBe(false)
+    expect(on!.onReference).toBe(true)
+    expect(strips).toHaveLength(1)
+    expect(strips[0]!.x).toBeCloseTo(along(on!.start))
+    expect(strips[0]!.x + strips[0]!.w).toBeCloseTo(along(hg1.bp))
+    const rowY = frame.translateY + 20 * (bars.rows.indexOf(hg1) + 1)
+    expect(strips[0]!.y + 2).toBeLessThan(rowY - 6)
+    expect(strips[0]!.y).toBeGreaterThan(rowY - 10)
+    expect(rowSvg('GRCh38#0#chr1')).not.toContain('graph-walk-on-path')
+  })
+
+  test('the key names the strip, and keeps the reference ramp while a row takes it', () => {
+    const reference = bars.reference.label
+    const strip = `grey above: on ${reference}'s path`
+    const labels = walkRowsKey(bars, {
+      inks,
+      ramp: { start: 1000, end: 1050 },
+    }).map(e => e.label)
+    expect(labels).toContain(strip)
+    expect(labels).toContain(`on ${reference}'s path`)
+    const onlyLifted = {
+      ...bars,
+      rows: bars.rows.filter(r => r.name === 'HG1#1#ctg1'),
+    }
+    const lifted = walkRowsKey(onlyLifted, { inks }).map(e => e.label)
+    expect(lifted).toContain(strip)
+    expect(lifted).not.toContain(`on ${reference}'s path`)
+    expect(lifted.some(l => l.startsWith(`off ${reference}`))).toBe(false)
+    expect(walkRowsKey(bars).map(e => e.label)).not.toContain(strip)
+  })
+
+  test('a walk lifted in one colour paints its row in it flat', () => {
+    const flat = liftedRowInks(
+      walkLift(graph, [{ walk: 'GRCh38#0#chr1' }, { walk: 'HG1#1#ctg1' }])!
+        .walks,
+    )
+    const ink = rowInkOf(hg1, flat)!
+    expect(ink.stops).toHaveLength(1)
+    const row = serializeEl(walkRowsTree(onlyRow(hg1), frame, { inks: flat }))
+    expect(row).not.toContain('linearGradient')
+    expect(row).toContain(`fill="${ink.stops[0]}"`)
+  })
 })

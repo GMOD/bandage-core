@@ -28,12 +28,14 @@ import {
   NOT_LOADED_RIM_PX,
   REFERENCE_RAMP_ALT_CSS,
 } from '../renderer/GeometryBuilder'
+import { rowInkOf, rowInkStops } from './rowInks'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { rowsNeedingRoutes } from './walkRowLinks'
 
 import type { El, ElAttrs } from '../el'
 import type { GeneModel } from '../genes/genePins'
 import type { GapCause } from '../gfa/departures'
+import type { RowInk } from './rowInks'
 import type { WalkAxis, WalkPass, WalkRow, WalkRows, WalkRun } from './walkRows'
 
 // What walk rows draw, shared by the hosts: walkRowsTree is the drawing as an
@@ -50,6 +52,11 @@ export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
 export const MISSING_PX = 1
+// the strip over a row in its lifted walk's colours where it runs on the
+// reference's path, which its colours no longer say
+export const ON_PATH_STRIP_INK = '#8c8c8c'
+export const ON_PATH_STRIP_PX = 2
+const ON_PATH_STRIP_GAP_PX = 1
 // rows thinner than this go unlabelled, their names and readouts on hover
 export const LABELLED_ROW_PX = 12
 // a unit separator over a thinner bar would cut it into dashes
@@ -924,6 +931,8 @@ export function walkRowsKey(
     comparing?: { fetchLimit: number }
     // runs not loaded are drawn hollow, as under a node layout
     markUnloaded?: boolean
+    // the lifted walks' colours, which the rows they name take
+    inks?: readonly RowInk[]
   } = {},
 ): KeyEntry[] {
   const noun = o.annotation ?? 'gene'
@@ -931,21 +940,42 @@ export function walkRowsKey(
   const reference = bars.reference.label
   const elsewhere = rows.some(row => row.runs.some(run => run.fromElsewhere))
   const ownGap = ownGapText(reference, bars.reference.revisited)
-  const entries: KeyEntry[] = [
-    {
-      swatch: o.ramp
-        ? { kind: 'bar', fill: o.rampCss ?? RAMP_GRADIENT_CSS, ramp: true }
-        : { kind: 'bar', fill: ON_REFERENCE },
-      label: `on ${bars.reference.label}'s path`,
-    },
-    {
-      swatch: {
-        kind: 'bar',
-        fill: o.ramp ? REFERENCE_RAMP_ALT_CSS : OFF_REFERENCE,
-      },
-      label: `off ${reference}'s path${elsewhere ? `, or ${reference} ${FROM_ELSEWHERE_TEXT}` : ''}`,
-    },
-  ]
+  const inks = o.inks ?? []
+  const inked = rows.filter(row => rowInkOf(row, inks))
+  const entries: KeyEntry[] =
+    inked.length < rows.length
+      ? [
+          {
+            swatch: o.ramp
+              ? {
+                  kind: 'bar',
+                  fill: o.rampCss ?? RAMP_GRADIENT_CSS,
+                  ramp: true,
+                }
+              : { kind: 'bar', fill: ON_REFERENCE },
+            label: `on ${bars.reference.label}'s path`,
+          },
+          {
+            swatch: {
+              kind: 'bar',
+              fill: o.ramp ? REFERENCE_RAMP_ALT_CSS : OFF_REFERENCE,
+            },
+            label: `off ${reference}'s path${elsewhere ? `, or ${reference} ${FROM_ELSEWHERE_TEXT}` : ''}`,
+          },
+        ]
+      : []
+  if (
+    inked.some(
+      row =>
+        row !== bars.reference &&
+        row.runs.some(run => run.onReference && !run.gap),
+    )
+  ) {
+    entries.push({
+      swatch: { kind: 'bar', fill: ON_PATH_STRIP_INK },
+      label: onPathStripText(reference),
+    })
+  }
   if (o.markUnloaded && rows.some(row => row.runs.some(run => run.unloaded))) {
     entries.push({
       swatch: { kind: 'bar', fill: NOT_LOADED_FILL_CSS, rim: NOT_LOADED_CSS },
@@ -1027,6 +1057,9 @@ export function walkRowsKey(
   }
   return entries
 }
+
+export const onPathStripText = (reference: string) =>
+  `grey above: on ${reference}'s path`
 
 // walk rows whose rows may carry the allele a repeat genotype called
 export type WalkRowsWithCalls = Omit<WalkRows, 'reference' | 'rows'> & {
@@ -1322,12 +1355,17 @@ export function walkRowsTree(
     markUnloaded?: boolean
     // set while ribbons, shared blocks or the shared order are on
     comparing?: boolean
+    // the lifted walks' colours, which the rows they name take, each but the
+    // reference's under a strip where it runs on the reference's path
+    inks?: readonly RowInk[]
   } = {},
 ) {
   const marked = o.markUnloaded ?? false
   const X = (bp: number) => bp * frame.scaleX + frame.translateX
   const rowPx = frame.rowPx ?? ROW_HEIGHT_PX
   const barPx = frame.barPx ?? BAR_PX
+  const stripRoom =
+    (rowPx - barPx) / 2 >= ON_PATH_STRIP_GAP_PX + ON_PATH_STRIP_PX
   const overhang = Math.min(3, Math.max(0, (rowPx - barPx) / 2))
   const Y = (row: number) => row * rowPx * frame.scaleY + frame.translateY
   const { origin, unit, reference, rows } = bars
@@ -1342,8 +1380,36 @@ export function walkRowsTree(
       return undefined
     }
     const drawn = frame.bars === false ? [] : row.runs
-    const runs = coalesceRuns(drawn, frame.scaleX, marked).flatMap(run => {
-      const paint = runPaint(run, o.ramp, marked)
+    const coalesced = coalesceRuns(drawn, frame.scaleX, marked)
+    const ink = o.inks && rowInkOf(row, o.inks)
+    const inkStops = ink && rowInkStops(ink, row)
+    const inkId = `${prefix}-${i}-ink`
+    const inkGradient =
+      inkStops &&
+      inkStops.length > 1 &&
+      el(
+        'linearGradient',
+        {
+          id: inkId,
+          gradientUnits: 'userSpaceOnUse',
+          x1: along(0),
+          x2: along(row.bp),
+          y1: 0,
+          y2: 0,
+        },
+        ...inkStops.map(s =>
+          el('stop', { offset: s.offset, 'stop-color': s.color }),
+        ),
+      )
+    const inkFill =
+      inkStops && (inkStops.length > 1 ? `url(#${inkId})` : inkStops[0]!.color)
+    const inked = (run: WalkRun) => !run.gap && !(marked && run.unloaded)
+    const pieces = inkFill ? joined(coalesced, inked) : coalesced
+    const runs = pieces.flatMap(run => {
+      const paint =
+        inkFill && inked(run)
+          ? { fill: inkFill }
+          : runPaint(run, o.ramp, marked)
       const h = run.gap ? Math.min(gapStyle(run.cause).px, barPx) : barPx
       const id = `${prefix}-${i}-${run.start}`
       const w = Math.max(1, run.bp * frame.scaleX)
@@ -1379,6 +1445,21 @@ export function walkRowsTree(
           ]
         : [rect]
     })
+    const strip =
+      ink && i > 0 && stripRoom
+        ? joined(coalesced, onPath)
+            .filter(onPath)
+            .map(span =>
+              el('rect', {
+                'data-testid': 'graph-walk-on-path',
+                x: along(span.start),
+                y: y - barPx / 2 - ON_PATH_STRIP_GAP_PX - ON_PATH_STRIP_PX,
+                width: Math.max(1, span.bp * frame.scaleX),
+                height: ON_PATH_STRIP_PX,
+                fill: ON_PATH_STRIP_INK,
+              }),
+            )
+        : []
     const ticks =
       unit && barPx >= MIN_TILED_BAR_PX
         ? unitTicks(row.bp, unit, frame.scaleX).map(k =>
@@ -1402,7 +1483,9 @@ export function walkRowsTree(
         'data-testid': i === 0 ? 'graph-walk-reference' : 'graph-walk-row',
       },
       [readout?.cut === true && el('title', {}, readout.text)],
+      [inkGradient],
       runs,
+      strip,
       ticks,
       rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y, {
         rowPx,
@@ -1451,6 +1534,28 @@ export function walkRowsTree(
     [rowTree(reference, 0)],
     rows.map((row, k) => rowTree(row, k + 1)),
   )
+}
+
+const onPath = (run: WalkRun) => run.onReference && !run.gap
+
+// Runs with the touching ones `joins` holds made one, so a bar of one paint
+// draws no seams between its runs
+function joined(runs: readonly WalkRun[], joins: (run: WalkRun) => boolean) {
+  const out: WalkRun[] = []
+  for (const run of runs) {
+    const last = out.at(-1)
+    if (
+      last &&
+      joins(last) &&
+      joins(run) &&
+      last.start + last.bp === run.start
+    ) {
+      out[out.length - 1] = { ...last, bp: last.bp + run.bp }
+    } else {
+      out.push(run)
+    }
+  }
+  return out
 }
 
 // An element of `parts`' elements, which may be too many to pass one by one

@@ -4,6 +4,7 @@ import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS } from './figureSettings'
 import { parseRegion } from './gbzCut'
 import { genePins } from './genes/genePins'
+import { rowInkAt, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
 import {
@@ -20,7 +21,7 @@ import {
   loadGraph,
 } from './pipeline'
 import { referencePositions } from './referenceSpan'
-import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
+import { abgrAlpha, abgrHex } from './renderer/colorBits'
 import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
@@ -29,6 +30,7 @@ import { fadedKey } from './walkHighlight'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
+import type { RowInk } from './layout/rowInks'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { LayoutModeValue } from './layoutModes'
 import type { LaneSlide } from './renderer/types'
@@ -106,8 +108,9 @@ interface EdgeRow {
   offset1: number
 }
 
-// a lifted walk's key: its colour stops as hex, the field they run over, and
-// the note and scale its bar is labelled with
+// a lifted walk's key: its colour stops as hex, the field they run over, the
+// note and scale its bar is labelled with, and the stretch of its contig a
+// progress ramp runs over
 interface KeyRow {
   panel: string
   walk: string
@@ -117,6 +120,9 @@ interface KeyRow {
   scale: string
   stops: string
   field: string
+  contig: string | null
+  start: number | null
+  end: number | null
 }
 
 interface ThreadKeyRow {
@@ -164,9 +170,6 @@ function columns<T extends object>(out: Columns<T>) {
   }
 }
 
-const hex = (v: number) => v.toString(16).padStart(2, '0')
-const cssHex = (c: number) =>
-  `#${hex(abgrRed(c))}${hex(abgrGreen(c))}${hex(abgrBlue(c))}`
 const alphaOf = (c: number) => abgrAlpha(c) / 255
 
 export function figureData(
@@ -214,11 +217,14 @@ export function figureData(
     scale: [],
     stops: [],
     field: [],
+    contig: [],
+    start: [],
+    end: [],
   })
   const threadKeys = columns<ThreadKeyRow>({ panel: [], note: [] })
   const pushKey = (walk: LiftedWalk, panel: string) => {
     const key = keyText(walk)
-    const stops = encodingStops(walk.encoding).map(s => cssHex(s.abgr))
+    const stops = encodingStops(walk.encoding).map(s => abgrHex(s.abgr))
     keys.push({
       panel,
       walk: labelOf(walk.name),
@@ -228,6 +234,9 @@ export function figureData(
       scale: key.scale ?? '',
       stops: stops.join(','),
       field: walk.encoding.field,
+      contig: walk.range?.contig ?? null,
+      start: walk.range?.start ?? null,
+      end: walk.range?.end ?? null,
     })
     return key
   }
@@ -365,7 +374,7 @@ export function figureData(
             stroke: i,
             x: p.x,
             y: p.y,
-            color: cssHex(s.color),
+            color: abgrHex(s.color),
             alpha: alphaOf(s.color),
             width: s.thickness * 2,
             walk: keyRowOf(s.walk),
@@ -397,7 +406,7 @@ export function figureData(
             edge,
             curve: i,
             ...c,
-            color: cssHex(b.color),
+            color: abgrHex(b.color),
             alpha: alphaOf(b.color),
             width: b.thickness * 2,
             deletion: drawnDeletions.bypassed.has(edge),
@@ -422,7 +431,7 @@ export function figureData(
           angle: a.angle,
           length: a.length,
           halfWidth: a.halfWidth,
-          color: cssHex(a.color),
+          color: abgrHex(a.color),
           alpha: alphaOf(a.color),
         })
       }
@@ -500,6 +509,66 @@ export function figureData(
       label: (layout.rowLabels ?? []).map(r => r.label),
       y: (layout.rowLabels ?? []).map(r => r.y),
     },
+  }
+}
+
+type KeyColumns = Pick<
+  Columns<KeyRow>,
+  'name' | 'stops' | 'field' | 'contig' | 'start' | 'end'
+>
+
+interface WalkRowColumns {
+  name: string[]
+  bp: number[]
+  contig: (string | null)[]
+  contigStart: (number | null)[]
+  backward: boolean[]
+}
+
+// For a host that tiles walk rows itself: the key row naming each walk row's
+// walk, or null, and each tile's colour `offset` bp along its row's bar, as
+// walk rows draw it (layout/rowInks.ts), null on a row no lifted walk inks
+export function walkRowInks(
+  keys: KeyColumns,
+  rows: WalkRowColumns,
+  tiles: { row: number[]; offset: number[] },
+) {
+  const inks = keys.name.map((walk, k): RowInk => {
+    const contig = keys.contig[k]
+    const start = keys.start[k]
+    const end = keys.end[k]
+    return {
+      walk,
+      stops: keys.stops[k]!.split(','),
+      range:
+        contig != null && start != null && end != null
+          ? { contig, start, end }
+          : undefined,
+    }
+  })
+  const named = rows.name.map(name => rowInkOf({ name }, inks))
+  const inked = named.map((ink, r) => {
+    const contig = rows.contig[r]
+    const start = rows.contigStart[r]
+    return ink && keys.field[inks.indexOf(ink)] !== 'reference'
+      ? {
+          ink,
+          row: {
+            bp: rows.bp[r]!,
+            axis:
+              contig != null && start != null
+                ? { contig, start, reversed: rows.backward[r]! }
+                : undefined,
+          },
+        }
+      : undefined
+  })
+  return {
+    key: named.map(ink => (ink ? inks.indexOf(ink) : null)),
+    color: tiles.row.map((r, t) => {
+      const at = inked[r]
+      return at ? rowInkAt(at.ink, at.row, tiles.offset[t]!) : null
+    }),
   }
 }
 

@@ -205,6 +205,9 @@ test('walk rows in a strip sit under the drawing, labelled and keyed', () => {
   expect(svg).toContain('<title>ALTGENE</title>')
   expect(svg).toMatch(/font-weight="600">alt#1<\/text>/)
   expect(svg).toMatch(/>gene<\/text>/)
+  expect(svg).toMatch(
+    /<linearGradient id="strip-\d+-ink" gradientUnits="userSpaceOnUse"/,
+  )
 })
 
 test('the walk-rows key names the boxes by the annotation given', () => {

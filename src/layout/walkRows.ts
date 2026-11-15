@@ -1,3 +1,4 @@
+import { panSNHaplotype } from '../pansn'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 
 import type { Departure, GapCause } from '../gfa/departures'
@@ -178,19 +179,33 @@ export interface WalkRows {
   rows: WalkRow[]
 }
 
-// The rows a sample filter keeps, in the order it names them
-export function filterSamples<R extends { sample: string; label: string }>(
+interface NamedRow {
+  name: string
+  sample: string
+  haplotype?: number
+}
+
+// What a sample filter names a row's haplotype by: `sample#haplotype`, from
+// its W line or a P line's PanSN name, or the sample where neither states one
+export const rowHaplotype = (row: NamedRow) =>
+  row.haplotype === undefined
+    ? (panSNHaplotype(row.name) ?? row.sample)
+    : `${row.sample}#${row.haplotype}`
+
+// The rows a sample filter keeps, in the order it names them: each names a
+// sample, every haplotype of it, or one haplotype as rowHaplotype does
+export function filterSamples<R extends NamedRow & { label: string }>(
   rows: R[],
   samples: string[] | undefined,
 ) {
+  const named = (r: R) => {
+    const at = samples?.indexOf(rowHaplotype(r)) ?? -1
+    return at >= 0 ? at : (samples?.indexOf(r.sample) ?? -1)
+  }
   return samples
     ? rows
-        .filter(r => samples.includes(r.sample))
-        .sort(
-          (a, b) =>
-            samples.indexOf(a.sample) - samples.indexOf(b.sample) ||
-            a.label.localeCompare(b.label),
-        )
+        .filter(r => named(r) >= 0)
+        .sort((a, b) => named(a) - named(b) || a.label.localeCompare(b.label))
     : rows
 }
 
