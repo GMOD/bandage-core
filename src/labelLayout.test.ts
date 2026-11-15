@@ -57,6 +57,20 @@ function pin(at: NodeSegment): GenePin {
   }
 }
 
+// an exon outlined along `nodeId` from x0 to x1 at y, in layout units
+function exonOn(nodeId: string, x0: number, x1: number, y: number) {
+  return {
+    nodeId,
+    d: '',
+    stretches: [
+      [
+        { x: x0, y },
+        { x: x1, y },
+      ],
+    ],
+  }
+}
+
 function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
   return {
     paneWidth: 800,
@@ -485,7 +499,7 @@ test('a gene the cut carries only part of says how much, in its own unit', () =>
 // `pangenome/pggb_bubble_tier` labelled K12's IS5 node `oppA`: oppA's chip
 // hangs under its pin on the backbone, which is the rank-1 row, where the IS5
 // node lies, and oppA starts past the element.
-test("a gene's name never covers a node, the gene's own included", () => {
+test("a gene's name never covers a node the gene does not lie on, nor its own where an exon is outlined", () => {
   const at = { x: 300, y: 100 }
   const backbone = {
     bb: [
@@ -518,7 +532,22 @@ test("a gene's name never covers a node, the gene's own included", () => {
       nodePositions: { ...backbone, ...element },
     }),
   )
-  expect(own.genes.map(l => l.y)).toEqual(layout.genes.map(l => l.y))
+  expect(own.genes.map(l => l.y)).toEqual([pinY])
+
+  const outlined = layoutLabels(
+    source({
+      genePins: [
+        {
+          ...pin(at),
+          nodeIds: new Set(['bb', 'is5']),
+          exonsByNode: [exonOn('is5', 280, 320, pinY - 4)],
+        },
+      ],
+      nodePositions: { ...backbone, ...element },
+    }),
+  )
+  expect(outlined.genes.map(l => l.text)).toEqual(['hemA'])
+  expect(outlined.genes[0]!.y).not.toBe(pinY)
 })
 
 // HPRC's KIV-2 cut lost its `LPA …` once the layout turned LPA's end node to
@@ -552,7 +581,7 @@ test("a gene's name goes above its pin when its node runs on under it", () => {
 // GSTM1 under the reference clearance hung its alleles under the line, and
 // GSTM2's name, stacking up from under its pin in the pane's lower half, sat
 // on the reference line over its own exons
-test("a gene's name whose spots below the line are taken goes above it, never on its node", () => {
+test("a gene's name whose spots below the line are taken goes above it, never over its exons", () => {
   const at = { x: 300, y: 300 }
   const alleles = Object.fromEntries(
     Array.from({ length: 41 }, (_, i) => [
@@ -571,10 +600,43 @@ test("a gene's name whose spots below the line are taken goes above it, never on
     ...alleles,
   }
   const [label] = layoutLabels(
-    source({ genePins: [pin(at)], nodePositions }),
+    source({
+      genePins: [{ ...pin(at), exonsByNode: [exonOn('bb', 250, 350, 300)] }],
+      nodePositions,
+    }),
   ).genes
   expect(label!.text).toBe('hemA')
   expect(label!.y + LABEL_PAD).toBeLessThan(at.y - 3)
+})
+
+test("a gene's name with no free spot under or over its pin stacks at the nearest free one, with a leader, rather than be dropped", () => {
+  const at = { x: 300, y: 200 }
+  const alleles = Object.fromEntries(
+    Array.from({ length: 41 }, (_, i) => [
+      `al${i}`,
+      [
+        { x: 200 + i * 5, y: 150 },
+        { x: 200 + i * 5, y: 250 },
+      ],
+    ]),
+  )
+  const nodePositions = {
+    bb: [
+      { x: 0, y: 200 },
+      { x: 800, y: 200 },
+    ],
+    ...alleles,
+  }
+  const [label] = layoutLabels(
+    source({
+      genePins: [{ ...pin(at), exonsByNode: [exonOn('bb', 200, 400, 200)] }],
+      nodePositions,
+    }),
+  ).genes
+  expect(label!.text).toBe('hemA')
+  expect(Math.abs(label!.y - at.y)).toBe(76)
+  expect(label!.y + LABEL_PAD + 3 < 150 || label!.y - 15 - 3 > 250).toBe(true)
+  expect(geneLeader(label!, at, 6)).toMatchObject({ x2: at.x })
 })
 
 test("a gene's leader runs from the chip's top down to a pin above it, leaning where the chip slid", () => {

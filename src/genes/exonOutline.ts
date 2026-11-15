@@ -12,6 +12,8 @@ import type { GenePin } from './genePins'
 export const EXON_COLOR = '#daa520'
 const EXON_GAP_PX = 1
 const EXON_LINE_PX = 2
+// how far an outline reaches past its node's ink
+export const EXON_RIM_PX = EXON_GAP_PX + EXON_LINE_PX
 // a lifted walk's lane at the least, as the geometry draws it
 const MIN_LANE_PX = 4
 

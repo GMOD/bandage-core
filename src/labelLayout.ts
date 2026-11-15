@@ -1,3 +1,4 @@
+import { EXON_RIM_PX } from './genes/exonOutline'
 import {
   nodeLabelBudget,
   placeSizeLabels,
@@ -14,7 +15,7 @@ import {
   occupancy,
   placeLabels,
 } from './overlayLabels'
-import { nodesUnderBox } from './util/hitDetection'
+import { nodesUnderBox, segmentMeetsBox } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
@@ -92,13 +93,24 @@ export function geneCoverageNote(pin: GenePin) {
   return `${amount(pin.covered * length)} of ${amount(length)} ${unit}`
 }
 
+function grown(box: Box, by: number) {
+  return {
+    x0: box.x0 - by,
+    x1: box.x1 + by,
+    y0: box.y0 - by,
+    y1: box.y1 + by,
+  }
+}
+
 // Each gene's name under its pin, or above it where the gene's node runs on
 // under the pin or the spots under it are taken, the longest gene first, with
 // how much of the gene the cut covers where it covers less than all. A name
-// over another node reads as that node's, and over the gene's own covers the
-// line and exons it names, so it moves: down or up a row, or sideways by up to
-// half its width, its leader still running to the pin. A gene is a landmark,
-// so its name gives way to a crowd only after all of that.
+// over another node reads as that node's, and over an exon outline hides it,
+// so it moves: down or up a row, or sideways by up to half its width, its
+// leader still running to the pin; it may cover the gene's own stretch of
+// reference only where no exon is outlined. A gene is a landmark, so where
+// every spot by its pin is taken it stacks at the nearest free one rather
+// than be dropped.
 export function geneLabelCandidates(
   pins: GenePin[],
   screen: (p: { x: number; y: number }) => { x: number; y: number },
@@ -106,6 +118,16 @@ export function geneLabelCandidates(
   nodesUnder: (box: Box) => ReadonlySet<string>,
 ) {
   const ink = contigThickness / 2
+  const rim = ink + EXON_RIM_PX
+  const exons = pins.flatMap(pin =>
+    pin.exonsByNode.flatMap(({ stretches }) =>
+      stretches.flatMap(stretch =>
+        stretch
+          .slice(1)
+          .map((b, i) => ({ a: screen(stretch[i]!), b: screen(b) })),
+      ),
+    ),
+  )
   return byExtent(pins, pin => pin.gene.end - pin.gene.start).map(pin => {
     const { x, y } = screen(pin.at)
     const note = geneCoverageNote(pin)
@@ -119,13 +141,10 @@ export function geneLabelCandidates(
       fallback: note ? `${pin.gene.name} …` : undefined,
       stack: GENE_STACK,
       slide: labelWidth(text) / 2,
+      nearest: { x, y },
       fits: (box: Box) =>
-        nodesUnder({
-          x0: box.x0 - ink,
-          x1: box.x1 + ink,
-          y0: box.y0 - ink,
-          y1: box.y1 + ink,
-        }).size === 0,
+        [...nodesUnder(grown(box, ink))].every(id => pin.nodeIds.has(id)) &&
+        !exons.some(({ a, b }) => segmentMeetsBox(a, b, grown(box, rim))),
     }
   })
 }

@@ -29,7 +29,7 @@ export interface GenePin {
   // the same stretches per node, for a drawing sized to each node, as a path
   // and as points
   exonsByNode: { nodeId: string; d: string; stretches: NodeSegment[][] }[]
-  // every node the gene lies over
+  // every node the gene lies over, the only ones its name may cover
   nodeIds: ReadonlySet<string>
   // where the name goes: the point at the gene's midpoint, or the nearest
   // point inside the gene where the midpoint is not in the cut

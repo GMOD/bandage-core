@@ -198,7 +198,7 @@ export function findHoveredNode(
 }
 
 // Liang-Barsky: whether any of the segment a-b lies inside the box
-function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
+export function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
   const dx = b.x - a.x
   const dy = b.y - a.y
   let t0 = 0

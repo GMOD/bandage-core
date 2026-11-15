@@ -32,6 +32,10 @@ export interface LabelCandidate<T> {
   fits?: (box: Box) => boolean
   // how far sideways, in px, the label may move to find a box on a row
   slide?: number
+  // where no row from `y` or `flipY` takes it, the label stands at the free
+  // spot nearest this point, one that `fits` where any does, so it is never
+  // dropped
+  nearest?: { x: number; y: number }
 }
 
 export interface PlacedLabel<T> extends LabelCandidate<T> {
@@ -156,10 +160,37 @@ export function placeLabels<T>(
         : stackFrom(c, text, c.flipY, c.flipY < c.y ? -1 : 1).placed)
     )
   }
+  // rows up and down from `nearest` to the pane's edges, slid as `stackFrom`
+  // slides, nearest first
+  const nearestFree = (
+    c: LabelCandidate<T>,
+    text: string,
+    from: { x: number; y: number },
+  ) => {
+    const w = labelWidth(text)
+    const rows = Math.ceil(frame.height / row)
+    const spots: { box: Box; x: number; y: number; distance: number }[] = []
+    for (let k = -rows; k <= rows; k++) {
+      for (const dx of slides(c.slide ?? 0)) {
+        const x = from.x + dx
+        const y = from.y + k * row
+        const box = boxAt(x, y, w)
+        if (insideFrame(box, frame)) {
+          spots.push({ box, x, y, distance: Math.hypot(dx, k * row) })
+        }
+      }
+    }
+    spots.sort((a, b) => a.distance - b.distance)
+    const spot =
+      spots.find(s => (c.fits?.(s.box) ?? true) && take(s.box)) ??
+      spots.find(s => take(s.box))
+    return spot && { ...c, x: spot.x, y: spot.y, text, w }
+  }
   for (const c of candidates) {
     const placed =
       place(c, c.text) ??
-      (c.fallback === undefined ? undefined : place(c, c.fallback))
+      (c.fallback === undefined ? undefined : place(c, c.fallback)) ??
+      (c.nearest === undefined ? undefined : nearestFree(c, c.text, c.nearest))
     if (placed) {
       out.push(placed)
     }
