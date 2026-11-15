@@ -218,7 +218,7 @@ test('a thin shallow node over a wide deep one is painted after it', () => {
 })
 
 function depthBatch(
-  nodes: {
+  drawn: {
     id: string
     name: string
     length: number
@@ -228,7 +228,7 @@ function depthBatch(
 ) {
   return buildGeometry({
     nodePositions: Object.fromEntries(
-      nodes.map(n => [
+      drawn.map(n => [
         n.id,
         [
           { x: 0, y: 0 },
@@ -236,8 +236,8 @@ function depthBatch(
         ],
       ]),
     ),
-    graph: { name: 'test', nodes, edges: [] },
-    nodeById: new Map(nodes.map(n => [n.id, n])),
+    graph: { name: 'test', nodes: drawn, edges: [] },
+    nodeById: new Map(drawn.map(n => [n.id, n])),
     colorScheme: 'uniform',
     contigThickness: 6,
     connectorThickness: 2,
