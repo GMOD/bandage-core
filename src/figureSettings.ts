@@ -1,5 +1,6 @@
 import { LABEL_DEFAULTS } from './graphLabels'
-import { ENGINE_DEFAULTS, FIGURE_WIDTH_PX } from './pipeline'
+import { FIGURE_WIDTH_PX } from './layout/fitAssumptions'
+import { ENGINE_DEFAULTS } from './pipeline'
 
 import type { ColorScheme } from './colorSchemes'
 import type { EdgeWidth } from './edgeWidths'

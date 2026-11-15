@@ -15,6 +15,7 @@ import {
   drawnNodeLength,
   layoutScaling,
 } from './layout/drawnScale'
+import { FIGURE_WIDTH_PX, FIT_PADDING } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
 import { seededNodes } from './layout/referenceSeeds'
@@ -336,11 +337,6 @@ export function layoutExtent(
   }
   return { minX, minY, maxX, maxY }
 }
-
-// Gap between the drawing and the edge of the pane, on all four sides.
-export const FIT_PADDING = 40
-
-export const FIGURE_WIDTH_PX = 1200
 
 // A run off the reference draws as a loop beside it, and shows only where the
 // loop reaches past the widest band of lanes the reference draws with. A loop

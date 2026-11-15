@@ -4,8 +4,8 @@
 // of its own (github.com/cmdcolin/BandageJS) can draw exactly what the plugin
 // draws.
 
+export { FIT_PADDING } from './layout/fitAssumptions'
 export {
-  FIT_PADDING,
   clampZoom,
   drawingBounds,
   engineRequest,

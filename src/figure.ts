@@ -13,6 +13,7 @@ import { genePins } from './genes/genePins'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
+import { FIT_PADDING } from './layout/fitAssumptions'
 import { liftedRowInks } from './layout/rowInks'
 import {
   walkRowsKey,
@@ -27,7 +28,7 @@ import {
 } from './layout/walkStrip'
 import { nodeInk } from './nodeWidths'
 import { LABEL_CHAR_PX, LABEL_PAD, LABEL_PX } from './overlayLabels'
-import { FIT_PADDING, fitTransform } from './pipeline'
+import { fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import {
   NOT_LOADED_CSS,
