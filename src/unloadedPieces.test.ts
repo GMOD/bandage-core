@@ -43,6 +43,7 @@ import {
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
+import { abgrHex } from './renderer/colorBits'
 import { coarsenTubeMap } from './tubeMap/coarsen'
 import { drawTubeMap, notShownCaption, tubeMapPicture } from './tubeMap/draw'
 import { tubeMapNodeColors } from './tubeMap/nodeColors'
@@ -800,9 +801,10 @@ test('a node layout draws a placeholder as a hollow node of its bp under every s
   }
   expect(strokesOf(loadedOff.id)).toHaveLength(1)
   const svg = figureSvg(graph, layout, { width: 600 })
+  expect(svg).toContain(
+    `fill="${abgrHex(NOT_LOADED_FILL_COLOR)}" stroke="${abgrHex(NOT_LOADED_COLOR)}"`,
+  )
   expect(svg).toContain('>nodes not shown</text>')
-  expect(svg).toContain(NOT_LOADED_CSS)
-  expect(svg).toContain(NOT_LOADED_FILL_CSS)
   const allLoaded = loadGraph(
     {
       ...twinTables(),

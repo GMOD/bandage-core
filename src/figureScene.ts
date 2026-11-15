@@ -110,6 +110,7 @@ export function figureScene(
     facets,
     labelOf: (name: string) => labels.get(name) ?? name,
     referenceName,
+    walkReference: reference,
     keyText: (walk: LiftedWalk) => {
       const key = walkKey(walk, reference)
       return { note: key.gaps, scale: key.scale }

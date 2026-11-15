@@ -134,6 +134,24 @@ export {
 } from './deletionEdges'
 export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
+export {
+  EXON_INK,
+  FADED_KEY_INK,
+  RAMP_KEY_STOPS,
+  drawnSkips,
+  graphKey,
+  walkKeyEntry,
+} from './graphKey'
+export type {
+  DrawnSkips,
+  GraphKey,
+  GraphKeyEntry,
+  GraphKeyOptions,
+  GraphKeySection,
+  GraphKeySectionId,
+  GraphKeySwatch,
+  KeyStop,
+} from './graphKey'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
 export { figureData, gfaFigureData, walkRowInks } from './figureData'
@@ -156,6 +174,7 @@ export type { GbzSource } from './gbzCut'
 export { version } from './version'
 export type { FigureOptions } from './figure'
 export { svgCanvas } from './renderer/svgCanvas'
+export { abgrHex, abgrToCssRgba } from './renderer/colorBits'
 export {
   FACET_FIELDS,
   FACET_GAP_PX,

@@ -60,3 +60,9 @@ export function brightenAbgr(c: number, factor: number) {
     abgrAlpha(c),
   )
 }
+
+// `#rrggbb`, opaque
+export function hexAbgr(hex: string) {
+  const v = Number.parseInt(hex.slice(1), 16)
+  return packAbgr((v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff, 255)
+}

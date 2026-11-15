@@ -56,7 +56,7 @@ import type { Normal, VisitFrame } from './walkLanes'
 // Colors flow through the geometry builder as ABGR-in-u32 (see colorBits.ts),
 // so a brighten or fade is integer arithmetic and a batch of a hundred thousand
 // strokes carries its colours in one number each.
-const EDGE_DEFAULT_COLOR = packAbgr(119, 119, 119, 217) // rgb(119,119,119) ~ 0.467, alpha 0.85
+export const EDGE_DEFAULT_COLOR = packAbgr(119, 119, 119, 217) // rgb(119,119,119) ~ 0.467, alpha 0.85
 const EDGE_PATH_FALLBACK_COLOR = packAbgr(136, 136, 136, 217) // ~0.533, alpha 0.85
 // An edge that skips reference sequence: the graph's own statement that some
 // haplotype does not carry what the backbone does. Drawn thicker than a plain
@@ -72,7 +72,7 @@ const EDGE_PATH_FALLBACK_COLOR = packAbgr(136, 136, 136, 217) // ~0.533, alpha 0
 // hues or the off-reference charcoal, plain links are mid grey. Weight and
 // darkness carry it instead of a hue, which is what keeps hue meaning reference
 // position and only that.
-const EDGE_DELETION_COLOR = packAbgr(24, 24, 28, 240)
+export const EDGE_DELETION_COLOR = packAbgr(24, 24, 28, 240)
 const DELETION_THICKNESS_FACTOR = 2.2
 // The builder draws a lifted walk's links in its lanes' colours and fades the
 // rest, to an alpha that keeps every colour scheme's hues, only dimmer, on any
@@ -92,6 +92,10 @@ export const LIFT_BACKDROP_CSS = abgrToCssRgba(
 const DELETION_DASH_PX = 11
 // dashSpans draws a dash, a gap and a dash at the fewest
 const MIN_DASHED_SKIP_PX = 3 * DELETION_DASH_PX
+
+// Whether a skip whose span on screen is `span` px holds its dashes, or draws
+// as one plain stroke
+export const skipDashes = (span: number) => span >= MIN_DASHED_SKIP_PX
 
 // A node drawn under `drawPaths` is split into one lengthwise stripe per path in
 // the graph, in the legend's own order, and a path that does not visit the node
@@ -459,7 +463,7 @@ export function hslToRgb(
   return [r + m, g + m, b + m]
 }
 
-function packHsl(h: number, s: number, l: number, a = 1) {
+export function packHsl(h: number, s: number, l: number, a = 1) {
   const [r, g, b] = hslToRgb(h, s, l)
   return packAbgr(
     Math.round(r * 255),
@@ -1167,7 +1171,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // count the legs a short skip rises and falls on, whose dashes are dots
     // under a head: a dart
     const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
-    const dashed = arcPx >= MIN_DASHED_SKIP_PX
+    const dashed = skipDashes(arcPx)
     const onWalk = highlight?.edgeIndexes.has(ei) ?? false
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks

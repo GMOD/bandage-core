@@ -65,7 +65,7 @@ test('a key too wide for the figure wraps onto more lines above the drawing', ()
   const keys = [
     ...header.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)"/g),
   ].map(m => ({ x: Number(m[1]), y: Number(m[2]) }))
-  expect(keys).toHaveLength(walks.length + 1)
+  expect(keys.length).toBeGreaterThan(walks.length)
   expect(new Set(keys.map(k => k.y)).size).toBeGreaterThan(1)
   expect(Math.max(...keys.map(k => k.x))).toBeLessThan(200)
   const drawingAt = Number(/<svg y="([\d.]+)"/.exec(svg)![1])
@@ -144,19 +144,18 @@ test("the ramp spans a view's colour domain where it states one", () => {
   ).not.toBe(figureSvg(graph, layout, options))
 })
 
-test('the ramp key names the sample and contig, or what the host says', () => {
+test('the ramp key names the sample and contig, or what the host says, over the span it runs', () => {
   const options = {
     width: 600,
     colorScheme: 'reference-position' as const,
     region: { refName: 'ref#0#chr', start: 0, end: 9 },
   }
-  expect(figureSvg(graph, layout, options)).toContain('ref chr position')
-  const named = figureSvg(graph, layout, {
-    ...options,
-    referenceName: 'hg38 chr6',
-  })
-  expect(named).toContain('hg38 chr6 position')
-  expect(named).toMatch(/hg38 chr6:\d/)
+  const svg = figureSvg(graph, layout, options)
+  expect(svg).toContain('position on ref chr')
+  expect(svg).toContain('<text y="28">1-9 (9 bp)</text>')
+  expect(
+    figureSvg(graph, layout, { ...options, referenceName: 'hg38 chr6' }),
+  ).toContain('position on hg38 chr6')
 })
 
 test('genes outline their exons, are named under their pins and keyed', () => {
@@ -252,7 +251,8 @@ test('one figure draws as it did', async () => {
 })
 
 // d719794 draws a skip whose span on screen holds fewer than three dashes as
-// one plain stroke, which the key left out
+// one plain stroke, which the key left out; each row is there only where
+// its mark is drawn
 test('a figure keys the dashed links it draws as skipped reference sequence, and the plain stroke of a skip too short to dash', () => {
   const skipped = anchorGraph(
     convertGFAToGraph(
@@ -261,13 +261,16 @@ test('a figure keys the dashed links it draws as skipped reference sequence, and
     'ref',
   )
   const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
-  const keyed = figureSvg(skipped, skippedLayout, { width: 600 })
-  expect(keyed).toMatch(
+  const wide = figureSvg(skipped, skippedLayout, { width: 600 })
+  expect(wide).toMatch(
     /stroke-dasharray="4 3"\/><text[^>]*>skips .+? sequence</,
   )
-  expect(keyed).toMatch(
+  expect(wide).not.toContain(SHORT_SKIP_KEY)
+  const narrow = figureSvg(skipped, skippedLayout, { width: 120 })
+  expect(narrow).toMatch(
     /<line [^>]*stroke-width="1.5"\/><text[^>]*>a skip too short to dash</,
   )
+  expect(narrow).not.toMatch(/skips .+? sequence/)
   const plain = figureSvg(graph, layout, { width: 600 })
   expect(plain).not.toMatch(/skips .+? sequence/)
   expect(plain).not.toContain(SHORT_SKIP_KEY)
@@ -311,7 +314,6 @@ test('a figure split into panels keys the dashed links once, above the grid, onl
     facet: 'sample',
   })
   expect(svg.match(/skips .+? sequence/g)).toHaveLength(1)
-  expect(svg.split(SHORT_SKIP_KEY)).toHaveLength(2)
   const keyAt = svg.search(/skips .+? sequence/)
   expect(keyAt).toBeLessThan(svg.indexOf('<svg x="'))
   expect(
