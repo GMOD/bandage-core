@@ -54,15 +54,6 @@ export function curvePointAt(c: BezierCurve, t: number) {
   }
 }
 
-// Halfway along a run of curves, measured in curves rather than in arc length: a
-// run is one cubic for every edge this is used on (computeEdgeCurves returns a
-// single curve except for self-loops), so the two agree where it matters and the
-// cheap version cannot be wrong by more than a curve.
-export function curveMidpoint(curves: BezierCurve[]) {
-  const mid = curves[Math.floor(curves.length / 2)]
-  return mid ? curvePointAt(mid, 0.5) : undefined
-}
-
 // Control-polygon bounds, which contain the curve. Used to ask how big a drawn
 // edge is on screen, where the answer has to hold under any layout: a bulge
 // alone is in whatever units the layout works in.

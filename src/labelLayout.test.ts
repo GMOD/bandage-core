@@ -1,3 +1,4 @@
+import { LABEL_DEFAULTS } from './graphLabels'
 import { geneCoverageNote, geneLeader, layoutLabels } from './labelLayout'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
@@ -22,8 +23,7 @@ const bubble = {
 function halo(labelAt: NodeSegment, tick = false): BubbleHalo {
   return {
     bubble,
-    kind: 'substitution',
-    label: '1.6 kb sub',
+    label: '1.6 kb, 2 routes',
     path: '',
     labelAt,
     members: 3,
@@ -64,8 +64,8 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     bubbleHalos: [],
     genePins: [],
     labelsNodeSizes: true,
+    nodeLengthLabels: true,
     nodeLengths: new Map(),
-    deletions: [],
     alleleDeletions: [],
     positionsVersion: 0,
     ...overrides,
@@ -87,7 +87,7 @@ test('a node length gives way to the bubble label over it', () => {
       nodeLengths: new Map([['s1', 700]]),
     }),
   )
-  expect(layout.bubbles.map(l => l.text)).toEqual(['1.6 kb sub'])
+  expect(layout.bubbles.map(l => l.text)).toEqual(['1.6 kb, 2 routes'])
   expect(layout.sizes).toEqual([])
 })
 
@@ -105,6 +105,25 @@ test('a node length clear of every chip keeps its label', () => {
     }),
   )
   expect(layout.sizes.map(l => l.text)).toEqual(['700 bp'])
+})
+
+test('a node writes its length only where the host turns lengths on', () => {
+  const lengths = (nodeLengthLabels?: boolean) =>
+    layoutLabels(
+      source({
+        nodePositions: {
+          s1: [
+            { x: 200, y: 300 },
+            { x: 400, y: 300 },
+          ],
+        },
+        nodeLengths: new Map([['s1', 700]]),
+        nodeLengthLabels,
+      }),
+    ).sizes.map(l => l.text)
+  expect(LABEL_DEFAULTS.nodeLengths).toBe(false)
+  expect(lengths(undefined)).toEqual([])
+  expect(lengths(true)).toEqual(['700 bp'])
 })
 
 test('a row label holds its space against a gene pin', () => {

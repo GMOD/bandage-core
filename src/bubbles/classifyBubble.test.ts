@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { bubbleSegmentIds, classifyBubble } from './classifyBubble'
+import { bubbleLabel, bubbleSegmentIds } from './classifyBubble'
 
 import type { MinigraphBubble } from './bubbleLine'
 
@@ -22,23 +22,23 @@ function bubble(over: Partial<MinigraphBubble>): MinigraphBubble {
 }
 
 // Real rows from the hosted HPRC release 2.1 bubble index at KIV-2 and MHC.
-describe('classifyBubble', () => {
-  it('reads a pure insertion off a zero-width interval', () => {
-    const c = classifyBubble(
-      bubble({
-        start: 160535205,
-        end: 160535205,
-        shortestAlleleLength: 0,
-        longestAlleleLength: 1245,
-      }),
-    )
-    expect(c.kind).toBe('insertion')
-    expect(c.label).toBe('≤1.2 kb ins')
+describe('bubbleLabel', () => {
+  it('states a bubble on a zero-width interval by its routes', () => {
+    expect(
+      bubbleLabel(
+        bubble({
+          start: 160535205,
+          end: 160535205,
+          shortestAlleleLength: 0,
+          longestAlleleLength: 1245,
+        }),
+      ),
+    ).toBe('0 bp–1.2 kb, 2 routes')
   })
 
   it('counts the alleles past two', () => {
     expect(
-      classifyBubble(
+      bubbleLabel(
         bubble({
           start: 100,
           end: 100,
@@ -46,21 +46,21 @@ describe('classifyBubble', () => {
           shortestAlleleLength: 0,
           longestAlleleLength: 2000,
         }),
-      ).label,
-    ).toBe('≤2 kb ins, 3 alleles')
+      ),
+    ).toBe('0 bp–2 kb, 3 routes')
   })
 
-  it('reads a deletion when the longest route is the reference', () => {
-    const c = classifyBubble(
-      bubble({
-        start: 160588770,
-        end: 160593193,
-        shortestAlleleLength: 0,
-        longestAlleleLength: 4423,
-      }),
-    )
-    expect(c.kind).toBe('deletion')
-    expect(c.label).toBe('4.4 kb del')
+  it('names no deletion where the longest route is the reference', () => {
+    expect(
+      bubbleLabel(
+        bubble({
+          start: 160588770,
+          end: 160593193,
+          shortestAlleleLength: 0,
+          longestAlleleLength: 4423,
+        }),
+      ),
+    ).toBe('0 bp–4.4 kb, 2 routes')
   })
 
   const KIV2 = bubble({
@@ -73,23 +73,21 @@ describe('classifyBubble', () => {
   })
 
   it('calls a bubble a repeat array where the repeat track has one', () => {
-    const c = classifyBubble(KIV2, [
-      { start: 160611000, end: 160651000, name: 'KIV-2' },
-    ])
-    expect(c.kind).toBe('repeat')
-    expect(c.label).toBe('3–175 kb repeat array (KIV-2), 129 routes')
+    expect(
+      bubbleLabel(KIV2, [{ start: 160611000, end: 160651000, name: 'KIV-2' }]),
+    ).toBe('3–175 kb repeat array (KIV-2), 129 routes')
   })
 
   it('does not call a bubble a repeat from its shape alone', () => {
-    expect(classifyBubble(KIV2).kind).toBe('complex')
-    expect(
-      classifyBubble(KIV2, [{ start: 160640000, end: 160700000 }]).kind,
-    ).toBe('complex')
+    expect(bubbleLabel(KIV2)).toBe('3–175 kb, 129 routes')
+    expect(bubbleLabel(KIV2, [{ start: 160640000, end: 160700000 }])).toBe(
+      '3–175 kb, 129 routes',
+    )
   })
 
   // GSTT1: a 55 kb presence/absence insertion carried by many haplotypes,
   // which the old shape rule called a repeat array
-  it('reads a common presence/absence insertion as an insertion', () => {
+  it('calls a common presence/absence insertion no repeat array', () => {
     const gstt1 = bubble({
       start: 23990000,
       end: 23990000,
@@ -97,10 +95,10 @@ describe('classifyBubble', () => {
       shortestAlleleLength: 0,
       longestAlleleLength: 55000,
     })
-    expect(classifyBubble(gstt1).label).toBe('≤55 kb ins, 12 alleles')
-    expect(
-      classifyBubble(gstt1, [{ start: 23989990, end: 23990030 }]).kind,
-    ).toBe('insertion')
+    expect(bubbleLabel(gstt1)).toBe('0 bp–55 kb, 12 routes')
+    expect(bubbleLabel(gstt1, [{ start: 23989990, end: 23990030 }])).toBe(
+      '0 bp–55 kb, 12 routes',
+    )
   })
 
   it('keeps routes of one length inside an array for what they are', () => {
@@ -110,76 +108,79 @@ describe('classifyBubble', () => {
       shortestAlleleLength: 1,
       longestAlleleLength: 1,
     })
-    expect(classifyBubble(snp, [{ start: 50, end: 150 }]).label).toBe('SNP')
+    expect(bubbleLabel(snp, [{ start: 50, end: 150 }])).toBe('SNP')
   })
 
   it('names a saturated route count for what it is', () => {
-    const c = classifyBubble(
-      bubble({
-        start: 32486309,
-        end: 32575299,
-        segmentCount: 254,
-        pathCount: 2147483647,
-        shortestAlleleLength: 2423,
-        longestAlleleLength: 205170,
-      }),
-    )
-    expect(c.kind).toBe('superbubble')
-    expect(c.label).toBe('2.4–205 kb superbubble, 254 segments, ≥2.1B routes')
+    expect(
+      bubbleLabel(
+        bubble({
+          start: 32486309,
+          end: 32575299,
+          segmentCount: 254,
+          pathCount: 2147483647,
+          shortestAlleleLength: 2423,
+          longestAlleleLength: 205170,
+        }),
+      ),
+    ).toBe('2.4–205 kb superbubble, 254 segments, ≥2.1B routes')
   })
 
-  it('reads a SNP and a substitution', () => {
+  it('names a SNP, and states longer routes of one length by their length', () => {
     expect(
-      classifyBubble(
+      bubbleLabel(
         bubble({
           start: 10,
           end: 11,
           shortestAlleleLength: 1,
           longestAlleleLength: 1,
         }),
-      ).kind,
-    ).toBe('snp')
+      ),
+    ).toBe('SNP')
     expect(
-      classifyBubble(
+      bubbleLabel(
         bubble({
           start: 10,
           end: 14,
           shortestAlleleLength: 4,
           longestAlleleLength: 4,
         }),
-      ).label,
-    ).toBe('4 bp sub')
+      ),
+    ).toBe('4 bp, 2 routes')
   })
 
-  it('flags an inversion ahead of everything but a superbubble', () => {
-    const c = classifyBubble(
-      bubble({
-        inversion: true,
-        shortestAlleleLength: 100,
-        longestAlleleLength: 900,
-      }),
-    )
-    expect(c.kind).toBe('inversion')
-    expect(c.label).toBe('900 bp inv')
+  it('names no inversion, even of a single base', () => {
+    const inverted = (shortest: number, longest: number) =>
+      bubbleLabel(
+        bubble({
+          start: 10,
+          end: 10 + longest,
+          inversion: true,
+          shortestAlleleLength: shortest,
+          longestAlleleLength: longest,
+        }),
+      )
+    expect(inverted(100, 900)).toBe('100–900 bp, 2 routes')
+    expect(inverted(1, 1)).toBe('1 bp, 2 routes')
   })
 
-  it('states the reference a complex site replaces and its allele range', () => {
-    const c = classifyBubble(
-      bubble({
-        start: 0,
-        end: 12000,
-        pathCount: 9,
-        shortestAlleleLength: 8600,
-        longestAlleleLength: 13000,
-      }),
-    )
-    expect(c.kind).toBe('complex')
-    expect(c.label).toBe('12 kb ref → 8.6–13 kb, 9 alleles')
+  it('states a complex site by its allele range and routes, not the reference it replaces', () => {
+    expect(
+      bubbleLabel(
+        bubble({
+          start: 0,
+          end: 12000,
+          pathCount: 9,
+          shortestAlleleLength: 8600,
+          longestAlleleLength: 13000,
+        }),
+      ),
+    ).toBe('8.6–13 kb, 9 routes')
   })
 
   it('marks a bubble the cut did not hold whole', () => {
     expect(
-      classifyBubble(
+      bubbleLabel(
         bubble({
           start: 0,
           end: 41000,
@@ -187,13 +188,13 @@ describe('classifyBubble', () => {
           longestAlleleLength: 41000,
           partial: true,
         }),
-      ).label,
-    ).toBe('41 kb sub, partial')
+      ),
+    ).toBe('41 kb, 2 routes, partial')
   })
 
   it('reads a bubble off the reference by its routes alone', () => {
     const off = (shortest: number, longest: number) =>
-      classifyBubble(
+      bubbleLabel(
         bubble({
           start: 160616010,
           end: 160646745,
@@ -203,9 +204,9 @@ describe('classifyBubble', () => {
           offReference: true,
         }),
       )
-    expect(off(1, 1)).toEqual({ kind: 'snp', label: 'SNP' })
-    expect(off(5, 5).label).toBe('5 bp sub')
-    expect(off(0, 12)).toEqual({ kind: 'complex', label: '0–12 bp, 4 routes' })
+    expect(off(1, 1)).toBe('SNP')
+    expect(off(5, 5)).toBe('5 bp, 4 routes')
+    expect(off(0, 12)).toBe('0–12 bp, 4 routes')
   })
 
   it('splits the segment list', () => {

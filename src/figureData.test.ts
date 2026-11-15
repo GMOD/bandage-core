@@ -93,7 +93,7 @@ test('a panel per walk, its walk lifted and the rest faded', async () => {
     facet: 'walk',
   })
   expect(d.panels.panel).toEqual(['K12', 'IAI39'])
-  expect(d.panels.key[1]).toMatch(/reversed/)
+  expect(d.panels.key[1]).not.toMatch(/reversed/)
   const alphas = (panel: string) =>
     new Set(d.nodes.alpha.filter((_, i) => d.nodes.panel[i] === panel))
   expect(Math.min(...alphas('K12'))).toBeLessThan(1)

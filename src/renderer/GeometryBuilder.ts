@@ -91,6 +91,18 @@ export const LIFT_BACKDROP_CSS = abgrToCssRgba(
 // has one; see dashCurves.
 const DELETION_DASH_PX = 11
 
+// A curve's length on screen by its control polygon, as dashSpans measures it
+function controlPolygonPx(curves: BezierCurve[], scale: number, yToX: number) {
+  let total = 0
+  for (const c of curves) {
+    total +=
+      Math.hypot(c.cx0 - c.x0, (c.cy0 - c.y0) * yToX) +
+      Math.hypot(c.cx1 - c.cx0, (c.cy1 - c.cy0) * yToX) +
+      Math.hypot(c.x1 - c.cx1, (c.y1 - c.cy1) * yToX)
+  }
+  return total * scale
+}
+
 // A node drawn under `drawPaths` is split into one lengthwise stripe per path in
 // the graph, in the legend's own order, and a path that does not visit the node
 // leaves its slot empty. The slot is what makes carriage readable: an absence
@@ -1158,17 +1170,28 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const numPaths = edge.pathIds?.length ?? 0
     const bypassed = deletions?.get(ei)
     const isDeletion = bypassed !== undefined
+    // A skip is drawn at its true span on screen: dashed where it holds a dash
+    // period, plain and headless where shorter, so a few px of heavy dashes
+    // and a head cannot draw as a blob, and gone under a pixel, as any detail
+    // smaller than one is
+    const skipPx = isDeletion
+      ? controlPolygonPx(baseCurves, scale, yToX)
+      : Number.POSITIVE_INFINITY
+    if (skipPx < 1) {
+      continue
+    }
+    const dashed = isDeletion && skipPx >= DELETION_DASH_PX
     const onWalk = highlight?.edgeIndexes.has(ei) ?? false
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks
     const ribbonThickness =
-      (connectorThickness / 2) * (isDeletion ? DELETION_THICKNESS_FACTOR : 1)
+      (connectorThickness / 2) * (dashed ? DELETION_THICKNESS_FACTOR : 1)
     const walkFactor = edgeWidthFactor(numPaths, busiest, edgeWidth)
     // a deletion by walks keeps a plain link's width at least, so its dashes
     // stay legible when few walks take it
     const edgeThickness =
       (connectorThickness / 2) *
-      (!isDeletion
+      (!dashed
         ? walkFactor
         : edgeWidth === 'walks' && busiest > 0
           ? Math.max(1, walkFactor)
@@ -1221,7 +1244,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       thickness: number,
       color: number,
     ) => {
-      if (!isDeletion) {
+      if (!dashed) {
         edgeCurves.push({ curves, thickness, color })
         return
       }
@@ -1253,19 +1276,20 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       })
     }
     const arrowOn = (curves: BezierCurve[]) => {
-      const head = showArrows
-        ? arrowheadFor({
-            curves,
-            edgeHalfWidth:
-              isDeletion || ribbons ? connectorThickness / 2 : edgeThickness,
-            nodeHalfWidth: intoHalfWidth,
-            scale,
-            yToX,
-            color: edgeColor,
-            fromSegments,
-            toSegments,
-          })
-        : undefined
+      const head =
+        showArrows && (dashed || !isDeletion)
+          ? arrowheadFor({
+              curves,
+              edgeHalfWidth:
+                isDeletion || ribbons ? connectorThickness / 2 : edgeThickness,
+              nodeHalfWidth: intoHalfWidth,
+              scale,
+              yToX,
+              color: edgeColor,
+              fromSegments,
+              toSegments,
+            })
+          : undefined
       if (head) {
         arrows.push(head)
       }

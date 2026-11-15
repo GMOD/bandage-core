@@ -1,6 +1,5 @@
 import {
   computeEdgeCurves,
-  curveMidpoint,
   curvePointAt,
   dashCurves,
   edgeJoinOf,
@@ -153,42 +152,6 @@ describe('routedEdgeCurves', () => {
       to: 'end',
     })
     expect([curves[0]!.x0, curves.at(-1)!.x1]).toEqual([0, 40])
-  })
-})
-
-describe('curveMidpoint', () => {
-  test('is on the curve, off its chord', () => {
-    const mid = curveMidpoint([ARC])!
-    expect(mid.x).toBeCloseTo(50)
-    // the chord runs along y=0; the curve reaches 3/4 of its control offset
-    expect(mid.y).toBeCloseTo(45)
-  })
-
-  test('agrees with the drawn bow of a deletion arc', () => {
-    // What the label placement depends on: the point it puts the words at has to
-    // be a point of the curve the renderer strokes, whatever the layout did with
-    // the endpoints.
-    const from = [
-      { x: -80, y: 0 },
-      { x: 0, y: 0 },
-    ]
-    const to = [
-      { x: 200, y: 0 },
-      { x: 280, y: 0 },
-    ]
-    // the bypassed backbone, lying on the chord as an anchored layout draws it:
-    // 200 units of run at the 0.35 along-fraction is 70 of bow
-    const bypassed = [
-      { x: 0, y: 0 },
-      { x: 200, y: 0 },
-    ]
-    const curves = computeEdgeCurves(from, to, false, iso(), bypassed)
-    const mid = curveMidpoint(curves)!
-    expect(curves).toHaveLength(1)
-    const onCurve = curvePointAt(curves[0]!, 0.5)
-    expect(mid.x).toBeCloseTo(onCurve.x)
-    expect(mid.y).toBeCloseTo(onCurve.y)
-    expect(Math.abs(mid.y)).toBeGreaterThan(10)
   })
 })
 

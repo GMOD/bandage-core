@@ -2,7 +2,7 @@ import { WalkReader } from '@jbrowse/graph-walks'
 import { LocalFile } from 'generic-filehandle2'
 
 import { isOffReference } from './anchoredNodes'
-import { classifyBubble } from './bubbles/classifyBubble'
+import { bubbleLabel } from './bubbles/classifyBubble'
 import { graphBubbles } from './bubbles/superbubbles'
 import { COLOR_SCHEMES } from './colorSchemes'
 import { serializeEl } from './el'
@@ -878,15 +878,15 @@ test('a cut says how many placeholders it returned, each a node of the tables', 
   ).toBe(placeholders)
 })
 
-test('a bubble with a run not loaded inside is called neither insertion nor deletion', () => {
-  const kinds = (tables: GraphTables) =>
-    graphBubbles(loadGraph(tables, 'cut')).map(bubble => classifyBubble(bubble))
-  expect(kinds(twinTables())).toEqual([
-    { kind: 'complex', label: '500 bp–1 kb, 4 routes, some nodes not shown' },
+test('a bubble with a run not loaded inside says some of its nodes are not shown', () => {
+  const labels = (tables: GraphTables) =>
+    graphBubbles(loadGraph(tables, 'cut')).map(bubble => bubbleLabel(bubble))
+  expect(labels(twinTables())).toEqual([
+    '500 bp–1 kb, 4 routes, some nodes not shown',
   ])
-  const loaded = kinds({
+  const loaded = labels({
     ...twinTables(),
     nodes: { ...twinTables().nodes, placeholders: new Uint8Array(6) },
   })
-  expect(loaded.map(c => c.label).join(' ')).not.toContain('not shown')
+  expect(loaded.join(' ')).not.toContain('not shown')
 })

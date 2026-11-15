@@ -1,10 +1,10 @@
 import { isBackbone } from '../anchoredNodes'
 import { svgPath } from '../util/geometry'
-import { bubbleSegmentIds, classifyBubble } from './classifyBubble'
+import { bubbleLabel, bubbleSegmentIds } from './classifyBubble'
 
 import type { Graph, NodeSegment } from '../types'
 import type { MinigraphBubble } from './bubbleLine'
-import type { BubbleKind, RepeatSpan } from './classifyBubble'
+import type { RepeatSpan } from './classifyBubble'
 
 // A bubble drawn over the graph itself: a wide translucent stroke along the
 // nodes inside it, in layout coordinates, so the same halo follows the nodes
@@ -13,7 +13,6 @@ import type { BubbleKind, RepeatSpan } from './classifyBubble'
 // out so neighbouring halos do not touch.
 export interface BubbleHalo {
   bubble: MinigraphBubble
-  kind: BubbleKind
   label: string
   // an SVG path in layout units; a drawing transform puts it on screen
   path: string
@@ -90,7 +89,7 @@ export function bubbleHalos(
       coversGraph(nodeIds.length, graph.nodes.length)
     halos.push({
       bubble,
-      ...classifyBubble(bubble, repeats),
+      label: bubbleLabel(bubble, repeats),
       path: parts.join(''),
       labelAt,
       members: nodeIds.length,

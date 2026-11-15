@@ -15,9 +15,9 @@ export function rangeText(
   return `${contig ? `${contig}:` : ''}${groupDigits(s + 1)}-${groupDigits(e)} (${formatBp(e - s)})`
 }
 
-// A lifted walk's key in words, for a legend row or a facet panel's title: its
-// length against the reference, the bp of its steps not loaded, what its
-// pieces leave out, and the bp it runs reversed, and for a lane that shades,
+// A lifted walk's key in words, for a legend row or a facet panel's title: the
+// bp of its steps not loaded and what its pieces leave out, and for a lane that
+// shades,
 // the stretch its scale runs over as `contig:start-end (length)`, to write
 // under a short bar of that scale. A flat lane's stretch is `hover`.
 export function walkKey(
@@ -49,16 +49,10 @@ export function walkKey(
     [outside, OUTSIDE_TEXT],
   ] as const
   return {
-    delta:
-      walk.referenceBp === undefined || spanned === walk.referenceBp
-        ? ''
-        : ` ${spanned > walk.referenceBp ? '+' : '−'}${formatBp(Math.abs(spanned - walk.referenceBp))}`,
     gaps: gaps
       .filter(([bp]) => bp > 0)
       .map(([bp, text]) => `, ${formatBp(bp)} ${text}`)
       .join(''),
-    reversed:
-      walk.reversedBp > 0 ? `, ${formatBp(walk.reversedBp)} reversed` : '',
     shades: field !== 'walk',
     scale,
     hover: scale === own ? undefined : own,

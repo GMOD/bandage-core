@@ -167,7 +167,8 @@ test('a deletion drawn by walks widens with them, no thinner than a link', () =>
       graph,
       nodeById: new Map(graph.nodes.map(n => [n.id, n])),
       colorScheme: 'uniform',
-      axis: iso(),
+      // A to B spans 20 px, long enough to dash
+      axis: iso(2),
       contigThickness: 5,
       connectorThickness: 2,
       drawPaths: false,
@@ -912,6 +913,47 @@ describe('arrowhead placement', () => {
     const deletion = headOf(simplePositions, 4, 2, new Map([[0, []]]))!
     expect(deletion.length).toBe(plain.length)
     expect(deletion.halfWidth).toBe(plain.halfWidth)
+  })
+
+  // A skip at its true span: B starts 10 layout units past A's end
+  const skipAt = (scale: number) => {
+    const batch = buildGeometry({
+      nodePositions: simplePositions,
+      graph: simpleGraph,
+      nodeById: simpleNodeById,
+      colorScheme: 'uniform',
+      contigThickness: 6,
+      connectorThickness: 2,
+      drawPaths: false,
+      axis: iso(scale),
+      deletions: new Map([[0, []]]),
+    })
+    const run = batch.edgeCurveRuns.get(0)
+    return {
+      strokes: run
+        ? batch.edgeCurves.slice(run.start, run.start + run.count)
+        : [],
+      heads: batch.arrowRuns.get(0)?.count ?? 0,
+    }
+  }
+
+  // HG02055's 50 bp deletion at chr1:27,853,212, about 27 px there
+  test('a skip a few dash periods long on screen is dashed', () => {
+    expect(skipAt(2.7).strokes.length).toBeGreaterThanOrEqual(2)
+  })
+
+  // a few px of heavy dashes and a head drew as a black blob
+  test('a skip shorter than a dash period on screen is one plain stroke with no head', () => {
+    const { strokes, heads } = skipAt(0.6)
+    expect(strokes).toHaveLength(1)
+    expect(strokes[0]!.thickness).toBe(1)
+    expect(heads).toBe(0)
+  })
+
+  // the 1-5 bp skips at the amylase locus, at 240 kb across the pane, drew
+  // as loops along the backbone
+  test('a skip under a pixel on screen is not drawn', () => {
+    expect(skipAt(0.05)).toEqual({ strokes: [], heads: 0 })
   })
 
   // a head is 10 px on a plain link, so it waits for 30 px of link

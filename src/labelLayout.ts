@@ -1,4 +1,4 @@
-import { graphLabels, rowLabelBox } from './graphLabels'
+import { LABEL_DEFAULTS, graphLabels, rowLabelBox } from './graphLabels'
 import { HALO_FACTOR } from './halo'
 import { legendBox } from './legendCorner'
 import {
@@ -11,10 +11,8 @@ import {
 import { nodesUnderBox } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
-import type { DeletionEdge } from './deletionEdges'
 import type { GenePin } from './genes/genePins'
 import type { GraphLabel } from './graphLabels'
-import type { DeletionRoutes } from './layout/deletionRoutes'
 import type { LegendCorner } from './legendCorner'
 import type { Box, PlacedLabel } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
@@ -51,11 +49,9 @@ export interface LabelLayoutSource {
   // false where the drawing is not the canvas's nodes (the tube map), so a
   // length label would sit on a box's tubes rather than beside a node
   labelsNodeSizes: boolean
+  // whether a node's length is written on it, LABEL_DEFAULTS.nodeLengths unset
+  nodeLengthLabels?: boolean
   nodeLengths: Map<string, number>
-  // the deletions drawn (deletionDrawing's `shown`)
-  deletions: DeletionEdge[]
-  deletionRoutes?: DeletionRoutes
-  stranded?: boolean
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
 }
@@ -142,8 +138,8 @@ function byExtent<T>(items: T[], extent: (item: T) => number) {
   return [...items].sort((a, b) => extent(b) - extent(a))
 }
 
-// The order is what survives a crowd: the bubble's name, then the gene's, then
-// what a deletion skips, then who takes each route, and a node's length last.
+// The order is what survives a crowd: the bubble's name, then the gene's, and
+// a node's length last.
 export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   const { paneWidth: width, canvasHeight: height, translateX, translateY } = m
   const { scaleX, scaleY } = m.axisScale
@@ -227,20 +223,18 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     take,
   )
   const sizes =
-    m.nodePositions && m.labelsNodeSizes
+    m.nodePositions &&
+    m.labelsNodeSizes &&
+    (m.nodeLengthLabels ?? LABEL_DEFAULTS.nodeLengths)
       ? graphLabels({
           nodePositions: m.nodePositions,
           nodeLengths: m.nodeLengths,
-          deletions: m.deletions,
-          deletionRoutes: m.deletionRoutes,
-          stranded: m.stranded,
           alleleDeletions: m.alleleDeletions,
           axis: m.axisScale,
           translateX,
           translateY,
           width,
           height,
-          version: m.positionsVersion,
           take,
         })
       : []

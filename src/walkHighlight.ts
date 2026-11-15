@@ -30,7 +30,6 @@ export interface WalkHighlight {
   steps: number
   bp: number
   unloadedBp: number
-  referenceBp?: number
   // where the walk's stretch of the cut sits on its own contig, from its W or
   // P record: its start where it begins and its end where it ends
   range?: { contig: string; start: number; end: number }
@@ -51,10 +50,6 @@ export interface LiftedWalk extends WalkHighlight {
   colors: Map<string, number>
   // the colour at each visit, in the order the walk makes them
   passColors: Map<string, number[]>
-  // the nodes it crosses the other way from the reference walk, and their
-  // bp; empty for the reference
-  reversed: Set<string>
-  reversedBp: number
 }
 
 // The walks lifted together, reference first and the rest in the order they
@@ -285,19 +280,6 @@ function highlightOf(
   })
   rowEnds.forEach(countOwn)
   const reference = isReference(graph, name)
-  // measured as `range` is, so a walk identical to a cut reference reads equal
-  const referenceSpan = () => {
-    const referencePieces = reference
-      ? []
-      : (graph.paths ?? []).filter(p => isReference(graph, p.name))
-    if (referencePieces.length === 0) {
-      return undefined
-    }
-    const e = extentOf(referencePieces)
-    return e
-      ? e.end - e.start
-      : referencePieces.reduce((sum, piece) => sum + bpOf(piece), 0)
-  }
   return {
     name,
     reference,
@@ -323,7 +305,6 @@ function highlightOf(
         ),
       0,
     ),
-    referenceBp: referenceSpan(),
     missingBp,
     ownBp,
     ...(stated.length > 0 ? { readBp, unreadBp } : {}),
@@ -422,37 +403,6 @@ function referencePlaces(
   return places
 }
 
-// The nodes a walk reads on the other strand from the reference walk
-function reversedNodes(
-  graph: Graph,
-  byId: Map<string, GraphNode>,
-  walk: WalkHighlight,
-) {
-  const reversed = new Set<string>()
-  let bp = 0
-  const referencePath = graph.referencePath
-  if (!referencePath || walk.reference) {
-    return { reversed, bp }
-  }
-  const visits = graph.pathVisits
-  if (!visits) {
-    return { reversed, bp }
-  }
-  const own = visits.pathIndex(pathOrigin(walk.name).name)
-  const theirs = visits.pathIndex(referencePath)
-  for (const id of walk.progress.keys()) {
-    const node = byId.get(id)
-    const slot: number = node ? visits.slot(node.name) : -1
-    const a = slot < 0 ? -1 : visits.firstBy(slot, own)
-    const b = slot < 0 ? -1 : visits.firstBy(slot, theirs)
-    if (a >= 0 && b >= 0 && visits.reversed[a] !== visits.reversed[b]) {
-      reversed.add(id)
-      bp += node!.length
-    }
-  }
-  return { reversed, bp }
-}
-
 export function walkLift(
   graph: Graph,
   layers: readonly WalkLayer[],
@@ -483,13 +433,10 @@ export function walkLift(
   )
   const walks = lifted.map(({ walk }, i) => {
     const encoding = encodings[i]!
-    const { reversed, bp } = reversedNodes(graph, index.byId, walk)
     return {
       ...walk,
       encoding,
       ...laneColors(graph, index.byId, walk, encoding, ramp),
-      reversed,
-      reversedBp: bp,
     }
   })
   return liftOf(walks, ramp)

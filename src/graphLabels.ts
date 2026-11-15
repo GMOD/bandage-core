@@ -1,31 +1,17 @@
-import { edgeCurvesOf } from './deletionEdges'
 import { polylineMidpoint } from './layout/mergeRuns'
 import { labelWidth, occupancy } from './overlayLabels'
-import { curveBounds, curveMidpoint, polylinePx } from './util/geometry'
+import { polylinePx } from './util/geometry'
 import { weakMemo } from './util/weakMemo'
 
-import type { DeletionEdge } from './deletionEdges'
-import type { DeletionRoutes } from './layout/deletionRoutes'
 import type { Box, TakeBox } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
-import type { AxisScale, BezierCurve } from './util/geometry'
+import type { AxisScale } from './util/geometry'
 
 // What to write on the drawing, and where. Bandage labels a node with its name,
 // its length or its depth; a segment id means nothing to a reader of a pangenome
-// ("s462766"), so the label here is the one fact that carries the story — how
-// much sequence the alternative is worth. A node says its length, a deletion arc
-// says what it skips.
-//
-// **Every length written here is positive, and a deletion says it is one.**
-// A deletion arc used to be labelled "−94.2 kb", and a review read that as the
-// node's sequence length being negative, which is the only thing a bare signed
-// number beside a graph can mean. "skips 94.2 kb" replaced it and left a reader
-// asking 94.2 kb of what; "skips 94.2 kb of reference" answered that and still
-// drew "it is sort of unclear what 'skips X bp of reference' means. is there any
-// better wording?" on a third round. So the label now names the event rather
-// than describing the arc's mechanics: "94.2 kb del" abbreviates the term a
-// reader already has for reference sequence a haplotype does not carry, and
-// against the reference is what a deletion is measured from by default.
+// ("s462766"), so the label here is a node's length. A link says nothing in
+// words: what a walk skips is drawn, not written, so no label names an event
+// against the reference or a net size.
 //
 // **Two rules decide which labels there are, and both are about the drawing
 // rather than about a threshold on the graph.**
@@ -50,46 +36,15 @@ import type { AxisScale, BezierCurve } from './util/geometry'
 //
 // Collision is measured in SCREEN pixels, because that is where the text has its
 // size: the same two labels clear each other zoomed in and collide zoomed out,
-// so a wide view sheds labels on its own. This is why there is no "show labels"
-// toggle — a control whose only job is to undo a bad default is a bad default.
+// so a wide view sheds labels on its own. The lengths themselves are off
+// unless a host turns them on: LABEL_DEFAULTS.nodeLengths.
 
-// A deletion is worth saying even when its arc is small, because the arc is the
-// only thing on screen that represents it; but not when it is a dot.
-//
-// Measured on the arc's DRAWN EXTENT (the larger side of its bounds, in screen
-// px), not on its bulge. Bulge is in whatever units the layout works in: under
-// FMMM it is a fraction of the bypassed nodes' drawn length at the engine's own
-// scale, and in an anchored layout it is a fraction of their length in bp. The
-// same deletion therefore cleared this in one layout and not the other, which is
-// how `pangenome/hprc_cfhr_deletion` lost the labels on its 2.2 kb and 9.3 kb
-// arcs by changing nothing but the layout. Extent is what a reader sees either
-// way, and it is the same quantity the node rule below uses.
-const MIN_DELETION_LABEL_PX = 26
+export const LABEL_DEFAULTS = { nodeLengths: false }
 
 // One node label per this much pane, and never fewer than a handful: at a
 // 1400 by 600 pane that is about twenty.
 const PX_PER_NODE_LABEL = 40_000
 const MIN_NODE_LABELS = 8
-
-// A deletion clearing that floor still need not be able to CARRY its label: the
-// text is a fixed 26 characters however small the event's arc is, so at the LPA
-// KIV-2 locus `skips 27.7 kb of reference` came out four times the width of the
-// arc it was centred on, reading as a caption dropped on the bubble beside it
-// rather than as that arc's name (`pangenome/hprc_lpa_kiv2`, reviewed
-// 2026-07-31).
-//
-// A node in the same position simply loses its label, and that is right for a
-// node — the tube is still drawn, still coloured, still hoverable, and the graph
-// is full of them. It is wrong for a deletion, which is one dashed curve
-// standing for sequence that is not in the picture at all: dropped, nothing
-// tells a reader the arc is an event rather than another link.
-//
-// So the label moves off the arc instead and takes a leader line with it. It is
-// displaced along the direction the arc bows — which is the side the bulge was
-// drawn INTO, so it is the open side by construction — far enough that its box
-// clears the curve, and the leader states the association the proximity no
-// longer does.
-const LEADER_GAP_PX = 8
 
 // The label's own box, for collision. Mirrors GraphCanvas's nodeLabelStyle:
 // 10px text in 3px of horizontal padding, on a 13px line. Character width is an
@@ -105,10 +60,8 @@ const LABEL_GAP_PX = 3
 // being drawn rather than the node.
 const MAX_LABEL_OVERHANG = 2
 
-// Half the box a piece of label text occupies. Split out of `labelBox` because
-// the width is wanted before there is anywhere to put the box: a displaced
-// deletion label is clamped by its own half-width, and the node pass below
-// rejects on size before it has a position at all.
+// Half the box a piece of label text occupies, wanted before there is anywhere
+// to put the box: the node pass rejects on size before it has a position.
 function labelHalfWidth(text: string) {
   return (text.length * LABEL_CHAR_PX + LABEL_PAD_PX + LABEL_GAP_PX) / 2
 }
@@ -145,26 +98,6 @@ export function rowLabelBox(text: string, screenY: number): Box {
   }
 }
 
-// Slide a value into [lo, hi], leaving it alone when the range is empty — a box
-// wider than the canvas has nowhere to fit, and pinning it to one edge is worse
-// than the overflow.
-function clamp(v: number, lo: number, hi: number) {
-  return hi < lo ? v : Math.min(Math.max(v, lo), hi)
-}
-
-// A displaced label's tether, in the same screen pixels the label is placed in.
-// Both ends are computed here rather than in the component, because the label's
-// end is the point where its own box meets the line — geometry the placement
-// already has and the painter would have to rederive. It stops at the box edge
-// rather than at the centre because the label's background is translucent, so a
-// line run under it shows through the text.
-export interface Leader {
-  arcX: number
-  arcY: number
-  labelX: number
-  labelY: number
-}
-
 export interface GraphLabel {
   key: string
   text: string
@@ -173,9 +106,6 @@ export interface GraphLabel {
   // caller redo the arithmetic that decided which labels there are
   x: number
   y: number
-  kind: 'node' | 'deletion'
-  // present only on a label that had to move off the thing it names
-  leader?: Leader
 }
 
 // Locale-independent, unlike toLocaleString: a figure regenerated on a machine
@@ -196,94 +126,9 @@ export function formatBp(bp: number) {
   return `${+value.toFixed(value >= 100 ? 0 : 1)} ${unit}`
 }
 
-function deletionText(bp: number) {
-  return `${formatBp(bp)} del`
-}
-
-// Which way the arc bows, as a unit vector: its chord's midpoint towards its
-// apex. A deletion's bulge is perpendicular to the chord by construction, so
-// this points away from the backbone the arc leaves and rejoins — the side the
-// curve was opened into, and the side with room in it.
-//
-// Taken on SCREEN, which is where the label it aims has to clear the curve. That
-// used to be free — with one scale for both axes the transform is a similarity,
-// so a layout direction is a screen direction — and on a row layout it is not:
-// the two axes are bp and px and the arc leaves at a different angle in each.
-function arcOutward(
-  curves: BezierCurve[],
-  apex: { x: number; y: number },
-  scaleX: number,
-  scaleY: number,
-) {
-  const first = curves[0]!
-  const last = curves[curves.length - 1]!
-  const dx = (apex.x - (first.x0 + last.x1) / 2) * scaleX
-  const dy = (apex.y - (first.y0 + last.y1) / 2) * scaleY
-  const len = Math.hypot(dx, dy)
-  // A curve with no bow has no outward side; up is as good as any, and this is
-  // unreachable for a deletion, whose bulge is what gives it extent at all.
-  return len === 0 ? { x: 0, y: -1 } : { x: dx / len, y: dy / len }
-}
-
-// How far the box's own boundary is from its centre in a given direction — the
-// support function of an axis-aligned rectangle. Displacing a label by this plus
-// a gap puts its near EDGE that gap away from the point, whatever angle the
-// leader leaves at, which a single radius cannot do for a box six times wider
-// than it is tall.
-function boxSupport(box: Box, dir: { x: number; y: number }) {
-  return (
-    (Math.abs(dir.x) * (box.x1 - box.x0)) / 2 +
-    (Math.abs(dir.y) * (box.y1 - box.y0)) / 2
-  )
-}
-
-// Where a ray along `dir` through the box's centre crosses the box, again from
-// the centre — which is where a leader coming in along that ray has to stop.
-//
-// This is not `boxSupport`, and the difference is the whole leader: support is
-// the distance to the supporting line perpendicular to `dir`, which a box six
-// times wider than it is tall touches at a corner, so a diagonal approach hits
-// the box's real edge four or five times sooner. Stopping the line at the
-// support distance drew an 8px stub at the arc with 50px of white between it and
-// the text it was supposed to tie to.
-function boxRayCrossing(box: Box, dir: { x: number; y: number }) {
-  const halfW = (box.x1 - box.x0) / 2
-  const halfH = (box.y1 - box.y0) / 2
-  return Math.min(
-    dir.x === 0 ? Infinity : halfW / Math.abs(dir.x),
-    dir.y === 0 ? Infinity : halfH / Math.abs(dir.y),
-  )
-}
-
-// The extent of a run's drawn points, in layout units. One pass rather than
-// four `Math.min(...points.map(...))` spreads over the same array: those
-// allocate a mapped copy per axis, and a run long enough — a chain of alleles
-// across a whole-file import — overflows the argument limit and throws
-// RangeError instead of labelling anything. Same reason `backboneSpan` is a
-// fold.
-function runBounds(
-  nodeIds: string[],
-  nodePositions: Record<string, NodeSegment[]>,
-) {
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const id of nodeIds) {
-    for (const p of nodePositions[id] ?? []) {
-      minX = Math.min(minX, p.x)
-      maxX = Math.max(maxX, p.x)
-      minY = Math.min(minY, p.y)
-      maxY = Math.max(maxY, p.y)
-    }
-  }
-  return minX === Infinity ? undefined : { minX, minY, maxX, maxY }
-}
-
 // The label pass reruns on every pan, because the labels are placed in screen
-// space, while the order nodes are considered in and the arcs labels ride
-// depend only on the layout and zoom. Both caches key weakly on the positions,
-// and `version` changes when a node drag mutates them in place.
+// space, while the order nodes are considered in depends only on the layout:
+// the cache keys weakly on the positions.
 
 // Node label candidates in the order they are considered, biggest allele
 // first, which depends on the sequence lengths alone.
@@ -303,69 +148,13 @@ function labelOrder(
   )
 }
 
-// One deletion arc as the renderer draws it, plus the two things placement
-// reads off it: where its apex is, and how big it is on screen.
-interface ArcPlacement {
-  deletion: DeletionEdge
-  curves: BezierCurve[]
-  apex: { x: number; y: number }
-  extent: number
-}
-
-const arcCache = weakMemo<Record<string, NodeSegment[]>, ArcPlacement[]>()
-
-// Biggest deletion first, so an arc that survives a crowd is the one carrying
-// the most sequence.
-function arcPlacements(
-  nodePositions: Record<string, NodeSegment[]>,
-  deletions: DeletionEdge[],
-  axis: AxisScale,
-  version: number,
-  routes: DeletionRoutes | undefined,
-  stranded: boolean,
-) {
-  const { scaleX, scaleY } = axis
-  return arcCache(
-    nodePositions,
-    [deletions, routes, stranded, scaleX, scaleY, version],
-    () => {
-      const arcs: ArcPlacement[] = []
-      for (const deletion of [...deletions].sort((a, b) => b.bp - a.bp)) {
-        const curves = edgeCurvesOf(
-          nodePositions,
-          deletion,
-          axis,
-          deletion.bypassed,
-          routes?.[deletion.edgeIndex],
-          stranded,
-        )
-        const apex = curves ? curveMidpoint(curves) : undefined
-        if (curves && apex) {
-          const { minX, minY, maxX, maxY } = curveBounds(curves)
-          arcs.push({
-            deletion,
-            curves,
-            apex,
-            // in screen px, so the two axes' units cannot be added by accident
-            extent: Math.max((maxX - minX) * scaleX, (maxY - minY) * scaleY),
-          })
-        }
-      }
-      return arcs
-    },
-  )
-}
-
 interface SizeLabelArgs {
   nodePositions: Record<string, NodeSegment[]>
   // bp per node id, so this module never has to know what a GraphNode is
   nodeLengths: Map<string, number>
-  deletions: DeletionEdge[]
-  deletionRoutes?: DeletionRoutes
-  stranded?: boolean
-  // Deletions the layout found that carry a segment, so `deletions` above
-  // cannot: empty under a layout drawn at sequence scale, where a node's own
-  // length IS what its drawn extent means. See AlleleDeletion.
+  // Alleles the layout drew over the reference they replace: their nodes
+  // keep their lengths off the drawing, since a length written across a bar
+  // drawn wider than it reads as the bar's size. See AlleleDeletion.
   alleleDeletions?: AlleleDeletion[]
   // Screen px per layout unit, both axes. They are equal on an isotropic layout
   // and differ on a row layout, whose y is already px (scaleY === 1). One value
@@ -375,10 +164,6 @@ interface SizeLabelArgs {
   translateY: number
   width: number
   height: number
-  // Bumped whenever the layout's positions are mutated in place, i.e. by a node
-  // drag. Everything cached across frames here is keyed by it — see the caches
-  // above — and reading it is also what makes a dragged node's label follow it.
-  version?: number
 }
 
 export interface SizeLabelCandidate {
@@ -386,166 +171,27 @@ export interface SizeLabelCandidate {
   box: Box
 }
 
-// Deletions come first, so an arc keeps its label against the nodes around it:
-// the arc is the only thing in the drawing that represents sequence which is
-// not there, and a reader who cannot read it has no other route to it.
 export function sizeLabelCandidates({
   nodePositions,
   nodeLengths,
-  deletions,
-  deletionRoutes,
-  stranded = false,
   alleleDeletions,
   axis,
   translateX,
   translateY,
-  width,
   height,
-  version = 0,
 }: SizeLabelArgs) {
   const { scaleX, scaleY } = axis
-  const deletionCandidates: SizeLabelCandidate[] = []
-  const nodeCandidates: SizeLabelCandidate[] = []
-  for (const { deletion, curves, apex, extent } of arcPlacements(
-    nodePositions,
-    deletions,
-    axis,
-    version,
-    deletionRoutes,
-    stranded,
-  )) {
-    if (extent >= MIN_DELETION_LABEL_PX) {
-      const text = deletionText(deletion.bp)
-      const halfW = labelHalfWidth(text)
-      const box = boxAt(halfW, 0, 0)
-      const arcX = apex.x * scaleX + translateX
-      const arcY = apex.y * scaleY + translateY
-      if (arcX < 0 || arcX > width || arcY < 0 || arcY > height) {
-        continue
-      }
-      // The node rule, applied to an arc: a label wider than twice what it
-      // names is a label with an arc attached. Under it the label stays
-      // centred on the curve, which is what every arc big enough to hold its
-      // own name already does.
-      const fits = extent >= (halfW * 2) / MAX_LABEL_OVERHANG
-      // Displaced by the SUPPORT distance, so the whole box clears the arc
-      // whatever angle it leaves at, then the leader is stopped at the box's
-      // real edge along the same ray.
-      const bow = arcOutward(curves, apex, scaleX, scaleY)
-      const offset = boxSupport(box, bow) + LEADER_GAP_PX
-      // ...and then slid back into the frame if that put it outside one. A
-      // tethered label chooses where it goes, and the cull below keeps any box
-      // merely OVERLAPPING the canvas, so displacing blind is how the MHC force
-      // layout came out with a clipped `…ips 1.5 kb of reference` against its
-      // left edge. Sliding beats dropping and beats picking the arc's other
-      // side: the leader is redrawn to wherever the words ended up, so it stays
-      // unambiguous however far along the edge they had to move.
-      const x = fits ? arcX : clamp(arcX + bow.x * offset, halfW, width - halfW)
-      const y = fits
-        ? arcY
-        : clamp(
-            arcY + bow.y * offset,
-            LABEL_HALF_HEIGHT,
-            height - LABEL_HALF_HEIGHT,
-          )
-      // From where the label actually sits, not from the bow, or the line
-      // points off at the position the label would have had.
-      const away = Math.hypot(x - arcX, y - arcY)
-      let leader
-      if (away > 0) {
-        const dir = { x: (x - arcX) / away, y: (y - arcY) / away }
-        const crossing = boxRayCrossing(box, dir)
-        leader = {
-          arcX,
-          arcY,
-          labelX: x - dir.x * crossing,
-          labelY: y - dir.y * crossing,
-        }
-      }
-      deletionCandidates.push({
-        label: {
-          key: `del:${deletion.edgeIndex}`,
-          text,
-          x,
-          y,
-          kind: 'deletion',
-          leader,
-        },
-        box: boxAt(halfW, x, y),
-      })
-    }
-  }
-
-  // Segment-carrying deletions, next: the arcs above and these are the same
-  // event and are said in the same words, so they queue together ahead of the
-  // node lengths and biggest-first among themselves.
-  //
-  // A run's label rides the middle of what the layout DREW for it, which is the
-  // reference the allele replaces, and it has to fit that extent by the same
-  // factor-of-two rule a node label does — so the sliver a 2 bp skip occupies in
-  // a base-level graph carries nothing, and the 7.1 kb one CFT073 leaves in the
-  // E. coli pggb graph carries `7 kb del`.
-  //
-  // The nodes it covers are then barred from labelling themselves. Their length
-  // is a true fact and the wrong one to print here: `93 bp` written across a bar
-  // drawn 7.1 kb wide is read as the bar's size, which is the misreading this
-  // whole label exists to fix. It stays in the tooltip and the details panel.
-  const labelledByDeletion = new Set<string>()
-  const alleleRuns = [...(alleleDeletions ?? [])].sort((a, b) => b.bp - a.bp)
-  for (const run of alleleRuns) {
-    const drawn = runBounds(run.nodeIds, nodePositions)
-    if (!drawn) {
-      continue
-    }
-    // ON SCREEN, not in layout units, and that is the whole subtlety here. A
-    // run drawn over the reference it replaces can be far wider than the window
-    // — the E. coli one starts 7 kb before the left edge — so its true midpoint
-    // is nowhere, and a label placed there is culled for being off-canvas and
-    // the bar goes unnamed. The visible slice is what a reader has, so the
-    // label rides the middle of that, and the fit test asks whether the words
-    // fit what is SHOWN rather than what is drawn.
-    const shownLeft = Math.max(drawn.minX * scaleX + translateX, 0)
-    const shownRight = Math.min(drawn.maxX * scaleX + translateX, width)
-    const shownTop = Math.max(drawn.minY * scaleY + translateY, 0)
-    const shownBottom = Math.min(drawn.maxY * scaleY + translateY, height)
-    if (shownRight < shownLeft || shownBottom < shownTop) {
-      continue
-    }
-    const extent = Math.max(shownRight - shownLeft, shownBottom - shownTop)
-    const text = deletionText(run.bp)
-    const halfW = labelHalfWidth(text)
-    if (extent >= (halfW * 2) / MAX_LABEL_OVERHANG) {
-      for (const id of run.nodeIds) {
-        labelledByDeletion.add(id)
-      }
-      const x = clamp((shownLeft + shownRight) / 2, halfW, width - halfW)
-      const y = clamp(
-        (shownTop + shownBottom) / 2,
-        LABEL_HALF_HEIGHT,
-        height - LABEL_HALF_HEIGHT,
-      )
-      deletionCandidates.push({
-        label: {
-          key: `alleledel:${run.nodeIds.join(',')}`,
-          text,
-          x,
-          y,
-          kind: 'deletion',
-        },
-        box: boxAt(halfW, x, y),
-      })
-    }
-  }
-
+  const barred = new Set(alleleDeletions?.flatMap(run => run.nodeIds))
+  const candidates: SizeLabelCandidate[] = []
   // Biggest allele first: in a crowd, the label that survives should be the one
   // carrying the most sequence, not whichever node the layout happened to emit
   // first. The order is `labelOrder`'s, cached across frames; the three rejects
   // below are what a frame actually decides, cheapest first — a node barred by
-  // a run's label, then one whose row is off the pane (the box's height is a
-  // constant, so this needs no text), then one too short to hold the shortest
+  // an allele deletion, then one whose row is off the pane (the box's height is
+  // a constant, so this needs no text), then one too short to hold the shortest
   // label there is.
   for (const [id, segments] of labelOrder(nodePositions, nodeLengths)) {
-    if (labelledByDeletion.has(id)) {
+    if (barred.has(id)) {
       continue
     }
     const { x, y } = polylineMidpoint(segments)
@@ -566,20 +212,19 @@ export function sizeLabelCandidates({
     const halfW = labelHalfWidth(text)
     if (drawn >= (halfW * 2) / MAX_LABEL_OVERHANG) {
       const screenX = x * scaleX + translateX
-      nodeCandidates.push({
+      candidates.push({
         label: {
           key: `node:${id}`,
           text,
           x: screenX,
           y: screenY,
-          kind: 'node',
         },
         box: boxAt(halfW, screenX, screenY),
       })
     }
   }
 
-  return { deletions: deletionCandidates, nodes: nodeCandidates }
+  return candidates
 }
 
 // Node labels are rationed to the pane's area: a base-level cut of hundreds of
@@ -611,17 +256,17 @@ export function placeSizeLabels(
   return labels
 }
 
-// Deletion labels, then node labels, each placed where `take` finds room. By
-// default `take` finds it on the pane outside the `reserved` boxes.
+// Node labels, each placed where `take` finds room. By default `take` finds it
+// on the pane outside the `reserved` boxes.
 export function graphLabels({
   reserved,
   take,
   ...args
 }: SizeLabelArgs & { reserved?: Box[]; take?: TakeBox }): GraphLabel[] {
   take ??= occupancy(args, reserved)
-  const { deletions, nodes } = sizeLabelCandidates(args)
-  return [
-    ...placeSizeLabels(deletions, take),
-    ...placeSizeLabels(nodes, take, nodeLabelBudget(args.width, args.height)),
-  ]
+  return placeSizeLabels(
+    sizeLabelCandidates(args),
+    take,
+    nodeLabelBudget(args.width, args.height),
+  )
 }

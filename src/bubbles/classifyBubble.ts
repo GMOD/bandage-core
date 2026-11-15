@@ -4,29 +4,6 @@ import { SATURATED_PATH_COUNT } from './bubbleLine'
 
 import type { MinigraphBubble } from './bubbleLine'
 
-// What kind of variation a bubble is, read off the numbers `gfatools bubble`
-// states: the reference interval it replaces, its shortest and longest route,
-// how many routes, and whether one of them inverts. The reference route is one
-// of the routes and its length is the interval, so the shortest and longest
-// against the interval say whether the alternatives add sequence, remove it,
-// or swap it. Whether it is a repeat is not in those numbers: a
-// presence/absence insertion carried by many haplotypes has the same shape as
-// an expanding array, so that comes from the session's repeat annotation.
-export type BubbleKind =
-  | 'snp'
-  | 'substitution'
-  | 'insertion'
-  | 'deletion'
-  | 'inversion'
-  | 'repeat'
-  | 'superbubble'
-  | 'complex'
-
-interface BubbleClass {
-  kind: BubbleKind
-  label: string
-}
-
 // An annotated tandem repeat array over the cut (repeats/repeatFeatures).
 // Its refName is not compared: the arrays are read over the same window as
 // the bubbles, which spell the reference their own way (PanSN).
@@ -61,9 +38,11 @@ function formatBpRange(shortest: number, longest: number) {
   const low = formatBp(shortest)
   const high = formatBp(longest)
   const unit = high.slice(high.indexOf(' '))
-  return low.endsWith(unit)
-    ? `${low.slice(0, -unit.length)}–${high}`
-    : `${low}–${high}`
+  return low === high
+    ? high
+    : low.endsWith(unit)
+      ? `${low.slice(0, -unit.length)}–${high}`
+      : `${low}–${high}`
 }
 
 function routes(count: number) {
@@ -76,107 +55,55 @@ function routes(count: number) {
   return `${count} routes`
 }
 
-export function classifyBubble(
+// A bubble in words, read off the numbers `gfatools bubble` states: its
+// shortest and longest route and how many routes there are. It names no event
+// against the reference: an inversion, an insertion and a deletion all read as
+// their routes. Only what is not a reference relation gets a name of its own:
+// a single base, a superbubble by its segment count, and a repeat array, which
+// is not in those numbers but in the session's repeat annotation, since a
+// presence/absence insertion carried by many haplotypes has the same shape as
+// an expanding array.
+export function bubbleLabel(
   b: MinigraphBubble,
   repeats: readonly RepeatSpan[] = [],
-): BubbleClass {
-  const c: BubbleClass = b.unloaded
-    ? {
-        kind: 'complex',
-        label: `${formatBpRange(b.shortestAlleleLength, b.longestAlleleLength)}, ${routes(b.pathCount)}, some ${NOT_LOADED_TEXT}`,
-      }
-    : classifyShape(b, repeats)
-  return b.partial ? { ...c, label: `${c.label}, partial` } : c
+) {
+  const label = b.unloaded
+    ? `${formatBpRange(b.shortestAlleleLength, b.longestAlleleLength)}, ${routes(b.pathCount)}, some ${NOT_LOADED_TEXT}`
+    : shapeLabel(b, repeats)
+  return b.partial ? `${label}, partial` : label
 }
 
-function classifyShape(
-  b: MinigraphBubble,
-  repeats: readonly RepeatSpan[],
-): BubbleClass {
-  const refSpan = b.end - b.start
+function shapeLabel(b: MinigraphBubble, repeats: readonly RepeatSpan[]) {
   const {
     shortestAlleleLength: shortest,
     longestAlleleLength: longest,
     pathCount,
     segmentCount,
-    inversion,
   } = b
   const range = formatBpRange(shortest, longest)
-  if (segmentCount >= SUPERBUBBLE_SEGMENTS) {
-    return {
-      kind: 'superbubble',
-      label: `${range} superbubble, ${segmentCount} segments, ${routes(pathCount)}${inversion ? ', inv' : ''}`,
-    }
-  }
-  if (inversion) {
-    return { kind: 'inversion', label: `${formatBp(longest)} inv` }
-  }
-  if (b.offReference) {
-    return shortest === longest
-      ? sameLength(shortest)
-      : { kind: 'complex', label: `${range}, ${routes(pathCount)}` }
-  }
   // routes of one length are substitutions inside an array, not copies
-  const repeat = longest !== shortest ? coveringRepeat(b, repeats) : undefined
-  if (repeat) {
-    const name = repeat.name ? ` (${repeat.name})` : ''
-    return {
-      kind: 'repeat',
-      label: `${range} repeat array${name}, ${routes(pathCount)}`,
-    }
-  }
-  const alleles = pathCount > 2 ? `, ${pathCount} alleles` : ''
-  if (shortest === longest && shortest === refSpan) {
-    return sameLength(refSpan)
-  }
-  if (refSpan === 0 || shortest === refSpan) {
-    return {
-      kind: 'insertion',
-      label: `≤${formatBp(longest - refSpan)} ins${alleles}`,
-    }
-  }
-  if (longest === refSpan) {
-    return {
-      kind: 'deletion',
-      label: `${formatBp(refSpan - shortest)} del${alleles}`,
-    }
-  }
-  return {
-    kind: 'complex',
-    label: `${formatBp(refSpan)} ref → ${range}, ${pathCount} alleles`,
-  }
+  const repeat =
+    segmentCount < SUPERBUBBLE_SEGMENTS &&
+    !b.inversion &&
+    !b.offReference &&
+    longest !== shortest
+      ? coveringRepeat(b, repeats)
+      : undefined
+  return segmentCount >= SUPERBUBBLE_SEGMENTS
+    ? `${range} superbubble, ${segmentCount} segments, ${routes(pathCount)}`
+    : repeat
+      ? `${range} repeat array${repeat.name ? ` (${repeat.name})` : ''}, ${routes(pathCount)}`
+      : !b.inversion &&
+          shortest === longest &&
+          longest <= 1 &&
+          (b.offReference || longest === b.end - b.start)
+        ? 'SNP'
+        : `${range}, ${routes(pathCount)}`
 }
 
-function sameLength(bp: number): BubbleClass {
-  return bp <= 1
-    ? { kind: 'snp', label: 'SNP' }
-    : { kind: 'substitution', label: `${formatBp(bp)} sub` }
-}
-
-// One hue per kind, the deletion arc's near-black and the reference blue kept
-// clear of, so a glyph is not mistaken for either.
-export const BUBBLE_KIND_COLORS: Record<BubbleKind, string> = {
-  snp: '#5b6b7a',
-  substitution: '#5b6b7a',
-  insertion: '#2f8fd6',
-  deletion: '#c94040',
-  inversion: '#e07b00',
-  repeat: '#8e3fbf',
-  superbubble: '#8e3fbf',
-  complex: '#8e3fbf',
-}
-
-// The kind as a short name, for a place that has no room for the label
-export const BUBBLE_KIND_NAMES: Record<BubbleKind, string> = {
-  snp: 'SNP',
-  substitution: 'substitution',
-  insertion: 'insertion',
-  deletion: 'deletion',
-  inversion: 'inversion',
-  repeat: 'repeat array',
-  superbubble: 'superbubble',
-  complex: 'site',
-}
+// Every halo in one hue, which says "a bubble" and no kind of event: clear of
+// the skipped-sequence dashes' near-black and of the reference ramp.
+export const BUBBLE_HALO_COLOR = '#5b6b7a'
 
 export function bubbleSegmentIds(b: MinigraphBubble) {
   return b.segments.split(',').filter(Boolean)

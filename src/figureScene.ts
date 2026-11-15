@@ -112,7 +112,7 @@ export function figureScene(
     referenceName,
     keyText: (walk: LiftedWalk) => {
       const key = walkKey(walk, reference)
-      return { note: key.delta + key.gaps + key.reversed, scale: key.scale }
+      return { note: key.gaps, scale: key.scale }
     },
     contigThickness,
     nodeWidth,

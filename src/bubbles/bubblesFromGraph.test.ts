@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { bubblesFromGraph } from './bubblesFromGraph'
-import { classifyBubble } from './classifyBubble'
+import { bubbleLabel } from './classifyBubble'
 
 import type { Graph, GraphNode } from '../types'
 
@@ -64,7 +64,7 @@ describe('bubblesFromGraph', () => {
       [10, 11, 'r1,a,r2,r3'],
       [31, 31, 'r4,k,t,r5'],
     ])
-    expect(classifyBubble(bubbles[0]!).label).toBe('SNP')
+    expect(bubbleLabel(bubbles[0]!)).toBe('SNP')
     expect(bubbles.every(b => !b.inversion && !b.partial)).toBe(true)
   })
 
@@ -103,7 +103,7 @@ describe('bubblesFromGraph', () => {
       ins!.longestAlleleLength,
       ins!.partial,
     ]).toEqual([2, 0, 10, true])
-    expect(classifyBubble(ins!).label).not.toMatch(/Infinity/)
+    expect(bubbleLabel(ins!)).not.toMatch(/Infinity/)
   })
 
   // Every base a haplotype carries beyond the reference lies in some bubble.
@@ -135,7 +135,7 @@ describe('bubblesFromGraph', () => {
     expect([snp!.shortestAlleleLength, snp!.longestAlleleLength]).toEqual([
       1, 1,
     ])
-    expect(classifyBubble(snp!).label).toBe('SNP, partial')
+    expect(bubbleLabel(snp!)).toBe('SNP, partial')
   })
 
   // A GBZ cut at 1 kb of context hands a haplotype's walk through a repeat
@@ -149,7 +149,7 @@ describe('bubblesFromGraph', () => {
     })
     expect(ins!.partial).toBe(true)
     expect([ins!.pathCount, ins!.longestAlleleLength]).toEqual([3, 30])
-    expect(classifyBubble(ins!).label).toMatch(/, partial$/)
+    expect(bubbleLabel(ins!)).toMatch(/, partial$/)
     expect(bubblesFromGraph(walked)[1]!.partial).toBe(false)
   })
 

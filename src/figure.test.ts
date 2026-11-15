@@ -87,7 +87,7 @@ test('by sample, a sample takes a row and its haplotypes the columns', () => {
   expect(two![0]).toBeGreaterThan(0)
   expect(one![1]).toBe(two![1])
   expect(one![1]).toBeGreaterThan(ref![1]!)
-  expect(svg).toContain('9 bp reversed')
+  expect(svg).not.toContain('reversed')
 })
 
 const backbone = graphBackbone(graph)!.contigs[0]!.refName

@@ -16,8 +16,7 @@ const ALLOWED = [
 // What BandageJS imports. Dropping one breaks that page at its next upgrade,
 // which the plugin would not notice: it imports these through deep paths.
 const PUBLISHED = [
-  'BUBBLE_KIND_COLORS',
-  'BUBBLE_KIND_NAMES',
+  'BUBBLE_HALO_COLOR',
   'BUBBLE_SPREADS',
   'COLOR_SCHEMES',
   'Canvas2DRenderer',
@@ -30,6 +29,7 @@ const PUBLISHED = [
   'HALO_FACTOR',
   'HPRC_GBZ',
   'LABEL_CHAR_PX',
+  'LABEL_DEFAULTS',
   'LABEL_PAD',
   'LABEL_PX',
   'LAYOUT_MODES',
@@ -45,8 +45,8 @@ const PUBLISHED = [
   'bubbleSegmentIds',
   'bubbleSubgraph',
   'bubblesFromGraph',
+  'bubbleLabel',
   'buildGeometry',
-  'classifyBubble',
   'computeReferenceRamp',
   'contains',
   'createForceLayoutCache',

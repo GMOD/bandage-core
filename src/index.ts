@@ -181,10 +181,9 @@ export { graphBubbles, superbubblesFromGraph } from './bubbles/superbubbles'
 export { bubbleHalos } from './bubbles/bubbleHalos'
 export type { BubbleHalo } from './bubbles/bubbleHalos'
 export {
-  BUBBLE_KIND_COLORS,
-  BUBBLE_KIND_NAMES,
+  BUBBLE_HALO_COLOR,
+  bubbleLabel,
   bubbleSegmentIds,
-  classifyBubble,
 } from './bubbles/classifyBubble'
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
@@ -293,7 +292,7 @@ export type {
   LegendCornerSource,
   LegendFrame,
 } from './legendCorner'
-export { formatBp } from './graphLabels'
+export { LABEL_DEFAULTS, formatBp } from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'
 export { genePins } from './genes/genePins'
