@@ -15,6 +15,7 @@ import {
   drawnNodeLength,
   isProportional,
   layoutScaling,
+  loopsOf,
 } from './layout/drawnScale'
 import { FIGURE_WIDTH_PX, FIT_PADDING } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
@@ -260,7 +261,17 @@ export async function forceLayout(
       smoothChain(line),
     ]),
   )
-  const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
+  const inLoops = new Set(
+    isProportional(spread.law)
+      ? []
+      : loopsOf(runs)
+          .flat()
+          .flatMap(run => merged.runs.get(run.id) ?? []),
+  )
+  const bpOf = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const positions = splitRuns(smoothed, merged.runs, id =>
+    inLoops.has(id) ? (bpOf.get(id) ?? 0) : (drawn.get(id) ?? 0),
+  )
   const routedPositions = takeRoutes(
     graph.nodes.some(isBackbone)
       ? orientToReference(graph, positions)
@@ -371,9 +382,10 @@ export function layoutExtent(
   return { minX, minY, maxX, maxY }
 }
 
-// A run off the reference draws as a loop beside it, and shows only where the
-// loop reaches past the widest band of lanes the reference draws with. A loop
-// spans its length over pi, and the fit lays the reference across the pane.
+// A stretch off the reference draws as a loop beside it, and shows only where
+// the loop reaches past the widest band of lanes the reference draws with. A
+// loop spans its length over pi, and the fit lays the reference across the
+// pane.
 export const LOOP_FLOOR =
   (Math.PI * MAX_BAND_PX) / (FIGURE_WIDTH_PX - 2 * FIT_PADDING)
 

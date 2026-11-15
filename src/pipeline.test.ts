@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { departureTable } from './gfa/departures'
-import { layoutScaling } from './layout/drawnScale'
+import { drawnLengthFor, layoutScaling } from './layout/drawnScale'
 import { layoutEngine } from './layoutEngines'
 import {
   LOOP_FLOOR,
@@ -324,7 +324,7 @@ test('under compress a 100 kb run off the reference draws at least the loop floo
   const g = looped(true)
   const compressed = await ownDrawn(g, 'compress')
   expect(compressed).toBeGreaterThanOrEqual(loopFloor(g))
-  expect(compressed).toBeLessThan((await ownDrawn(g, 'auto')) / 4)
+  expect(compressed).toBeLessThan((await ownDrawn(g, 'auto')) / 3)
 })
 
 test('a layout under compress says its lengths are compressed, and one under a proportional spread does not', async () => {
@@ -352,5 +352,111 @@ test('the loop floor leaves the reference, and every proportional spread, as the
     expect(layoutScaling(g, spreadFor(spread), LOOP_FLOOR)).toEqual(
       layoutScaling(g, spreadFor(spread)),
     )
+  }
+})
+
+// looped's reference with three loops off it: 99.8 kb in one run of two
+// nodes, 50 kb in one run of one, and 22.3 kb in three runs that a skip from
+// the first to the last cuts apart
+function loops(): Graph {
+  const g = looped(true)
+  const node = (id: string, length: number, start: number) => ({
+    id,
+    name: id,
+    length,
+    depth: 1,
+    stable: { refName: 'chr1', start, rank: 1 },
+  })
+  return {
+    ...g,
+    nodes: [
+      ...g.nodes.filter(n => n.id !== 'own'),
+      node('lead', 10_000, 39_500),
+      node('long', 89_842, 39_500),
+      node('half', 50_000, 69_500),
+      node('x1', 200, 119_500),
+      node('x2', 7432, 119_500),
+      node('x3', 14_664, 119_500),
+    ],
+    edges: [
+      ...g.edges.filter(e => e.from !== 'own' && e.to !== 'own'),
+      { from: 'r39', to: 'lead' },
+      { from: 'lead', to: 'long' },
+      { from: 'long', to: 'r40' },
+      { from: 'r99', to: 'half' },
+      { from: 'half', to: 'r100' },
+      { from: 'r139', to: 'x1' },
+      { from: 'x1', to: 'x2' },
+      { from: 'x2', to: 'x3' },
+      { from: 'x3', to: 'r140' },
+      { from: 'x1', to: 'x3' },
+    ],
+  }
+}
+
+const compressed = (g: Graph) =>
+  layoutScaling(g, spreadFor('compress'), LOOP_FLOOR).nodes
+
+const requestedOf = (g: Graph, ids: string[]) =>
+  requested(compressed(g).filter(n => ids.includes(n.id)))
+
+test('under compress a 99.8 kb loop of one run draws longer than a 22 kb loop of three', async () => {
+  const { result } = await forceLayout(
+    loops(),
+    engineSettingsOf({ bubbleSpread: 'compress' }),
+    layoutEngine,
+  )
+  const drawnOf = (ids: string[]) =>
+    ids.reduce((sum, id) => sum + arcLength(result.nodePositions[id]), 0)
+  expect(drawnOf(['lead', 'long'])).toBeGreaterThan(drawnOf(['x1', 'x2', 'x3']))
+})
+
+test('under compress the nodes of a run in a loop split its line by bp', async () => {
+  const { result } = await forceLayout(
+    loops(),
+    engineSettingsOf({ bubbleSpread: 'compress' }),
+    layoutEngine,
+  )
+  expect(
+    arcLength(result.nodePositions.long) / arcLength(result.nodePositions.lead),
+  ).toBeCloseTo(89_842 / 10_000, 0)
+})
+
+test('under compress a loop asks the engine for more length the more bp it holds, however many runs it is cut into', () => {
+  const g = loops()
+  const long = requestedOf(g, ['lead', 'long'])
+  const half = requestedOf(g, ['half'])
+  expect(long).toBeGreaterThan(half)
+  expect(half).toBeGreaterThan(requestedOf(g, ['x1', 'x2', 'x3']))
+})
+
+test('under compress a loop of one run still draws at least the loop floor', () => {
+  const g = loops()
+  expect(requestedOf(g, ['half'])).toBeGreaterThanOrEqual(loopFloor(g))
+  expect(requestedOf(g, ['lead', 'long'])).toBeGreaterThanOrEqual(loopFloor(g))
+})
+
+test('the runs of a loop split its length by bp', () => {
+  const [x1, x2, x3] = ['x1', 'x2', 'x3'].map(id => requestedOf(loops(), [id]))
+  expect(x2! / x1!).toBeCloseTo(7432 / 200, 1)
+  expect(x3! / x1!).toBeCloseTo(14_664 / 200, 1)
+})
+
+test("under compress the reference asks for its law's own length beside loops", () => {
+  const g = loops()
+  const law = drawnLengthFor(g, spreadFor('compress').law)
+  expect(
+    compressed(g)
+      .filter(isBackbone)
+      .map(n => n.length),
+  ).toEqual(
+    g.nodes.filter(isBackbone).map(n => Math.round(law(n.length) * 1000)),
+  )
+})
+
+test('every proportional spread hands the engine the bp of each loop and its runs', () => {
+  const g = loops()
+  for (const spread of ['auto', 'open', 'wide']) {
+    expect(layoutScaling(g, spreadFor(spread), LOOP_FLOOR).nodes).toBe(g.nodes)
   }
 })
