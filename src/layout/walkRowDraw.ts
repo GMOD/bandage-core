@@ -685,7 +685,6 @@ export function placeRowGenes(
 }
 
 const GENE_FONT_PX = 9
-const GENE_CHAR_PX = 5.2
 const MIN_LETTERED_BAR_PX = 8
 
 const genePad = (rowPx: number, barPx: number) =>
@@ -817,7 +816,7 @@ export function rowGeneBoxes(
   const named = new Set(
     (barPx >= MIN_LETTERED_BAR_PX ? narrowestFirst : []).filter(
       ({ g, x, w }) => {
-        const half = (g.name.length * GENE_CHAR_PX) / 2
+        const half = geneNamePx(g.name) / 2
         const at: [number, number] = [x + w / 2 - half, x + w / 2 + half]
         if (
           2 * half > w + 6 ||

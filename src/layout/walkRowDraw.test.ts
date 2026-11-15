@@ -172,6 +172,33 @@ test('a name too long for its box on the reference row goes above it, with a lea
   ).toEqual([true, false, false])
 })
 
+// At amylase (chr1:103,540,000-103,780,000) RNPC3's and AMY2B's names ran
+// into each other inside their neighbouring boxes on the reference row: each
+// was sized at 5.2 px a letter, where their bold capitals take about 7
+test('names inside neighbouring gene boxes stay clear of each other at their drawn width, and one too wide for its box goes above it', () => {
+  const genes = [
+    { name: 'RNPC3', start: 0, end: 28, exons: [] },
+    { name: 'AMY2B', start: 28, end: 72, exons: [] },
+  ]
+  const X = (bp: number) => 100 + bp
+  // DejaVu Sans Bold at 9 px, as walkRowsTree draws a gene's name
+  const drawnPx = (name: string) => (readoutTextPx(name) * 9 * 1.13) / 11
+  expect(drawnPx('RNPC3')).toBeGreaterThan(28 + 6)
+  const placed = (namesAbove?: number) =>
+    rowGeneBoxes(genes, X, 50, { namesAbove }).map(b => [
+      b.name,
+      b.label === undefined ? 'unnamed' : b.label.leader ? 'above' : 'inside',
+    ])
+  expect(placed(800)).toEqual([
+    ['RNPC3', 'above'],
+    ['AMY2B', 'inside'],
+  ])
+  expect(placed()).toEqual([
+    ['RNPC3', 'unnamed'],
+    ['AMY2B', 'inside'],
+  ])
+})
+
 test('names that crowd one line above the reference row take a second, widest gene first', () => {
   const genes = [
     { name: 'SHORT', start: 200, end: 203, exons: [] },
