@@ -187,6 +187,12 @@ describe('referenceLabel', () => {
     )
   })
 
+  test("names the backbone's one contig as the graph does, over a window's alias", () => {
+    expect(referenceLabel(rgfa('GRCh38#0#chr1'), { refName: '1' })).toBe(
+      'GRCh38 chr1',
+    )
+  })
+
   test('is undefined with no backbone and no window', () => {
     expect(referenceLabel(load(['S\t1\tACGT']))).toBeUndefined()
   })
