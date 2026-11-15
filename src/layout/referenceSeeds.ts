@@ -83,7 +83,13 @@ export function referenceSeeds(
 export function seededNodes(
   graph: Graph,
   scaling: LayoutScaling,
+  stretch = 1,
 ): LayoutNode[] {
   const seeds = referenceSeeds(graph, scaling)
-  return scaling.nodes.map(node => ({ ...node, ...seeds.get(node.id) }))
+  return scaling.nodes.map(node => {
+    const seed = seeds.get(node.id)
+    return seed
+      ? { ...node, x: seed.x * stretch, y: seed.y * stretch }
+      : { ...node }
+  })
 }

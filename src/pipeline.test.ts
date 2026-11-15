@@ -76,3 +76,31 @@ test('a force layout draws its nodes start to end', async () => {
   )
   expect(result.stranded).toBe(true)
 })
+
+// FMMM drew the seeded backbone in waves, its coarsest level buckling a chain
+// seeded at a quarter of the length it balances at; stress reads seeds as
+// positions
+test('an anchored graph seeds FMMM four times as far out as stress', () => {
+  const anchored: Graph = {
+    name: 'backbone',
+    nodes: [0, 1, 2].map(i => ({
+      id: `r${i}`,
+      name: `r${i}`,
+      length: 1000,
+      depth: 1,
+      stable: { refName: 'chr1', start: i * 1000, rank: 0 },
+    })),
+    edges: [
+      { from: 'r0', to: 'r1' },
+      { from: 'r1', to: 'r2' },
+    ],
+  }
+  const seeds = (e: 'fmmm' | 'stress') =>
+    engineRequest(anchored, layoutScaling(anchored), {
+      ...engine,
+      engine: e,
+    }).graph.nodes.map(n => [n.x, n.y])
+  const stress = seeds('stress')
+  expect(stress.some(([x]) => x! > 0)).toBe(true)
+  expect(seeds('fmmm')).toEqual(stress.map(([x, y]) => [x! * 4, y! * 4]))
+})

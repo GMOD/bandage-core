@@ -132,6 +132,10 @@ export function engineSettingsOf(
   }
 }
 
+// FMMM's balanced length for the seeded chain is about 3.9x the seeds, so its
+// coarsest level buckled them into waves; any stretch from 3 to 6 straightens
+const FMMM_SEED_STRETCH = 4
+
 // the engine's own gap between components, which `componentSeparation` scales
 const COMPONENT_SEPARATION = 15
 
@@ -158,7 +162,13 @@ export function engineRequest(
   }
   return {
     graph: {
-      nodes: anchored ? seededNodes(graph, spaced) : spaced.nodes,
+      nodes: anchored
+        ? seededNodes(
+            graph,
+            spaced,
+            s.engine === 'fmmm' ? FMMM_SEED_STRETCH : 1,
+          )
+        : spaced.nodes,
       edges: canonicalEdgeOrder(graph.edges),
     },
     options: {
