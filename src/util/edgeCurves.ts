@@ -1,11 +1,12 @@
-import { edgeCurvesOf } from '../deletionEdges'
+import { deletionEdges, edgeCurvesOf } from '../deletionEdges'
 import { APEX_FRACTION, curvePointAt, yToXOf } from './geometry'
 import { groupBy } from './groups'
 import { partitionPoint } from './partitionPoint'
 import { weakMemo } from './weakMemo'
 
+import type { DeletionEdge } from '../deletionEdges'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
-import type { Graph, GraphNode, NodeSegment } from '../types'
+import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
 // Every edge's curve as drawn, at offset zero, derived once per layout and
@@ -94,7 +95,9 @@ export function baseEdgeCurves(
       if (deletions) {
         const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
         const levels = levelCache(deletions, [graph], () =>
-          skipLevels(skipSpans(deletions, nodeById)),
+          skipLevels(
+            deletionEdges(graph).filter(d => deletions.has(d.edgeIndex)),
+          ),
         )
         for (const ei of curves.arcs) {
           const edge = graph.edges[ei]!
@@ -118,54 +121,14 @@ export function baseEdgeCurves(
   )
 }
 
-interface SkipSpan {
-  edgeIndex: number
-  refName: string
-  start: number
-  end: number
-}
-
 const levelCache = weakMemo<Map<number, string[]>, Map<number, number>>()
-
-// Each skip's span on the reference, from the backbone it bypasses
-function skipSpans(
-  deletions: Map<number, string[]>,
-  nodeById: Map<string, GraphNode>,
-) {
-  const spans: SkipSpan[] = []
-  for (const [edgeIndex, bypassed] of deletions) {
-    let span: SkipSpan | undefined
-    for (const id of bypassed) {
-      const node = nodeById.get(id)
-      const stable = node?.stable
-      if (node && stable) {
-        span = span
-          ? {
-              ...span,
-              start: Math.min(span.start, stable.start),
-              end: Math.max(span.end, stable.start + node.length),
-            }
-          : {
-              edgeIndex,
-              refName: stable.refName,
-              start: stable.start,
-              end: stable.start + node.length,
-            }
-      }
-    }
-    if (span) {
-      spans.push(span)
-    }
-  }
-  return spans
-}
 
 // A skip's level is one above the highest of the skips inside its span, so a
 // skip nested in a longer one draws inside it; of two over one span, the later
 // edge nests the earlier. Taken by end, each skip finds the skips inside it
 // among those taken before it that start no earlier, in a prefix-max tree over
 // its sequence's starts, latest first.
-function skipLevels(spans: SkipSpan[]) {
+function skipLevels(spans: DeletionEdge[]) {
   const levels = new Map<number, number>()
   for (const group of groupBy(spans, s => s.refName).values()) {
     const starts = Array.from(new Set(group.map(s => s.start))).sort(

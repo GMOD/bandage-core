@@ -293,13 +293,25 @@ describe('skips at one site', () => {
     )
   }
 
-  test('two skips between the same anchors over different spans rise a stroke apart', () => {
+  test('two skips from one anchor over different spans rise a stroke apart, the longer higher', () => {
     const curves = skips([
-      [0, 3, [1]],
+      [0, 2, [1]],
       [0, 3, [1, 2]],
     ])
     expect(
       heightPx(curves.get(1)!) - heightPx(curves.get(0)!),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  // pggb chrY's 54 bp and 12 bp skips into node 465726 at 9.3 Mb, whose
+  // skipped nodes the reference first walks elsewhere, so neither lists them
+  test('a skip that lists no bypassed nodes takes its level from the span it skips', () => {
+    const curves = skips([
+      [0, 3, []],
+      [1, 3, []],
+    ])
+    expect(
+      heightPx(curves.get(0)!) - heightPx(curves.get(1)!),
     ).toBeGreaterThanOrEqual(widestSkipPx)
   })
 
