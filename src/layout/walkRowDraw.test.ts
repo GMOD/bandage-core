@@ -608,7 +608,8 @@ function longRow(): WalkRowsWithCalls {
   }
 }
 
-test('a readout too long for the room beside its bar drops whole parts of its breakdown from the end, and says it was cut', () => {
+// rows closer than their full pitch, which leaves no room for a second line
+test('a readout too long for the room beside its bar on rows too close to wrap drops whole parts of its breakdown from the end, and says it was cut', () => {
   const bars = longRow()
   const text =
     '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb near chr22:12.0 Mb, 86 kb out of view'
@@ -617,6 +618,7 @@ test('a readout too long for the room beside its bar drops whole parts of its br
     scaleX: 100 / 5_361_000,
     translateX: 0,
     width,
+    rowPx: 16,
     measure: (shown: string) => shown.length * LABEL_CHAR_PX,
   })
   const beside = 106
@@ -668,6 +670,101 @@ test('a readout too long for the room beside its bar drops whole parts of its br
     `<g data-testid="graph-walk-row"><title>${full}</title>`,
   )
   expect(svg).toContain('text-anchor="start">26 bp, …</text>')
+})
+
+// At AMY2A (chr1:103,618,800-103,620,300) HG00097#1's readout read "no step
+// on GRCh38 across 120 kb · …", hiding how much sequence of its own the
+// stretch holds and how much of it the graph left out
+test('a readout too long for the room beside its bar wraps onto two lines at full pitch, keeping every amount', () => {
+  const bars = longRow()
+  const departure: Departure = {
+    name: 'HG00097#1#c',
+    hapStart: 0,
+    ownBp: 49_000,
+    missingBp: 19_000,
+    leavePos: 103_560_000,
+    leaveReversed: false,
+    leavePasses: 1,
+    rejoinPos: 103_680_000,
+    rejoinReversed: false,
+    rejoinPasses: 1,
+    fromSteps: false,
+  }
+  bars.reference = { ...bars.reference, bp: 1500, windowBp: 1500 }
+  bars.rows = [
+    {
+      name: 'HG00097#1#c',
+      label: 'HG00097#1',
+      sample: 'HG00097',
+      bp: 0,
+      offReferenceBp: 0,
+      gapBp: 1500,
+      complete: true,
+      stepless: true,
+      departures: [departure],
+      runs: [
+        {
+          start: 0,
+          bp: 1500,
+          gap: true,
+          onReference: false,
+          cause: 'departure',
+        },
+      ],
+    },
+  ]
+  const text =
+    'no step on GRCh38 across 120 kb · 49 kb of its own, 19 kb left out of graph'
+  const measure = (shown: string) => shown.length * LABEL_CHAR_PX
+  const frame = (width: number, rowPx?: number) => ({
+    scaleX: 960 / 1500,
+    scaleY: 1,
+    translateX: 80,
+    translateY: 20,
+    width,
+    height: 200,
+    rowPx,
+    measure,
+  })
+  const beside = 80 + 960 + 6
+  const at = walkRowReadoutAt(bars, 1, frame(beside + 320))
+  expect(at).toMatchObject({
+    text,
+    lines: [
+      'no step on GRCh38 across 120 kb',
+      '49 kb of its own, 19 kb left out of graph',
+    ],
+    cut: false,
+    anchor: 'start',
+  })
+  expect(at.lines.every(line => measure(line) <= 320)).toBe(true)
+  const svg = serializeEl(walkRowsTree(bars, frame(beside + 320)))
+  expect(svg).toContain(
+    `<tspan x="${at.x}">no step on GRCh38 across 120 kb</tspan><tspan x="${at.x}" dy="10">49 kb of its own, 19 kb left out of graph</tspan>`,
+  )
+  expect(svg).not.toContain(`<title>${text}</title>`)
+
+  // a break between a breakdown's items keeps its comma
+  expect(
+    walkRowReadoutAt(longRow(), 1, {
+      scaleX: 100 / 5_361_000,
+      translateX: 0,
+      width: 106 + 360,
+      measure,
+    }).lines,
+  ).toEqual([
+    '5361 kb (+5360 kb), of which 5096 kb left out of graph,',
+    '178 kb near chr22:12.0 Mb, 86 kb out of view',
+  ])
+  // too narrow for two lines, or rows too close for a second, it is cut
+  expect(walkRowReadoutAt(bars, 1, frame(beside + 200))).toMatchObject({
+    lines: ['no step on GRCh38 across 120 kb · …'],
+    cut: true,
+  })
+  expect(walkRowReadoutAt(bars, 1, frame(beside + 320, 16))).toMatchObject({
+    lines: ['no step on GRCh38 across 120 kb · …'],
+    cut: true,
+  })
 })
 
 // A 1.8 kb row, 1 kb of it left out of the graph, as the split fixture draws

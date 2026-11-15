@@ -437,6 +437,29 @@ function fitReadout(
   return fits(text) ? text : (cuts.find(fits) ?? cuts.at(-1) ?? text)
 }
 
+// A wrapped readout's two lines, this far apart and centred on the row, keep
+// clear of the rows above and below at the walk-rows layout's own pitch
+const READOUT_LINE_PX = 10
+
+// A readout too long for `roomPx` as two lines, broken between two of its
+// parts, the break that leaves the longer line shortest; none where no break
+// fits both lines
+function wrapReadout(
+  text: string,
+  roomPx: number,
+  measure: (text: string) => number,
+) {
+  return [...text.matchAll(/ · |, /g)]
+    .map(m => {
+      const first = `${text.slice(0, m.index)}${m[0] === ', ' ? ',' : ''}`
+      const second = text.slice(m.index + m[0].length)
+      const lines: [string, string] = [first, second]
+      return { lines, px: Math.max(measure(first), measure(second)) }
+    })
+    .filter(({ px }) => px <= roomPx)
+    .sort((a, b) => a.px - b.px)[0]?.lines
+}
+
 const rowNameEnd = (label: string) =>
   3 * READOUT_GAP_PX + label.length * LABEL_CHAR_PX
 
@@ -444,17 +467,21 @@ export const NOT_COMPARED_TEXT = 'not compared'
 
 /**
  * Row `i`'s readout (0 the reference) as a pane of `frame` draws it: `text`
- * in full, `shown` as drawn, cut to the room beside the bar where it would
- * leave the pane, `cut` whether it was, and where it sits. Beside the bar
- * means right of its end and of the row's name; inside, only over solid bar
- * past its last gap, its width by `frame.measure` or else readoutTextPx.
- * While `comparing`, a row the comparison leaves out ends
- * `· not compared`, which no cut drops.
+ * in full, `lines` as drawn, `shown` those lines as one string, `cut` whether
+ * they leave any of `text` out, and where they sit. Beside the bar means right
+ * of its end and of the row's name; inside, only over solid bar past its last
+ * gap, its width by `frame.measure` or else readoutTextPx. A readout too long
+ * for the room beside the bar wraps onto two lines where rows are at their
+ * full pitch and two lines fit, and is cut where not. While `comparing`, a
+ * row the comparison leaves out ends `· not compared`, which no cut drops.
  */
 export function walkRowReadoutAt(
   bars: WalkRowsWithCalls,
   i: number,
-  frame: Pick<WalkRowsFrame, 'scaleX' | 'translateX' | 'width' | 'measure'>,
+  frame: Pick<
+    WalkRowsFrame,
+    'scaleX' | 'translateX' | 'width' | 'measure' | 'rowPx'
+  >,
   o: { comparing?: boolean } = {},
 ) {
   const row = i === 0 ? bars.reference : bars.rows[i - 1]!
@@ -479,11 +506,25 @@ export function walkRowReadoutAt(
     Math.max(rowNameEnd(row.label), along(lastGapEnd(row.runs))),
     measure,
   )
-  const shown =
-    at.anchor === 'start'
-      ? `${fitReadout(base, frame.width - at.x - measure(suffix), measure)}${suffix}`
-      : text
-  return { ...at, text, shown, cut: shown !== text }
+  const roomPx = frame.width - at.x
+  const wrapped =
+    at.anchor === 'start' &&
+    measure(text) > roomPx &&
+    (frame.rowPx ?? ROW_HEIGHT_PX) >= 2 * READOUT_LINE_PX
+      ? wrapReadout(text, roomPx, measure)
+      : undefined
+  const lines: [string] | [string, string] =
+    wrapped ??
+    (at.anchor === 'start'
+      ? [`${fitReadout(base, roomPx - measure(suffix), measure)}${suffix}`]
+      : [text])
+  return {
+    ...at,
+    text,
+    lines,
+    shown: lines.join('\n'),
+    cut: wrapped === undefined && lines[0] !== text,
+  }
 }
 
 // Where a row's bar ends: past its runs, since a stepless row has no bp
@@ -1361,7 +1402,7 @@ export function walkRowsTree(
             'text',
             {
               x: readout.x,
-              y: y + 4,
+              y: y + 4 - ((readout.lines.length - 1) * READOUT_LINE_PX) / 2,
               'font-family': 'sans-serif',
               'font-size': 11,
               fill: call?.agrees === false ? DISAGREES : '#333',
@@ -1370,7 +1411,15 @@ export function walkRowsTree(
               'paint-order': 'stroke',
               'text-anchor': readout.anchor,
             },
-            readout.shown,
+            readout.lines[1] === undefined
+              ? readout.lines[0]
+              : el('tspan', { x: readout.x }, readout.lines[0]),
+            readout.lines[1] !== undefined &&
+              el(
+                'tspan',
+                { x: readout.x, dy: READOUT_LINE_PX },
+                readout.lines[1],
+              ),
           ),
       ],
     )
