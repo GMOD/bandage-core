@@ -288,6 +288,27 @@ test('a placeholder whose every spot is taken stacks its length beside the neare
   expect(sizeLeader(onLoop!)).toBeUndefined()
 })
 
+test("a placeholder whose loop is too short to hold its length stacks it off the loop's middle, with a leader to it", () => {
+  const nodes = placeholders([75_000])
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: {
+        p0: [
+          { x: 300, y: 200 },
+          { x: 306, y: 200 },
+        ],
+      },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes).toHaveLength(1)
+  const [stacked] = sizes
+  expect(stacked!.text).toBe('75 kb')
+  expect(stacked!.leader).toEqual({ x: 303, y: 200 })
+  expect(Math.abs(stacked!.y - 200)).toBe(16)
+})
+
 // At the amylase locus the stacked length first stood on the reference bar
 // beside the loops, where it read as that bar's length
 test("a stacked placeholder length keeps off other nodes' ink where it can", () => {

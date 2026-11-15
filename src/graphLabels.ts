@@ -30,8 +30,9 @@ import type { AxisScale } from './util/geometry'
 // kb3.2 kb" in the amylase figure). A placeholder's length is the exception:
 // it goes before every other, outside the budget, and where its loop's middle
 // is taken it tries further along the loop, then stacks beside the nearest
-// spot with a leader to it, as a gene's name stacks off its pin, since nothing
-// else on the drawing says how much sequence the loop stands in for.
+// spot with a leader to it, as a gene's name stacks off its pin, as it does off
+// the loop's middle where the loop is too short to hold it, since nothing else
+// on the drawing says how much sequence the loop stands in for.
 //
 // Between them they hold at both ends of the scale a pangenome graph spans: 63
 // kb-scale nodes at the amylase locus nearly all carry a length, and a 154-node
@@ -211,14 +212,12 @@ interface SizeLabelArgs {
 
 export interface SizeLabelCandidate {
   id: string
-  label: GraphLabel
-  box: Box
   // a placeholder's length, placed before the rest and outside the budget,
   // at the first of its spots free
   kept: boolean
-  // further spots along a placeholder's loop, tried in order where the
-  // first is taken
-  further: { label: GraphLabel; box: Box }[]
+  // spots along the node, tried in order; none on a placeholder's loop drawn
+  // too short to hold its length
+  along: { label: GraphLabel; box: Box }[]
   // a placeholder's spots stacked off its loop, tried where every spot along
   // it is taken; built only then
   stacked?: () => { label: GraphLabel; box: Box }[]
@@ -229,7 +228,7 @@ export interface SizeLabelCandidate {
 // down, slid sideways up to half the label, to the pane's edges `height`
 // tall, each with a leader to its spot
 function stackedSpots(
-  label: GraphLabel,
+  label: Pick<GraphLabel, 'key' | 'text'>,
   halfW: number,
   spots: { x: number; y: number }[],
   height: number,
@@ -297,41 +296,51 @@ export function sizeLabelCandidates({
   // across frames; the rejects below are what a frame actually decides,
   // cheapest first — a node barred by an allele deletion, then one with no
   // spot on the pane (the box's height is a constant, so this needs no text),
-  // then one too short to hold the shortest label there is.
+  // then a node other than a placeholder too short to hold the shortest label
+  // there is. A placeholder's loop too short to hold its length stacks it off
+  // the loop's middle.
   for (const { id, segments, kept } of labelOrder(
     nodePositions,
     nodeLengths,
     nodeById,
   )) {
+    const at = (fraction: number) => {
+      const { x, y } = polylinePointAt(segments, fraction)
+      return { x: x * scaleX + translateX, y: y * scaleY + translateY }
+    }
     const spots = barred.has(id)
       ? []
-      : (kept ? KEPT_LABEL_SPOTS : [0.5])
-          .map(fraction => {
-            const { x, y } = polylinePointAt(segments, fraction)
-            return { x: x * scaleX + translateX, y: y * scaleY + translateY }
-          })
-          .filter(spot => onPane(spot.y))
+      : (kept ? KEPT_LABEL_SPOTS : [0.5]).map(at).filter(spot => onPane(spot.y))
     const drawn = spots.length > 0 ? polylinePx(segments, scaleX, scaleY) : 0
     // The same comparison the real fit test makes, against the narrowest box
     // any label can have — so nothing that would have passed is rejected here.
-    if (drawn >= (MIN_LABEL_HALF_WIDTH * 2) / MAX_LABEL_OVERHANG) {
-      const text = formatBp(nodeLengths.get(id)!)
-      const halfW = labelHalfWidth(text)
-      const [first, ...further] =
+    if (
+      kept
+        ? spots.length > 0
+        : drawn >= (MIN_LABEL_HALF_WIDTH * 2) / MAX_LABEL_OVERHANG
+    ) {
+      const label = { key: `node:${id}`, text: formatBp(nodeLengths.get(id)!) }
+      const halfW = labelHalfWidth(label.text)
+      const along =
         drawn >= (halfW * 2) / MAX_LABEL_OVERHANG
           ? spots.map(({ x, y }) => ({
-              label: { key: `node:${id}`, text, x, y },
+              label: { ...label, x, y },
               box: boxAt(halfW, x, y),
             }))
           : []
-      if (first) {
+      if (kept || along.length > 0) {
         candidates.push({
-          ...first,
           id,
           kept,
-          further,
+          along,
           stacked: kept
-            ? () => stackedSpots(first.label, halfW, spots, height)
+            ? () =>
+                stackedSpots(
+                  label,
+                  halfW,
+                  along.length > 0 ? spots : [at(0.5)],
+                  height,
+                )
             : undefined,
         })
       }
@@ -369,7 +378,7 @@ export function placeSizeLabels(
   const labels: GraphLabel[] = []
   for (const candidate of candidates) {
     if (candidate.kept || placed + labels.length < budget) {
-      const along = [candidate, ...candidate.further].find(s => take(s.box))
+      const along = candidate.along.find(s => take(s.box))
       const stacked = along ? undefined : candidate.stacked?.()
       const spot =
         along ??
