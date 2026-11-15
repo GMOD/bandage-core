@@ -826,6 +826,28 @@ test("a haplotype that walks the window counts its other contigs' departures ove
   expect(reference.otherContigs).toEqual({ contigs: 1, departures: 1 })
 })
 
+test("a walked contig's own departures are not counted as another contig's", () => {
+  const { rows } = rowsOf({
+    ...tables,
+    departures: departureTable([
+      departure('A#1#a', { leavePos: 0, rejoinPos: 5000 }),
+    ]),
+  })
+  const a = rows.find(r => r.name === 'A#1#a')!
+  expect(a.otherContigs).toBeUndefined()
+})
+
+test('two haplotypes of one sample stay separate rows', () => {
+  const { rows } = rowsOf({
+    ...tables,
+    departures: departureTable([
+      departure('A#2#a', { leavePos: 0, rejoinPos: 5000 }),
+    ]),
+  })
+  expect(rows.find(r => r.name === 'A#2#a')?.stepless).toBe(true)
+  expect(rows.find(r => r.name === 'A#1#a')!.otherContigs).toBeUndefined()
+})
+
 // The window starts and ends inside the repeat's node, so the reference's bar
 // runs out to its flanks, 2000..3000, and F's departure runs under all of it
 test("a stepless row's departure lines up under the reference's bar", () => {
