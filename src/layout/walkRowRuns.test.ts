@@ -427,12 +427,12 @@ test("a stated gap's readout gives a mixed part's amounts and where an unread wa
   )
   const reference = { bp: 7000, name: 'GRCh38#0#chr1' }
   expect(walkRowReadout(rows['A#1']!, reference)).toContain(
-    '0.6 kb left out of graph',
+    '600 bp left out of graph',
   )
   const b = walkRowReadout(rows['B#1']!, reference)
-  expect(b).toContain('0.3 kb left out of graph')
-  expect(b).toContain('0.1 kb own sequence not drawn')
-  expect(b).toContain('0.6 kb not drawn (last seen near')
+  expect(b).toContain('300 bp left out of graph')
+  expect(b).toContain('100 bp own sequence not drawn')
+  expect(b).toContain('600 bp not drawn (last seen near')
 })
 
 // GRCh38 over five 1 kb nodes; A on node 0 at 0, then the stated stretch,
@@ -634,7 +634,7 @@ test('a row states its departures outside it in the readout, and draws none of t
   const row = rowsOf(t, region).rows[0]!
   expect(row.outsideRow).toEqual({ count: 1, stepsBp: 400 })
   expect(walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' })).toContain(
-    '1 departure outside the row, 0.4 kb of its own in the graph',
+    '1 departure outside the row, 400 bp of its own in the graph',
   )
   expect(row.runs).toEqual(
     rowsOf({ ...t, gaps: undefined }, region).rows[0]!.runs,
@@ -1010,7 +1010,7 @@ describe('a walk row over a window between 1 kb nodes', () => {
       'B#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
       'G#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
       'I#1': '2.3 kb (+300 bp)',
-      'C#1': '0.5 kb (−1.5 kb)',
+      'C#1': '500 bp (−1.5 kb)',
     })
   })
 
@@ -1132,7 +1132,7 @@ describe('a reference that passes one node twice', () => {
 
   test('a walk starting in the window reaches its second pass as its right flank', () => {
     const { row, readout } = over(20, 30)['late#1']!
-    expect(readout).toBe('≥ 0.0 kb · contig ends inside the window')
+    expect(readout).toBe('≥ 10 bp · contig ends inside the window')
     expect(row.visits?.map(v => v.node)).toEqual(['3+'])
     expect(row.axis).toEqual({ contig: 'l', start: 0, reversed: false })
   })
@@ -1216,8 +1216,8 @@ describe('a reference that passes one node twice', () => {
           ]),
         ),
       ).toEqual({
-        'hap#1': '0.0 kb',
-        'short#1': '≥ 0.0 kb · contig ends inside the window',
+        'hap#1': '30 bp',
+        'short#1': '≥ 20 bp · contig ends inside the window',
       })
     })
   })
@@ -1239,7 +1239,7 @@ describe('a reference that passes one node twice', () => {
     expect(rows['ref#0']!.row.windowBp).toBe(10)
     expect(rows['ref#0']!.row.visits?.map(v => v.node)).toEqual(['r+'])
     expect(rows['hap#1']!.readout).toBe(
-      '≥ 0.0 kb · contig ends inside the window',
+      '≥ 10 bp · contig ends inside the window',
     )
   })
 })
@@ -1302,9 +1302,7 @@ describe("tables that state each step's pass", () => {
         [2500, 1000, 1000],
       ],
     })
-    expect(hapOver(stating(onFirst), secondPass).readout).toBe(
-      '0.0 kb (−1.0 kb)',
-    )
+    expect(hapOver(stating(onFirst), secondPass).readout).toBe('0 bp (−1.0 kb)')
   })
 
   test('tables that state none take the nearest pass', () => {

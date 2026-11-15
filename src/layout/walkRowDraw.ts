@@ -103,7 +103,7 @@ function gapsParts(
   return gapBp <= 0
     ? []
     : !gaps.some(g => g.cause)
-      ? [`${kb(gapBp)} ${OUTSIDE_TEXT}`]
+      ? [`${sized(gapBp)} ${OUTSIDE_TEXT}`]
       : causesParts(gaps, refName)
 }
 
@@ -138,7 +138,9 @@ function causesParts(gaps: WalkRun[], refName: string | undefined) {
     ],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
-  return parts.filter(([bp]) => bp > 0).map(([bp, text]) => `${kb(bp)} ${text}`)
+  return parts
+    .filter(([bp]) => bp > 0)
+    .map(([bp, text]) => `${sized(bp)} ${text}`)
 }
 
 // A stepless row's departures in words: the widest stretch's facts, how many
@@ -196,10 +198,10 @@ export function walkRowReadout(
   const { bp, gapBp, complete, stop } = row
   if (!reference) {
     const length = row.windowBp ?? bp
-    return `${kb(length)}${units(length, unit)}`
+    return `${sized(length)}${units(length, unit)}`
   }
   const beyond = row.outsideRow
-    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${kb(row.outsideRow.stepsBp)} of its own in the graph` : ''}`
+    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${sized(row.outsideRow.stepsBp)} of its own in the graph` : ''}`
     : ''
   if (row.stepless) {
     return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
@@ -218,7 +220,7 @@ export function walkRowReadout(
   )
   const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
-    ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
+    ? ` · called ${sized(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
   if (complete) {
     const of = reference.windowBp ?? reference.bp
@@ -226,7 +228,7 @@ export function walkRowReadout(
       const from = pass.fromElsewhereBp ?? 0
       const own = pass.bp - from
       return [
-        ...(own > 0 || from === 0 ? [`its own ${kb(own)}`] : []),
+        ...(own > 0 || from === 0 ? [`its own ${sized(own)}`] : []),
         ...(from > 0 ? [elsewhereText(from)] : []),
       ].join(' and ')
     }
@@ -236,8 +238,8 @@ export function walkRowReadout(
     ) => {
       const delta = length - of
       return pass.replacedBp !== undefined
-        ? `${carried(pass)} in place of ${name}'s ${kb(pass.replacedBp)}`
-        : `${kb(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
+        ? `${carried(pass)} in place of ${name}'s ${sized(pass.replacedBp)}`
+        : `${sized(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
     }
     const length =
       row.windowBp !== undefined && reference.windowBp !== undefined
@@ -253,7 +255,7 @@ export function walkRowReadout(
   }
   const region = unit ? 'repeat' : 'window'
   if (stop?.contigEnds && bp === 0) {
-    const where = stop.shortBp > 0 ? `${kb(stop.shortBp)} before` : 'at'
+    const where = stop.shortBp > 0 ? `${sized(stop.shortBp)} before` : 'at'
     return `contig ends ${where} the ${region}${called}`
   }
   const why = !stop
@@ -269,7 +271,7 @@ export function walkRowReadout(
   const stated =
     bp === 0
       ? `${why}${parts}`
-      : `≥ ${kb(least)}${units(least, unit)}${parts} · ${why}`
+      : `≥ ${sized(least)}${units(least, unit)}${parts} · ${why}`
   return `${stated}${after}${called}`
 }
 

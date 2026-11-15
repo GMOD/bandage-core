@@ -280,7 +280,7 @@ test('a gap past a trimmed walk splits into what the cut left out and what the g
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 0.6 kb left out of graph, 0.4 kb out of view',
+    '5.0 kb, of which 600 bp left out of graph, 400 bp out of view',
   )
   expect(
     parts(
@@ -339,7 +339,7 @@ test("own sequence the cut did not read is the rest of the departure's own bp", 
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 0.4 kb left out of graph, 0.6 kb own sequence not drawn',
+    '5.0 kb, of which 400 bp left out of graph, 600 bp own sequence not drawn',
   )
 })
 

@@ -50,7 +50,7 @@ reads them.
 - A walk reaching one flank reads as a lower bound. Its contig ends inside the
   window only where its last step there is on the reference, with no departure
   at that step and nothing the cut trimmed past it. A departure there says where
-  the walk goes on: `≥ 0.5 kb · goes on near chr1:4 kb · 4 kb of its own`. A
+  the walk goes on: `≥ 500 bp · goes on near chr1:4 kb · 4 kb of its own`. A
   walk whose only step is a flank has no bp in the window and says just how it
   goes on or that its contig ends at the window. A cut with no context stands
   the reference's outermost nodes in for the flanks, so a walk that stops inside

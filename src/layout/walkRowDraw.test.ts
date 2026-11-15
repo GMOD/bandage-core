@@ -247,7 +247,7 @@ test('the reference from elsewhere under a kilobase reads in bp rather than roun
       { bp: 769, windowBp: 600, gapBp: 0, complete: true, fromElsewhereBp: 20 },
       reference,
     ),
-  ).toBe('0.6 kb, of which 20 bp GRCh38 from elsewhere')
+  ).toBe('600 bp, of which 20 bp GRCh38 from elsewhere')
   expect(
     walkRowReadout(
       {
@@ -279,7 +279,7 @@ test('a partial walk states a lower bound and why it stops', () => {
       51,
       call,
     ),
-  ).toBe('contig ends 0.6 kb before the repeat · called 8.6 kb')
+  ).toBe('contig ends 580 bp before the repeat · called 8.6 kb')
   expect(
     walkRowReadout(
       {
@@ -501,7 +501,7 @@ test('a readout goes inside its bar only over solid bar, past the last gap', () 
     ),
   )
   expect(svg).toContain(`<title>${text}</title>`)
-  expect(svg).toContain('text-anchor="start">0.0 kb, …</text>')
+  expect(svg).toContain('text-anchor="start">26 bp, …</text>')
 })
 
 // A 5.4 Mb row over a 1 kb reference, most of it left out of the graph, at
@@ -608,11 +608,11 @@ test('a readout too long for the room beside its bar drops whole parts of its br
       },
     ),
   )
-  expect(full).toBe('0.0 kb, of which 0.0 kb out of view')
+  expect(full).toBe('26 bp, of which 10 bp out of view')
   expect(svg).toContain(
     `<g data-testid="graph-walk-row"><title>${full}</title>`,
   )
-  expect(svg).toContain('text-anchor="start">0.0 kb, …</text>')
+  expect(svg).toContain('text-anchor="start">26 bp, …</text>')
 })
 
 // A 1.8 kb row, 1 kb of it left out of the graph, as the split fixture draws
