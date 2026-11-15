@@ -69,6 +69,20 @@ export interface WalkStop {
   contigEnds: boolean
   shortBp: number
   goesOn?: { departure: Departure; near: number; drawn?: true }
+  // the walk comes back to the reference on the side it came in from, which
+  // ends its pass
+  turnsBack?: true
+}
+
+// One pass of a walk over the window, from a flank on one side to the next on
+// the other: its bp, its bp over the window or, where its own sequence crosses
+// a window edge, the reference's bp it replaces, and whether it runs against
+// the reference
+export interface WalkPass {
+  bp: number
+  windowBp: number
+  replacedBp?: number
+  reversed: boolean
 }
 
 // A step of a row's bar through a graph node: its bp offset from the bar's
@@ -98,6 +112,17 @@ export interface WalkRow {
   // false when the walk does not reach both flanking reference nodes; one
   // that reaches one flank is measured from it, a lower bound
   complete: boolean
+  // bp of the walk over the window alone, where it reaches a flank: its bp
+  // from them less what lies between a flank and the window, so every row is
+  // measured over the same reference interval
+  windowBp?: number
+  // in place of windowBp where the walk's own sequence crosses a window edge,
+  // which leaves it no length over the window: the reference's bp between the
+  // walk's flanks, which its `bp` replaces
+  replacedBp?: number
+  // each further pass the walk makes over the window, in its contig's order,
+  // where it passes more than once; the row draws its first
+  morePasses?: WalkPass[]
   stop?: WalkStop
   // the steps of the walk's pieces the cut did not load, on a row that
   // holds any of them, for a host to offer to load

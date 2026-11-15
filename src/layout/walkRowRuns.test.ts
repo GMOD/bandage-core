@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
@@ -893,3 +895,164 @@ test('a cut whose only other haplotypes have no step in it still has rows', () =
     walkRowRuns({ ...reference, departures: departureTable() }, repeat),
   ).toBeUndefined()
 })
+
+// Cuts of the HPRC v2.1 GRCh38 walk file (gfa-to-tabix 5.0.0, format 8) for
+// eight haplotypes, read by graph-walks with its default 1 kb of context and
+// written out as GFA. Every row is measured over the window itself, so an
+// allele on a flank outside it, which a haplotype takes in place of the
+// reference's flank node, counts for neither.
+describe('a walk row measures its length against the reference over the window', () => {
+  const readout = (
+    file: string,
+    refName: string,
+    start: number,
+    end: number,
+  ) => {
+    const graph = loadGraph(
+      fs.readFileSync(`test_data/${file}`, 'utf8'),
+      file,
+      { referencePath: `GRCh38#0#${refName}` },
+    )
+    const rows = walkRows(graph, { start, end })!
+    expect(rows.reference.windowBp).toBe(end - start)
+    expect(walkRowReadout(rows.reference, undefined)).toBe(
+      `${((end - start) / 1000).toFixed(1)} kb`,
+    )
+    return Object.fromEntries(
+      rows.rows.map(row => [row.label, walkRowReadout(row, rows.reference)]),
+    )
+  }
+
+  // chr11:5,226,500-5,227,500: SNVs only, one 40 bp right of the window that
+  // all eight carry, and one 3 bp left of it on HG00128#1
+  test('HBB, where every haplotype is as long as the reference', () => {
+    expect(readout('hprc_hbb.gfa', 'chr11', 5_226_499, 5_227_500)).toEqual(
+      Object.fromEntries(HAPLOTYPES.map(h => [h, '1.0 kb'])),
+    )
+  })
+
+  // chr1:27,853,000-27,855,000: seven skip 571 bp; HG02055#1 also has a 50 bp
+  // deletion, a 1 bp and a 49 bp insertion inside the window, and three carry
+  // a 1 bp insertion 31 bp left of it
+  test('the 571 bp gap, which seven skip and HG01123#1 walks', () => {
+    expect(readout('hprc_gap571.gfa', 'chr1', 27_852_999, 27_855_000)).toEqual(
+      Object.fromEntries(
+        HAPLOTYPES.map(h => [
+          h,
+          h === 'HG01123#1' ? '2.0 kb' : '1.4 kb (−571 bp)',
+        ]),
+      ),
+    )
+  })
+})
+
+// Five 1 kb reference nodes and a 2 kb window from 1.5 kb, with walks the
+// reviews of S5 drew: own sequence across a window edge, a window inside a
+// replacement, a walk passing twice, and one reaching a single flank
+describe('a walk row over a window between 1 kb nodes', () => {
+  const reference = [0, 1, 2, 3, 4].map(
+    i =>
+      `S\tr${i + 1}\t*\tLN:i:1000\tSN:Z:GRCh38#0#chr1\tSO:i:${i * 1000}\tSR:i:0`,
+  )
+  const readouts = (walks: string[], nodes: string[], links: string[]) => {
+    const gfa = [
+      'H\tVN:Z:1.1',
+      ...reference,
+      ...nodes,
+      ...['r1 r2', 'r2 r3', 'r3 r4', 'r4 r5', ...links].map(
+        l => `L\t${l.split(' ')[0]}\t+\t${l.split(' ')[1]}\t+\t0M`,
+      ),
+      'W\tGRCh38\t0\tchr1\t0\t5000\t>r1>r2>r3>r4>r5',
+      ...walks,
+    ].join('\n')
+    const graph = loadGraph(gfa, 'cut', { referencePath: 'GRCh38#0#chr1' })
+    const rows = walkRows(graph, { start: 1500, end: 3500 })!
+    expect(walkRowReadout(rows.reference, undefined)).toBe('2.0 kb')
+    return Object.fromEntries(
+      rows.rows.map(row => [row.label, walkRowReadout(row, rows.reference)]),
+    )
+  }
+
+  test('own sequence across a window edge, or around the whole window, has no length over it', () => {
+    expect(
+      readouts(
+        [
+          'W\tA\t1\ta\t0\t5000\t>r1>a>r3>r4>r5',
+          'W\tB\t1\tb\t0\t5000\t>r1>b>r5',
+          'W\tG\t1\tg\t0\t5000\t>r1>r2>r3>g>r5',
+          'W\tI\t1\ti\t0\t5000\t>r1>r2>i>r3>r4>r5',
+          'W\tC\t1\tc\t0\t3000\t>r1>r4>r5',
+        ],
+        [
+          'S\ta\t*\tLN:i:1000\tSN:Z:A#1#a\tSO:i:1000\tSR:i:1',
+          'S\tb\t*\tLN:i:3000\tSN:Z:B#1#b\tSO:i:1000\tSR:i:1',
+          'S\tg\t*\tLN:i:1000\tSN:Z:G#1#g\tSO:i:3000\tSR:i:1',
+          'S\ti\t*\tLN:i:300\tSN:Z:I#1#i\tSO:i:2000\tSR:i:1',
+        ],
+        [
+          'r1 a',
+          'a r3',
+          'r1 b',
+          'b r5',
+          'r3 g',
+          'g r5',
+          'r2 i',
+          'i r3',
+          'r1 r4',
+        ],
+      ),
+    ).toEqual({
+      'A#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
+      'B#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
+      'G#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
+      'I#1': '2.3 kb (+300 bp)',
+      'C#1': '0.5 kb (−1.5 kb)',
+    })
+  })
+
+  test('a walk passing twice reads each pass between its own flanks, the reversed one so marked', () => {
+    expect(
+      readouts(
+        [
+          'W\tT\t1\tt\t0\t10300\t>r1>r2>r3>r4>r5>x<r5<r4<i<r3<r2<r1',
+          'W\tR\t1\tr\t0\t5000\t<r5<r4<r3<r2<r1',
+        ],
+        [
+          'S\tx\t*\tLN:i:100\tSN:Z:T#1#t\tSO:i:5000\tSR:i:1',
+          'S\ti\t*\tLN:i:35\tSN:Z:T#1#t\tSO:i:6100\tSR:i:1',
+        ],
+        ['r5 x', 'r3 i', 'i r4'],
+      ),
+    ).toEqual({
+      'T#1': '2.0 kb · passes again, reversed: 2.0 kb (+35 bp)',
+      'R#1': '2.0 kb',
+    })
+  })
+
+  test('a walk reaching one flank reads at least its bp inside the window, up to where it turns back', () => {
+    expect(
+      readouts(
+        [
+          'W\tO\t1\to\t0\t3000\t>r1>r2>r3',
+          'W\tH\t1\th\t0\t5100\t>r1>r2>y<r2<r1',
+        ],
+        ['S\ty\t*\tLN:i:100\tSN:Z:H#1#h\tSO:i:2000\tSR:i:1'],
+        ['r2 y'],
+      ),
+    ).toEqual({
+      'O#1': '≥ 1.5 kb · contig ends inside the window',
+      'H#1': '≥ 1.1 kb · turns back out of the window',
+    })
+  })
+})
+
+const HAPLOTYPES = [
+  'HG00097#1',
+  'HG00099#1',
+  'HG00128#1',
+  'HG00133#1',
+  'HG01109#1',
+  'HG01123#1',
+  'HG01960#1',
+  'HG02055#1',
+]

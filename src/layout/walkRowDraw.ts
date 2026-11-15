@@ -29,7 +29,7 @@ import { rowsNeedingRoutes } from './walkRowLinks'
 import type { El, ElAttrs } from '../el'
 import type { GeneModel } from '../genes/genePins'
 import type { GapCause } from '../gfa/departures'
-import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
+import type { WalkAxis, WalkPass, WalkRow, WalkRows, WalkRun } from './walkRows'
 
 // What walk rows draw, shared by the hosts: walkRowsTree is the drawing as an
 // element tree, which the plugin renders as React elements, BandageJS as DOM
@@ -166,6 +166,9 @@ export function walkRowReadout(
     | 'bp'
     | 'gapBp'
     | 'complete'
+    | 'windowBp'
+    | 'replacedBp'
+    | 'morePasses'
     | 'stop'
     | 'departures'
     | 'placementChoice'
@@ -180,7 +183,8 @@ export function walkRowReadout(
 ) {
   const { bp, gapBp, complete, stop } = row
   if (!reference) {
-    return `${kb(bp)}${units(bp, unit)}`
+    const length = row.windowBp ?? bp
+    return `${kb(length)}${units(length, unit)}`
   }
   const beyond = row.outsideRow
     ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${kb(row.outsideRow.stepsBp)} of its own in the graph` : ''}`
@@ -194,9 +198,27 @@ export function walkRowReadout(
     ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
   if (complete) {
-    const delta = bp - reference.bp
-    const against = delta === 0 ? '' : ` (${signedLength(delta)})`
-    return `${kb(bp)}${units(bp, unit)}${against}${parts}${after}${called}`
+    const of = reference.windowBp ?? reference.bp
+    const lengthOf = (
+      pass: Pick<WalkPass, 'bp' | 'replacedBp'>,
+      length: number,
+    ) => {
+      const delta = length - of
+      return pass.replacedBp !== undefined
+        ? `its own ${kb(pass.bp)} in place of ${reference.sample ?? 'the reference'}'s ${kb(pass.replacedBp)}`
+        : `${kb(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
+    }
+    const length =
+      row.windowBp !== undefined && reference.windowBp !== undefined
+        ? row.windowBp
+        : bp
+    const again = (row.morePasses ?? [])
+      .map(
+        pass =>
+          ` · passes again${pass.reversed ? ', reversed' : ''}: ${lengthOf(pass, pass.windowBp)}`,
+      )
+      .join('')
+    return `${lengthOf(row, length)}${again}${parts}${after}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   if (stop?.contigEnds && bp === 0) {
@@ -207,13 +229,16 @@ export function walkRowReadout(
     ? 'partial walk'
     : stop.contigEnds
       ? `contig ends inside the ${region}`
-      : stop.goesOn
-        ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${roughBp(stop.goesOn.departure.ownBp)} of its own`}`
-        : 'does not rejoin the reference in view'
+      : stop.turnsBack
+        ? `turns back out of the ${region}`
+        : stop.goesOn
+          ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${roughBp(stop.goesOn.departure.ownBp)} of its own`}`
+          : 'does not rejoin the reference in view'
+  const least = row.windowBp ?? bp
   const stated =
     bp === 0
       ? `${why}${parts}`
-      : `≥ ${kb(bp)}${units(bp, unit)}${parts} · ${why}`
+      : `≥ ${kb(least)}${units(least, unit)}${parts} · ${why}`
   return `${stated}${after}${called}`
 }
 

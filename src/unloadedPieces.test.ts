@@ -187,8 +187,9 @@ test('a row with a run not loaded reads as the loaded row, saying nothing of loa
   expect(walkRowReadout(loaded.row('PARTIAL#1'), loaded.rows.reference)).toBe(
     '0.1 kb (+50 bp)',
   )
+  // it jumps from right of the window back to its left, which is no pass
   expect(walkRowReadout(row('LOWFIRST#1'), rows.reference)).toBe(
-    '0.0 kb (−20 bp)',
+    '≥ 0.0 kb · contig ends inside the window',
   )
   for (const each of rows.rows) {
     expect(walkRowReadout(each, rows.reference)).not.toMatch(/≈|estimate/)
