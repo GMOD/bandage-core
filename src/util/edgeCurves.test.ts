@@ -282,15 +282,21 @@ describe('skips at one site', () => {
     )
   const heightPx = (curves: BezierCurve[]) =>
     Math.max(...points(curves).map(p => Math.abs(p.y) * scale))
-  const heightAt = (curves: BezierCurve[], x: number) => {
-    const line = points(curves, 4096)
-    const i = line.findIndex(p => p.x >= x)
-    const a = line[Math.max(0, i - 1)]!
-    const b = line[i]!
-    return (
-      (b.x === a.x ? b.y : a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x)) *
-      scale
-    )
+  // inside the loop an arc closes with its chord, by ray casting
+  const enclosedBy = (curves: BezierCurve[], q: { x: number; y: number }) => {
+    const loop = points(curves, 1024)
+    let inside = false
+    for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+      const a = loop[i]!
+      const b = loop[j]!
+      if (
+        a.y > q.y !== b.y > q.y &&
+        q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x
+      ) {
+        inside = !inside
+      }
+    }
+    return inside
   }
 
   test('two skips from one anchor over different spans rise a stroke apart, the longer higher', () => {
@@ -315,7 +321,7 @@ describe('skips at one site', () => {
     ).toBeGreaterThanOrEqual(widestSkipPx)
   })
 
-  test('two skips over spans apart on the reference whose feet land on the same pixels rise a stroke apart', () => {
+  test('two skips over spans apart on the reference whose feet land on the same pixels both rise, a stroke apart', () => {
     const backboneLoop = {
       ...positions(),
       'n3+': [
@@ -351,6 +357,9 @@ describe('skips at one site', () => {
     expect(
       Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
     ).toBeGreaterThanOrEqual(widestSkipPx)
+    expect(
+      Math.min(heightPx(curves.get(0)!), heightPx(curves.get(1)!)),
+    ).toBeCloseTo(SKIP_LEVEL_PX, 5)
   })
 
   test('a skip inside a longer one draws inside it, whether or not they share an anchor', () => {
@@ -362,10 +371,7 @@ describe('skips at one site', () => {
     const outer = curves.get(0)!
     for (const inner of [curves.get(1)!, curves.get(2)!]) {
       for (const p of points(inner).slice(1, -1)) {
-        expect(Math.sign(heightAt(outer, p.x))).toBe(Math.sign(p.y))
-        expect(Math.abs(heightAt(outer, p.x))).toBeGreaterThan(
-          Math.abs(p.y * scale),
-        )
+        expect(enclosedBy(outer, p)).toBe(true)
       }
     }
   })

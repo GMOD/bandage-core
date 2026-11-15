@@ -100,13 +100,20 @@ export function baseEdgeCurves(
           ),
         )
         const levelOf = (ei: number) => levels.get(ei) ?? 1
+        const chords = new Map(
+          Array.from(curves.arcs, ei => [ei, chordKey(curves.get(ei)!, axis)]),
+        )
+        const onChord = new Map<string, number>()
+        for (const chord of chords.values()) {
+          onChord.set(chord, (onChord.get(chord) ?? 0) + 1)
+        }
         const highestOnChord = new Map<string, number>()
         for (const ei of Array.from(curves.arcs).sort(
           (a, b) => levelOf(a) - levelOf(b) || a - b,
         )) {
           const edge = graph.edges[ei]!
           const arc = curves.get(ei)!
-          const chord = chordKey(arc, axis)
+          const chord = chords.get(ei)!
           const level = Math.max(
             levelOf(ei),
             (highestOnChord.get(chord) ?? 0) + 1,
@@ -114,7 +121,8 @@ export function baseEdgeCurves(
           highestOnChord.set(chord, level)
           const height = level * SKIP_LEVEL_PX
           const farthest = farthestPx(arc, axis)
-          if ((level > 1 || !alone.has(ei)) && Math.abs(farthest) < height) {
+          const shared = !alone.has(ei) || onChord.get(chord)! > 1
+          if (shared && Math.abs(farthest) < height) {
             const from = nodeById.get(edge.from)?.stable?.start ?? 0
             const to = nodeById.get(edge.to)?.stable?.start ?? 0
             const side = routes?.[ei]
@@ -142,7 +150,8 @@ const sitesCache = weakMemo<
 // later rises above the earlier. Taken by end, each skip finds the skips
 // inside it among those taken before it that start no earlier, in a
 // prefix-max tree over its sequence's starts, latest first. A skip alone, its
-// span overlapping no other's, keeps the path it has.
+// span overlapping no other's and its feet on pixels of their own, keeps the
+// path it has.
 function skipSites(spans: DeletionEdge[]) {
   const levels = new Map<number, number>()
   const overlapping = new Set<number>()
@@ -227,7 +236,10 @@ function farthestPx(curves: BezierCurve[], axis: AxisScale) {
 }
 
 // One cubic from the arc's feet whose apex strays `rise` screen px from its
-// chord, signed as farthestPx signs it
+// chord, signed as farthestPx signs it. Its control points spread apart along
+// the chord as far as they stand off it, as computeEdgeCurves opens a bow, so
+// over a chord shorter than its rise it is a loop rather than a hairpin, and
+// loops over one chord part along their legs.
 function archOf(
   curves: BezierCurve[],
   axis: AxisScale,
@@ -239,14 +251,16 @@ function archOf(
   const bow = rise / APEX_FRACTION
   const dx = (-uy * bow) / axis.scaleX
   const dy = (ux * bow) / axis.scaleY
+  const sx = (ux * Math.abs(bow)) / axis.scaleX
+  const sy = (uy * Math.abs(bow)) / axis.scaleY
   return [
     {
       x0: first.x0,
       y0: first.y0,
-      cx0: first.x0 + dx,
-      cy0: first.y0 + dy,
-      cx1: last.x1 + dx,
-      cy1: last.y1 + dy,
+      cx0: first.x0 + dx - sx,
+      cy0: first.y0 + dy - sy,
+      cx1: last.x1 + dx + sx,
+      cy1: last.y1 + dy + sy,
       x1: last.x1,
       y1: last.y1,
     },
