@@ -4,6 +4,7 @@ import { spreadFor } from '../bubbleSpreads'
 import { LAYOUT_ENGINE_VALUES, layoutEngine } from '../layoutEngines'
 import { engineRequest, forceLayout, loadGraph } from '../pipeline'
 import { layoutScaling } from './drawnScale'
+import { readAlongReference } from './referenceReading'
 
 import type { BubbleSpread } from '../bubbleSpreads'
 import type { LayoutEngineKind } from '../layoutEngines'
@@ -38,10 +39,40 @@ const ANCHORED = [
 
 const RGFA = readFileSync('test_data/ecoli_rgfa_slice.gfa', 'utf8')
 
+const untagged = (text: string) =>
+  text.replaceAll(/\tS[NOR]:[Zi]:[^\t\n]*/g, '')
+
+// chr steps b5 to b1 backwards and then b6 and b7 forwards, as pggb's can
+// where every link reads its segments forwards. The other walk's link from b4
+// to b2 skips b3, and i is its insertion between b6 and b7.
+const BACKWARDS = [
+  'S\tb1\t*\tLN:i:900\tSN:Z:ref#0#chr\tSO:i:3600\tSR:i:0',
+  'S\tb2\t*\tLN:i:700\tSN:Z:ref#0#chr\tSO:i:2900\tSR:i:0',
+  'S\tb3\t*\tLN:i:1100\tSN:Z:ref#0#chr\tSO:i:1800\tSR:i:0',
+  'S\tb4\t*\tLN:i:800\tSN:Z:ref#0#chr\tSO:i:1000\tSR:i:0',
+  'S\tb5\t*\tLN:i:1000\tSN:Z:ref#0#chr\tSO:i:0\tSR:i:0',
+  'S\tb6\t*\tLN:i:1200\tSN:Z:ref#0#chr\tSO:i:4500\tSR:i:0',
+  'S\tb7\t*\tLN:i:600\tSN:Z:ref#0#chr\tSO:i:5700\tSR:i:0',
+  'S\ti\t*\tLN:i:400',
+  'L\tb1\t+\tb2\t+\t0M',
+  'L\tb2\t+\tb3\t+\t0M',
+  'L\tb3\t+\tb4\t+\t0M',
+  'L\tb4\t+\tb5\t+\t0M',
+  'L\tb2\t+\tb4\t+\t0M',
+  'L\tb1\t-\tb6\t+\t0M',
+  'L\tb6\t+\tb7\t+\t0M',
+  'L\tb6\t+\ti\t+\t0M',
+  'L\ti\t+\tb7\t+\t0M',
+  'W\tref\t0\tchr\t0\t6300\t<b5<b4<b3<b2<b1>b6>b7',
+  'W\thap\t1\tchr\t0\t5600\t<b5<b4<b2<b1>b6>i>b7',
+].join('\n')
+
 const graphs = {
   anchored: ANCHORED,
   rgfa: RGFA,
-  unanchored: RGFA.replaceAll(/\tS[NOR]:[Zi]:[^\t\n]*/g, ''),
+  unanchored: untagged(RGFA),
+  'reference stepped backwards, by tags': BACKWARDS,
+  'reference stepped backwards, by paths': untagged(BACKWARDS),
 }
 
 const fromBothEnds = (lines: string[]) =>
@@ -133,6 +164,33 @@ describe.each(['S', 'L'] as const)('the order of the %s lines', record => {
       expect(other.result).toEqual(given.result)
     }
   })
+})
+
+test.each(['by tags', 'by paths'] as const)(
+  'the reference stepped backwards %s is anchored on chr with five nodes stepped backwards',
+  by => {
+    const graph = loadGraph(graphs[`reference stepped backwards, ${by}`], 'cut')
+    expect(graph.referencePath).toBe('ref#0#chr')
+    expect(
+      graph.nodes.filter(n => n.stable?.rank === 0).map(n => n.stable?.strand),
+    ).toEqual(['-', '-', '-', '-', '-', '+', '+'])
+  },
+)
+
+test('the stress engine is handed the nodes a path-anchored reference steps backwards under other ids, whatever order the S and L lines came in', async () => {
+  const text = graphs['reference stepped backwards, by paths']
+  const given = await laidOut(text, 'stress', 'auto')
+  const other = await laidOut(
+    reordered(reordered(text, 'S', orders.reversed), 'L', orders.reversed),
+    'stress',
+    'auto',
+  )
+  const handed = readAlongReference(given.request!).request
+  expect(handed.graph.nodes.map(n => n.id)).not.toEqual(
+    given.request!.graph.nodes.map(n => n.id),
+  )
+  expect(readAlongReference(other.request!).request).toEqual(handed)
+  expect(other.result).toEqual(given.result)
 })
 
 // r2 and r3 joined end to start, end to end and start to start
