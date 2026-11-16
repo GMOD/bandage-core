@@ -1194,6 +1194,43 @@ describe('the drawing through a folded site', () => {
     expect(ys(0)[0]).not.toBe(ys(1)[0])
   })
 
+  test('a lifted lane across a folded site is as wide as on the reference it crosses from, not as on the allele that is not drawn', () => {
+    const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
+      'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
+      'W\tw\t2\tchr\t0\t*\t>r1>r2>r3',
+      'W\tw\t3\tchr\t0\t*\t>r1>r2>r3',
+      'W\tw\t4\tchr\t0\t*\t>r1>r2>r3',
+    ])
+    const highlight = walkLift(snpGraph, [
+      { walk: 'alt#1#chr' },
+      { walk: 'w#2#chr' },
+    ])
+    const options = {
+      highlight,
+      nodeWidth: 'depth' as const,
+      contigThickness: 24,
+    }
+    const drawn = build(snpGraph, snpAt, 0.5, {
+      ...options,
+      smallSites: 'nodes',
+    })
+    const onAllele = strokesOf(drawn, 'a1+').find(s => s.walk === 0)
+    const onReference = strokesOf(drawn, 'r1+').find(s => s.walk === 0)
+    expect(onAllele?.thickness).toBeLessThan(onReference?.thickness ?? 0)
+    const batch = build(snpGraph, snpAt, 0.5, options)
+    expect(folded(batch)).toEqual(['a1+'])
+    const across = [
+      edgeIndex(snpGraph, 'r1+', 'a1+'),
+      edgeIndex(snpGraph, 'a1+', 'r3+'),
+    ].flatMap(edge => lanesOf(batch, edge).filter(c => c.walk === 0))
+    expect(across).toHaveLength(2)
+    for (const lane of across) {
+      expect(lane.thickness).toBe(
+        strokesOf(batch, 'r1+').find(s => s.walk === 0)?.thickness,
+      )
+    }
+  })
+
   test('a reference node inside a folded site no lifted walk crosses is drawn, at the even stroke', () => {
     const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
       'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',

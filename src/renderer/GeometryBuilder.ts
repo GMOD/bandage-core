@@ -1664,7 +1664,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           if (inView(curves)) {
             laneStroke(
               curves,
-              laneHalfWidth(laneWidthOf(edge.from), lane),
+              laneHalfWidth(laneWidthOf(fromSite ? edge.to : edge.from), lane),
               threadColor(lane, edge.from, pass) ??
                 threadColor(lane, edge.to, toPass) ??
                 plainEdgeColor,
