@@ -4,6 +4,8 @@ import { parseGFA } from './gfa-core/index'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { drawnMarks, graphKey } from './graphKey'
+import { nodeLabelBudget } from './graphLabels'
+import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform } from './pipeline'
@@ -289,6 +291,64 @@ test('nodes not shown are keyed only where a hollow one is drawn', () => {
   expect(texts(hollow, {}, { drawsNodes: false })).not.toContain(
     NOT_LOADED_TEXT,
   )
+})
+
+// placeholders on loops drawn 6 px long, ten px apart along one line of a
+// 1200 by 320 pane: each length stacks off its loop
+function unlabelledOf(lengths: number[]) {
+  const ids = lengths.map((_, i) => `p${i}`)
+  return layoutLabels({
+    paneWidth: 1200,
+    canvasHeight: 320,
+    axisScale: { scaleX: 1, scaleY: 1 },
+    translateX: 0,
+    translateY: 0,
+    contigThickness: 6,
+    legendSize: { width: 0, height: 0 },
+    drawnRowLabels: [],
+    bubbleHalos: [],
+    genePins: [],
+    nodePositions: Object.fromEntries(
+      ids.map((id, i) => [
+        id,
+        [
+          { x: 100 + i * 10, y: 160 },
+          { x: 106 + i * 10, y: 160 },
+        ],
+      ]),
+    ),
+    labelsNodeSizes: true,
+    nodeLengths: new Map(ids.map((id, i) => [id, lengths[i]!])),
+    nodeById: new Map(ids.map(id => [id, { placeholder: true }])),
+    alleleDeletions: [],
+    positionsVersion: 0,
+  }).unlabelled
+}
+
+const withPlaceholder = withNodes(graph, name =>
+  name === 'a1' ? { placeholder: true } : {},
+)
+const notShown = (lengths: number[]) =>
+  entries(withPlaceholder, {}, { unlabelled: unlabelledOf(lengths) }).find(
+    e => e.key === 'not-shown',
+  )
+
+test('nodes not shown say how many placeholders went unlabelled and how long each is at most', () => {
+  expect(notShown(Array.from({ length: 100 }, () => 1))?.under).toBe(
+    '91 unlabelled, each 1 bp',
+  )
+  expect(
+    notShown(Array.from({ length: 100 }, (_, i) => (i + 1) * 20))?.under,
+  ).toBe('91 unlabelled, 1.8 kb or less each')
+})
+
+test('nodes not shown carry no count where every placeholder is labelled', () => {
+  const ones = (n: number) => Array.from({ length: n }, () => 1)
+  const budget = nodeLabelBudget(1200, 320)
+  const all = notShown(ones(budget))
+  expect(all?.text).toBe(NOT_LOADED_TEXT)
+  expect(all).not.toHaveProperty('under')
+  expect(notShown(ones(budget + 1))?.under).toBe('1 unlabelled, 1 bp')
 })
 
 test('the outline is keyed as exons, or as genes where every gene is one exon', () => {

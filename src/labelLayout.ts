@@ -4,6 +4,7 @@ import {
   placeSizeLabels,
   rowLabelBox,
   sizeLabelCandidates,
+  unlabelledPlaceholders,
 } from './graphLabels'
 import { HALO_FACTOR } from './halo'
 import { keyColumnBox } from './keyColumn'
@@ -19,7 +20,11 @@ import { nodesUnderBox, segmentMeetsBox } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
-import type { GraphLabel, NodeKinds } from './graphLabels'
+import type {
+  GraphLabel,
+  NodeKinds,
+  UnlabelledPlaceholders,
+} from './graphLabels'
 import type { Box, PlacedLabel } from './overlayLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
@@ -74,6 +79,8 @@ export interface LabelLayout {
   ticks: BubbleTick[]
   genes: PlacedLabel<GenePin>[]
   sizes: GraphLabel[]
+  // the placeholders on the pane left without a length, which the key counts
+  unlabelled?: UnlabelledPlaceholders
 }
 
 // How much of a gene the cut's backbone carries, when that is not all of it,
@@ -224,20 +231,22 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     { scaleX, scaleY, translateX, translateY },
     m.positionsVersion,
   )
+  const budget = nodeLabelBudget(width, height)
   const placeholderSizes = placeSizeLabels(
     sizeCandidates.filter(c => c.kept),
     take,
-    Infinity,
-    0,
-    (box, id) =>
-      [
-        ...nodesUnder({
-          x0: box.x0 - ink,
-          x1: box.x1 + ink,
-          y0: box.y0 - ink,
-          y1: box.y1 + ink,
-        }),
-      ].every(under => under === id),
+    {
+      leaders: budget,
+      clear: (box, id) =>
+        [
+          ...nodesUnder({
+            x0: box.x0 - ink,
+            x1: box.x1 + ink,
+            y0: box.y0 - ink,
+            y1: box.y1 + ink,
+          }),
+        ].every(under => under === id),
+    },
   )
 
   // On a row layout a bubble's name goes in the band above the top row, which
@@ -292,8 +301,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     ...placeSizeLabels(
       sizeCandidates.filter(c => !c.kept),
       take,
-      nodeLabelBudget(width, height),
-      placeholderSizes.length,
+      { budget, placed: placeholderSizes.length },
     ),
   ]
   return {
@@ -301,5 +309,10 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     ticks,
     genes,
     sizes,
+    unlabelled: unlabelledPlaceholders(
+      sizeCandidates,
+      placeholderSizes,
+      m.nodeLengths,
+    ),
   }
 }

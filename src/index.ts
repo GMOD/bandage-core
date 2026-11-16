@@ -329,6 +329,7 @@ export {
   labelledNodeLengths,
   sizeLeader,
 } from './graphLabels'
+export type { UnlabelledPlaceholders } from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'
 export { genePins } from './genes/genePins'

@@ -4,6 +4,7 @@ import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
 import { busiestEdge, edgeWidthFactor } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
+import { formatBp } from './graphLabels'
 import { depthKey, frequencyKey } from './nodeWidths'
 import { referenceLabel } from './reference'
 import {
@@ -32,6 +33,7 @@ import { rangeText, walkKey } from './walkKey'
 
 import type { EdgeWidth } from './edgeWidths'
 import type { GenePin } from './genes/genePins'
+import type { UnlabelledPlaceholders } from './graphLabels'
 import type { NodeWidth } from './nodeWidths'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { RenderBatch } from './renderer/types'
@@ -188,6 +190,9 @@ export interface GraphKeyOptions {
   halos?: readonly { whole: boolean }[]
   // the reference strip has a tab past an edge
   stripOverhangs?: boolean
+  // the placeholders the labels left without a length: layoutLabels'
+  // `unlabelled`
+  unlabelled?: UnlabelledPlaceholders
 }
 
 // LIFT_BACKDROP_COLOR reads paler alone than faded strokes do where they
@@ -215,6 +220,15 @@ const entry = (
 
 const counted = (n: number, one: string, many: string) =>
   `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
+
+function unlabelledText({ count, smallest, largest }: UnlabelledPlaceholders) {
+  const n = count.toLocaleString('en-US')
+  return count === 1
+    ? `${n} unlabelled, ${formatBp(largest)}`
+    : smallest === largest
+      ? `${n} unlabelled, each ${formatBp(largest)}`
+      : `${n} unlabelled, ${formatBp(largest)} or less each`
+}
 
 const roundDepth = (depth: number) =>
   depth >= 10 ? Math.round(depth) : Math.round(depth * 10) / 10
@@ -461,6 +475,9 @@ export function graphKey(
               {
                 key: 'not-shown',
                 text: NOT_LOADED_TEXT,
+                ...(o.unlabelled
+                  ? { under: unlabelledText(o.unlabelled) }
+                  : {}),
                 swatch: {
                   kind: 'hollow',
                   ink: NOT_LOADED_FILL_COLOR,

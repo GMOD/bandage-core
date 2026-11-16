@@ -32,7 +32,9 @@ import type { AxisScale } from './util/geometry'
 // is taken it tries further along the loop, then stacks beside the nearest
 // spot with a leader to it, as a gene's name stacks off its pin, as it does off
 // the loop's middle where the loop is too short to hold it, since nothing else
-// on the drawing says how much sequence the loop stands in for.
+// on the drawing says how much sequence the loop stands in for. Stacked
+// lengths are rationed as other lengths are, longest first, and the key counts
+// the placeholders left without one.
 //
 // Between them they hold at both ends of the scale a pangenome graph spans: 63
 // kb-scale nodes at the amylase locus nearly all carry a length, and a 154-node
@@ -156,8 +158,10 @@ export function formatBp(bp: number) {
 // the cache keys weakly on the positions.
 
 // Node label candidates in the order they are considered, placeholders first
-// and the biggest allele first among each, which depends on the sequence
-// lengths alone.
+// and the biggest allele first among each, two of one length by node id in
+// numeric order, which depends on the sequence lengths and ids alone.
+const byId = new Intl.Collator('en', { numeric: true }).compare
+
 const nodeOrderCache = weakMemo<
   Record<string, NodeSegment[]>,
   { id: string; segments: NodeSegment[]; kept: boolean }[]
@@ -178,7 +182,7 @@ function labelOrder(
       }))
       .sort((a, b) =>
         a.kept === b.kept
-          ? nodeLengths.get(b.id)! - nodeLengths.get(a.id)!
+          ? nodeLengths.get(b.id)! - nodeLengths.get(a.id)! || byId(a.id, b.id)
           : a.kept
             ? -1
             : 1,
@@ -285,13 +289,17 @@ export function sizeLabelCandidates({
   axis,
   translateX,
   translateY,
+  width,
   height,
 }: SizeLabelArgs) {
   const { scaleX, scaleY } = axis
   const barred = new Set(alleleDeletions?.flatMap(run => run.nodeIds))
   const candidates: SizeLabelCandidate[] = []
-  const onPane = (screenY: number) =>
-    screenY + LABEL_HALF_HEIGHT > 0 && screenY - LABEL_HALF_HEIGHT < height
+  const onPane = ({ x, y }: { x: number; y: number }) =>
+    x >= 0 &&
+    x <= width &&
+    y + LABEL_HALF_HEIGHT > 0 &&
+    y - LABEL_HALF_HEIGHT < height
   // Placeholders first, then the biggest allele: in a crowd, the label that
   // survives should be the one carrying the most sequence, not whichever node
   // the layout happened to emit first. The order is `labelOrder`'s, cached
@@ -312,7 +320,7 @@ export function sizeLabelCandidates({
     }
     const spots = barred.has(id)
       ? []
-      : (kept ? KEPT_LABEL_SPOTS : [0.5]).map(at).filter(spot => onPane(spot.y))
+      : (kept ? KEPT_LABEL_SPOTS : [0.5]).map(at).filter(onPane)
     const drawn = spots.length > 0 ? polylinePx(segments, scaleX, scaleY) : 0
     // The same comparison the real fit test makes, against the narrowest box
     // any label can have — so nothing that would have passed is rejected here.
@@ -368,35 +376,71 @@ export function nodeLabelBudget(width: number, height: number) {
   )
 }
 
+interface SizePlacing {
+  budget?: number
+  placed?: number
+  leaders?: number
+  clear?: (box: Box, id: string) => boolean
+}
+
 // Each candidate at its first free spot while the budget lasts, a
 // placeholder's whatever the budget, as `placed` labels already spent it.
 // Where no spot along a placeholder's loop is free, its length stacks off the
-// loop, clear of every other node's ink where `clear` finds a spot that is,
-// since a length over another node reads as that node's; else at the nearest
-// free spot.
+// loop while fewer than `leaders` stacked lengths stand, clear of every other
+// node's ink where `clear` finds a spot that is; else at the nearest free spot.
 export function placeSizeLabels(
   candidates: SizeLabelCandidate[],
   take: TakeBox,
-  budget = Infinity,
-  placed = 0,
-  clear: (box: Box, id: string) => boolean = () => true,
+  {
+    budget = Infinity,
+    placed = 0,
+    leaders = Infinity,
+    clear = () => true,
+  }: SizePlacing = {},
 ) {
   const labels: GraphLabel[] = []
+  let stacked = 0
   for (const candidate of candidates) {
     if (candidate.kept || placed + labels.length < budget) {
       const along = candidate.along.find(s => take(s.box))
-      const stacked = along ? undefined : candidate.stacked?.()
+      const spots =
+        along || stacked >= leaders ? undefined : candidate.stacked?.()
       const spot =
         along ??
-        stacked?.find(s => clear(s.box, candidate.id) && take(s.box)) ??
-        stacked?.find(s => take(s.box))
+        spots?.find(s => clear(s.box, candidate.id) && take(s.box)) ??
+        spots?.find(s => take(s.box))
       if (spot) {
         labels.push(spot.label)
+        stacked += spot.label.leader ? 1 : 0
       }
     }
   }
   return labels
 }
+
+export function unlabelledPlaceholders(
+  candidates: SizeLabelCandidate[],
+  labels: GraphLabel[],
+  nodeLengths: Map<string, number>,
+) {
+  const labelled = new Set(labels.map(l => l.node))
+  let count = 0
+  let smallest = Infinity
+  let largest = 0
+  for (const { id, kept } of candidates) {
+    if (kept && !labelled.has(id)) {
+      const bp = nodeLengths.get(id)!
+      count++
+      smallest = Math.min(smallest, bp)
+      largest = Math.max(largest, bp)
+    }
+  }
+  return count > 0 ? { count, smallest, largest } : undefined
+}
+
+export type UnlabelledPlaceholders = NonNullable<
+  ReturnType<typeof unlabelledPlaceholders>
+>
 
 // Node labels, each placed where `take` finds room. By default `take` finds it
 // on the pane outside the `reserved` boxes.
@@ -406,9 +450,9 @@ export function graphLabels({
   ...args
 }: SizeLabelArgs & { reserved?: Box[]; take?: TakeBox }): GraphLabel[] {
   take ??= occupancy(args, reserved)
-  return placeSizeLabels(
-    sizeLabelCandidates(args),
-    take,
-    nodeLabelBudget(args.width, args.height),
-  )
+  const budget = nodeLabelBudget(args.width, args.height)
+  return placeSizeLabels(sizeLabelCandidates(args), take, {
+    budget,
+    leaders: budget,
+  })
 }

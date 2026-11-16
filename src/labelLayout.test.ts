@@ -1,4 +1,9 @@
-import { LABEL_DEFAULTS, labelledNodeLengths, sizeLeader } from './graphLabels'
+import {
+  LABEL_DEFAULTS,
+  labelledNodeLengths,
+  nodeLabelBudget,
+  sizeLeader,
+} from './graphLabels'
 import {
   LEGEND_INSET_PX,
   geneCoverageNote,
@@ -381,6 +386,53 @@ test('three loops crossing in one place each keep their length, none over anothe
       Math.hypot(label.x - label.leader!.x, label.y - label.leader!.y),
     ).toBeLessThan(60)
   }
+})
+
+// KIV-2 buried its graph under more than a hundred stacked "1 bp" lengths
+const shortLoops = (lengths: number[]) => {
+  const nodes = placeholders(lengths)
+  return {
+    paneWidth: 1200,
+    canvasHeight: 320,
+    nodePositions: Object.fromEntries(
+      nodes.map((n, i) => [
+        n.id,
+        [
+          { x: 100 + i * 10, y: 160 },
+          { x: 106 + i * 10, y: 160 },
+        ],
+      ]),
+    ),
+    nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+    nodeById: new Map(nodes.map(n => [n.id, n])),
+  }
+}
+
+test('placeholder lengths stacked off their loops stand only while the pane has room for node labels, the rest counted', () => {
+  const budget = nodeLabelBudget(1200, 320)
+  const { sizes, unlabelled } = layoutLabels(
+    source(shortLoops(Array.from({ length: 100 }, () => 1))),
+  )
+  expect(sizes.length).toBe(budget)
+  expect(sizes.every(l => l.leader)).toBe(true)
+  expect(sizes.map(l => l.node)).toEqual(
+    Array.from({ length: budget }, (_, i) => `p${i}`),
+  )
+  expect(unlabelled).toEqual({ count: 100 - budget, smallest: 1, largest: 1 })
+})
+
+test('the stacked placeholder lengths that stand are the longest', () => {
+  const budget = nodeLabelBudget(1200, 320)
+  const lengths = Array.from({ length: 100 }, (_, i) => ((i * 37) % 100) + 1)
+  const { sizes, unlabelled } = layoutLabels(source(shortLoops(lengths)))
+  expect(sizes.map(l => l.text)).toEqual(
+    Array.from({ length: budget }, (_, i) => `${100 - i} bp`),
+  )
+  expect(unlabelled).toEqual({
+    count: 100 - budget,
+    smallest: 1,
+    largest: 100 - budget,
+  })
 })
 
 test('a row label holds its space against a gene pin', () => {

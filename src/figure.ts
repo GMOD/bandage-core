@@ -41,6 +41,8 @@ import type { EdgeWidth } from './edgeWidths'
 import type { FacetInput } from './facetGrid'
 import type { GeneModel, GenePin } from './genes/genePins'
 import type { GraphKeyEntry, GraphKeySection, GraphKeySwatch } from './graphKey'
+import type { UnlabelledPlaceholders } from './graphLabels'
+import type { LabelLayout } from './labelLayout'
 import type {
   GeneGaps,
   RowGene,
@@ -50,7 +52,6 @@ import type {
 import type { WalkRows } from './layout/walkRows'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
-import type { AxisScale } from './util/geometry'
 import type { WalkLayer } from './walkEncoding'
 import type { WalkLift } from './walkHighlight'
 
@@ -331,13 +332,13 @@ export function figureSvg(
   // hosts place them; a row layout names its rows
   function overlays(
     highlight: WalkLift | undefined,
-    axis: AxisScale,
     t: {
       scaleX: number
       scaleY: number
       translateX: number
       translateY: number
     },
+    labels: LabelLayout,
     w: number,
     h: number,
   ) {
@@ -352,24 +353,6 @@ export function figureSvg(
     const screen = (p: { x: number; y: number }) => ({
       x: p.x * t.scaleX + t.translateX,
       y: p.y * t.scaleY + t.translateY,
-    })
-    const labels = layoutLabels({
-      paneWidth: w,
-      canvasHeight: h,
-      axisScale: axis,
-      translateX: t.translateX,
-      translateY: t.translateY,
-      contigThickness,
-      legendSize: { width: 0, height: 0 },
-      drawnRowLabels: rowLabels,
-      bubbleHalos: [],
-      genePins: pins,
-      nodePositions: layout.nodePositions,
-      labelsNodeSizes: !layout.tubeMap && !highlight,
-      nodeLengths,
-      nodeById,
-      alleleDeletions: layout.alleleDeletions ?? [],
-      positionsVersion: 0,
     })
     for (const { item: pin, x, y, w: cw, text } of labels.genes) {
       const { x1, y1, x2, y2 } = geneLeader(
@@ -437,7 +420,6 @@ export function figureSvg(
       const axis = axisScaleOf(fit.scale, pixelRows)
       return {
         highlight,
-        axis,
         batch: geometry(highlight, axis),
         t: {
           scaleX: axis.scaleX,
@@ -445,6 +427,24 @@ export function figureSvg(
           translateX: fit.translateX,
           translateY: fit.translateY,
         },
+        labels: layoutLabels({
+          paneWidth: w,
+          canvasHeight: h,
+          axisScale: axis,
+          translateX: fit.translateX,
+          translateY: fit.translateY,
+          contigThickness,
+          legendSize: { width: 0, height: 0 },
+          drawnRowLabels: rowLabels,
+          bubbleHalos: [],
+          genePins: pins,
+          nodePositions: layout.nodePositions,
+          labelsNodeSizes: !layout.tubeMap && !highlight,
+          nodeLengths,
+          nodeById,
+          alleleDeletions: layout.alleleDeletions ?? [],
+          positionsVersion: 0,
+        }),
       }
     }
     return undefined
@@ -459,12 +459,15 @@ export function figureSvg(
     renderer.uploadGeometry(v.batch)
     renderer.updateTransform({ ...v.t, dpr: 1 })
     renderer.render([1, 1, 1, 1])
-    return markup() + overlays(v.highlight, v.axis, v.t, w, h)
+    return markup() + overlays(v.highlight, v.t, v.labels, w, h)
   }
 
   // The graph's key and the walk rows' entries for the drawing `views` hold,
   // laid in lines
-  const keyed = (views: ReturnType<typeof view>[]) => {
+  const keyed = (
+    views: ReturnType<typeof view>[],
+    unlabelled?: UnlabelledPlaceholders,
+  ) => {
     const keys = graphKeySvg(
       graphKey(graph, layout, {
         region: o.region,
@@ -481,6 +484,7 @@ export function figureSvg(
         drawsNodes: !rows && !layout.tubeMap,
         marks: drawnMarks(views.flatMap(v => (v ? [v.batch] : []))),
         genePins: pins,
+        unlabelled,
       }),
       'key',
     )
@@ -553,7 +557,7 @@ export function figureSvg(
     const { drawn: laidOut, header } = settled(above => {
       const h = hAt(above)
       const v = view(lift, width, h)
-      const key = keyed([v])
+      const key = keyed([v], v?.labels.unlabelled)
       return {
         drawn: { v, key, h },
         header:

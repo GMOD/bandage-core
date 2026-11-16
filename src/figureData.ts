@@ -635,6 +635,7 @@ export function figureData(
       o.connectorThickness ?? FIGURE_DEFAULTS.connectorThickness,
     marks: drawnMarks(batches),
     genePins: pinned,
+    unlabelled: placed.unlabelled,
   })
 
   const startsOf = referenceVisitStarts(graph)
