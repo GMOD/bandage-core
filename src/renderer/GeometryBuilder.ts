@@ -1341,20 +1341,36 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         }))
       : curves
   }
-  // the way the reference is drawn through a run: the straight line from
-  // where the drawn node before it meets it to where the one after does
+  // the way the reference is drawn through a run, from where the drawn
+  // node before it meets it to where the one after does: the straight line
+  // where the run is drawn on it, else its nodes as they are laid, in the
+  // order the reference steps them
   const runPaths = new Map<FoldRun, { path: Point[]; along: number[] }>()
   const runPathOf = (run: FoldRun) => {
+    const known = runPaths.get(run)
     const a = meetsRun(run.from, true)
     const b = meetsRun(run.to, false)
-    const known = runPaths.get(run)
-    const traced =
-      known ??
-      (a && b ? { path: [a, b], along: arcLengths([a, b], yToX) } : undefined)
-    if (traced) {
-      runPaths.set(run, traced)
-    }
-    return traced
+    const path =
+      known?.path ??
+      (chordOf(run) && a && b
+        ? [a, b]
+        : [
+            ...(a ? [a] : []),
+            ...(nodesOfRun.get(run) ?? [])
+              .flatMap(id => {
+                const node = nodeById.get(id)
+                return node && isBackbone(node) ? [node] : []
+              })
+              .toSorted((x, y) => x.stable.start - y.stable.start)
+              .flatMap(node => {
+                const line = nodePositions[node.id] ?? []
+                return laidAlongReference(node) ? line : line.toReversed()
+              }),
+            ...(b ? [b] : []),
+          ])
+    const traced = known ?? { path, along: arcLengths(path, yToX) }
+    runPaths.set(run, traced)
+    return traced.path.length >= 2 ? traced : undefined
   }
   const curvesAlongRun = (run: FoldRun, curves: BezierCurve[]) => {
     const chord = chordOf(run)

@@ -1479,6 +1479,16 @@ describe('the drawing through a folded site', () => {
     expect(into.at(-1)?.y).toBeCloseTo(out[0]?.y ?? 0, 9)
   })
 
+  test('a lifted lane crossing a run the layout bent follows the run as it is drawn, through its nodes as they are laid', () => {
+    const bent = { ...positions, 'r2+': at(1000, 1001, 35) }
+    const { batch, into, out } = laneThrough(bent)
+    expect(batch.laneOnly?.nodes.has('r2+')).toBe(true)
+    const lane = [...into, ...out]
+    expect(lane.some(p => p.y === 35)).toBe(true)
+    expect(lane[0]).toEqual({ x: 1000, y: 0 })
+    expect(lane.at(-1)).toEqual({ x: 1002, y: 0 })
+  })
+
   test('a reference node inside a folded site no lifted walk crosses is drawn, at the even stroke', () => {
     const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
       'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
