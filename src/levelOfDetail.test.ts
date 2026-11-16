@@ -11,6 +11,7 @@ import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { baseEdgeCurves } from './util/edgeCurves'
 import { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 import { walkLift } from './walkHighlight'
+import { MAX_ZOOM } from './zoomLimits'
 
 import type { BuildOptions } from './renderer/GeometryBuilder'
 import type { Graph, NodeSegment, PathVisit } from './types'
@@ -200,6 +201,26 @@ test('nothing of no bp folds, since no zoom would draw it again', () => {
     const batch = build(graph, positions, scale)
     expect(batch.collapsed?.sites).toEqual([])
     expect(drawnNodes(batch).has('x+')).toBe(true)
+  }
+})
+
+test('a site folds only where the deepest zoom draws it again', () => {
+  const { graph, positions } = snp(1, 1)
+  const shrunk = (by: number) =>
+    Object.fromEntries(
+      Object.entries(positions).map(([id, line]) => [
+        id,
+        line.map(p => ({ x: p.x / by, y: p.y / by })),
+      ]),
+    )
+  expect((2 * MAX_ZOOM) / 10).toBeGreaterThanOrEqual(SMALL_SITE_PX)
+  expect((2 * MAX_ZOOM) / 1000).toBeLessThan(SMALL_SITE_PX)
+  expect(folded(build(graph, shrunk(10), 1))).toEqual(['a1+'])
+  expect(folded(build(graph, shrunk(10), MAX_ZOOM))).toEqual([])
+  for (const scale of [1, MAX_ZOOM]) {
+    const batch = build(graph, shrunk(1000), scale)
+    expect(folded(batch)).toEqual([])
+    expect(drawnNodes(batch).has('a1+')).toBe(true)
   }
 })
 
@@ -811,7 +832,7 @@ test('with walks lifted, a lane stepping a folded site runs straight along the r
   const wide = Object.fromEntries(
     Object.entries(positions).map(([id, line]) => [
       id,
-      line.map(p => ({ x: p.x / 100, y: p.y })),
+      line.map(p => ({ x: p.x / 50, y: p.y })),
     ]),
   )
   const into = edgeIndex(graph, 'r1+', 'a1+')
@@ -919,7 +940,7 @@ test('the heads along a lift follow the fold on one graph, layout and lift', () 
   const wide = Object.fromEntries(
     Object.entries(positions).map(([id, line]) => [
       id,
-      line.map(p => ({ x: p.x / 100, y: p.y })),
+      line.map(p => ({ x: p.x / 50, y: p.y })),
     ]),
   )
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))

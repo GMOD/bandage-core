@@ -26,6 +26,7 @@ import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
 import { MAX_BAND_PX } from './renderer/walkLanes'
 import { canonicalEdgeOrder, canonicalNodeOrder } from './util/canonicalOrder'
+import { MAX_ZOOM, MIN_ZOOM } from './zoomLimits'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { GraphTables } from './gfa/graphTables'
@@ -379,12 +380,6 @@ export function layoutExtent(
 export function loopFloor(fit?: FitSize) {
   return (Math.PI * MAX_BAND_PX) / fitRoom(fitOrAssumed(fit)).width
 }
-
-// The floor keeps a scale positive and finite, and has to clear the smallest
-// scale a real layout asks for: fitting a chromosome-scale rGFA (250 Mbp) into
-// ~720 px needs ~3e-6.
-const MIN_ZOOM = 1e-6
-const MAX_ZOOM = 100
 
 export function clampZoom(zoom: number) {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))

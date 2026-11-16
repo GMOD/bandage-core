@@ -4,6 +4,7 @@ import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
 import { partitionPoint } from './util/partitionPoint'
 import { weakMemo } from './util/weakMemo'
+import { MAX_ZOOM } from './zoomLimits'
 
 import type { AnchoredNode } from './anchoredNodes'
 import type { Graph, GraphNode, NodeSegment } from './types'
@@ -522,6 +523,11 @@ function foldOf(
     () => unitsOf(graph, deletions, hiddenEdges),
   )
   const pxPerBp = referencePxPerBp(backbone, backboneBp, positions, axis)
+  const deepestPxPerBp = referencePxPerBp(backbone, backboneBp, positions, {
+    ...axis,
+    scaleX: MAX_ZOOM,
+    scaleY: axis.pixelRows ? axis.scaleY : MAX_ZOOM,
+  })
   const nodes = new Set<string>()
   const edges = new Set<number>()
   const siteOf = new Map<string, Site>()
@@ -538,6 +544,7 @@ function foldOf(
       pxPerBp > 0 &&
       unit.bp > 0 &&
       unit.bp * pxPerBp < SMALL_SITE_PX &&
+      unit.bp * deepestPxPerBp >= SMALL_SITE_PX &&
       feet.length === unit.feet.length &&
       unit.nodes.every(id => positions[id]?.length)
     ) {
