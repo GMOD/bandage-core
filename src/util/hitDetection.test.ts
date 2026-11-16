@@ -87,20 +87,28 @@ describe('findHoveredNode', () => {
   }
 
   test('finds node when cursor is on segment', () => {
-    expect(findHoveredNode(nodePositions, 5, 0, iso())).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 5, 0, iso(), 0, undefined, undefined),
+    ).toBe('A+')
   })
 
   test('finds node when cursor is near segment', () => {
-    expect(findHoveredNode(nodePositions, 5, 3, iso())).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 5, 3, iso(), 0, undefined, undefined),
+    ).toBe('A+')
   })
 
   test('returns null when cursor is far from nodes', () => {
-    expect(findHoveredNode(nodePositions, 50, 50, iso())).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 50, 50, iso(), 0, undefined, undefined),
+    ).toBeNull()
   })
 
   test('respects scale for threshold', () => {
     // At scale 10, threshold is 5/10 = 0.5, so a point 3 units away should miss
-    expect(findHoveredNode(nodePositions, 5, 3, iso(10))).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 5, 3, iso(10), 0, undefined, undefined),
+    ).toBeNull()
   })
 
   // A node drawn thick by its depth is 18 px across at the defaults, so the
@@ -111,14 +119,22 @@ describe('findHoveredNode', () => {
       halfWidthPx: (id: string) => (id === 'A+' ? 9 : 3),
       maxHalfWidthPx: 9,
     }
-    expect(findHoveredNode(nodePositions, 5, 8, iso())).toBeNull()
-    expect(findHoveredNode(nodePositions, 5, 8, iso(), 0, drawn)).toBe('A+')
-    expect(findHoveredNode(nodePositions, 25, 28, iso(), 0, drawn)).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 5, 8, iso(), 0, undefined, undefined),
+    ).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 5, 8, iso(), 0, drawn, undefined),
+    ).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 25, 28, iso(), 0, drawn, undefined),
+    ).toBeNull()
   })
 
   test('a thin node keeps the tolerance that makes it catchable', () => {
     const drawn = { halfWidthPx: () => 1, maxHalfWidthPx: 1 }
-    expect(findHoveredNode(nodePositions, 5, 4, iso(), 0, drawn)).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 5, 4, iso(), 0, drawn, undefined),
+    ).toBe('A+')
   })
 
   test('of two thick nodes under the pointer, the nearer centreline wins', () => {
@@ -133,8 +149,12 @@ describe('findHoveredNode', () => {
       ],
     }
     const thick = { halfWidthPx: () => 9, maxHalfWidthPx: 9 }
-    expect(findHoveredNode(stacked, 5, 6, iso(), 0, thick)).toBe('B+')
-    expect(findHoveredNode(stacked, 5, 4, iso(), 0, thick)).toBe('A+')
+    expect(findHoveredNode(stacked, 5, 6, iso(), 0, thick, undefined)).toBe(
+      'B+',
+    )
+    expect(findHoveredNode(stacked, 5, 4, iso(), 0, thick, undefined)).toBe(
+      'A+',
+    )
   })
 })
 
@@ -321,8 +341,12 @@ test('picks the nearest node when several are inside the threshold', () => {
     ],
   }
   // scale 0.008 -> a 625 unit threshold, wide enough to reach both
-  expect(findHoveredNode(positions, 1050, 0, iso(0.008))).toBe('near+')
-  expect(findHoveredNode(positions, 550, 0, iso(0.008))).toBe('far+')
+  expect(
+    findHoveredNode(positions, 1050, 0, iso(0.008), 0, undefined, undefined),
+  ).toBe('near+')
+  expect(
+    findHoveredNode(positions, 550, 0, iso(0.008), 0, undefined, undefined),
+  ).toBe('far+')
 })
 
 // On a row layout x is reference bp and y is screen px, and the hover slack is
@@ -354,6 +378,8 @@ describe('hover on a row layout', () => {
         2,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBe('top')
     expect(
@@ -363,6 +389,8 @@ describe('hover on a row layout', () => {
         18,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBe('next')
   })
@@ -375,6 +403,8 @@ describe('hover on a row layout', () => {
         10,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBeNull()
   })
@@ -388,6 +418,8 @@ describe('hover on a row layout', () => {
         0,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBe('top')
     expect(
@@ -397,6 +429,8 @@ describe('hover on a row layout', () => {
         0,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBeNull()
   })

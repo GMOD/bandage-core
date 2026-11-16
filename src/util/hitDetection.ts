@@ -187,10 +187,10 @@ export function findHoveredNode(
   graphX: number,
   graphY: number,
   axis: AxisScale,
-  version = 0,
-  ink?: NodeInk,
+  version: number,
+  ink: NodeInk | undefined,
   // RenderBatch.collapsed: the folded nodes, which draw nothing
-  collapsed?: RenderBatch['collapsed'],
+  collapsed: RenderBatch['collapsed'],
 ) {
   const yToX = yToXOf(axis)
   const index = getSpatialIndex(nodePositions, version)
