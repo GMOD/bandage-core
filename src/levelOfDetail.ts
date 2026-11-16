@@ -59,12 +59,21 @@ export interface Fold {
   // the reference through each run of folded sites that overlap or touch:
   // its nodes there, and its own links from one end of the run to the other
   through: ReadonlyMap<string, Run>
-  bridges: ReadonlyMap<number, Run>
+  bridges: ReadonlyMap<number, Bridge>
 }
 
-// the drawn reference nodes at a run's two outer ends
+// where a run lies on the reference, and the drawn reference nodes ending
+// where it starts and starting where it ends
 export interface Run {
-  ends: string[]
+  start: number
+  end: number
+  from: string[]
+  to: string[]
+}
+
+export interface Bridge {
+  run: Run
+  at: number
 }
 
 export const NO_FOLD: Fold = {
@@ -402,7 +411,7 @@ function through(
   references: Map<string, ReferenceSequence>,
 ) {
   const nodes = new Map<string, Run>()
-  const bridges = new Map<number, Run>()
+  const bridges = new Map<number, Bridge>()
   const byStart = sites.toSorted((a, b) =>
     a.refName !== b.refName
       ? a.refName < b.refName
@@ -428,10 +437,10 @@ function through(
     if (reference) {
       const inside = spansInside(reference.spans, start, end)
       const run = {
-        ends: [
-          ...(reference.endingAt.get(start) ?? []),
-          ...(reference.startingAt.get(end) ?? []),
-        ],
+        start,
+        end,
+        from: reference.endingAt.get(start) ?? [],
+        to: reference.startingAt.get(end) ?? [],
       }
       for (const span of inside) {
         nodes.set(span.id, run)
@@ -442,7 +451,7 @@ function through(
         i < links.length && links[i]!.at <= end;
         i++
       ) {
-        bridges.set(links[i]!.edge, run)
+        bridges.set(links[i]!.edge, { run, at: links[i]!.at })
       }
     }
   }

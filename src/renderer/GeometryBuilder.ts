@@ -1,7 +1,12 @@
 import { isBackbone } from '../anchoredNodes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
 import { NO_FOLD, foldedSites } from '../levelOfDetail'
-import { nodeWidthPx, walkLaneWidthPx, widthNorm } from '../nodeWidths'
+import {
+  nodeWidthPx,
+  runWidthPx,
+  walkLaneWidthPx,
+  widthNorm,
+} from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
   PATH_SATURATION,
@@ -1050,13 +1055,45 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const widthOf = (node: GraphNode) =>
     nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
   const runWidth = (run: FoldRun, alone: GraphNode) =>
-    run.ends.reduce(
-      (least, id) => {
-        const end = nodeById.get(id)
-        return end ? Math.min(least, widthOf(end)) : least
-      },
-      run.ends.some(id => nodeById.has(id)) ? Infinity : widthOf(alone),
-    )
+    runWidthPx(run, widthOf(alone), id => {
+      const end = nodeById.get(id)
+      return end ? widthOf(end) : undefined
+    })
+  // where a drawn reference node at a run's end meets it: the end of a node
+  // ending where the run starts, the start of one starting where it ends,
+  // each read the way the reference reads it
+  const meetsRun = (ids: readonly string[], atEnd: boolean) =>
+    ids.flatMap(id => {
+      const node = nodeById.get(id)
+      const line = nodePositions[id]
+      const forward = node?.stable?.strand !== '-'
+      const point = line?.length
+        ? atEnd === forward
+          ? line.at(-1)
+          : line[0]
+        : undefined
+      return point ? [point] : []
+    })[0]
+  const chords = new Map<FoldRun, ((at: number) => NodeSegment) | undefined>()
+  const chordBetween = (run: FoldRun) => {
+    const a = meetsRun(run.from, true)
+    const b = meetsRun(run.to, false)
+    return a && b && run.end > run.start
+      ? (at: number) => {
+          const t = (at - run.start) / (run.end - run.start)
+          return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+        }
+      : undefined
+  }
+  const chordOf = (run: FoldRun) => {
+    const chord = chords.has(run) ? chords.get(run) : chordBetween(run)
+    chords.set(run, chord)
+    return chord
+  }
+  const straightThrough = (run: FoldRun, from: number, to: number) => {
+    const chord = chordOf(run)
+    return chord ? [chord(from), chord(to)] : undefined
+  }
 
   const pathCount = graph.paths?.length ?? 0
   const { pathColorByIndex, pathIndexByName } = pathPaletteOf(graph)
@@ -1685,9 +1722,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     } else if (!ribbons) {
       const fromNode = nodeById.get(edge.from)
       if (inView(baseCurves) && bridge && fromNode) {
+        const [a, b] = straightThrough(bridge.run, bridge.at, bridge.at) ?? []
         stroke(
-          baseCurves,
-          runWidth(bridge, fromNode) / 2,
+          a && b ? straightened(baseCurves, a, b) : baseCurves,
+          runWidth(bridge.run, fromNode) / 2,
           highlight && !onWalk
             ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
             : nodeInk(fromNode),
@@ -1742,7 +1780,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
-  for (const [nodeId, segments] of Object.entries(nodePositions)) {
+  for (const [nodeId, laidOut] of Object.entries(nodePositions)) {
     const node = nodeById.get(nodeId)
     if (node && crossedAt(nodeId)) {
       laneOnly.nodes.add(nodeId)
@@ -1751,7 +1789,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       continue
     }
 
-    if (viewportBounds && !isPolylineInBounds(segments, viewportBounds)) {
+    if (viewportBounds && !isPolylineInBounds(laidOut, viewportBounds)) {
       continue
     }
 
@@ -1766,6 +1804,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       ? runWidth(run, node)
       : nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
     const nodeThickness = width / 2
+    const at = run && isBackbone(node) ? node.stable.start : undefined
+    const chorded =
+      run && at !== undefined
+        ? straightThrough(run, at, at + node.length)
+        : undefined
+    const segments = chorded ?? laidOut
 
     const start = nodeStrokes.length
     // The node's drawn width is the same either way: the stripes divide it

@@ -3,7 +3,7 @@ import { parseGFA } from './gfa-core/index'
 import { departureTable, departureTails } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { SMALL_SITE_PX, foldedSites } from './levelOfDetail'
-import { haplotypeCount } from './nodeWidths'
+import { haplotypeCount, nodeInk } from './nodeWidths'
 import { anchorGraph } from './pathAnchoring'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
@@ -1071,8 +1071,69 @@ describe('the drawing through a folded site', () => {
     }
     const fold = build(tagged, laid, 0.1).collapsed
     expect(new Set(fold?.nodes)).toEqual(new Set(['a1+', 'b1+']))
-    expect(fold?.through.get('r2+')?.ends).toEqual(['r1+', 'r3+'])
-    expect(fold?.through.get('s2+')?.ends).toEqual(['s1+', 's3+'])
+    expect(fold?.through.get('r2+')).toMatchObject({
+      from: ['r1+'],
+      to: ['r3+'],
+    })
+    expect(fold?.through.get('s2+')).toMatchObject({
+      from: ['s1+'],
+      to: ['s3+'],
+    })
+  })
+
+  test('the reference through a run is drawn straight from one outer attachment to the other, wherever the layout put the nodes inside it', () => {
+    const jogged = {
+      ...positions,
+      'r2+': [
+        { x: 1000, y: 3 },
+        { x: 1001, y: -2 },
+      ],
+      'r3+': [
+        { x: 1001, y: -2 },
+        { x: 1002, y: 4 },
+      ],
+    }
+    const batch = build(graph, jogged, 0.1, depth)
+    expect(folded(batch)).toEqual(['a1+', 'b1+', 'c1+'])
+    expect(strokesOf(batch, 'r2+')[0]?.points).toEqual([
+      { x: 1000, y: 0 },
+      { x: 1001, y: 0 },
+    ])
+    expect(strokesOf(batch, 'r3+')[0]?.points).toEqual([
+      { x: 1001, y: 0 },
+      { x: 1002, y: 0 },
+    ])
+    for (const [from, to] of [
+      ['r1+', 'r2+'],
+      ['r2+', 'r3+'],
+      ['r3+', 'r4+'],
+    ] as const) {
+      for (const curve of lanesOf(batch, edgeIndex(graph, from, to))[0]
+        ?.curves ?? []) {
+        expect([curve.y0, curve.cy0, curve.cy1, curve.y1]).toEqual([0, 0, 0, 0])
+      }
+    }
+    const drawn = build(graph, jogged, 0.1, { ...depth, smallSites: 'nodes' })
+    expect(strokesOf(drawn, 'r2+')[0]?.points).toEqual(jogged['r2+'])
+  })
+
+  test('the hit test reaches as far as a reference node inside a run is drawn', () => {
+    const batch = build(graph, positions, 0.1, depth)
+    const byId = new Map(graph.nodes.map(n => [n.id, n]))
+    const own = nodeInk(graph, byId, 6, 'depth')
+    const drawnAs = nodeInk(
+      graph,
+      byId,
+      6,
+      'depth',
+      0,
+      batch.collapsed?.through,
+    )
+    expect(drawnAs.halfWidthPx('r2+')).toBe(
+      strokesOf(batch, 'r2+')[0]?.thickness,
+    )
+    expect(own.halfWidthPx('r2+')).not.toBe(drawnAs.halfWidthPx('r2+'))
+    expect(drawnAs.halfWidthPx('r1+')).toBe(own.halfWidthPx('r1+'))
   })
 
   test('zoomed in past the fold every reference node and link is drawn at its own thickness', () => {

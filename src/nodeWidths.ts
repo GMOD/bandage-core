@@ -1,5 +1,6 @@
 import { panSNHaplotype } from './pansn'
 
+import type { Run } from './levelOfDetail'
 import type { Graph, GraphNode, GraphPath } from './types'
 import type { NodeInk } from './util/hitDetection'
 
@@ -181,29 +182,52 @@ export function walkLaneWidthPx(width: number, lanes: number) {
   return Math.max(width / lanes, MIN_WALK_LANE_PX)
 }
 
+// The width the reference through a run of folded sites is drawn at: the
+// thinner of the drawn reference nodes at its two ends, or `own` where
+// neither is known
+export function runWidthPx(
+  run: Run,
+  own: number,
+  widthOf: (id: string) => number | undefined,
+) {
+  const widths = [...run.from, ...run.to].flatMap(id => {
+    const width = widthOf(id)
+    return width === undefined ? [] : [width]
+  })
+  return widths.length > 0
+    ? widths.reduce((a, b) => Math.min(a, b), Infinity)
+    : own
+}
+
 // How far each node's ink reaches from its centreline, for the hit test: the
 // widths the geometry draws with, from the same function. With `lanes` lifted
 // walks the node draws as that many side-by-side lanes, which can reach
-// further than the node's own width.
+// further than the node's own width. A reference node inside a run of folded
+// sites, `through` the batch's collapsed.through, reaches as far as the run
+// is drawn.
 export function nodeInk(
   graph: Graph | undefined,
   nodeById: ReadonlyMap<string, GraphNode> | undefined,
   contigThickness: number,
   nodeWidth: NodeWidth,
   lanes = 0,
+  through?: ReadonlyMap<string, Run>,
 ): NodeInk {
   const norm = graph ? widthNorm(graph, nodeWidth) : 0
   const reach = (width: number) =>
     lanes > 0 ? (walkLaneWidthPx(width, lanes) * lanes) / 2 : width / 2
+  const widthOf = (id: string) => {
+    const node = nodeById?.get(id)
+    return node
+      ? nodeWidthPx(node, contigThickness, nodeWidth, norm)
+      : undefined
+  }
   return {
     maxHalfWidthPx: reach(maxNodeWidthPx(contigThickness, nodeWidth)),
     halfWidthPx: id => {
-      const node = nodeById?.get(id)
-      return reach(
-        node
-          ? nodeWidthPx(node, contigThickness, nodeWidth, norm)
-          : contigThickness,
-      )
+      const own = widthOf(id) ?? contigThickness
+      const run = through?.get(id)
+      return reach(run ? runWidthPx(run, own, widthOf) : own)
     },
   }
 }
