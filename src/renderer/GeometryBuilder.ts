@@ -1017,6 +1017,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     return !!site && crossed.has(site)
   }
   const laneOnly = { nodes: new Set<string>(), edges: new Set<number>() }
+  const offLanes = (nodeId: string) =>
+    collapse.nodes.has(nodeId) || crossedAt(nodeId)
   const laneSiteOf = (nodeId: string) =>
     collapse.siteOf.get(nodeId) ??
     (crossedAt(nodeId) ? collapse.within.get(nodeId) : undefined)
@@ -1072,16 +1074,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     highlight && (liftedWalks.length > 1 || threaded)
       ? lanesCache(
           highlight,
-          [nodePositions, version, axis.scaleX, axis.scaleY],
+          [nodePositions, version, axis.scaleX, axis.scaleY, collapse],
           () =>
             liftLanes(
               liftedWalks,
               nodePositions,
               yToX,
               worldPerScreenPx,
-              stepsCache(highlight, [nodePositions, version], () =>
+              stepsCache(highlight, [nodePositions, version, collapse], () =>
                 walkSteps(
-                  liftedWalks.map(w => w.route),
+                  liftedWalks.map(w =>
+                    w.route.map(piece => piece.filter(id => !offLanes(id))),
+                  ),
                   nodePositions,
                 ),
               ),

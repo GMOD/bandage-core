@@ -1164,6 +1164,36 @@ describe('the drawing through a folded site', () => {
     }
   })
 
+  test('a lifted lane keeps its place beside the reference through a folded site, not easing toward a slot in what was folded', () => {
+    const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
+      'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
+      'W\talt\t2\tchr\t0\t*\t>r1>r2>r3',
+    ])
+    const highlight = walkLift(snpGraph, [
+      { walk: 'alt#1#chr' },
+      { walk: 'alt#2#chr' },
+    ])
+    const batch = build(snpGraph, snpAt, 0.5, { highlight })
+    expect(folded(batch)).toEqual(['a1+'])
+    const ys = (walk: number) =>
+      [
+        ...['r1+', 'r3+'].flatMap(id =>
+          strokesOf(batch, id)
+            .filter(s => s.walk === walk)
+            .flatMap(s => s.points.map(p => p.y)),
+        ),
+        ...[...batch.edgeCurveRuns.keys()].flatMap(edge =>
+          lanesOf(batch, edge)
+            .filter(c => c.walk === walk)
+            .flatMap(c => c.curves.flatMap(b => [b.y0, b.y1])),
+        ),
+      ].map(y => Math.round(y * 1000) / 1000)
+    for (const walk of [0, 1]) {
+      expect(new Set(ys(walk)).size).toBe(1)
+    }
+    expect(ys(0)[0]).not.toBe(ys(1)[0])
+  })
+
   test('a reference node inside a folded site no lifted walk crosses is drawn, at the even stroke', () => {
     const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
       'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
