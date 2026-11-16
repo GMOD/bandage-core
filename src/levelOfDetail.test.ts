@@ -1089,33 +1089,37 @@ describe('the drawing through a folded site', () => {
     })
   })
 
-  test('the reference through a run is drawn straight from one outer attachment to the other, wherever the layout put the nodes inside it', () => {
+  const runLinks = [
+    ['r1+', 'r2+'],
+    ['r2+', 'r3+'],
+    ['r3+', 'r4+'],
+  ] as const
+
+  test('the reference through a run whose nodes are all laid within SMALL_SITE_PX of the straight line between its outer attachments is drawn on that line, each point where it is laid nearest', () => {
+    // at 0.1 px a unit, r2 and r3 lie up to 2.5 px off the line from r1's
+    // end to r4's start, with gaps between them where their links run
     const jogged = {
       ...positions,
       'r2+': [
-        { x: 1000, y: 3 },
-        { x: 1001, y: -2 },
+        { x: 1000.2, y: 25 },
+        { x: 1000.6, y: -20 },
       ],
       'r3+': [
-        { x: 1001, y: -2 },
-        { x: 1002, y: 4 },
+        { x: 1001.4, y: -20 },
+        { x: 1001.8, y: 10 },
       ],
     }
     const batch = build(graph, jogged, 0.1, depth)
     expect(folded(batch)).toEqual(['a1+', 'b1+', 'c1+'])
     expect(strokesOf(batch, 'r2+')[0]?.points).toEqual([
-      { x: 1000, y: 0 },
-      { x: 1001, y: 0 },
+      { x: 1000.2, y: 0 },
+      { x: 1000.6, y: 0 },
     ])
     expect(strokesOf(batch, 'r3+')[0]?.points).toEqual([
-      { x: 1001, y: 0 },
-      { x: 1002, y: 0 },
+      { x: 1001.4, y: 0 },
+      { x: 1001.8, y: 0 },
     ])
-    for (const [from, to] of [
-      ['r1+', 'r2+'],
-      ['r2+', 'r3+'],
-      ['r3+', 'r4+'],
-    ] as const) {
+    for (const [from, to] of runLinks) {
       for (const curve of lanesOf(batch, edgeIndex(graph, from, to))[0]
         ?.curves ?? []) {
         expect([curve.y0, curve.cy0, curve.cy1, curve.y1]).toEqual([0, 0, 0, 0])
@@ -1123,6 +1127,25 @@ describe('the drawing through a folded site', () => {
     }
     const drawn = build(graph, jogged, 0.1, { ...depth, smallSites: 'nodes' })
     expect(strokesOf(drawn, 'r2+')[0]?.points).toEqual(jogged['r2+'])
+  })
+
+  test('the reference through a run with a node laid farther than SMALL_SITE_PX from that line is drawn where it is laid, nodes and links, at the even stroke', () => {
+    const bent = { ...positions, 'r2+': at(1000, 1001, 35) }
+    const batch = build(graph, bent, 0.1, depth)
+    expect(folded(batch)).toEqual(['a1+', 'b1+', 'c1+'])
+    const drawn = build(graph, bent, 0.1, { ...depth, smallSites: 'nodes' })
+    const even = Math.min(thickness(drawn, 'r1+')!, thickness(drawn, 'r4+')!)
+    for (const id of ['r2+', 'r3+'] as const) {
+      expect(strokesOf(batch, id)[0]?.points).toEqual(bent[id])
+      expect(thickness(batch, id)).toBe(even)
+    }
+    for (const [from, to] of runLinks) {
+      const [link] = lanesOf(batch, edgeIndex(graph, from, to))
+      expect(link?.curves).toEqual(
+        lanesOf(drawn, edgeIndex(graph, from, to))[0]?.curves,
+      )
+      expect(link?.thickness).toBe(even)
+    }
   })
 
   describe('the reference through a run meets the drawn nodes at its ends where the reference leaves and enters them, and each node in it runs the way it is laid', () => {

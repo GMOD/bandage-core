@@ -1,6 +1,6 @@
 import { drawnAlongStable, isBackbone } from '../anchoredNodes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
-import { NO_FOLD, foldedSites } from '../levelOfDetail'
+import { NO_FOLD, SMALL_SITE_PX, foldedSites } from '../levelOfDetail'
 import {
   nodeWidthPx,
   runWidthPx,
@@ -1086,25 +1086,61 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           : undefined
       return point ? [point] : []
     })[0]
-  const chords = new Map<FoldRun, ((at: number) => NodeSegment) | undefined>()
+  const nodesOfRun = new Map<FoldRun, string[]>()
+  for (const [id, run] of collapse.through) {
+    pushTo(nodesOfRun, run, id)
+  }
+  const screenPx = (p: Point, q: Point) =>
+    Math.hypot((p.x - q.x) * axis.scaleX, (p.y - q.y) * axis.scaleY)
+  const nearestOn = (a: Point, b: Point, p: Point) => {
+    const dx = (b.x - a.x) * axis.scaleX
+    const dy = (b.y - a.y) * axis.scaleY
+    const length2 = dx * dx + dy * dy
+    const along =
+      length2 > 0
+        ? ((p.x - a.x) * axis.scaleX * dx + (p.y - a.y) * axis.scaleY * dy) /
+          length2
+        : 0
+    const t = Math.max(0, Math.min(1, along))
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+  }
+  // the straight line between where the drawn reference nodes at a run's
+  // ends meet it, where every node of the run is laid within SMALL_SITE_PX
+  // of it: each point of the run then goes to its nearest point on that line
   const chordBetween = (run: FoldRun) => {
     const a = meetsRun(run.from, true)
     const b = meetsRun(run.to, false)
-    return a && b && run.end > run.start
-      ? (at: number) => {
-          const t = (at - run.start) / (run.end - run.start)
-          return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
-        }
+    return a &&
+      b &&
+      (nodesOfRun.get(run) ?? []).every(id =>
+        (nodePositions[id] ?? []).every(
+          p => screenPx(p, nearestOn(a, b, p)) <= SMALL_SITE_PX,
+        ),
+      )
+      ? (p: Point) => nearestOn(a, b, p)
       : undefined
   }
+  const chords = new Map<FoldRun, ((p: Point) => Point) | undefined>()
   const chordOf = (run: FoldRun) => {
     const chord = chords.has(run) ? chords.get(run) : chordBetween(run)
     chords.set(run, chord)
     return chord
   }
-  const straightThrough = (run: FoldRun, from: number, to: number) => {
+  const pointsAlongRun = (run: FoldRun, points: NodeSegment[]) => {
     const chord = chordOf(run)
-    return chord ? [chord(from), chord(to)] : undefined
+    return chord ? points.map(chord) : points
+  }
+  const curvesAlongRun = (run: FoldRun, curves: BezierCurve[]) => {
+    const chord = chordOf(run)
+    const first = curves[0]
+    const last = curves.at(-1)
+    return chord && first && last
+      ? straightened(
+          curves,
+          chord({ x: first.x0, y: first.y0 }),
+          chord({ x: last.x1, y: last.y1 }),
+        )
+      : curves
   }
 
   const pathCount = graph.paths?.length ?? 0
@@ -1732,9 +1768,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     } else if (!ribbons) {
       const fromNode = nodeById.get(edge.from)
       if (inView(baseCurves) && bridge && fromNode) {
-        const [a, b] = straightThrough(bridge.run, bridge.at, bridge.at) ?? []
         stroke(
-          a && b ? straightened(baseCurves, a, b) : baseCurves,
+          curvesAlongRun(bridge.run, baseCurves),
           runWidth(bridge.run, fromNode) / 2,
           highlight && !onWalk
             ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
@@ -1814,15 +1849,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       ? runWidth(run, node)
       : nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
     const nodeThickness = width / 2
-    const at = run && isBackbone(node) ? node.stable.start : undefined
-    const chorded =
-      run && at !== undefined
-        ? straightThrough(run, at, at + node.length)
-        : undefined
-    const segments =
-      (chorded && !laidAlongReference(node)
-        ? chorded.toReversed()
-        : chorded) ?? laidOut
+    const segments = run ? pointsAlongRun(run, laidOut) : laidOut
 
     const start = nodeStrokes.length
     // The node's drawn width is the same either way: the stripes divide it
