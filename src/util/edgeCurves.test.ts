@@ -386,6 +386,30 @@ describe('skips at one site', () => {
     ).toBeGreaterThanOrEqual(widestSkipPx)
   })
 
+  test('two skips over a chord shorter than their rise part along their legs, the higher clear of the lower at its mid-height', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [0, 2, [1]],
+    ])
+    const [low, high] = [curves.get(0)!, curves.get(1)!].sort(
+      (a, b) => heightPx(a) - heightPx(b),
+    )
+    const chordPx = 10 * scale
+    expect(chordPx).toBeLessThan(heightPx(low!))
+    const lows = points(low!, 1024)
+    const clearance = (p: { x: number; y: number }) =>
+      lows.reduce(
+        (near, q) => Math.min(near, Math.hypot(p.x - q.x, p.y - q.y) * scale),
+        Infinity,
+      )
+    const midway = points(high!, 1024).filter(
+      p => Math.abs(p.y) * scale >= heightPx(low!) / 2,
+    )
+    expect(
+      midway.reduce((near, p) => Math.min(near, clearance(p)), Infinity),
+    ).toBeGreaterThan(0.4)
+  })
+
   test('lifted skips keep their feet on their anchors, a level apart', () => {
     const curves = skips([
       [0, 3, [1, 2]],
