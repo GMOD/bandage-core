@@ -1,3 +1,4 @@
+import { drawnAlongStable, isAnchored } from './anchoredNodes'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { departureTable, departureTails } from './gfa/departures'
@@ -1122,6 +1123,72 @@ describe('the drawing through a folded site', () => {
     }
     const drawn = build(graph, jogged, 0.1, { ...depth, smallSites: 'nodes' })
     expect(strokesOf(drawn, 'r2+')[0]?.points).toEqual(jogged['r2+'])
+  })
+
+  describe('the reference through a run meets the drawn nodes at its ends where the reference leaves and enters them, and each node in it runs the way it is laid', () => {
+    // r2, 1 bp, between 1 kb flanks, a1 in its place; a layout that draws
+    // each node along the strand its id names
+    const laidOut = (graph: Graph) => {
+      const along = (name: string, x0: number, x1: number, y = 0) => {
+        const node = graph.nodes.find(n => n.name === name)
+        return node && isAnchored(node) && !drawnAlongStable(node)
+          ? at(x1, x0, y)
+          : at(x0, x1, y)
+      }
+      return {
+        [idOf(graph, 'r1')]: along('r1', 0, 1000),
+        [idOf(graph, 'r2')]: along('r2', 1000, 1001),
+        [idOf(graph, 'r3')]: along('r3', 1001, 2001),
+        [idOf(graph, 'a1')]: along('a1', 1000, 1001, 20),
+      }
+    }
+    test.each([
+      {
+        name: 'a node at its end read against its strand and laid along the reference',
+        lines: [
+          'L\tr1\t-\tr2\t+\t0M',
+          'L\tr2\t+\tr3\t+\t0M',
+          'L\tr1\t-\ta1\t+\t0M',
+          'L\ta1\t+\tr3\t+\t0M',
+          'W\tref\t0\tchr\t0\t2001\t<r1>r2>r3',
+          'W\talt\t1\tchr\t0\t*\t<r1>a1>r3',
+        ],
+        against: [],
+      },
+      {
+        name: 'every node read against its strand and laid against the reference',
+        lines: [
+          'L\tr1\t-\tr2\t-\t0M',
+          'L\tr2\t-\tr3\t-\t0M',
+          'L\tr1\t-\ta1\t-\t0M',
+          'L\ta1\t-\tr3\t-\t0M',
+          'W\tref\t0\tchr\t0\t2001\t<r1<r2<r3',
+          'W\talt\t1\tchr\t0\t*\t<r1<a1<r3',
+        ],
+        against: ['r1', 'r2', 'r3'],
+      },
+    ])('$name', ({ lines, against }) => {
+      const backwards = load([
+        `S\tr1\t${bases(1000)}`,
+        'S\tr2\tC',
+        `S\tr3\t${bases(1000)}`,
+        'S\ta1\tT',
+        ...lines,
+      ])
+      const stepped = backwards.nodes.flatMap(n =>
+        isAnchored(n) && n.stable.rank === 0 && !drawnAlongStable(n)
+          ? [n.name]
+          : [],
+      )
+      expect(stepped).toEqual(against)
+      const laid = laidOut(backwards)
+      const batch = build(backwards, laid, 0.5, { stranded: true })
+      expect(folded(batch)).toEqual([idOf(backwards, 'a1')])
+      expect(batch.collapsed?.through.has(idOf(backwards, 'r2'))).toBe(true)
+      expect(strokesOf(batch, idOf(backwards, 'r2'))[0]?.points).toEqual(
+        laid[idOf(backwards, 'r2')],
+      )
+    })
   })
 
   test('the hit test reaches as far as a reference node inside a run is drawn', () => {

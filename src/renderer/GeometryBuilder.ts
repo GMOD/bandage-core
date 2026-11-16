@@ -1,4 +1,4 @@
-import { isBackbone } from '../anchoredNodes'
+import { drawnAlongStable, isBackbone } from '../anchoredNodes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
 import { NO_FOLD, foldedSites } from '../levelOfDetail'
 import {
@@ -1069,6 +1069,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const end = nodeById.get(id)
       return end ? widthOf(end) : undefined
     })
+  const laidAlongReference = (node: GraphNode) =>
+    !stranded || !isBackbone(node) || drawnAlongStable(node)
   // where a drawn reference node at a run's end meets it: the end of a node
   // ending where the run starts, the start of one starting where it ends,
   // each read the way the reference reads it
@@ -1076,12 +1078,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     ids.flatMap(id => {
       const node = nodeById.get(id)
       const line = nodePositions[id]
-      const forward = node?.stable?.strand !== '-'
-      const point = line?.length
-        ? atEnd === forward
-          ? line.at(-1)
-          : line[0]
-        : undefined
+      const point =
+        node && line?.length
+          ? atEnd === laidAlongReference(node)
+            ? line.at(-1)
+            : line[0]
+          : undefined
       return point ? [point] : []
     })[0]
   const chords = new Map<FoldRun, ((at: number) => NodeSegment) | undefined>()
@@ -1817,7 +1819,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       run && at !== undefined
         ? straightThrough(run, at, at + node.length)
         : undefined
-    const segments = chorded ?? laidOut
+    const segments =
+      (chorded && !laidAlongReference(node)
+        ? chorded.toReversed()
+        : chorded) ?? laidOut
 
     const start = nodeStrokes.length
     // The node's drawn width is the same either way: the stripes divide it
