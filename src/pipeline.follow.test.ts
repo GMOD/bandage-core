@@ -145,7 +145,9 @@ function bruteWidest(
 test('a node drawn bent is read as a piece per bend, its bp shared by how far along the line each bend lies', () => {
   const lengths = winding
     .slice(1)
-    .map((b, i) => Math.hypot(b.x - (winding[i]?.x ?? 0), b.y - (winding[i]?.y ?? 0)))
+    .map((b, i) =>
+      Math.hypot(b.x - (winding[i]?.x ?? 0), b.y - (winding[i]?.y ?? 0)),
+    )
   const total = lengths.reduce((sum, l) => sum + l, 0)
   let walked = 0
   expect(windingProfile.pieces).toHaveLength(winding.length - 1)
@@ -239,9 +241,7 @@ test("a cut's scale reads no window running past the cut's end, where the refere
       ],
     },
   )
-  expect(USABLE / scaleOf(runsOn, { start: 0, end: 400 }, 200)).toBeCloseTo(
-    100,
-  )
+  expect(USABLE / scaleOf(runsOn, { start: 0, end: 400 }, 200)).toBeCloseTo(100)
 })
 
 test("a cut's scale is the widest stretch over every window it holds, not a sample of them", () => {
@@ -329,7 +329,8 @@ test('a window running past the drawn reference keeps the part drawn under its o
 test('a window past the drawn reference slides the drawing on with the ruler from where the reference left it', () => {
   const scale = scaleOf(profile, { start: 1_000, end: 4_000 }, 1_000)
   const near = placed({ start: 3_999, end: 4_999 }, scale)
-  const lastX = (t: { translateX: number }) => xAtBp(4_000) * scale + t.translateX
+  const lastX = (t: { translateX: number }) =>
+    xAtBp(4_000) * scale + t.translateX
   const ruler = (window: { start: number }, bp: number) =>
     PADS.padLeft + (USABLE * (bp - window.start)) / 1_000
   expect(lastX(near)).toBeCloseTo(ruler({ start: 3_999 }, 4_000), 1)
@@ -410,16 +411,13 @@ function panFixture(name: string) {
       readFileSync(join(__dirname, '../test_data/follow', name)),
     ).toString(),
   ) as PanFixture
-  const pieces = Array.from(
-    { length: fixture.pieces.length / 4 },
-    (_, i) => {
-      const [bp0 = 0, bp1 = 0, x0 = 0, x1 = 0] = fixture.pieces.slice(
-        4 * i,
-        4 * i + 4,
-      )
-      return { bp0, bp1, x0, x1 }
-    },
-  )
+  const pieces = Array.from({ length: fixture.pieces.length / 4 }, (_, i) => {
+    const [bp0 = 0, bp1 = 0, x0 = 0, x1 = 0] = fixture.pieces.slice(
+      4 * i,
+      4 * i + 4,
+    )
+    return { bp0, bp1, x0, x1 }
+  })
   const ends = pieces
     .flatMap(p => [
       { bp: p.bp0, x: p.x0 },
@@ -482,23 +480,22 @@ test.each([
 ])(
   "a pan a ruler pixel at a time moves the drawing at most a pixel, unless it holds the window's stretch at the pane's edge, and then no further than the drawn reference runs at the window's ends, on %s",
   name => {
-    const { cut, viewSpan, level, scale, profile } = panFixture(name)
+    const { cut, viewSpan, level, scale, profile: drawn } = panFixture(name)
     const centre = (cut[0] + cut[1]) / 2
     const step = viewSpan / TRACK.width
     const atEdge = (window: { start: number; end: number }, x: number) => {
-      const { x0, x1 } = stretchOf(profile.pieces, window)
+      const { x0, x1 } = stretchOf(drawn.pieces, window)
       return (
         Math.abs(x0 * scale + x) < 1e-6 ||
         Math.abs(x1 * scale + x - TRACK.width) < 1e-6
       )
     }
-    let before: { start: number; end: number; x: number } | undefined
-    let steps = 0
+    const placements: { start: number; end: number; x: number }[] = []
     for (let c = centre - level / 4; c < centre + level / 4; c += step) {
       const window = { start: c - viewSpan / 2, end: c + viewSpan / 2 }
       const { translateX } = defined(
         followTransform(
-          profile,
+          drawn,
           window,
           scale,
           flat,
@@ -507,19 +504,22 @@ test.each([
           PADS,
         ),
       )
-      if (before) {
-        const held = atEdge(before, before.x) || atEdge(window, translateX)
-        const run =
-          drawnRun(profile.pieces, before.start, window.start) +
-          drawnRun(profile.pieces, before.end, window.end)
-        expect(Math.abs(translateX - before.x)).toBeLessThanOrEqual(
-          held ? 1 + scale * run : 1,
-        )
-        steps++
-      }
-      before = { ...window, x: translateX }
+      placements.push({ ...window, x: translateX })
     }
-    expect(steps).toBeGreaterThan(300)
+    const steps = placements.slice(1).map((after, i) => {
+      const before = placements[i] ?? after
+      const held = atEdge(before, before.x) || atEdge(after, after.x)
+      const run =
+        drawnRun(drawn.pieces, before.start, after.start) +
+        drawnRun(drawn.pieces, before.end, after.end)
+      return {
+        at: after.start,
+        moved: Math.abs(after.x - before.x),
+        allowed: held ? 1 + scale * run : 1,
+      }
+    })
+    expect(steps.length).toBeGreaterThan(300)
+    expect(steps.filter(s => s.moved > s.allowed)).toEqual([])
   },
 )
 
@@ -584,12 +584,10 @@ test("a held cut's height is what its windows show, so a loop hanging from where
   expect(drawingBounds(hungLayout)).toMatchObject({ minY: -900, h: 940 })
   const hungProfile = referenceProfile(hung, hungLayout.nodePositions)
   const usableHeight = PANE.height - PADS.padTop - PADS.padBottom
-  expect(scaleOf(hungProfile, cut, 1_000, shown)).toBeCloseTo(
-    usableHeight / 40,
-  )
-  expect(scaleOf(hungProfile, cut, 1_000, drawingBounds(hungLayout))).toBeCloseTo(
-    usableHeight / 940,
-  )
+  expect(scaleOf(hungProfile, cut, 1_000, shown)).toBeCloseTo(usableHeight / 40)
+  expect(
+    scaleOf(hungProfile, cut, 1_000, drawingBounds(hungLayout)),
+  ).toBeCloseTo(usableHeight / 940)
   expect(shownBounds(hung, hungLayout, { start: 0, end: 4_000 })).toEqual({
     minY: -900,
     h: 940,

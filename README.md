@@ -146,17 +146,16 @@ reads them.
   spans the pane, capped so what the windows inside the cut show is no taller
   than the pane: `shownBounds`, the reference over the cut and what hangs from
   it inside the cut, but not a loop off where the cut's edge runs through a
-  reference node, which no window shows whole and which may run past the
-  pane as a departure's tail does. It reads
-  the cut, its layout, the view's width and the pane, never where the view is,
-  so at one width every window the cut holds is drawn at one scale, and a zoom
-  changes it smoothly. `followTransform` then only translates: the reference in
-  the window lies where the window puts its bp across the pane, as nearly as a
-  rigid drawing can in the least-squares sense over the bp the window holds,
-  moved no further than keeps the window's stretch inside the pane's edges
-  (not its padding, so the slide is even wherever it fits). A pan is a
-  pure slide, a zoom magnifies about the window's reference, and a window is
-  drawn no wider than the pane
+  reference node, which no window shows whole and which may run past the pane as
+  a departure's tail does. It reads the cut, its layout, the view's width and
+  the pane, never where the view is, so at one width every window the cut holds
+  is drawn at one scale, and a zoom changes it smoothly. `followTransform` then
+  only translates: the reference in the window lies where the window puts its bp
+  across the pane, as nearly as a rigid drawing can in the least-squares sense
+  over the bp the window holds, moved no further than keeps the window's stretch
+  inside the pane's edges (not its padding, so the slide is even wherever it
+  fits). A pan is a pure slide, a zoom magnifies about the window's reference,
+  and a window is drawn no wider than the pane
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths
