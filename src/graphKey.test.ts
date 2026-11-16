@@ -21,7 +21,7 @@ import { axisScaleOf } from './viewport'
 import { walkLift } from './walkHighlight'
 
 import type { GraphKeyOptions, GraphKeySection } from './graphKey'
-import type { ReferenceRamp } from './renderer/GeometryBuilder'
+import type { BuildOptions, ReferenceRamp } from './renderer/GeometryBuilder'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLift } from './walkHighlight'
@@ -55,6 +55,7 @@ interface Scene {
   lift?: WalkLift
   referenceRamp?: ReferenceRamp
   width?: number
+  bounds?: BuildOptions['viewportBounds']
 }
 
 // The drawing a host would paint at a `width` px fit: the batch the key's
@@ -80,6 +81,7 @@ function drawn(g: Graph, s: Scene = {}) {
     highlight: s.lift,
     axis: axisScaleOf(fit.scale, pixelRows),
     referenceRamp: s.referenceRamp,
+    ...(s.bounds ? { viewportBounds: s.bounds } : {}),
   })
   return { layout, batch }
 }
@@ -728,5 +730,50 @@ test('a walk coloured by pass keys each pass by its name, a bundle by its count,
   expect(census(dropped, lone.batch, s).missing).toEqual([
     'pass-dup#1#chr-0',
     'pass-dup#1#chr-1',
+  ])
+})
+
+// The middle copy lacks the unit's first two nodes and the last copy is cut
+// short too, so the third pass steps only v3 and v4
+const PARTIAL = load(
+  [
+    'S\tv1\tAAAA',
+    'S\tv2\tCC',
+    'S\tv3\tGGG',
+    'S\tv4\tTT',
+    'L\tv1\t+\tv2\t+\t0M',
+    'L\tv2\t+\tv3\t+\t0M',
+    'L\tv3\t+\tv4\t+\t0M',
+    'L\tv4\t+\tv3\t+\t0M',
+    'L\tv4\t+\tv1\t+\t0M',
+    'L\tv2\t+\tv3\t+\t0M',
+    'W\tref\t0\tchr\t0\t11\t>v1>v2>v3>v4',
+    'W\tpart\t1\tchr\t0\t*\t>v1>v2>v3>v4>v3>v4>v1>v2>v3>v4',
+  ].join('\n'),
+  'ref',
+)
+
+test('a pass the view leaves undrawn has no key entry', () => {
+  const lift = byPass(PARTIAL, ['part#1#chr'])
+  const layout = layoutModeByValue('ordered').run(PARTIAL, undefined)!
+  const drawnPasses = lift!.walks[0]!.walkPasses!.passes
+  expect(drawnPasses).toHaveLength(3)
+  const xs = (id: string) => layout.nodePositions[id]!.map(p => p.x)
+  const bounds = {
+    minX: xs('v1+').reduce((least, x) => Math.min(least, x), Infinity) - 1,
+    maxX: xs('v2+').reduce((most, x) => Math.max(most, x), -Infinity) + 1,
+    minY: -1e6,
+    maxY: 1e6,
+  }
+  const passKeys = (s: Scene) =>
+    keys(PARTIAL, s).filter(key => key.startsWith('pass-'))
+  expect(passKeys({ lift, layout })).toEqual([
+    'pass-part#1#chr-0',
+    'pass-part#1#chr-1',
+    'pass-part#1#chr-2',
+  ])
+  expect(passKeys({ lift, layout, bounds })).toEqual([
+    'pass-part#1#chr-0',
+    'pass-part#1#chr-1',
   ])
 })

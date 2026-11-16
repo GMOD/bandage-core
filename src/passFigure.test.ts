@@ -1,5 +1,6 @@
 import { figureSvg } from './figure'
 import { figureData } from './figureData'
+import { figureScene } from './figureScene'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { THREAD_INK } from './graphKey'
@@ -7,7 +8,9 @@ import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
 import { LABEL_PAD, LABEL_PX, labelWidth } from './overlayLabels'
 import { passBarTree, passBars } from './passBar'
+import { passLabelCandidates } from './passLabels'
 import { anchorGraph } from './pathAnchoring'
+import { fitTransform } from './pipeline'
 import { abgrHex, hexAbgr } from './renderer/colorBits'
 import {
   LANE_HEADS_KEY,
@@ -375,4 +378,36 @@ test("figureData's passes say how much of each pass reads again what the walk re
   expect(tables.passes.againBp).toEqual([0, 16])
   expect(tables.passes.reversedBp).toEqual([0, 16])
   expect(tables.passes.reversed).toEqual([false, true])
+})
+
+test("each pass's name stands beside a point of its own pass's thread, in its own pass's ink", () => {
+  const graph = graphOf('>f1>a>b>c>d>a>b>c>d>a>b>c>d>f2')
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const scene = figureScene(graph, layout, { walks: byPass })
+  const fit = fitTransform(scene.bounds, 600, 300, false)!
+  const axis = { scaleX: fit.scale, scaleY: fit.scale }
+  const batch = scene.geometry(scene.lift, axis)
+  const t = { ...axis, translateX: fit.translateX, translateY: fit.translateY }
+  const candidates = passLabelCandidates(batch, scene.lift, t, {
+    width: 600,
+    height: 300,
+  })
+  const lane = scene.lift!.walks.findIndex(w => w.name === HAP)
+  const drawn = scene.lift!.walks[lane]!.walkPasses!
+  expect(candidates.map(c => c.item.pass)).toEqual([0, 1, 2])
+  for (const { item } of candidates) {
+    expect(item.ink).toBe(drawn.inks[item.pass])
+    const under = batch.nodeStrokes.filter(s => {
+      const middle = s.points[s.points.length >> 1]
+      return (
+        s.walk === lane &&
+        middle !== undefined &&
+        Math.hypot(
+          middle.x * t.scaleX + t.translateX - item.at.x,
+          middle.y * t.scaleY + t.translateY - item.at.y,
+        ) < 1e-6
+      )
+    })
+    expect(under.map(s => s.walkPass)).toEqual([item.pass])
+  }
 })

@@ -9,7 +9,7 @@ import {
   schemeColor,
 } from '../walkEncoding'
 import { walkLift } from '../walkHighlight'
-import { MOST_PASS_THREADS } from '../walkPasses'
+import { MOST_PASS_THREADS, passInk } from '../walkPasses'
 import { Canvas2DRenderer } from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
 import {
@@ -272,6 +272,7 @@ test('past MOST_PASS_THREADS a walk takes one colour for every pass', () => {
 })
 
 test('threads thinned under MIN_THREAD_PITCH_PX apart fuse into one band where the walk bundles its passes', () => {
+  expect(MIN_THREAD_PITCH_PX).toBe(2)
   const edge = MIN_THREAD_PITCH_PX / THREAD_PITCH_PX
   expect(threadsFuse(edge)).toBe(false)
   expect(threadsFuse(edge * 0.99)).toBe(true)
@@ -507,4 +508,54 @@ test('a head keeps a contrast of 3:1 with its lane where it sits inside it, and 
   }
   expect(HEAD_CONTRAST).toBe(3)
   expect(contrastRatio(packAbgr(0, 0, 0, 255), WHITE)).toBeCloseTo(21)
+})
+
+// The middle copy lacks b, so at this zoom b's second visit runs on the
+// band's third thread
+const SKIPPING = '>f1>a>b>c>d>a>c>d>a>b>c>d>x>f2'
+
+test('each thread takes the ink of the pass of the visit it draws, not of its slot', () => {
+  const { batch, highlight } = drawn(
+    SKIPPING,
+    [{ walk: REF }, byPass()],
+    STRAIGHT,
+    0.2,
+  )
+  const lane = highlight.walks.findIndex(w => w.name === HAP)
+  const lifted = highlight.walks[lane]!.walkPasses!
+  const threads = [...batch.nodeStrokeRuns].flatMap(([id, run]) =>
+    batch.nodeStrokes
+      .slice(run.start, run.start + run.count)
+      .filter(s => s.walk === lane)
+      .map(s => ({ id, s })),
+  )
+  expect(threads.some(({ s }) => s.pass !== s.visit)).toBe(true)
+  for (const { id, s } of threads) {
+    expect(s.color).toBe(passInk(lifted, lifted.visitPass.get(id)![s.visit!]!))
+  }
+})
+
+// b is read forward on its first visit and backward on its second, which a
+// band at this zoom draws on its third slot
+test('a head points the way the visit its thread draws reads the node, not the visit of its slot', () => {
+  const { highlight, laneHeads, strokes } = drawn(
+    '>f1>a>b>c>d>a>c>d>a<b>c>d>x>f2',
+    [{ walk: REF }, byPass()],
+    STRAIGHT,
+    0.5,
+  )
+  const lane = highlight.walks.findIndex(w => w.name === HAP)
+  const turned = highlight.walks[lane]!.backwards.get('b+')!
+  const visitOf = new Map(
+    strokes('b+')
+      .filter(s => s.walk === lane)
+      .map(s => [s.pass, s.visit ?? -1]),
+  )
+  const onB = laneHeads.filter(h => h.walk === lane && h.node === 'b+')
+  expect(
+    onB.some(h => turned[h.pass ?? -1] !== turned[visitOf.get(h.pass) ?? -1]),
+  ).toBe(true)
+  for (const h of onB) {
+    expect(h.against).toBe(turned[visitOf.get(h.pass) ?? -1])
+  }
 })

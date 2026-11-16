@@ -105,8 +105,12 @@ test('a walk that steps no node twice has no pass', () => {
   expect(found('>f1>a>b>c>d>f2').passes).toEqual([])
 })
 
-test('a node stepped once inside a pass is on no pass, and breaks its run', () => {
-  const { passes, visitPass, runs } = found('>a>b>c>a>x>b>c')
+test('a node stepped once inside a pass is within the pass but on none, and breaks its run', () => {
+  const { passes, visitPass, runs, withinPass, stepPass } =
+    found('>a>b>c>a>x>b>c')
+  expect([...withinPass[0]!]).toEqual([0, 0, 0, 1, 1, 1, 1])
+  expect([...stepPass[0]!]).toEqual([0, 0, 0, 1, -1, 1, 1])
+  expect(passes.map(p => p.steps)).toEqual([3, 4])
   expect(passes.map(p => [p.start, p.end])).toEqual([
     [0, 12],
     [12, 28],
@@ -128,6 +132,25 @@ test('a pass that reads what it steps again on the other strand is reversed', ()
   expect(passes.map(p => p.reversed)).toEqual([false, true])
   expect(passes.map(p => p.reversedBp)).toEqual([0, 16])
   expect(visitPass.get('x+')).toEqual([-1])
+})
+
+test("reversal is measured against each node's first read by the walk, so a walk all on the minus strand round twice reverses nothing", () => {
+  const { passes } = found('<f2<d<c<b<a<d<c<b<a<f1')
+  expect(passes).toHaveLength(2)
+  expect(passes.map(p => [p.againBp, p.reversedBp, p.reversed])).toEqual([
+    [0, 0, false],
+    [16, 0, false],
+  ])
+})
+
+test('a pass is reversed only where most of what it reads again is on the other strand', () => {
+  const { passes } = found('>f1>a>b>c>d>a>b>c<d>f2')
+  expect(passes.map(p => [p.againBp, p.reversedBp, p.reversed])).toEqual([
+    [0, 0, false],
+    [16, 4, false],
+  ])
+  const most = found('>f1>a>b>c>d>a<b<c<d>f2').passes[1]!
+  expect([most.againBp, most.reversedBp, most.reversed]).toEqual([16, 12, true])
 })
 
 test('a pass that spans far more than it steps again colours only what it steps again', () => {
@@ -224,6 +247,7 @@ test('stated passes never move the passes a walk shows', () => {
 })
 
 test('past MOST_PASS_THREADS passes a walk bundles them', () => {
+  expect(MOST_PASS_THREADS).toBe(6)
   const unit = '>a>b>c>d'
   const passesFor = (n: number) => found(`>f1${unit.repeat(n)}>f2`)
   expect(passesFor(MOST_PASS_THREADS).passes).toHaveLength(MOST_PASS_THREADS)
