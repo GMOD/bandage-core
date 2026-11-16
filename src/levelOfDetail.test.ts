@@ -200,6 +200,16 @@ test('nothing of no bp folds, since no zoom would draw it again', () => {
   }
 })
 
+test('a site at exactly SMALL_SITE_PX is drawn', () => {
+  const { graph, positions } = snp(2, 2)
+  const exact = build(graph, positions, 0.75)
+  expect(exact.collapsed?.pxPerBp).toBe(0.75)
+  expect(4 * 0.75).toBe(SMALL_SITE_PX)
+  expect(folded(exact)).toEqual([])
+  expect(drawnNodes(exact).has('a1+')).toBe(true)
+  expect(folded(build(graph, positions, 0.7499))).toEqual(['a1+'])
+})
+
 // `count` 1 bp SNPs, each between 200 bp of reference, laid out two ways: a
 // straight line one unit a bp, and a winding line like a force layout's, its
 // short nodes floored to 15 units, its alleles off on either side at any angle
