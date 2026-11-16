@@ -172,6 +172,7 @@ describe('findHoveredEdge', () => {
       undefined,
       undefined,
       false,
+      undefined,
     )
 
   test('hits edge on center lane', () => {
@@ -218,6 +219,7 @@ describe('findHoveredEdge', () => {
         undefined,
         undefined,
         false,
+        undefined,
       )
 
     test('is hoverable where it is drawn', () => {
@@ -243,6 +245,7 @@ describe('findHoveredEdge', () => {
           new Set([0]),
           undefined,
           false,
+          undefined,
         ),
       ).toBeNull()
     })
@@ -283,6 +286,7 @@ describe('a hit test on a stranded drawing', () => {
       undefined,
       undefined,
       onEnds,
+      undefined,
     )
 
   test('targets the link where it is drawn, into the end its strand names', () => {

@@ -84,7 +84,11 @@ export {
   TICK_WIDTH_PX,
   tickHeightPx,
 } from './levelOfDetail'
-export { findHoveredEdge, findHoveredNode } from './util/hitDetection'
+export {
+  findHoveredEdge,
+  findHoveredNode,
+  findHoveredTick,
+} from './util/hitDetection'
 export type { NodeInk } from './util/hitDetection'
 export type { AxisScale } from './util/geometry'
 export { wheelZoomFactor } from './util/wheelZoom'

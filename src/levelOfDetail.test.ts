@@ -15,7 +15,12 @@ import { TICK_COLOR, buildGeometry } from './renderer/GeometryBuilder'
 import { abgrToCssRgba } from './renderer/colorBits'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { recordingCanvas } from './renderer/recordingCanvas'
-import { distanceToSegment } from './util/hitDetection'
+import {
+  distanceToSegment,
+  findHoveredEdge,
+  findHoveredNode,
+  findHoveredTick,
+} from './util/hitDetection'
 import { walkLift } from './walkHighlight'
 
 import type { BuildOptions } from './renderer/GeometryBuilder'
@@ -383,6 +388,44 @@ test('turned off, a drawing has no ticks and draws every node and link', () => {
   expect(off.ticks).toEqual([])
   expect(drawnNodes(off)).toEqual(new Set(Object.keys(positions)))
   expect(off.edgeCurveRuns.size).toBe(graph.edges.length)
+})
+
+test('a tick under the pointer names the nodes and links it stands for, which no node or link hit test returns', () => {
+  const { graph, positions } = snp(1)
+  const axis = { scaleX: 1, scaleY: 1 }
+  const batch = build(graph, positions)
+  const [tick] = batch.ticks ?? []
+  const [foot, top] = footAndTop(tick!, 1)
+  const hit = findHoveredTick(
+    batch.ticks,
+    (foot.x + top.x) / 2,
+    (foot.y + top.y) / 2,
+    axis,
+  )
+  expect(hit).toMatchObject({ nodes: ['a1+'], count: 1, total: 2 })
+  expect(hit?.edges.toSorted()).toEqual([2, 3])
+  expect(findHoveredTick(batch.ticks, 50, 0, axis)).toBeUndefined()
+  expect(findHoveredNode(positions, 100.5, 10, axis)).toBe('a1+')
+  expect(
+    findHoveredNode(positions, 100.5, 10, axis, 0, undefined, batch.collapsed),
+  ).toBeNull()
+  const edgeAt = (collapsed?: typeof batch.collapsed) =>
+    findHoveredEdge(
+      positions,
+      graph,
+      100,
+      5,
+      axis,
+      false,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      collapsed,
+    )
+  expect(edgeAt()).toBe(2)
+  expect([2, 3]).not.toContain(edgeAt(batch.collapsed))
 })
 
 test('with walks lifted, a lane stepping a collapsed site runs straight along the reference there, with no head on what it stands for', () => {
