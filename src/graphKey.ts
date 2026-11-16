@@ -14,6 +14,7 @@ import {
 import {
   EDGE_DEFAULT_COLOR,
   EDGE_DELETION_COLOR,
+  FADED_ALPHA,
   LIFT_BACKDROP_COLOR,
   NOT_LOADED_COLOR,
   NOT_LOADED_FILL_COLOR,
@@ -389,7 +390,9 @@ export function graphKey(
         )
       : []
 
-  const skipInk = lifted ? FADED_KEY_INK : EDGE_DELETION_COLOR
+  const skipInk = lifted
+    ? fadeAbgr(EDGE_DELETION_COLOR, FADED_ALPHA)
+    : EDGE_DELETION_COLOR
   const skipEntries: GraphKeyEntry[] = [
     ...(o.marks.dashedSkip
       ? [

@@ -199,6 +199,27 @@ test('each skip row is there only where the drawing holds that mark', () => {
   expect(texts(graph)).not.toContainEqual(expect.stringMatching(/^skips /))
 })
 
+test('under a lift each skip row shows the ink its skips are stroked in', () => {
+  for (const width of [600, 120]) {
+    const s = { lift: lifting(SKIPPED, [REF]), width }
+    const { layout, batch } = drawn(SKIPPED, s)
+    const skipRows = graphKey(SKIPPED, layout, {
+      lift: s.lift,
+      marks: drawnMarks([batch]),
+    })
+      .filter(section => section.id === 'skips')
+      .flatMap(section => section.entries)
+    const stroked = new Set(
+      batch.edgeCurves
+        .filter(e => e.skip && e.walk === undefined)
+        .map(e => e.color),
+    )
+    expect(skipRows).toHaveLength(1)
+    expect(stroked.size).toBe(1)
+    expect(skipRows[0]!.swatch).toMatchObject({ ink: [...stroked][0] })
+  }
+})
+
 test('drawn marks read dashed and short skips off the batch, leaving lanes to their walks', () => {
   const curve = (o: object) => ({ curves: [], thickness: 1, color: 0, ...o })
   const marks = (edgeCurves: RenderBatch['edgeCurves']) =>
