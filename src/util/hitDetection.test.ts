@@ -476,4 +476,52 @@ describe('otherNodeUnderBox', () => {
     expect(covered).toBe(true)
     expect(own).toHaveBeenCalledTimes(1)
   })
+
+  test('a drawing zoomed out after it was labelled close in is asked of cells a label covers few of', () => {
+    const chain = Object.fromEntries(
+      Array.from({ length: 5000 }, (_, i) => [
+        `n${i}`,
+        [
+          { x: i * 4, y: 0 },
+          { x: i * 4 + 3, y: 0 },
+        ],
+      ]),
+    )
+    const at = (scale: number) => ({
+      scaleX: scale,
+      scaleY: scale,
+      translateX: 0,
+      translateY: 0,
+    })
+    otherNodeUnderBox(chain, at(5))(
+      { x0: 0, x1: 40, y0: -9, y1: 10 },
+      () => true,
+    )
+    const far = otherNodeUnderBox(chain, at(0.02))
+    const lookups = vi.spyOn(Map.prototype, 'get')
+    const covered = far({ x0: 100, x1: 250, y0: -9, y1: 10 }, () => true)
+    const looked = lookups.mock.calls.length
+    lookups.mockRestore()
+    expect(covered).toBe(false)
+    expect(looked).toBeLessThan(50)
+  })
+
+  test('after a drag moves a node in place, a label box is asked of where the node is now', () => {
+    const drawn = {
+      moved: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ],
+    }
+    const identity = { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0 }
+    const where = { x0: 40, x1: 60, y0: -5, y1: 5 }
+    const draggedTo = { x0: 40, x1: 60, y0: 495, y1: 505 }
+    expect(otherNodeUnderBox(drawn, identity, 0)(where, () => false)).toBe(true)
+    for (const point of drawn.moved) {
+      point.y = 500
+    }
+    const dragged = otherNodeUnderBox(drawn, identity, 1)
+    expect(dragged(where, () => false)).toBe(false)
+    expect(dragged(draggedTo, () => false)).toBe(true)
+  })
 })

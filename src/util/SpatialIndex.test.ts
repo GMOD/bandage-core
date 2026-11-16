@@ -72,6 +72,32 @@ test('a row layout is bucketed on both axes, not just on x', () => {
   expect(hits.map(h => h.nodeId)).toEqual(['r0'])
 })
 
+test('a query reaches as far on y as its y radius says, not its x radius', () => {
+  const rows = Object.fromEntries(
+    Array.from({ length: 6 }, (_, row) => [
+      `row${row}`,
+      [
+        { x: 0, y: row * 20 },
+        { x: 7000, y: row * 20 },
+      ],
+    ]),
+  )
+  const index = new SpatialIndex(rows)
+  expect(index.query(3500, 0, 3500, 5).map(h => h.nodeId)).toEqual(['row0'])
+  expect(
+    index
+      .query(3500, 50, 1, 45)
+      .map(h => h.nodeId)
+      .toSorted(),
+  ).toEqual(['row0', 'row1', 'row2', 'row3', 'row4'])
+  expect(index.some(3500, 50, 1, 45, ({ nodeId }) => nodeId === 'row4')).toBe(
+    true,
+  )
+  expect(index.some(3500, 0, 3500, 5, ({ nodeId }) => nodeId === 'row1')).toBe(
+    false,
+  )
+})
+
 test('a query far wider than its cells looks only in the cells that hold a segment', () => {
   const index = new SpatialIndex(
     {
