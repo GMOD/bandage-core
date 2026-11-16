@@ -222,7 +222,8 @@ function shareOut(total: number, bps: number[]) {
 // `loopFloor` is the share of the reference's drawn length below which a law
 // may not pull a loop off the reference, unless the loop is shorter than that
 // at proportional length. Past the floor a loop grows as the law does, lifted
-// to meet it, so loops longer than the floor still draw in order of length.
+// to meet it, so rank holds in the lengths requested from the engine until the
+// 5-unit minimum per run dominates.
 //
 // The law and the floor take a loop's whole bp, and its runs split what it
 // draws by bp. Run by run, a loop of many short runs outdraws one long run, as
