@@ -50,7 +50,7 @@ export function passBars(lift: WalkLift | undefined) {
               repeatBp: pass.repeatBp,
               againBp: pass.againBp,
               reversedBp: pass.reversedBp,
-              text: drawn.bundled ? `${i + 1}` : drawn.labels[i]!,
+              text: drawn.bundled ? `${i + 1}` : drawn.titles[i]!,
               ink: passInk(drawn, i),
               reversed: pass.reversed,
             })),

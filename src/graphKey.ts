@@ -372,12 +372,12 @@ export function graphKey(
       ? []
       : drawn.bundled
         ? [
-            entry(`passes-${walk.name}`, drawn.labels[0]!, {
+            entry(`passes-${walk.name}`, drawn.titles[0]!, {
               kind: 'swatch',
               ink: drawn.inks[0]!,
             }),
           ]
-        : drawn.labels.flatMap((text, pass) =>
+        : drawn.titles.flatMap((text, pass) =>
             shown.has(pass)
               ? [
                   entry(`pass-${walk.name}-${pass}`, text, {

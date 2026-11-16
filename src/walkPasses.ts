@@ -1,3 +1,4 @@
+import { formatBp } from './graphLabels'
 import { abgrHex, hexAbgr } from './renderer/colorBits'
 import { passPalette } from './walkEncoding'
 
@@ -184,9 +185,12 @@ export function walkPassesOf(
 }
 
 // What a lifted walk's passes draw with: a label and a colour each, one of
-// each for the lot where they are bundled, and the walk's own colour off them
+// each for the lot where they are bundled, and the walk's own colour off them.
+// A title, for the key and the bar, is a label with the bp the pass steps
+// again, so a pass on one small shared node is not taken for a copy
 export interface LiftedPasses extends WalkPasses {
   labels: string[]
+  titles: string[]
   inks: number[]
   ownInk: number
 }
@@ -200,11 +204,17 @@ export function liftedPasses(
   const inks = passPalette(abgrHex(ownInk), bundled ? 1 : passes.length).map(
     hexAbgr,
   )
+  const labels = bundled
+    ? [`${passes.length} passes`]
+    : passes.map((_, i) => names[i] ?? `pass ${i + 1}`)
   return {
     ...found,
-    labels: bundled
-      ? [`${passes.length} passes`]
-      : passes.map((_, i) => names[i] ?? `pass ${i + 1}`),
+    labels,
+    titles: bundled
+      ? labels
+      : passes.map(
+          (pass, i) => `${labels[i] ?? ''} · ${formatBp(pass.repeatBp)}`,
+        ),
     inks,
     ownInk,
   }

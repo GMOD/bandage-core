@@ -84,19 +84,24 @@ test('a walk with no passes draws no bar and names no pass', () => {
   expect(svg).not.toContain('pass 1')
 })
 
-test('each pass is named once on the graph, once along the bar and once in the key', () => {
+test('each pass is named once on the graph by its name alone, and once along the bar and once in the key with the bp it steps again', () => {
   const { graph, layout, tables } = data('>f1>a>b>c>d>a>b>c>d>a>b>c>d>f2')
   expect(passLabelTexts(tables).toSorted()).toEqual([
     'pass 1',
     'pass 2',
     'pass 3',
   ])
-  expect(tables.passes.text).toEqual(['pass 1', 'pass 2', 'pass 3'])
+  expect(tables.passes.text).toEqual([
+    'pass 1 · 16 bp',
+    'pass 2 · 16 bp',
+    'pass 3 · 16 bp',
+  ])
   expect(tables.passes.start).toEqual([10, 26, 42])
   const svg = figureSvg(graph, layout, { width: 600, walks: byPass })
   expect(svg).toContain('along its length')
   for (const name of ['pass 1', 'pass 2', 'pass 3']) {
-    expect(svg.split(`>${name}</text>`)).toHaveLength(4)
+    expect(svg.split(`>${name}</text>`)).toHaveLength(2)
+    expect(svg.split(`>${name} · 16 bp</text>`)).toHaveLength(3)
   }
 })
 
@@ -366,7 +371,7 @@ test("figureData's passes say how much of each pass is sequence the walk steps a
 
 test("figureData's passes say how much of each pass reads again what the walk read before, and how much of that on the other strand, with no word for it in the name", () => {
   const { tables } = data('>f1>a>b>c>d<d<c<b<a>f2')
-  expect(tables.passes.text).toEqual(['pass 1', 'pass 2'])
+  expect(tables.passes.text).toEqual(['pass 1 · 16 bp', 'pass 2 · 16 bp'])
   expect(tables.passes.againBp).toEqual([0, 16])
   expect(tables.passes.reversedBp).toEqual([0, 16])
   expect(tables.passes.reversed).toEqual([false, true])

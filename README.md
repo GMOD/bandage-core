@@ -167,8 +167,11 @@ it is on, so the trips round the repeat can be followed one by one.
   both `reversed` can run opposite ways on the page. The drawing says which way
   a thread runs by the heads along it, not by a word
 - Up to six passes get a thread, a colour and a name each, `pass 1` and on, or
-  the layer's `passNames`. Past six they share one colour and one count; where
-  the band is too thin to keep the threads apart they fuse into one band
+  the layer's `passNames`. The graph shows the name alone; the key and the bar
+  give it with the bp the pass steps again, as `pass 3 · 61 bp`, so a pass that
+  is one small shared node is not taken for a copy. Past six they share one
+  colour and one count; where the band is too thin to keep the threads apart
+  they fuse into one band
 - Each pass is named on the graph through `layoutLabels`, keyed in `graphKey`,
   and shown along a bar of the haplotype's own length (`passBars`,
   `passBarTree`) that colours only the stretches the walk steps again, under a
@@ -191,7 +194,7 @@ it is on, so the trips round the repeat can be followed one by one.
   slot across its band; `visit`, which of the walk's visits to the node the
   thread draws; and `walkPass`, the walk's pass that visit is on. The `passes`
   table holds each pass with its bp above, `passRuns` the bar's stretches, and
-  `labels` rows of kind `pass` the names
+  `labels` rows of kind `pass` the names on the graph
 
 ## Figures
 

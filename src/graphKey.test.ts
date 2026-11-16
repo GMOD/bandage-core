@@ -704,8 +704,8 @@ test('a walk coloured by pass keys each pass by its name, a bundle by its count,
   const lone = keyed(REPEAT, { lift: byPass(REPEAT, ['dup#1#chr']) })
   expect(lone.texts).toEqual(
     expect.arrayContaining([
-      ['pass-dup#1#chr-0', 'pass 1'],
-      ['pass-dup#1#chr-1', 'pass 2'],
+      ['pass-dup#1#chr-0', expect.stringMatching(/^pass 1 · \d+ bp$/)],
+      ['pass-dup#1#chr-1', expect.stringMatching(/^pass 2 · \d+ bp$/)],
       ['lane-heads', LANE_HEADS_KEY],
     ]),
   )
