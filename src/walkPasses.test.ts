@@ -294,7 +294,9 @@ function liftedTogether(layers: WalkLayer[]) {
   )
   const lift = walkLift(graph, layers)!
   const inksOf = (name: string) =>
-    lift.walks.find(w => w.name === name)?.walkPasses?.inks.map(abgrHex) ?? []
+    (lift.walks.find(w => w.name === name)?.walkPasses?.passes ?? []).map(p =>
+      abgrHex(p.ink),
+    )
   const lanesBut = (name: string) =>
     lift.walks
       .filter(w => w.name !== name)
@@ -347,11 +349,12 @@ test('a walk lifted alone and coloured by pass threads, each visit in its pass c
   const walk = lift.walks[0]!
   const drawn = walk.walkPasses!
   expect(threadsPasses(lift.walks)).toBe(true)
-  expect(walk.passColors.get('a+')).toEqual(drawn.inks)
-  expect(drawn.inks).toHaveLength(2)
+  const inks = drawn.passes.map(p => p.ink)
+  expect(walk.passColors.get('a+')).toEqual(inks)
+  expect(inks).toHaveLength(2)
   expect(walk.passColors.get('f1+')).toEqual([drawn.ownInk])
-  expect(drawn.labels).toEqual(['pass 1', 'pass 2'])
-  expect(abgrHex(drawn.ownInk)).not.toBe(abgrHex(drawn.inks[0]!))
+  expect(drawn.passes.map(p => p.label)).toEqual(['pass 1', 'pass 2'])
+  expect(inks).not.toContain(drawn.ownInk)
   expect(threadsPasses(walkLift(graph, [{ walk: HAP }])!.walks)).toBe(false)
 })
 
@@ -361,7 +364,7 @@ test('passes take the names a layer gives them, and a reversed pass is marked in
     { walk: HAP, color: { field: 'pass' }, passNames: ['copy A'] },
   ])!
   const drawn = lift.walks[0]!.walkPasses!
-  expect(drawn.labels).toEqual(['copy A', 'pass 2'])
+  expect(drawn.passes.map(p => p.label)).toEqual(['copy A', 'pass 2'])
   expect(drawn.passes.map(p => [p.reversed, p.againBp, p.reversedBp])).toEqual([
     [false, 0, 0],
     [true, 16, 16],

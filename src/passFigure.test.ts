@@ -396,7 +396,7 @@ test("each pass's name stands beside a point of its own pass's thread, in its ow
   const drawn = scene.lift!.walks[lane]!.walkPasses!
   expect(candidates.map(c => c.item.pass)).toEqual([0, 1, 2])
   for (const { item } of candidates) {
-    expect(item.ink).toBe(drawn.inks[item.pass])
+    expect(item.ink).toBe(drawn.passes[item.pass]?.ink)
     const under = batch.nodeStrokes.filter(s => {
       const middle = s.points[s.points.length >> 1]
       return (

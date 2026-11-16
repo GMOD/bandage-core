@@ -173,11 +173,12 @@ function oklab(hex: string) {
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-  return [
+  const lab: [number, number, number] = [
     0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
     1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
     0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
   ]
+  return lab
 }
 
 function oklabToRgb([L, a, b]: number[]) {
@@ -332,7 +333,7 @@ export const PASS_FROM_PASS = 0.18
 export const oklabGap = (a: string, b: string) => {
   const p = oklab(a)
   const q = oklab(b)
-  return Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!)
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
 }
 
 const nearestGap = (hue: string, colours: readonly string[]) =>

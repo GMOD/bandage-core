@@ -83,25 +83,31 @@ export function passLabelCandidates(
   for (const [lane, walk] of (lift?.walks ?? []).entries()) {
     const drawn = walk.walkPasses
     const own = spots.filter(s => s.walk === lane)
-    const named = !drawn?.passes.length
+    const named = !drawn
       ? []
       : drawn.bundled
-        ? [{ pass: -1, text: drawn.labels[0]!, from: own }]
-        : drawn.labels.map((text, pass) => ({
+        ? drawn.passes.slice(0, 1).map(({ label, ink }) => ({
+            pass: -1,
+            text: label,
+            ink,
+            from: own,
+          }))
+        : drawn.passes.map(({ label, ink }, pass) => ({
             pass,
-            text,
+            text: label,
+            ink,
             from: own.filter(s => s.pass === pass),
           }))
-    for (const { pass, text, from } of named) {
+    for (const { pass, text, ink, from } of named) {
       const spot = furthest(from)
-      if (spot && drawn) {
+      if (spot) {
         taken.push(spot.at)
         const { x, y } = spot.at
         candidates.push({
           item: {
             walk: walk.name,
             pass,
-            ink: drawn.inks[Math.max(0, pass)]!,
+            ink,
             at: spot.at,
           },
           x,

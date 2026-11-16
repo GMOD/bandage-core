@@ -20,6 +20,12 @@ import type { Graph, GraphNode, GraphPath } from './types'
 import type { WalkEncoding, WalkLayer } from './walkEncoding'
 import type { LiftedPasses } from './walkPasses'
 
+export interface RouteStep {
+  id: string
+  strand: Strand
+  start: number
+}
+
 // One walk lifted out of the drawing: the nodes it visits and the links it
 // takes, how far along the walk each node is, and what it carries through the
 // window against the reference walk.
@@ -40,10 +46,9 @@ export interface WalkHighlight {
   backwards: Map<string, boolean[]>
   mostPasses: number
   route: readonly (readonly string[])[]
-  // beside each step of the route: the strand it reads its node on, and the
-  // bp of the walk before it
-  routeStrands: readonly (readonly Strand[])[]
-  routeStarts: readonly (readonly number[])[]
+  // each step of the route with the strand it reads its node on and the bp of
+  // the walk before it
+  routeSteps: readonly (readonly RouteStep[])[]
   steps: number
   bp: number
   unloadedBp: number
@@ -285,14 +290,14 @@ function highlightOf(
   let mostPasses = 1
   let before = 0
   const steppedOn = new Set<GraphPath>(attached)
-  const routeStarts: number[][] = []
+  const routeSteps: RouteStep[][] = []
   let previous: GraphPath | undefined
   for (const piece of walked) {
     if (range) {
       before = Math.max(before, (piece.start ?? 0) - range.start)
     }
-    const starts: number[] = []
-    routeStarts.push(starts)
+    const steps: RouteStep[] = []
+    routeSteps.push(steps)
     const joins =
       previous !== undefined &&
       (steppedOn.has(previous) || steppedOn.has(piece)) &&
@@ -321,7 +326,7 @@ function highlightOf(
         }
       }
       const length = lengthOf(id)
-      starts.push(before)
+      steps.push({ id, strand: strands?.[i] ?? ownStrand(id), start: before })
       const at = span > 0 ? (before + length / 2) / span : 0
       if (!progress.has(id)) {
         progress.set(id, at)
@@ -395,10 +400,7 @@ function highlightOf(
     backwards,
     mostPasses,
     route: walked.map(piece => piece.nodeIds),
-    routeStrands: walked.map(
-      piece => strandsOf.get(piece) ?? piece.nodeIds.map(ownStrand),
-    ),
-    routeStarts,
+    routeSteps,
     steps: walked.reduce(
       (sum, piece) => sum + piece.nodeIds.filter(id => !unloaded(id)).length,
       0,
@@ -573,7 +575,7 @@ export function walkLift(
       laneInks.filter((_, j) => j !== i).flat(),
       taken,
     )
-    for (const ink of colored.walkPasses?.inks ?? []) {
+    for (const { ink } of colored.walkPasses?.passes ?? []) {
       taken.push(abgrHex(ink))
     }
     return { ...walk, encoding, ...colored }

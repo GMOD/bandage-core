@@ -371,18 +371,17 @@ export function graphKey(
     return !drawn || !shown?.size
       ? []
       : drawn.bundled
-        ? [
-            entry(`passes-${walk.name}`, drawn.titles[0]!, {
-              kind: 'swatch',
-              ink: drawn.inks[0]!,
-            }),
-          ]
-        : drawn.titles.flatMap((text, pass) =>
+        ? drawn.passes
+            .slice(0, 1)
+            .map(({ title, ink }) =>
+              entry(`passes-${walk.name}`, title, { kind: 'swatch', ink }),
+            )
+        : drawn.passes.flatMap(({ title, ink }, pass) =>
             shown.has(pass)
               ? [
-                  entry(`pass-${walk.name}-${pass}`, text, {
+                  entry(`pass-${walk.name}-${pass}`, title, {
                     kind: 'swatch',
-                    ink: drawn.inks[pass]!,
+                    ink,
                   }),
                 ]
               : [],

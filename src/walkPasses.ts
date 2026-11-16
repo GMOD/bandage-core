@@ -3,7 +3,7 @@ import { abgrHex, hexAbgr } from './renderer/colorBits'
 import { passPalette } from './walkEncoding'
 
 import type { PassSpan } from './walkEncoding'
-import type { WalkHighlight } from './walkHighlight'
+import type { RouteStep, WalkHighlight } from './walkHighlight'
 
 // A walk's passes through the nodes it steps more than once, read off the walk
 // alone. The first pass starts at the first node the walk steps again later; a
@@ -51,15 +51,13 @@ export interface WalkPasses {
 // a walk with more draws them in one colour under one count
 export const MOST_PASS_THREADS = 6
 
-type Stepped = Pick<
-  WalkHighlight,
-  'route' | 'routeStrands' | 'routeStarts' | 'passes'
->
+type Stepped = Pick<WalkHighlight, 'routeSteps' | 'passes'>
+
+type Placed = RouteStep & { within: number }
 
 function assemble(
-  walk: Stepped,
+  placed: readonly (readonly Placed[])[],
   lengthOf: (id: string) => number,
-  withinPass: readonly Int32Array[],
   count: number,
   onPass: (id: string) => boolean,
   stated: boolean,
@@ -72,24 +70,19 @@ function assemble(
     againBp: 0,
     reversedBp: 0,
   }))
-  const stepPass = withinPass.map(piece => piece.slice())
   const visitPass = new Map<string, number[]>()
   const firstStrand = new Map<string, string>()
   const runs: WalkPasses['runs'] = []
-  walk.route.forEach((piece, p) => {
-    piece.forEach((id, i) => {
-      const within = withinPass[p]![i]!
+  const stepPass = placed.map(piece =>
+    Int32Array.from(piece, ({ id, strand, start, within }) => {
       const at = onPass(id) ? within : -1
-      stepPass[p]![i] = at
-      const from = walk.routeStarts[p]![i]!
       const bp = lengthOf(id)
       const run = runs.at(-1)
-      if (at >= 0 && run?.pass === at && run.end === from) {
-        run.end = from + bp
+      if (at >= 0 && run?.pass === at && run.end === start) {
+        run.end = start + bp
       } else if (at >= 0) {
-        runs.push({ pass: at, start: from, end: from + bp })
+        runs.push({ pass: at, start, end: start + bp })
       }
-      const strand = walk.routeStrands[p]?.[i] ?? '+'
       const first = firstStrand.get(id)
       const visits = visitPass.get(id)
       if (visits) {
@@ -100,22 +93,23 @@ function assemble(
       }
       const pass = passes[within]
       if (pass) {
-        pass.start = Math.min(pass.start, from)
-        pass.end = Math.max(pass.end, from + bp)
+        pass.start = Math.min(pass.start, start)
+        pass.end = Math.max(pass.end, start + bp)
         pass.steps++
         pass.repeatBp += at >= 0 ? bp : 0
         pass.againBp += at >= 0 && first !== undefined ? bp : 0
         pass.reversedBp +=
           at >= 0 && first !== undefined && first !== strand ? bp : 0
       }
-    })
-  })
+      return at
+    }),
+  )
   return {
     passes: passes.map(pass => ({
       ...pass,
       reversed: pass.reversedBp * 2 > pass.againBp,
     })),
-    withinPass,
+    withinPass: placed.map(piece => Int32Array.from(piece, s => s.within)),
     stepPass,
     visitPass,
     runs,
@@ -126,32 +120,32 @@ function assemble(
 
 export function passesOf(walk: Stepped, lengthOf: (id: string) => number) {
   const again = (id: string) => (walk.passes.get(id) ?? 0) > 1
-  const withinPass = walk.route.map(piece =>
-    new Int32Array(piece.length).fill(-1),
+  const placed = walk.routeSteps.map(piece =>
+    piece.map(step => ({ ...step, within: -1 })),
   )
   let pass = -1
   let stepped = new Set<string>()
-  let pending: [number, number][] = []
-  walk.route.forEach((piece, p) => {
-    piece.forEach((id, i) => {
-      if (again(id)) {
-        if (pass < 0 || stepped.has(id)) {
+  let pending: Placed[] = []
+  for (const piece of placed) {
+    for (const step of piece) {
+      if (again(step.id)) {
+        if (pass < 0 || stepped.has(step.id)) {
           pass++
           stepped = new Set()
         } else {
-          for (const [q, j] of pending) {
-            withinPass[q]![j] = pass
+          for (const between of pending) {
+            between.within = pass
           }
         }
         pending = []
-        stepped.add(id)
-        withinPass[p]![i] = pass
+        stepped.add(step.id)
+        step.within = pass
       } else if (pass >= 0) {
-        pending.push([p, i])
+        pending.push(step)
       }
-    })
-  })
-  return assemble(walk, lengthOf, withinPass, pass + 1, again, false)
+    }
+  }
+  return assemble(placed, lengthOf, pass + 1, again, false)
 }
 
 // Passes a host states in the walk's own bp, as another graph of the same
@@ -162,13 +156,16 @@ export function statedPasses(
   lengthOf: (id: string) => number,
   spans: readonly PassSpan[],
 ) {
-  const withinPass = walk.route.map((piece, p) =>
-    Int32Array.from(piece, (id, i) => {
-      const middle = walk.routeStarts[p]![i]! + lengthOf(id) / 2
-      return spans.findIndex(s => middle >= s.start && middle < s.end)
+  const placed = walk.routeSteps.map(piece =>
+    piece.map(step => {
+      const middle = step.start + lengthOf(step.id) / 2
+      return {
+        ...step,
+        within: spans.findIndex(s => middle >= s.start && middle < s.end),
+      }
     }),
   )
-  return assemble(walk, lengthOf, withinPass, spans.length, () => true, true)
+  return assemble(placed, lengthOf, spans.length, () => true, true)
 }
 
 // The passes a lifted walk draws: detected where the walk steps a node again,
@@ -184,14 +181,17 @@ export function walkPassesOf(
     : found
 }
 
-// What a lifted walk's passes draw with: a label and a colour each, one of
-// each for the lot where they are bundled, and the walk's own colour off them.
-// A title, for the key and the bar, is a label with the bp the pass steps
-// again, so a pass on one small shared node is not taken for a copy
-export interface LiftedPasses extends WalkPasses {
-  labels: string[]
-  titles: string[]
-  inks: number[]
+// A lifted walk's pass as it is drawn: its name on the graph, its title in
+// the key and along the bar, which adds the bp it steps again, and its ink;
+// bundled passes share one of each
+export interface LiftedPass extends WalkPass {
+  label: string
+  title: string
+  ink: number
+}
+
+export interface LiftedPasses extends Omit<WalkPasses, 'passes'> {
+  passes: LiftedPass[]
   ownInk: number
 }
 
@@ -211,22 +211,22 @@ export function liftedPasses(
     lanes,
     taken,
   ).map(hexAbgr)
-  const labels = bundled
-    ? [`${passes.length} passes`]
-    : passes.map((_, i) => names[i] ?? `pass ${i + 1}`)
+  const bundle = `${passes.length} passes`
   return {
     ...found,
-    labels,
-    titles: bundled
-      ? labels
-      : passes.map(
-          (pass, i) => `${labels[i] ?? ''} · ${formatBp(pass.repeatBp)}`,
-        ),
-    inks,
+    passes: passes.map((pass, i) => {
+      const label = bundled ? bundle : (names[i] ?? `pass ${i + 1}`)
+      return {
+        ...pass,
+        label,
+        title: bundled ? bundle : `${label} · ${formatBp(pass.repeatBp)}`,
+        ink: inks[bundled ? 0 : i] ?? ownInk,
+      }
+    }),
     ownInk,
   }
 }
 
 // The ink of a visit on pass `pass`, -1 for none
 export const passInk = (drawn: LiftedPasses, pass: number) =>
-  pass < 0 ? drawn.ownInk : drawn.inks[drawn.bundled ? 0 : pass]!
+  drawn.passes[pass]?.ink ?? drawn.ownInk
