@@ -1453,6 +1453,32 @@ describe('the drawing through a folded site', () => {
     }
   })
 
+  // walk 1 takes a1 for r2, then r3, inside b1's site, which touches a1's
+  const laneThrough = (laid: Record<string, NodeSegment[]>) => {
+    const highlight = walkLift(graph, [{ walk: 'w#1#chr' }])
+    const batch = build(graph, laid, 0.1, { highlight })
+    const points = (from: string, to: string) =>
+      lanesOf(batch, edgeIndex(graph, from, to))
+        .filter(lane => lane.walk === 0)
+        .flatMap(lane =>
+          lane.curves.flatMap(c => [
+            { x: c.x0, y: c.y0 },
+            { x: c.x1, y: c.y1 },
+          ]),
+        )
+    return { batch, into: points('r1+', 'a1+'), out: points('r3+', 'r4+') }
+  }
+
+  test('a lifted lane crossing a run of touching folded sites is unbroken from the drawn node before the run to the one after', () => {
+    const { batch, into, out } = laneThrough(positions)
+    expect(folded(batch)).toEqual(['a1+', 'b1+', 'c1+'])
+    expect(batch.laneOnly?.nodes).toEqual(new Set(['r2+', 'r3+', 'r5+']))
+    expect(into[0]).toEqual({ x: 1000, y: 0 })
+    expect(out.at(-1)).toEqual({ x: 1002, y: 0 })
+    expect(into.at(-1)?.x).toBeCloseTo(out[0]?.x ?? 0, 9)
+    expect(into.at(-1)?.y).toBeCloseTo(out[0]?.y ?? 0, 9)
+  })
+
   test('a reference node inside a folded site no lifted walk crosses is drawn, at the even stroke', () => {
     const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
       'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',

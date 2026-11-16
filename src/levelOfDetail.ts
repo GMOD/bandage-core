@@ -61,6 +61,8 @@ export interface Fold {
   // its nodes there, and its own links from one end of the run to the other
   through: ReadonlyMap<string, Run>
   bridges: ReadonlyMap<number, Bridge>
+  // the run each folded site belongs to
+  runOf: ReadonlyMap<Site, Run>
 }
 
 // where a run lies on the reference, and the drawn reference nodes ending
@@ -86,6 +88,7 @@ export const NO_FOLD: Fold = {
   within: new Map(),
   through: new Map(),
   bridges: new Map(),
+  runOf: new Map(),
 }
 
 interface ReferenceLink {
@@ -410,6 +413,7 @@ function through(
 ) {
   const nodes = new Map<string, Run>()
   const bridges = new Map<number, Bridge>()
+  const runOf = new Map<Site, Run>()
   const byStart = sites.toSorted((a, b) =>
     a.refName !== b.refName
       ? a.refName < b.refName
@@ -422,6 +426,7 @@ function through(
     const { refName } = byStart[k]!
     const { start } = byStart[k]!
     let { end } = byStart[k]!
+    const first = k
     k++
     while (
       k < byStart.length &&
@@ -443,6 +448,9 @@ function through(
       for (const span of inside) {
         nodes.set(span.id, run)
       }
+      for (const site of byStart.slice(first, k)) {
+        runOf.set(site, run)
+      }
       const { links } = reference
       for (
         let i = partitionPoint(links.length, j => links[j]!.at < start);
@@ -453,7 +461,7 @@ function through(
       }
     }
   }
-  return { nodes, bridges }
+  return { nodes, bridges, runOf }
 }
 
 const least = (values: readonly number[]) =>
@@ -579,6 +587,7 @@ function foldOf(
     within: within(sites, references),
     through: reference.nodes,
     bridges: reference.bridges,
+    runOf: reference.runOf,
   }
 }
 
