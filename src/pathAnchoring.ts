@@ -1,4 +1,4 @@
-import { REFERENCE_RANK } from './anchoredNodes'
+import { REFERENCE_RANK, isAnchored } from './anchoredNodes'
 import { panSNSample } from './pansn'
 import { PathVisitsBuilder } from './pathVisits'
 import { groupBy } from './util/groups'
@@ -138,6 +138,39 @@ function anchorNode(
     },
     samples: samplesOf(slot),
   }
+}
+
+// A tagged segment's SN and SO say where it lies on a walk and not which way
+// that walk steps it there, which the walk itself says where the file holds
+// it, as a walk file cut holds its reference: the pass at SO, else the first
+function statedStrand(node: AnchoredNode, visits: PathVisits, p: number) {
+  const slot = visits.slot(node.name)
+  const first = slot >= 0 && p >= 0 ? visits.firstBy(slot, p) : -1
+  const atStart =
+    first >= 0 ? visits.startingAt(slot, p, node.stable.start) : -1
+  return first >= 0 ? visits.strand(atStart >= 0 ? atStart : first) : undefined
+}
+
+export function withStatedStrands(
+  nodes: GraphNode[],
+  visits: PathVisits | undefined,
+) {
+  const pathOf = new Map<string, number>()
+  const pathIndex = (name: string) => {
+    const p = pathOf.get(name) ?? visits?.pathIndex(name) ?? -1
+    pathOf.set(name, p)
+    return p
+  }
+  return visits
+    ? nodes.map(node => {
+        const strand = isAnchored(node)
+          ? statedStrand(node, visits, pathIndex(node.stable.refName))
+          : undefined
+        return isAnchored(node) && strand
+          ? { ...node, stable: { ...node.stable, strand } }
+          : node
+      })
+    : nodes
 }
 
 // A segment's samples, sorted, by each path's sample's place in the graph's

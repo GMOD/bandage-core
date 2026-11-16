@@ -1,6 +1,6 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { panSNFields, panSNSample } from '../pansn'
-import { pathOrigin } from '../pathAnchoring'
+import { pathOrigin, withStatedStrands } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
 import { ownStepRuns, stretchSegments } from './departures'
 import { linkKey } from './linkKey'
@@ -577,14 +577,8 @@ export function graphFromTables(
     }
   })
 
-  const walked = drawnWalks.length > 0
-  return {
-    name,
-    nodes,
-    edges,
-    paths: walked ? paths : undefined,
-    anchorPaths: walked ? anchorPaths : undefined,
-    pathVisits: walked
+  const pathVisits =
+    drawnWalks.length > 0
       ? new PathVisits({
           segments: visitOrder.map(node => n.names[node]!),
           offsets: Int32Array.from(blocks),
@@ -594,7 +588,14 @@ export function graphFromTables(
           paths: pathNames,
           samples: pathSamples,
         })
-      : undefined,
+      : undefined
+  return {
+    name,
+    nodes: withStatedStrands(nodes, pathVisits),
+    edges,
+    paths: pathVisits ? paths : undefined,
+    anchorPaths: pathVisits ? anchorPaths : undefined,
+    pathVisits,
     anchoredBy: nodes.some(node => node.stable) ? 'tags' : undefined,
     revisited,
     ...(departures.names.length > 0 ? { departures } : {}),
