@@ -88,6 +88,7 @@ export type GraphKeySectionId =
   | 'node-width'
   | 'link-width'
   | 'halo'
+  | 'links'
   | 'skips'
   | 'not-shown'
   | 'exon'
@@ -435,6 +436,20 @@ export function graphKey(
             },
           ]
         : [],
+    },
+    {
+      id: 'links',
+      group: 'Marks',
+      entries:
+        !lifted && o.marks.plainLink
+          ? [
+              entry('link', 'link', {
+                kind: 'line',
+                ink: EDGE_DEFAULT_COLOR,
+                dashed: false,
+              }),
+            ]
+          : [],
     },
     { id: 'skips', group: 'Marks', entries: skipEntries },
     {

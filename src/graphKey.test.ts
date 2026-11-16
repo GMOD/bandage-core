@@ -189,6 +189,19 @@ const SKIPPED = load(
   'GRCh38',
 )
 
+test('a plain link is keyed where one is drawn, in the ink it is stroked in', () => {
+  const link = entries(graph).find(e => e.key === 'link')
+  const { batch } = drawn(graph)
+  const stroked = batch.edgeCurves.find(e => !e.skip && e.walk === undefined)
+  expect(link?.swatch).toEqual({
+    kind: 'line',
+    ink: stroked?.color,
+    dashed: false,
+  })
+  const lone = load('S\tv1\tAAAA\nW\tGRCh38\t0\tchr6\t0\t4\t>v1', 'GRCh38')
+  expect(keys(lone)).not.toContain('link')
+})
+
 test('each skip row is there only where the drawing holds that mark', () => {
   const skips = (width: number) =>
     keyOf(SKIPPED, { width })
@@ -401,6 +414,9 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
       ? ['faded-links']
       : []),
     ...(batch.nodeStrokes.some(n => (n.pass ?? 0) > 0) ? ['walk-passes'] : []),
+    ...(!s.lift && batch.edgeCurves.some(e => e.walk === undefined && !e.skip)
+      ? ['link']
+      : []),
     ...(skips.some(e => dashed(e.span)) ? ['deletion'] : []),
     ...(skips.some(e => !dashed(e.span)) ? ['short-skip'] : []),
     ...(batch.nodeStrokes.some(n => n.placeholder) ? ['not-shown'] : []),
