@@ -839,6 +839,93 @@ test('with walks lifted, a lane stepping a folded site runs straight along the r
   }
 })
 
+test('with walks lifted, no lane is drawn on a link inside a folded piece', () => {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    'S\tr2\tC',
+    `S\tr3\t${bases(1000)}`,
+    'S\ta1\tT',
+    'S\ta2\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr1\t+\ta1\t+\t0M',
+    'L\ta1\t+\ta2\t+\t0M',
+    'L\ta2\t+\tr3\t+\t0M',
+    'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+    'W\talt\t1\tchr\t0\t*\t>r1>a1>a2>r3',
+  ])
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1001, 2001),
+    'a1+': at(1000, 1001, 20),
+    'a2+': at(1001, 1002, 20),
+  }
+  const highlight = walkLift(graph, [{ walk: 'alt#1#chr' }])
+  const batch = build(graph, positions, 0.5, { highlight })
+  expect(folded(batch)).toEqual(['a1+', 'a2+'])
+  expect(batch.edgeCurveRuns.has(edgeIndex(graph, 'a1+', 'a2+'))).toBe(false)
+  expect(batch.edgeCurveRuns.has(edgeIndex(graph, 'r1+', 'a1+'))).toBe(true)
+  expect(batch.edgeCurveRuns.has(edgeIndex(graph, 'a2+', 'r3+'))).toBe(true)
+})
+
+test("with walks lifted, each lane across a folded site leaves it as far to the side as it came in, by the reference's lanes there", () => {
+  const { graph, positions } = snp(1, 1, [
+    'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
+    'W\talt\t2\tchr\t0\t*\t>r1>a1>r3',
+  ])
+  const upright = {
+    ...positions,
+    'a1+': [
+      { x: 1000.5, y: 20 },
+      { x: 1000.5, y: 21 },
+    ],
+  }
+  const highlight = walkLift(graph, [
+    { walk: 'alt#1#chr' },
+    { walk: 'alt#2#chr' },
+  ])
+  const batch = build(graph, upright, 0.5, { highlight })
+  expect(folded(batch)).toEqual(['a1+'])
+  const lanesOn = (from: string, to: string) => {
+    const run = batch.edgeCurveRuns.get(edgeIndex(graph, from, to))
+    return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
+  }
+  const into = lanesOn('r1+', 'a1+')
+  const out = lanesOn('a1+', 'r3+')
+  expect(into.map(c => c.walk)).toEqual([0, 1])
+  expect(out.map(c => c.walk)).toEqual([0, 1])
+  const ends = into.map(c => c.curves.at(-1)!)
+  expect(ends[0]!.y1).not.toBeCloseTo(ends[1]!.y1, 3)
+  out.forEach((lane, i) => {
+    expect(lane.curves[0]!.y0).toBeCloseTo(ends[i]!.y1, 1)
+  })
+})
+
+test('the heads along a lift follow the fold on one graph, layout and lift', () => {
+  const { graph, positions } = snp(1, 1)
+  const highlight = walkLift(graph, [
+    { walk: 'ref#0#chr' },
+    { walk: 'alt#1#chr', color: { field: 'pass' } },
+  ])
+  const wide = Object.fromEntries(
+    Object.entries(positions).map(([id, line]) => [
+      id,
+      line.map(p => ({ x: p.x / 100, y: p.y })),
+    ]),
+  )
+  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
+  const drawn = build(graph, wide, 10, {
+    highlight,
+    nodeById,
+    smallSites: 'nodes',
+  })
+  expect(drawn.arrows.some(a => a.node === 'a1+')).toBe(true)
+  const batch = build(graph, wide, 10, { highlight, nodeById })
+  expect(folded(batch)).toEqual(['a1+'])
+  expect(batch.arrows.filter(a => a.node === 'a1+')).toEqual([])
+})
+
 test('with small sites drawn as nodes, nothing is folded and every node and link draws', () => {
   const { graph, straight } = snpRun(10)
   const batch = build(graph, straight, 0.01, { smallSites: 'nodes' })
