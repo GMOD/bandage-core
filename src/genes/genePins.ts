@@ -41,7 +41,7 @@ export interface GenePin {
   at: NodeSegment
   // how much of the gene's span the drawing holds, so a label can say when a
   // gene runs off it: on the reference, the drawn backbone's share; on a
-  // haplotype's own contig, the share inside its walk's stretch of that contig
+  // haplotype's own contig, the share inside its walk's records of that contig
   covered: number
   // whether the gene lies on the reference's own sequence
   onReference: boolean
@@ -63,7 +63,7 @@ interface RefNameNodes {
 // contig, and how many walks step the nodes under each gene span asked about
 interface GraphGenes {
   byRefName: Map<string, RefNameNodes>
-  stretches: Map<string, { start: number; end: number }>
+  stretches: Map<string, Interval[]>
   walks: Map<string, number>
 }
 
@@ -109,11 +109,16 @@ function anchoredByRefName(graph: Graph) {
   return byRefName
 }
 
-// Where each walk's records lie on its contig, from the first record's start
-// to the last one's end, by the contig's name
+interface Interval {
+  start: number
+  end: number
+}
+
+// Where the walks' records lie on each contig, by the contig's name: one
+// interval per record, sorted, with those that touch or overlap merged
 function walkStretches(graph: Graph) {
   const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
-  const stretches = new Map<string, { start: number; end: number }>()
+  const records = new Map<string, Interval[]>()
   for (const path of graph.paths ?? []) {
     const origin = pathOrigin(path.name)
     const start = path.start ?? origin.start
@@ -121,15 +126,35 @@ function walkStretches(graph: Graph) {
       (sum, id) => sum + (lengths.get(id) ?? 0),
       start,
     )
-    const seen = stretches.get(origin.name)
-    stretches.set(
-      origin.name,
-      seen
-        ? { start: Math.min(seen.start, start), end: Math.max(seen.end, end) }
-        : { start, end },
-    )
+    const onContig = records.get(origin.name)
+    if (onContig) {
+      onContig.push({ start, end })
+    } else {
+      records.set(origin.name, [{ start, end }])
+    }
+  }
+  const stretches = new Map<string, Interval[]>()
+  for (const [contig, intervals] of records) {
+    const merged: Interval[] = []
+    for (const { start, end } of intervals.sort((a, b) => a.start - b.start)) {
+      const last = merged.at(-1)
+      if (last && start <= last.end) {
+        last.end = Math.max(last.end, end)
+      } else {
+        merged.push({ start, end })
+      }
+    }
+    stretches.set(contig, merged)
   }
   return stretches
+}
+
+function overlap(stretch: readonly Interval[], { start, end }: Interval) {
+  return stretch.reduce(
+    (sum, s) =>
+      sum + Math.max(0, Math.min(end, s.end) - Math.max(start, s.start)),
+    0,
+  )
 }
 
 // How many walks step any node of each set, by the set
@@ -281,15 +306,10 @@ export function genePins(
     const stretch = pin.onReference
       ? undefined
       : known.stretches.get(pin.gene.refName)
-    const { start, end } = pin.gene
     return {
       ...pin,
       covered: stretch
-        ? Math.max(
-            0,
-            Math.min(end, stretch.end) - Math.max(start, stretch.start),
-          ) /
-          (end - start)
+        ? overlap(stretch, pin.gene) / (pin.gene.end - pin.gene.start)
         : pin.covered,
       walks: known.walks.get(spanKey(pin.gene)) ?? 0,
     }

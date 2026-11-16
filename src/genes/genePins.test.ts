@@ -147,3 +147,28 @@ test('pins recomputed for a dragged node read no walk step again', () => {
   expect(summary(60)[0]![1]).toBe(160)
   expect(stepReads).toBe(firstReads)
 })
+
+// HG00097#1 at chr1:103,540,000-103,780,000: two records of one contig with
+// 49 kb between them that the cut does not hold
+test("a haplotype's gene is held only where its walk's records lie, not between them", () => {
+  const contig = 'HG00097#1#CM094060.1'
+  const own = (id: string, start: number, length: number) => ({
+    ...anchored(id, start, length),
+    stable: { refName: contig, start, rank: 1, strand: '+' as const },
+  })
+  const graph: Graph = {
+    name: 'g',
+    nodes: [own('h1', 104_045_549, 72_151), own('h2', 104_166_751, 48_458)],
+    edges: [],
+    paths: [
+      { name: contig, nodeIds: ['h1'], start: 104_045_549 },
+      { name: contig, nodeIds: ['h2'], start: 104_166_751 },
+    ],
+  }
+  const [pin] = genePins(
+    graph,
+    [gene('SPANS', contig, 104_117_100, 104_167_000)],
+    along(['h1', 'h2'], 0),
+  )
+  expect(pin!.covered * 49_900).toBeCloseTo(849)
+})
