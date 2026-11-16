@@ -144,6 +144,10 @@ export {
   walkPassesOf,
 } from './walkPasses'
 export type { LiftedPasses, WalkPass, WalkPasses } from './walkPasses'
+export { PASS_BAR_HEIGHT, passBarTree, passBars } from './passBar'
+export type { PassBar } from './passBar'
+export { passLabelCandidates, passLeader } from './passLabels'
+export type { PassLabelItem } from './passLabels'
 export {
   BACKWARDS_KEY,
   LANE_HEADS_KEY,

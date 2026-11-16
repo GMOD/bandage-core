@@ -12,6 +12,8 @@ import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
 import { haplotypeCount, nodeFrequency, withFrequencies } from './nodeWidths'
 import { LABEL_PX } from './overlayLabels'
+import { passBars } from './passBar'
+import { passLabelCandidates, passLeader } from './passLabels'
 import { referenceVisitStarts } from './pathAnchoring'
 import {
   engineSettingsOf,
@@ -82,7 +84,15 @@ interface NodeRow {
   alpha: number
   width: number
   walk: number | null
+  // three numbers on a lifted walk's stroke: `pass` is the thread's slot
+  // across its walk's band at the node, 0 nearest one side; `visit` is which
+  // of the walk's visits to the node the thread draws, 0 for the first;
+  // `walkPass` is the walk's pass that visit is on, -1 for none, under the
+  // pass colouring. A slot is not a visit: the band orders its threads to
+  // keep them from crossing
   pass: number | null
+  walkPass: number | null
+  visit: number | null
   nx: number
   ny: number
   offset: number
@@ -105,7 +115,10 @@ interface EdgeRow {
   width: number
   deletion: boolean
   walk: number | null
+  // as on a node's row, at the node the link leaves
   pass: number | null
+  walkPass: number | null
+  visit: number | null
   nx: number
   ny: number
   offset: number
@@ -157,7 +170,7 @@ interface ExonRow {
 // placeholder's first, a gene's name, a bubble's, at the middle of its text,
 // `size` px tall, with the leader to what it names where it stands off
 interface LabelRow {
-  kind: 'placeholder' | 'length' | 'gene' | 'bubble'
+  kind: 'placeholder' | 'length' | 'gene' | 'bubble' | 'pass'
   item: string
   text: string
   size: number
@@ -167,6 +180,29 @@ interface LabelRow {
   y1: number | null
   x2: number | null
   y2: number | null
+  // a pass's colour, '' for the rest
+  color: string
+}
+
+// a lifted walk's pass along its own length, in bp from its first base, with
+// what figureSvg's bar names it
+interface PassRow {
+  walk: string
+  pass: number
+  start: number
+  end: number
+  text: string
+  color: string
+  reversed: boolean
+}
+
+// a stretch of a lifted walk on a pass, which figureSvg's bar colours
+interface PassRunRow {
+  walk: string
+  pass: number
+  start: number
+  end: number
+  color: string
 }
 
 // an entry of the graph's key, its colours as hex with their alpha
@@ -416,6 +452,8 @@ export function figureData(
     width: [],
     walk: [],
     pass: [],
+    walkPass: [],
+    visit: [],
     nx: [],
     ny: [],
     offset: [],
@@ -438,6 +476,8 @@ export function figureData(
     deletion: [],
     walk: [],
     pass: [],
+    walkPass: [],
+    visit: [],
     nx: [],
     ny: [],
     offset: [],
@@ -486,6 +526,8 @@ export function figureData(
             width: s.thickness * 2,
             walk: keyRowOf(s.walk),
             pass: s.pass ?? null,
+            walkPass: s.walkPass ?? null,
+            visit: s.visit ?? null,
             nx: s.normals?.[k]?.nx ?? 0,
             ny: s.normals?.[k]?.ny ?? 0,
             offset: (s.offsets?.[k] ?? s.offsetX ?? 0) * axis.scaleX,
@@ -519,6 +561,8 @@ export function figureData(
             deletion: drawnDeletions.bypassed.has(edge),
             walk: keyRowOf(b.walk),
             pass: b.pass ?? null,
+            walkPass: b.walkPass ?? null,
+            visit: b.visit ?? null,
             ...slideAlong(k / n),
             nx1: end.nx,
             ny1: end.ny,
@@ -574,6 +618,20 @@ export function figureData(
     nodeById,
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
+    passLabels:
+      facets || !batches[0]
+        ? []
+        : passLabelCandidates(
+            batches[0],
+            lift,
+            {
+              scaleX: axis.scaleX,
+              scaleY: axis.scaleY,
+              translateX: fit.translateX,
+              translateY: fit.translateY,
+            },
+            { width, height },
+          ),
   })
   const toX = (x: number) => (x - fit.translateX) / axis.scaleX
   const toY = (y: number) => (y - fit.translateY) / axis.scaleY
@@ -588,6 +646,7 @@ export function figureData(
     y1: [],
     x2: [],
     y2: [],
+    color: [],
   })
   const pushLabel = (
     kind: LabelRow['kind'],
@@ -595,6 +654,7 @@ export function figureData(
     text: string,
     at: { x: number; y: number },
     leader?: { x1: number; y1: number; x2: number; y2: number },
+    color = '',
   ) => {
     labels.push({
       kind,
@@ -607,6 +667,7 @@ export function figureData(
       y1: leader ? toY(leader.y1) : null,
       x2: leader ? toX(leader.x2) : null,
       y2: leader ? toY(leader.y2) : null,
+      color,
     })
   }
   for (const label of placed.sizes) {
@@ -629,6 +690,16 @@ export function figureData(
       text,
       { x, y: y - LABEL_PX * BASELINE_TO_MIDDLE },
       geneLeader({ x, y }, at, contigThickness),
+    )
+  }
+  for (const { item, x, y, text } of placed.passes) {
+    pushLabel(
+      'pass',
+      item.walk,
+      text,
+      { x, y: y - LABEL_PX * BASELINE_TO_MIDDLE },
+      passLeader({ x, y }, item.at),
+      abgrHex(item.ink),
     )
   }
   for (const { item: halo, x, y, text } of placed.bubbles) {
@@ -654,6 +725,32 @@ export function figureData(
     genePins: pinned,
     unlabelled: placed.unlabelled,
   })
+
+  const passes = columns<PassRow>({
+    walk: [],
+    pass: [],
+    start: [],
+    end: [],
+    text: [],
+    color: [],
+    reversed: [],
+  })
+  const passRuns = columns<PassRunRow>({
+    walk: [],
+    pass: [],
+    start: [],
+    end: [],
+    color: [],
+  })
+  for (const bar of facets ? [] : passBars(lift)) {
+    const walk = labelOf(bar.walk)
+    for (const { ink, ...pass } of bar.passes) {
+      passes.push({ walk, ...pass, color: abgrHex(ink) })
+    }
+    for (const { ink, ...run } of bar.runs) {
+      passRuns.push({ walk, ...run, color: abgrHex(ink) })
+    }
+  }
 
   const startsOf = referenceVisitStarts(graph)
   const positions = referencePositions(graph)
@@ -696,6 +793,8 @@ export function figureData(
     },
     keys: keys.out,
     threadKeys: threadKeys.out,
+    passes: passes.out,
+    passRuns: passRuns.out,
     pins: pins.out,
     exons: exons.out,
     labels: labels.out,

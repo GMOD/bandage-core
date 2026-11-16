@@ -27,6 +27,8 @@ import {
 } from './layout/walkStrip'
 import { nodeInk } from './nodeWidths'
 import { LABEL_CHAR_PX, LABEL_PAD, LABEL_PX } from './overlayLabels'
+import { PASS_BAR_HEIGHT, passBarTree, passBars } from './passBar'
+import { passLabelCandidates, passLeader } from './passLabels'
 import { fitTransform } from './pipeline'
 import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 import { EDGE_DELETION_COLOR } from './renderer/GeometryBuilder'
@@ -367,6 +369,16 @@ export function figureSvg(
         chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
       )
     }
+    for (const { item, x, y, w: cw, text } of labels.passes) {
+      const leader = passLeader({ x, y }, item.at)
+      const passInk = abgrHex(item.ink)
+      out.push(
+        `<line x1="${leader.x1}" x2="${leader.x2}" y1="${leader.y1}" y2="${leader.y2}" stroke="${passInk}" stroke-width="1"/>`,
+        `<circle cx="${item.at.x}" cy="${item.at.y}" r="2" fill="${passInk}"/>`,
+        `<rect x="${x - cw / 2}" y="${y - LABEL_PX - LABEL_PAD + 2}" width="${cw}" height="${LABEL_PX + LABEL_PAD * 2 - 2}" rx="3" fill="#fff" fill-opacity="0.9" stroke="${passInk}"/>`,
+        `<text x="${x}" y="${y}" ${FONT} font-weight="bold" fill="${passInk}" text-anchor="middle">${escapeAttr(text)}</text>`,
+      )
+    }
     for (const label of labels.sizes) {
       const leader = sizeLeader(label)
       if (leader) {
@@ -420,15 +432,17 @@ export function figureSvg(
     )
     if (fit) {
       const axis = axisScaleOf(fit.scale, pixelRows)
+      const batch = geometry(highlight, axis)
+      const t = {
+        scaleX: axis.scaleX,
+        scaleY: axis.scaleY,
+        translateX: fit.translateX,
+        translateY: fit.translateY,
+      }
       return {
         highlight,
-        batch: geometry(highlight, axis),
-        t: {
-          scaleX: axis.scaleX,
-          scaleY: axis.scaleY,
-          translateX: fit.translateX,
-          translateY: fit.translateY,
-        },
+        batch,
+        t,
         labels: layoutLabels({
           paneWidth: w,
           canvasHeight: h,
@@ -446,6 +460,10 @@ export function figureSvg(
           nodeById,
           alleleDeletions: layout.alleleDeletions ?? [],
           positionsVersion: 0,
+          passLabels: passLabelCandidates(batch, highlight, t, {
+            width: w,
+            height: h,
+          }),
         }),
       }
     }
@@ -572,6 +590,14 @@ export function figureSvg(
       `<svg y="${header}" width="${width}" height="${h}">${drawing(v, width, h)}</svg>`,
     )
     height = header + h
+  }
+  for (const bar of facets ? [] : passBars(lift)) {
+    parts.push(
+      `<svg y="${height}" width="${width}" height="${PASS_BAR_HEIGHT}">${serializeEl(
+        passBarTree(bar, labelOf(bar.walk), width),
+      )}</svg>`,
+    )
+    height += PASS_BAR_HEIGHT
   }
   const strip = o.walkStrip
   if (strip && !rows && !layout.tubeMap) {

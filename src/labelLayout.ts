@@ -25,7 +25,8 @@ import type {
   NodeKinds,
   UnlabelledPlaceholders,
 } from './graphLabels'
-import type { Box, PlacedLabel } from './overlayLabels'
+import type { Box, LabelCandidate, PlacedLabel } from './overlayLabels'
+import type { PassLabelItem } from './passLabels'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
@@ -65,6 +66,8 @@ export interface LabelLayoutSource {
   nodeById: NodeKinds | undefined
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
+  // the names of lifted walks' passes: passLabelCandidates
+  passLabels?: LabelCandidate<PassLabelItem>[]
 }
 
 // where a small variant's tick stands, its foot just above its nodes
@@ -78,6 +81,7 @@ export interface LabelLayout {
   bubbles: PlacedLabel<BubbleHalo>[]
   ticks: BubbleTick[]
   genes: PlacedLabel<GenePin>[]
+  passes: PlacedLabel<PassLabelItem>[]
   sizes: GraphLabel[]
   // the placeholders on the pane left without a length, which the key counts
   unlabelled?: UnlabelledPlaceholders
@@ -185,7 +189,7 @@ function byExtent<T>(items: T[], extent: (item: T) => number) {
 // The order is what survives a crowd: a placeholder's length, which has no
 // place but beside its loop and no other words saying how much sequence the
 // loop stands in for; the bubble's name; the gene's, which slides and stacks
-// clear; and any other node's length last.
+// clear; a lifted walk's pass's; and any other node's length last.
 export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   const { paneWidth: width, canvasHeight: height, translateX, translateY } = m
   const { scaleX, scaleY } = m.axisScale
@@ -296,6 +300,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     take,
     reserved,
   )
+  const passes = placeLabels(m.passLabels ?? [], frame, take, reserved)
   const sizes = [
     ...placeholderSizes,
     ...placeSizeLabels(
@@ -308,6 +313,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     bubbles,
     ticks,
     genes,
+    passes,
     sizes,
     unlabelled: unlabelledPlaceholders(
       sizeCandidates,
