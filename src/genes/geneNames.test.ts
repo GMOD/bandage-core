@@ -153,6 +153,18 @@ test('a gene with no symbol is named nowhere, and keeps its outline and its hove
   ])
 })
 
+test('a drawing whose genes all lack a symbol names them anyway', () => {
+  const unnamed = ['LOC105378878', 'ENSG00000289697', 'NR_046018.2'].map(name =>
+    pinOf(name, 'GRCh38#0#chr1', { x: 0, y: 0 }, { onReference: true }),
+  )
+  expect(chips(unnamed)).toEqual([
+    'ENSG00000289697',
+    'LOC105378878',
+    'NR_046018.2',
+  ])
+  expect(chips([...unnamed, reference[0]!])).toEqual(['CFH'])
+})
+
 test('a symbol is any name but an accession standing in for one', () => {
   expect(
     [
