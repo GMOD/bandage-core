@@ -296,3 +296,113 @@ test('loadGraph takes tables as it takes their GFA', () => {
   })
   expect(loadGraph(t, 'cut')).toStrictEqual(loadGraph(graphTablesGFA(t), 'cut'))
 })
+
+// The shape of graph-walks' strand.R cut over its first node: the reference
+// walks >1<2<3>4 and the cut holds its step on 1 alone, while A walks
+// >1>3>2>1 and so brings in 3 and 2, which the tables place on the reference
+function broughtIn(reversed?: number[]) {
+  const t = tables({
+    names: ['1', '2', '3'],
+    stable: [
+      ['R#0#chr', 0, 0],
+      ['R#0#chr', 10, 0],
+      ['R#0#chr', 21, 0],
+    ],
+    links: [
+      [0, 2, 0],
+      [2, 1, 0],
+      [1, 0, 0],
+    ],
+    walks: [
+      { name: 'R#0#chr', start: 0, steps: [[0, false]] },
+      {
+        name: 'A#1#a',
+        start: 0,
+        steps: [
+          [0, false],
+          [2, false],
+          [1, false],
+          [0, false],
+        ],
+      },
+    ],
+  })
+  return reversed
+    ? { ...t, nodes: { ...t.nodes, reversed: Uint8Array.from(reversed) } }
+    : t
+}
+
+const strandsOf = (t: GraphTables) =>
+  graphFromTables(t, 'cut').nodes.map(
+    node => `${node.name}${node.stable?.strand ?? '?'}`,
+  )
+
+test('a node on the reference that no reference walk of the tables steps takes its strand from nodes.reversed', () => {
+  expect(strandsOf(broughtIn([0, 1, 1]))).toEqual(['1+', '2-', '3-'])
+})
+
+test('tables with no nodes.reversed state a strand only where a reference walk steps the node', () => {
+  expect(strandsOf(broughtIn())).toEqual(['1+', '2?', '3?'])
+})
+
+test('nodes.reversed and the reference walk state the same strand wherever both speak', () => {
+  const stepped = tables({
+    names: ['1', '2', '3'],
+    stable: [
+      ['R#0#chr', 0, 0],
+      ['R#0#chr', 10, 0],
+      ['R#0#chr', 21, 0],
+    ],
+    links: [
+      [0, 1, 2],
+      [1, 2, 3],
+    ],
+    walks: [
+      {
+        name: 'R#0#chr',
+        start: 0,
+        steps: [
+          [0, false],
+          [1, true],
+          [2, true],
+        ],
+      },
+    ],
+  })
+  const withColumn = {
+    ...stepped,
+    nodes: { ...stepped.nodes, reversed: Uint8Array.from([0, 1, 1]) },
+  }
+  expect(strandsOf(stepped)).toEqual(['1+', '2-', '3-'])
+  expect(graphFromTables(withColumn, 'cut')).toStrictEqual(
+    graphFromTables(stepped, 'cut'),
+  )
+})
+
+test('a node placed off the reference takes its strand from its walk, whatever nodes.reversed holds for it', () => {
+  const off = tables({
+    names: ['1', '2'],
+    stable: [
+      ['R#0#chr', 0, 0],
+      ['A#1#a', 10, 1],
+    ],
+    links: [[0, 1, 2]],
+    walks: [
+      { name: 'R#0#chr', start: 0, steps: [[0, false]] },
+      {
+        name: 'A#1#a',
+        start: 0,
+        steps: [
+          [0, false],
+          [1, true],
+        ],
+      },
+    ],
+  })
+  const withColumn = {
+    ...off,
+    nodes: { ...off.nodes, reversed: Uint8Array.from([0, 0]) },
+  }
+  expect(strandsOf(off)).toEqual(['1+', '2-'])
+  expect(strandsOf(withColumn)).toEqual(['1+', '2-'])
+})

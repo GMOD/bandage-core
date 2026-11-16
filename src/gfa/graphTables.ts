@@ -48,6 +48,11 @@ export interface GraphTables {
     // how many times the reference's paths pass each node, 0 for a node
     // placed off the reference; absent from tables another source builds
     passes?: Int32Array
+    // 1 where the reference steps the node reversed at `starts`, whether or
+    // not a reference walk of the tables reaches it, 0 where forward and for
+    // a node placed off the reference; absent from tables another source
+    // builds, where a node's strand is its reference walk's step on it
+    reversed?: Uint8Array
     placeholders?: Uint8Array
   }
   links: {
@@ -333,9 +338,11 @@ export function tableNodeIds(
  * The Graph `convertGFAToGraph` builds from `graphTablesGFA(tables)`, deep
  * equal, built by index: a step costs a few array reads and its visit, where
  * the text costs a string and several map lookups. GFA has no line for a
- * departure, a trimmed walk's bp or the source's count of nodes the reference
- * passes more than once, so only this Graph keeps the tables' `departures`,
- * each walk's trimmed bp and `revisited`, and counts into node depth, as each
+ * departure, a trimmed walk's bp, the source's count of nodes the reference
+ * passes more than once or the strand the reference steps a node on where no
+ * walk of the text reaches it, so only this Graph keeps the tables'
+ * `departures`, each walk's trimmed bp, `revisited` and such a node's strand
+ * from `nodes.reversed`, and counts into node depth, as each
  * node's `departureVisits`, and into the walks on links each walk's
  * departures' own steps no fragment of it holds (departures.ts ownStepRuns);
  * the text counts its own walks.
@@ -385,6 +392,12 @@ export function graphFromTables(
   for (let i = 0; i < declared; i++) {
     const ref = n.refs[i]!
     const visits = departureVisits[i]
+    const strand =
+      n.reversed && n.ranks[i] === REFERENCE_RANK
+        ? n.reversed[i] === 1
+          ? '-'
+          : '+'
+        : undefined
     nodes.push({
       id: ids[i]!,
       name: n.names[i]!,
@@ -397,6 +410,7 @@ export function graphFromTables(
               refName: n.refNames[ref]!,
               start: n.starts[i]!,
               rank: n.ranks[i]!,
+              ...(strand ? { strand } : {}),
             },
       samples: undefined,
       ...(n.placeholders?.[i] === 1 ? { placeholder: true as const } : {}),

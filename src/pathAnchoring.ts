@@ -156,9 +156,10 @@ export function stateStrands(nodes: GraphNode[], visits: PathVisits) {
     return p
   }
   for (const node of nodes) {
-    const strand = isAnchored(node)
-      ? statedStrand(node, visits, pathIndex(node.stable.refName))
-      : undefined
+    const strand =
+      isAnchored(node) && node.stable.strand === undefined
+        ? statedStrand(node, visits, pathIndex(node.stable.refName))
+        : undefined
     if (isAnchored(node) && strand) {
       node.stable.strand = strand
     }

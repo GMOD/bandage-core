@@ -6,6 +6,8 @@ import { walkRowRuns, walkRowsOf } from '../layout/walkRowRuns'
 import { walkRows } from '../layout/walkRows'
 import { graphFromTables } from './graphTables'
 
+import type { GraphTables } from './graphTables'
+
 // Walk format 8 files built by test_data/walks8/build.sh from the GFAs beside
 // them, cut by graph-walks 7 as the plugin and BandageJS cut them, on chr1 of
 // the reference the name ends in
@@ -249,4 +251,37 @@ test("a walk file's contig that ends inside the window with no departure reads a
     readout: '1.0 kb',
     row: { complete: true },
   })
+})
+
+// strand.R.gfa, graph-walks' fixture: R walks >1<2<3>4, 10 bp each, and A
+// walks >1>3>2>1. A cut of the first 10 bp holds R's step on 1 alone and A's
+// steps on 3 and 2, which the tables place on the reference
+test('a reference node a haplotype brings into a cut takes the strand the reference steps it on', async () => {
+  const reader = WalkReader.open(
+    'test_data/walks8/strand.R.walks.gz',
+    url => new LocalFile(url),
+  )
+  const tablesOf = async (end: number) => {
+    const { graph, kept, fragments, departures } = await reader.cut(
+      'R#0#chr',
+      { start: 0, end },
+      { context: 0 },
+    )
+    return graph.tables(kept, fragments, departures)
+  }
+  const strands = (tables: GraphTables) =>
+    graphFromTables(tables).nodes.map(
+      node => `${node.name}${node.stable?.strand ?? '?'}`,
+    )
+  const first = await tablesOf(10)
+  expect(Array.from(first.nodes.reversed ?? [])).toEqual([0, 1, 1])
+  expect(strands(first)).toEqual(['1+', '2-', '3-'])
+  const { reversed: _, ...unstated } = first.nodes
+  expect(strands({ ...first, nodes: unstated })).toEqual(['1+', '2?', '3?'])
+  const whole = await tablesOf(40)
+  const { reversed: __, ...walked } = whole.nodes
+  expect(strands(whole)).toEqual(['1+', '2-', '3-', '4+'])
+  expect(graphFromTables(whole)).toStrictEqual(
+    graphFromTables({ ...whole, nodes: walked }),
+  )
 })
