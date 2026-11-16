@@ -571,6 +571,136 @@ describe('a piece attached at one end folds only where the cut holds the rest of
   })
 })
 
+const idOf = (graph: Graph, name: string) =>
+  graph.nodes.find(n => n.name === name)?.id ?? name
+
+describe('the reference is the nodes the cut loaded on it', () => {
+  // p, 5 kb the cut did not load, lies on the reference between r1 and r3
+  // and is drawn 10 units; a1 joins r1 to p, and a skip joins r0 to p over
+  // r1's 1 bp
+  const graph = load([
+    `S\tr0\t${bases(1000)}`,
+    'S\tr1\tC',
+    'S\tp\t*\tLN:i:5000\tnl:i:1',
+    `S\tr3\t${bases(1000)}`,
+    'S\ta1\tT',
+    'L\tr0\t+\tr1\t+\t0M',
+    'L\tr1\t+\tp\t+\t0M',
+    'L\tp\t+\tr3\t+\t0M',
+    'L\tr0\t+\tp\t+\t0M',
+    'L\tr1\t+\ta1\t+\t0M',
+    'L\ta1\t+\tp\t+\t0M',
+    'W\tref\t0\tchr\t0\t7001\t>r0>r1>p>r3',
+    'W\tskip\t1\tchr\t0\t*\t>r0>p>r3',
+    'W\talt\t1\tchr\t0\t*\t>r0>r1>a1>p>r3',
+  ])
+  const positions = {
+    'r0+': at(0, 1000),
+    'r1+': at(1000, 1001),
+    'p+': at(1001, 1011),
+    'r3+': at(1011, 2011),
+    'a1+': at(1001, 1002, 20),
+  }
+
+  test('its px a bp leaves out a reference node the cut did not load', () => {
+    expect(graph.nodes.find(n => n.id === 'p+')?.placeholder).toBe(true)
+    expect(build(graph, positions, 0.5).collapsed?.pxPerBp).toBeCloseTo(0.5, 9)
+  })
+
+  test('a piece or a skip reaching a reference node the cut did not load is drawn', () => {
+    const skipToP = edgeIndex(graph, 'r0+', 'p+')
+    expect(drawingOf(graph).bypassed.has(skipToP)).toBe(true)
+    for (const scale of [0.0001, 0.01]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toEqual([])
+      expect(drawnNodes(batch).has('a1+')).toBe(true)
+      expect(batch.edgeCurveRuns.has(skipToP)).toBe(true)
+    }
+  })
+})
+
+test('a piece joining two reference sequences is drawn', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(
+      [
+        `S\tr1\t${bases(1000)}\tSN:Z:chrA\tSO:i:0\tSR:i:0`,
+        `S\tr3\t${bases(1000)}\tSN:Z:chrB\tSO:i:1000\tSR:i:0`,
+        'S\tx\tT',
+        'L\tr1\t+\tx\t+\t0M',
+        'L\tx\t+\tr3\t+\t0M',
+        'W\th1\t1\tchr\t0\t*\t>r1>x>r3',
+      ].join('\n'),
+    ),
+  )
+  const positions = {
+    'r1+': at(0, 1000),
+    'r3+': at(1001, 2001),
+    'x+': at(1000, 1001, 20),
+  }
+  const batch = build(graph, positions, 0.0001)
+  expect(batch.collapsed?.sites).toEqual([])
+  expect(drawnNodes(batch).has('x+')).toBe(true)
+})
+
+test('a piece whose link onto the reference has no curve, the layout not having placed that reference node, is drawn', () => {
+  const { graph, positions } = snp(1, 1)
+  const { 'r3+': _, ...placed } = positions
+  const batch = build(graph, placed, 0.0001)
+  expect(batch.edgeCurveRuns.has(edgeIndex(graph, 'a1+', 'r3+'))).toBe(false)
+  expect(batch.collapsed?.sites).toEqual([])
+  expect(drawnNodes(batch).has('a1+')).toBe(true)
+})
+
+test("the reference's px a bp is the length its nodes are drawn on screen, whichever way they run and however each axis is scaled", () => {
+  const { graph } = snp(1, 1)
+  const along = (x0: number, y0: number, bp: number) => [
+    { x: x0, y: y0 },
+    { x: x0 + 0.6 * bp, y: y0 + 0.8 * bp },
+  ]
+  const positions = {
+    'r1+': along(0, 0, 1000),
+    'r2+': along(600, 800, 1),
+    'r3+': along(600.6, 800.8, 1000),
+    'a1+': along(620, 800, 1),
+  }
+  const axis = { scaleX: 0.5, scaleY: 0.25 }
+  const batch = build(graph, positions, 1, { axis })
+  expect(batch.collapsed?.pxPerBp).toBeCloseTo(Math.hypot(0.3, 0.2), 9)
+})
+
+test('a piece leaving a reference node the reference reads reversed attaches at the end the reference leaves it by', () => {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    `S\tr2\t${bases(1000)}`,
+    'S\tr3\tC',
+    `S\tr4\t${bases(1000)}`,
+    'S\ta1\tT',
+    'L\tr1\t+\tr2\t-\t0M',
+    'L\tr2\t-\tr3\t+\t0M',
+    'L\tr3\t+\tr4\t+\t0M',
+    'L\tr2\t-\ta1\t+\t0M',
+    'L\ta1\t+\tr4\t+\t0M',
+    'W\tref\t0\tchr\t0\t3001\t>r1<r2>r3>r4',
+    'W\talt\t1\tchr\t0\t*\t>r1<r2>a1>r4',
+  ])
+  const r2 = graph.nodes.find(n => n.name === 'r2')
+  expect(r2?.stable?.strand).toBe('-')
+  const positions = {
+    [idOf(graph, 'r1')]: at(0, 1000),
+    [idOf(graph, 'r2')]: at(1000, 2000),
+    [idOf(graph, 'r3')]: at(2000, 2001),
+    [idOf(graph, 'r4')]: at(2001, 3001),
+    [idOf(graph, 'a1')]: at(2000, 2001, 20),
+  }
+  const [site] = build(graph, positions, 0.01).collapsed?.sites ?? []
+  expect(site).toMatchObject({
+    nodes: [idOf(graph, 'a1')],
+    start: 2000,
+    end: 2001,
+    bp: 2,
+  })
+})
+
 test('a site no shown walk steps is drawn, an allele or a skip', () => {
   const allele = snp(1, 1, [])
   expect(folded(build(allele.graph, allele.positions, 0.01))).toEqual([])
