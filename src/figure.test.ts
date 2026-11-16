@@ -504,7 +504,11 @@ test('by default a figure folds its small sites, draws the allele, and says how 
   expect(drawn).not.toContain('not drawn')
   const key = folded.slice(0, folded.indexOf(line))
   expect(key).not.toMatch(/Tick/)
-  const strokes = (svg: string) => svg.match(/<path /g)?.length ?? 0
+  const strokes = (svg: string) =>
+    svg
+      .match(/ d="[^"]*"/g)
+      ?.join('')
+      .match(/M/g)?.length ?? 0
   expect(strokes(folded)).toBeLessThan(strokes(drawn))
   expect(folded).not.toContain('<line x1="9" x2="9"')
 })

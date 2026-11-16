@@ -6,7 +6,6 @@ import { SMALL_SITE_PX, foldedSites } from './levelOfDetail'
 import { haplotypeCount } from './nodeWidths'
 import { anchorGraph } from './pathAnchoring'
 import { buildGeometry } from './renderer/GeometryBuilder'
-import { drawFoldsAs, foldForms } from './renderer/foldForms'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { baseEdgeCurves } from './util/edgeCurves'
 import { findHoveredEdge, findHoveredNode } from './util/hitDetection'
@@ -927,50 +926,116 @@ test('the heads along a lift follow the fold on one graph, layout and lift', () 
   expect(batch.arrows.filter(a => a.node === 'a1+')).toEqual([])
 })
 
-describe('the forms a drawing meets a folded site in', () => {
-  afterEach(() => {
-    drawFoldsAs({ reference: 'B', lane: 'B', keyLine: 'bp' })
-  })
+describe('the drawing through a folded site', () => {
   const lanesOf = (batch: ReturnType<typeof build>, edge: number) => {
     const run = batch.edgeCurveRuns.get(edge)
     return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
   }
+  const strokesOf = (batch: ReturnType<typeof build>, id: string) => {
+    const run = batch.nodeStrokeRuns.get(id)
+    return run ? batch.nodeStrokes.slice(run.start, run.start + run.count) : []
+  }
 
-  test('the reference and lanes are drawn as before unless asked, and the key states the bp a site folds under', () => {
-    expect(foldForms()).toEqual({ reference: 'B', lane: 'B', keyLine: 'bp' })
-  })
+  // two 1 bp sites side by side, a1 for r2 and b1 for r3, touching at r2's
+  // end, then a third, c1 for r5, with r4 drawn between; r1 is stepped by
+  // four walks, r6 by two, and the rest by fewer, so their thicknesses differ
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    'S\tr2\tC',
+    'S\tr3\tC',
+    `S\tr4\t${bases(30)}`,
+    'S\tr5\tC',
+    `S\tr6\t${bases(1000)}`,
+    'S\ta1\tT',
+    'S\tb1\tT',
+    'S\tc1\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr3\t+\tr4\t+\t0M',
+    'L\tr4\t+\tr5\t+\t0M',
+    'L\tr5\t+\tr6\t+\t0M',
+    'L\tr1\t+\ta1\t+\t0M',
+    'L\ta1\t+\tr3\t+\t0M',
+    'L\tr2\t+\tb1\t+\t0M',
+    'L\tb1\t+\tr4\t+\t0M',
+    'L\tr4\t+\tc1\t+\t0M',
+    'L\tc1\t+\tr6\t+\t0M',
+    'W\tref\t0\tchr\t0\t2033\t>r1>r2>r3>r4>r5>r6',
+    'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r4>c1>r6',
+    'W\tw\t2\tchr\t0\t*\t>r1>r2>b1>r4>r5',
+    'W\tw\t3\tchr\t0\t*\t>r1>r2>r3>r4',
+  ])
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1001, 1002),
+    'r4+': at(1002, 1032),
+    'r5+': at(1032, 1033),
+    'r6+': at(1033, 2033),
+    'a1+': at(1000, 1001, 20),
+    'b1+': at(1001, 1002, -20),
+    'c1+': at(1032, 1033, 20),
+  }
+  const depth = { nodeWidth: 'depth' as const }
+  const thickness = (batch: ReturnType<typeof build>, id: string) =>
+    strokesOf(batch, id)[0]?.thickness
 
-  test("reference 'A' strokes the reference's own links meeting a folded site at its nodes' thickness and colour, 'B' as any link", () => {
-    const { graph, positions } = snp(1, 1)
-    const meeting = [
-      edgeIndex(graph, 'r1+', 'r2+'),
-      edgeIndex(graph, 'r2+', 'r3+'),
-    ]
-    const plain = build(graph, positions, 0.5)
-    expect(folded(plain)).toEqual(['a1+'])
-    expect(plain.collapsed?.bridges).toEqual(new Set(meeting))
-    const reference = plain.nodeStrokes[plain.nodeStrokeRuns.get('r1+')!.start]!
-    for (const edge of meeting) {
-      expect(lanesOf(plain, edge)[0]?.thickness).toBeLessThan(
-        reference.thickness,
+  test('the reference through a run of folded sites is one even stroke at the thinner of the drawn nodes at its outer ends, each node in its own colour', () => {
+    const drawn = build(graph, positions, 0.1, {
+      ...depth,
+      smallSites: 'nodes',
+    })
+    const own = Object.fromEntries(
+      ['r1+', 'r2+', 'r3+', 'r4+', 'r5+', 'r6+'].map(id => [
+        id,
+        thickness(drawn, id),
+      ]),
+    )
+    expect(new Set(Object.values(own)).size).toBeGreaterThan(2)
+    const batch = build(graph, positions, 0.1, depth)
+    expect(folded(batch)).toEqual(['a1+', 'b1+', 'c1+'])
+    const first = Math.min(own['r1+']!, own['r4+']!)
+    const second = Math.min(own['r4+']!, own['r6+']!)
+    expect(thickness(batch, 'r2+')).toBe(first)
+    expect(thickness(batch, 'r3+')).toBe(first)
+    expect(thickness(batch, 'r5+')).toBe(second)
+    for (const id of ['r1+', 'r4+', 'r6+']) {
+      expect(thickness(batch, id)).toBe(own[id])
+    }
+    const links = [
+      ['r1+', 'r2+', first],
+      ['r2+', 'r3+', first],
+      ['r3+', 'r4+', first],
+      ['r4+', 'r5+', second],
+      ['r5+', 'r6+', second],
+    ] as const
+    expect(new Set(batch.collapsed?.bridges.keys())).toEqual(
+      new Set(links.map(([from, to]) => edgeIndex(graph, from, to))),
+    )
+    for (const [from, to, width] of links) {
+      const [link] = lanesOf(batch, edgeIndex(graph, from, to))
+      expect(link?.thickness).toBe(width)
+      expect(link?.color).toBe(strokesOf(batch, from)[0]?.color)
+    }
+    for (const id of ['r2+', 'r3+', 'r5+']) {
+      expect(strokesOf(batch, id)[0]?.color).toBe(
+        strokesOf(drawn, id)[0]?.color,
       )
     }
-    drawFoldsAs({ reference: 'A' })
-    const bridged = build(graph, positions, 0.5)
-    for (const edge of meeting) {
-      expect(lanesOf(bridged, edge)).toMatchObject([
-        { thickness: reference.thickness, color: reference.color },
-      ])
-    }
-    const near = build(graph, positions, 5)
-    expect(near.collapsed?.bridges).toEqual(new Set())
-    expect(lanesOf(near, meeting[0]!)[0]?.thickness).toBeLessThan(
-      reference.thickness,
-    )
   })
 
-  test("reference 'A' strokes a skip from a folded site's attachment as a skip", () => {
-    const graph = load([
+  test('zoomed in past the fold every reference node and link is drawn at its own thickness', () => {
+    const drawn = build(graph, positions, 50, { ...depth, smallSites: 'nodes' })
+    const batch = build(graph, positions, 50, depth)
+    expect(folded(batch)).toEqual([])
+    expect(batch.collapsed?.through.size).toBe(0)
+    expect(batch.collapsed?.bridges.size).toBe(0)
+    expect(batch.nodeStrokes).toEqual(drawn.nodeStrokes)
+    expect(batch.edgeCurves).toEqual(drawn.edgeCurves)
+  })
+
+  test("a skip from a folded site's attachment is stroked as a skip", () => {
+    const skipping = load([
       `S\tr1\t${bases(1000)}`,
       'S\tr2\tC',
       `S\tr3\t${bases(1000)}`,
@@ -986,64 +1051,53 @@ describe('the forms a drawing meets a folded site in', () => {
       'W\talt\t1\tchr\t0\t*\t>r1>a1>r3>r4',
       'W\tdel\t1\tchr\t0\t*\t>r1>r4',
     ])
-    const positions = {
+    const laid = {
       'r1+': at(0, 1000),
       'r2+': at(1000, 1001),
       'r3+': at(1001, 2001),
       'r4+': at(2001, 3001),
       'a1+': at(1000, 1001, 20),
     }
-    const skipEdge = edgeIndex(graph, 'r1+', 'r4+')
-    const before = lanesOf(build(graph, positions, 0.5), skipEdge)
-    drawFoldsAs({ reference: 'A' })
-    const batch = build(graph, positions, 0.5)
+    const skipEdge = edgeIndex(skipping, 'r1+', 'r4+')
+    const before = lanesOf(
+      build(skipping, laid, 0.5, { smallSites: 'nodes' }),
+      skipEdge,
+    )
+    const batch = build(skipping, laid, 0.5)
     expect(folded(batch)).toEqual(['a1+'])
-    expect(batch.collapsed?.bridges).toEqual(
-      new Set([edgeIndex(graph, 'r1+', 'r2+'), edgeIndex(graph, 'r2+', 'r3+')]),
+    expect(new Set(batch.collapsed?.bridges.keys())).toEqual(
+      new Set([
+        edgeIndex(skipping, 'r1+', 'r2+'),
+        edgeIndex(skipping, 'r2+', 'r3+'),
+      ]),
     )
     expect(before.length).toBeGreaterThan(0)
     expect(lanesOf(batch, skipEdge)).toEqual(before)
   })
 
-  test("lane 'A' paints no lane on a folded link, so a lane stops at the site's attachments", () => {
-    const { graph, positions } = snp(1, 1)
-    const highlight = walkLift(graph, [{ walk: 'alt#1#chr' }])
-    const into = edgeIndex(graph, 'r1+', 'a1+')
-    const out = edgeIndex(graph, 'a1+', 'r3+')
-    const across = build(graph, positions, 0.5, { highlight })
-    expect(lanesOf(across, into)).toHaveLength(1)
-    expect(lanesOf(across, out)).toHaveLength(1)
-    drawFoldsAs({ lane: 'A' })
-    const stopped = build(graph, positions, 0.5, { highlight })
-    expect(folded(stopped)).toEqual(['a1+'])
-    expect(stopped.edgeCurveRuns.has(into)).toBe(false)
-    expect(stopped.edgeCurveRuns.has(out)).toBe(false)
-    expect(stopped.nodeStrokeRuns.has('r1+')).toBe(true)
-    expect(stopped.nodeStrokeRuns.has('r2+')).toBe(true)
-    expect(stopped.nodeStrokeRuns.has('r3+')).toBe(true)
-  })
-
-  test("lane 'C' runs every lifted walk crossing a folded site straight between its attachments whichever route it takes, and draws the reference inside it only by those lanes", () => {
-    const { graph, positions } = snp(1, 1)
-    const highlight = walkLift(graph, [
+  test('every lifted walk crossing a folded site runs straight between its attachments whichever route it takes, and the reference inside it is drawn only by those lanes', () => {
+    const { graph: snpGraph, positions: snpAt } = snp(1, 1)
+    const highlight = walkLift(snpGraph, [
       { walk: 'ref#0#chr' },
       { walk: 'alt#1#chr' },
     ])
-    const crossing = build(graph, positions, 0.5, { highlight })
+    const crossing = build(snpGraph, snpAt, 0.5, {
+      highlight,
+      smallSites: 'nodes',
+    })
     expect(crossing.nodeStrokeRuns.has('r2+')).toBe(true)
-    drawFoldsAs({ lane: 'C' })
-    const batch = build(graph, positions, 0.5, { highlight })
+    const batch = build(snpGraph, snpAt, 0.5, { highlight })
     const [site] = batch.collapsed?.sites ?? []
     expect(batch.collapsed?.within).toEqual(new Map([['r2+', site]]))
     expect(batch.nodeStrokeRuns.has('r2+')).toBe(false)
     expect(batch.arrows.filter(a => a.node === 'r2+')).toEqual([])
     const into = [
-      ...lanesOf(batch, edgeIndex(graph, 'r1+', 'r2+')),
-      ...lanesOf(batch, edgeIndex(graph, 'r1+', 'a1+')),
+      ...lanesOf(batch, edgeIndex(snpGraph, 'r1+', 'r2+')),
+      ...lanesOf(batch, edgeIndex(snpGraph, 'r1+', 'a1+')),
     ]
     const out = [
-      ...lanesOf(batch, edgeIndex(graph, 'r2+', 'r3+')),
-      ...lanesOf(batch, edgeIndex(graph, 'a1+', 'r3+')),
+      ...lanesOf(batch, edgeIndex(snpGraph, 'r2+', 'r3+')),
+      ...lanesOf(batch, edgeIndex(snpGraph, 'a1+', 'r3+')),
     ]
     expect(new Set(into.map(l => l.walk))).toEqual(new Set([0, 1]))
     expect(new Set(out.map(l => l.walk))).toEqual(new Set([0, 1]))
@@ -1055,14 +1109,13 @@ describe('the forms a drawing meets a folded site in', () => {
     }
   })
 
-  test("lane 'C' draws a reference node inside a folded site no lifted walk crosses", () => {
-    const { graph, positions } = snp(1, 1, [
+  test('a reference node inside a folded site no lifted walk crosses is drawn, at the even stroke', () => {
+    const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
       'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
       'W\tpart\t1\tchr\t0\t1000\t>r1',
     ])
-    drawFoldsAs({ lane: 'C' })
-    const highlight = walkLift(graph, [{ walk: 'part#1#chr' }])
-    const batch = build(graph, positions, 0.5, { highlight })
+    const highlight = walkLift(snpGraph, [{ walk: 'part#1#chr' }])
+    const batch = build(snpGraph, snpAt, 0.5, { highlight })
     expect(folded(batch)).toEqual(['a1+'])
     expect(batch.nodeStrokeRuns.has('r2+')).toBe(true)
   })

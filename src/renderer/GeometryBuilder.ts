@@ -27,7 +27,6 @@ import {
 import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
-import { foldForms } from './foldForms'
 import { laneHeadPlacer } from './laneHeads'
 import {
   MIN_LANE_STROKE_PX,
@@ -44,7 +43,7 @@ import {
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
-import type { Site, SmallSites } from '../levelOfDetail'
+import type { Run as FoldRun, Site, SmallSites } from '../levelOfDetail'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from '../util/geometry'
@@ -997,7 +996,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           hiddenEdges,
         )
       : NO_FOLD
-  const forms = foldForms()
   const siteAt = new Map<number, Site>()
   for (const site of collapse.sites) {
     for (const edge of site.edges) {
@@ -1005,7 +1003,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
   const crossed = new Set<Site>()
-  if (forms.lane === 'C' && highlight?.walks.length) {
+  if (highlight?.walks.length) {
     graph.edges.forEach(({ from, to }, ei) => {
       const site =
         siteAt.get(ei) ?? collapse.within.get(from) ?? collapse.within.get(to)
@@ -1046,6 +1044,16 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     )
     return node.moved ? fadeAbgr(own, MOVED_ALPHA) : own
   }
+  const widthOf = (node: GraphNode) =>
+    nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
+  const runWidth = (run: FoldRun, alone: GraphNode) =>
+    run.ends.reduce(
+      (least, id) => {
+        const end = nodeById.get(id)
+        return end ? Math.min(least, widthOf(end)) : least
+      },
+      run.ends.some(id => nodeById.has(id)) ? Infinity : widthOf(alone),
+    )
 
   const pathCount = graph.paths?.length ?? 0
   const { pathColorByIndex, pathIndexByName } = pathPaletteOf(graph)
@@ -1379,7 +1387,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           nodeWidth,
           drawPaths,
           collapse,
-          forms,
         ],
         () => {
           const place = laneHeadPlacer(scale, yToX)
@@ -1581,10 +1588,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const fromSite = laneSiteOf(edge.from)
     const toSite = laneSiteOf(edge.to)
     const across = collapsed || !!fromSite || !!toSite
-    const bridge = forms.reference === 'A' && collapse.bridges.has(ei)
+    const bridge = collapse.bridges.get(ei)
     if (
       (laneWalks && !lanesMayShow(baseCurves, edge.from)) ||
-      (collapsed && (!laneWalks || forms.lane === 'A')) ||
+      (collapsed && !laneWalks) ||
       (laneWalks && fromSite && toSite)
     ) {
       continue
@@ -1668,18 +1675,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         arrowOn(baseCurves)
       }
     } else if (!ribbons) {
-      if (inView(baseCurves) && bridge) {
-        const fromNode = nodeById.get(edge.from)
+      const fromNode = nodeById.get(edge.from)
+      if (inView(baseCurves) && bridge && fromNode) {
         stroke(
           baseCurves,
-          (fromNode
-            ? nodeWidthPx(fromNode, contigThickness, nodeWidth, widthScale)
-            : contigThickness) / 2,
+          runWidth(bridge, fromNode) / 2,
           highlight && !onWalk
             ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
-            : fromNode
-              ? nodeInk(fromNode)
-              : edgeColor,
+            : nodeInk(fromNode),
         )
       } else if (inView(baseCurves)) {
         stroke(baseCurves, edgeThickness, edgeColor)
@@ -1747,7 +1750,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const color = faded
       ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
       : nodeInk(node)
-    const width = nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
+    const run = collapse.through.get(nodeId)
+    const width = run
+      ? runWidth(run, node)
+      : nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
     const nodeThickness = width / 2
 
     const start = nodeStrokes.length

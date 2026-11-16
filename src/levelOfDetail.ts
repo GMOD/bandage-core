@@ -54,11 +54,17 @@ export interface Fold {
   edges: ReadonlySet<number>
   siteOf: ReadonlyMap<string, Site>
   pxPerBp: number
-  // the reference's own links, joining two of its nodes where they abut,
-  // that meet a folded site's attachment
-  bridges: ReadonlySet<number>
   // the reference nodes lying between a folded site's attachments
   within: ReadonlyMap<string, Site>
+  // the reference through each run of folded sites that overlap or touch:
+  // its nodes there, and its own links from one end of the run to the other
+  through: ReadonlyMap<string, Run>
+  bridges: ReadonlyMap<number, Run>
+}
+
+// the drawn reference nodes at a run's two outer ends
+export interface Run {
+  ends: string[]
 }
 
 export const NO_FOLD: Fold = {
@@ -67,19 +73,27 @@ export const NO_FOLD: Fold = {
   edges: new Set(),
   siteOf: new Map(),
   pxPerBp: 0,
-  bridges: new Set(),
   within: new Map(),
+  through: new Map(),
+  bridges: new Map(),
 }
 
 interface ReferenceLink {
   edge: number
-  at: string
+  at: number
 }
 
 interface ReferenceSpan {
   id: string
   start: number
   end: number
+}
+
+interface ReferenceSequence {
+  spans: ReferenceSpan[]
+  links: ReferenceLink[]
+  endingAt: Map<number, string[]>
+  startingAt: Map<number, string[]>
 }
 
 const onReference = (node: GraphNode | undefined): node is AnchoredNode =>
@@ -130,6 +144,10 @@ function walksByNode(graph: Graph) {
     }
   }
   return { total: haplotypes.size, byNode, walkNamed }
+}
+
+const listAt = (at: Map<number, string[]>, pos: number, id: string) => {
+  at.set(pos, [...(at.get(pos) ?? []), id])
 }
 
 function unitsOf(
@@ -198,7 +216,7 @@ function unitsOf(
     }
   }
   const skips: Unit[] = []
-  const referenceLinks: ReferenceLink[] = []
+  const referenceLinks = new Map<string, ReferenceLink[]>()
   graph.edges.forEach(({ from, to, fromStrand, toStrand, pathIds }, edge) => {
     const inside = off(from) ? from : off(to) ? to : undefined
     const outsideId = off(from) ? to : from
@@ -232,10 +250,9 @@ function unitsOf(
       fromNode.stable.refName === toNode.stable.refName &&
       leavesAt(fromNode, fromStrand) === arrivesAt(toNode, toStrand)
     ) {
-      referenceLinks.push({
-        edge,
-        at: placeOn(fromNode.stable.refName, leavesAt(fromNode, fromStrand)),
-      })
+      const held = referenceLinks.get(fromNode.stable.refName) ?? []
+      held.push({ edge, at: leavesAt(fromNode, fromStrand) })
+      referenceLinks.set(fromNode.stable.refName, held)
     } else if (
       deletions?.has(edge) &&
       !hiddenEdges?.has(edge) &&
@@ -293,15 +310,34 @@ function unitsOf(
     }
   }
   const backbone = graph.nodes.filter(onReference)
-  const spans = new Map<string, ReferenceSpan[]>()
+  const references = new Map<string, ReferenceSequence>()
+  const referenceOf = (refName: string) => {
+    const known = references.get(refName)
+    const reference = known ?? {
+      spans: [],
+      links: [],
+      endingAt: new Map<number, string[]>(),
+      startingAt: new Map<number, string[]>(),
+    }
+    if (!known) {
+      references.set(refName, reference)
+    }
+    return reference
+  }
   for (const node of backbone) {
     const { refName, start } = node.stable
-    const held = spans.get(refName) ?? []
-    held.push({ id: node.id, start, end: start + node.length })
-    spans.set(refName, held)
+    const reference = referenceOf(refName)
+    const end = start + node.length
+    reference.spans.push({ id: node.id, start, end })
+    listAt(reference.endingAt, end, node.id)
+    listAt(reference.startingAt, start, node.id)
   }
-  for (const held of spans.values()) {
-    held.sort((a, b) => a.start - b.start)
+  for (const [refName, links] of referenceLinks) {
+    referenceOf(refName).links = links
+  }
+  for (const reference of references.values()) {
+    reference.spans.sort((a, b) => a.start - b.start)
+    reference.links.sort((a, b) => a.at - b.at)
   }
   const keyOf = (unit: Unit) => unit.nodes[0] ?? `#${unit.skip}`
   const sorted = units
@@ -321,29 +357,97 @@ function unitsOf(
     total,
     backbone: backbone.map(n => n.id),
     backboneBp: backbone.reduce((sum, n) => sum + n.length, 0),
-    referenceLinks,
-    spans,
+    references,
   }
 }
 
-const placeOn = (refName: string, at: number) => `${refName}:${at}`
-
-function within(sites: readonly Site[], spans: Map<string, ReferenceSpan[]>) {
-  const inside = new Map<string, Site>()
-  for (const site of sites) {
-    const held = spans.get(site.refName) ?? []
-    for (
-      let i = partitionPoint(held.length, k => held[k]!.start < site.start);
-      i < held.length && held[i]!.start < site.end;
-      i++
-    ) {
-      const span = held[i]!
-      if (span.end <= site.end && span.end > span.start) {
-        inside.set(span.id, site)
-      }
+function spansInside(
+  spans: readonly ReferenceSpan[],
+  start: number,
+  end: number,
+) {
+  const inside: ReferenceSpan[] = []
+  for (
+    let i = partitionPoint(spans.length, k => spans[k]!.start < start);
+    i < spans.length && spans[i]!.start < end;
+    i++
+  ) {
+    const span = spans[i]!
+    if (span.end <= end && span.end > span.start) {
+      inside.push(span)
     }
   }
   return inside
+}
+
+function within(
+  sites: readonly Site[],
+  references: Map<string, ReferenceSequence>,
+) {
+  const inside = new Map<string, Site>()
+  for (const site of sites) {
+    const spans = references.get(site.refName)?.spans ?? []
+    for (const span of spansInside(spans, site.start, site.end)) {
+      inside.set(span.id, site)
+    }
+  }
+  return inside
+}
+
+// Folded sites whose spans on the reference overlap or touch make one run,
+// and the reference through it is drawn as one: its nodes between the run's
+// outer attachments and its own links from one to the other
+function through(
+  sites: readonly Site[],
+  references: Map<string, ReferenceSequence>,
+) {
+  const nodes = new Map<string, Run>()
+  const bridges = new Map<number, Run>()
+  const byStart = sites.toSorted((a, b) =>
+    a.refName !== b.refName
+      ? a.refName < b.refName
+        ? -1
+        : 1
+      : a.start - b.start,
+  )
+  let k = 0
+  while (k < byStart.length) {
+    const { refName } = byStart[k]!
+    const { start } = byStart[k]!
+    let { end } = byStart[k]!
+    k++
+    while (
+      k < byStart.length &&
+      byStart[k]!.refName === refName &&
+      byStart[k]!.start <= end
+    ) {
+      end = Math.max(end, byStart[k]!.end)
+      k++
+    }
+    const reference = references.get(refName)
+    if (reference) {
+      const inside = spansInside(reference.spans, start, end)
+      const held = new Set(inside.map(span => span.id))
+      const run = {
+        ends: [
+          ...(reference.endingAt.get(start) ?? []),
+          ...(reference.startingAt.get(end) ?? []),
+        ].filter(id => !held.has(id)),
+      }
+      for (const span of inside) {
+        nodes.set(span.id, run)
+      }
+      const { links } = reference
+      for (
+        let i = partitionPoint(links.length, j => links[j]!.at < start);
+        i < links.length && links[i]!.at <= end;
+        i++
+      ) {
+        bridges.set(links[i]!.edge, run)
+      }
+    }
+  }
+  return { nodes, bridges }
 }
 
 const least = (values: readonly number[]) =>
@@ -407,16 +511,16 @@ function foldOf(
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
 ): Fold {
-  const { units, total, backbone, backboneBp, referenceLinks, spans } =
-    unitsCache(graph, [deletions, hiddenEdges], () =>
-      unitsOf(graph, deletions, hiddenEdges),
-    )
+  const { units, total, backbone, backboneBp, references } = unitsCache(
+    graph,
+    [deletions, hiddenEdges],
+    () => unitsOf(graph, deletions, hiddenEdges),
+  )
   const pxPerBp = referencePxPerBp(backbone, backboneBp, positions, axis)
   const nodes = new Set<string>()
   const edges = new Set<number>()
   const siteOf = new Map<string, Site>()
   const sites: Site[] = []
-  const attached = new Set<string>()
   for (const unit of units) {
     const feet = unit.feet.flatMap(foot => {
       const point = footPoint(curves, foot)
@@ -444,9 +548,6 @@ function foldOf(
         total,
       }
       sites.push(site)
-      for (const at of unit.attachments) {
-        attached.add(placeOn(refName, at))
-      }
       for (const id of unit.nodes) {
         nodes.add(id)
         siteOf.set(id, site)
@@ -456,16 +557,16 @@ function foldOf(
       }
     }
   }
+  const reference = through(sites, references)
   return {
     sites,
     nodes,
     edges,
     siteOf,
     pxPerBp,
-    bridges: new Set(
-      referenceLinks.filter(l => attached.has(l.at)).map(l => l.edge),
-    ),
-    within: within(sites, spans),
+    within: within(sites, references),
+    through: reference.nodes,
+    bridges: reference.bridges,
   }
 }
 

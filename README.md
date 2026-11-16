@@ -176,8 +176,17 @@ reads them.
   a reference node the cut did not load or a second reference sequence; a piece
   holding a departure's steps to or from a place past the cut, whose other end
   the cut does not hold; or anything of no bp. A skip is measured by how far
-  apart on the reference its ends are. A lifted walk's lane runs straight along
-  the reference through a folded site, with no head on what was folded
+  apart on the reference its ends are
+- Folded sites whose spans on the reference overlap or touch make one run, and
+  the reference through a run, its nodes and its own links from one outer
+  attachment to the other, is drawn as one even stroke at the thinner of the two
+  drawn reference nodes at the run's ends, each part in its own position colour;
+  `collapsed.through` and `collapsed.bridges` hold what it covers. A drawn node
+  outside every run keeps its own thickness, so the key's node thickness holds
+  of every node drawn on its own
+- With walks lifted, every lifted walk crossing a folded site, by whatever
+  route, runs one straight lane between the site's attachments, with no head
+  there, and the reference nodes inside the site are drawn only by those lanes
 - The fold depends only on the layout and the scale: zooming in past the
   threshold draws each site again, a pan reuses what the zoom derived, and under
   a steady zoom each node changes state once at most

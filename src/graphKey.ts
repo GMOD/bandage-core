@@ -27,7 +27,6 @@ import {
   skipDashes,
 } from './renderer/GeometryBuilder'
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
-import { foldForms } from './renderer/foldForms'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
 import { encodingStops } from './walkEncoding'
@@ -286,7 +285,7 @@ export function tooSmallText(nodes: number, skips: number, underBp = 0) {
     ...(nodes > 0 ? [counted(nodes, 'node', 'nodes')] : []),
     ...(skips > 0 ? [counted(skips, 'skip', 'skips')] : []),
   ]
-  return underBp > 0 && foldForms().keyLine === 'bp'
+  return underBp > 0
     ? `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`
     : `${parts.join(' and ')} too small to draw`
 }

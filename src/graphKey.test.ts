@@ -16,7 +16,6 @@ import {
   buildGeometry,
   computeReferenceRamp,
 } from './renderer/GeometryBuilder'
-import { drawFoldsAs } from './renderer/foldForms'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { axisScaleOf } from './viewport'
@@ -800,9 +799,6 @@ test('the key says how many nodes and skips are too small to draw, in one line w
   )
   expect(tooSmallText(1, 0, 1)).toBe('1 node under 1 bp not drawn')
   expect(tooSmallText(0, 2, 1250)).toBe('2 skips under 1,250 bp not drawn')
-  drawFoldsAs({ keyLine: 'draw' })
-  expect(tooSmallText(38, 4, 19)).toBe('38 nodes and 4 skips too small to draw')
-  drawFoldsAs({ keyLine: 'bp' })
   const { layout, batch } = drawn(SMALL, smallSites())
   expect(batch.collapsed?.sites.map(s => s.nodes)).toEqual([['a1+'], []])
   for (const { bp } of batch.collapsed?.sites ?? []) {
@@ -845,8 +841,9 @@ const foldOf = (sites: Site[]): Fold => ({
   edges: new Set(sites.flatMap(s => s.edges)),
   siteOf: new Map(),
   pxPerBp: 1,
-  bridges: new Set(),
   within: new Map(),
+  through: new Map(),
+  bridges: new Map(),
 })
 
 test("the key's counts are the folded nodes and skip links, each once, however many sites or panels hold them", () => {
