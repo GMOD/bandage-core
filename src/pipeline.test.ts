@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { departureTable } from './gfa/departures'
-import { drawnLengthFor, layoutScaling } from './layout/drawnScale'
+import { drawnLengthFor, layoutScaling, loopsOf } from './layout/drawnScale'
 import { ASSUMED_FIT } from './layout/fitAssumptions'
 import { layoutEngine } from './layoutEngines'
 import {
@@ -509,6 +509,100 @@ test("under compress a 1 bp node in a run of a loop takes its drawn length's sha
   const heldOf = (id: string) => held.find(n => n.id === id)!.length
   const asked = heldOf('tiny') / heldOf('own')
   expect(drawn('tiny') / drawn('own') / asked).toBeCloseTo(1, 2)
+})
+
+const offReference = (id: string, length: number, start: number) => ({
+  id,
+  name: id,
+  length,
+  depth: 1,
+  stable: { refName: 'chr1', start, rank: 1 },
+})
+
+// looped's reference with its 100 kb run cut into a chain of five, and two
+// nodes off the reference that link only to each other
+function chained(): Graph {
+  const g = looped(true)
+  const chain = ['c0', 'c1', 'c2', 'c3', 'c4']
+  return {
+    ...g,
+    nodes: [
+      ...g.nodes.filter(n => n.id !== 'own'),
+      ...chain.map(id => offReference(id, 20_000, 69_500)),
+      offReference('i0', 3000, 0),
+      offReference('i1', 3000, 0),
+    ],
+    edges: [
+      ...g.edges.filter(e => e.from !== 'own' && e.to !== 'own'),
+      ...['r99', ...chain].map((from, i) => ({
+        from,
+        to: chain[i] ?? 'r100',
+      })),
+      { from: 'i0', to: 'i1' },
+    ],
+  }
+}
+
+const loopIds = (g: Graph) => loopsOf(g).map(loop => loop.map(n => n.id))
+
+test('a loop holds every node off the reference its links reach, along a chain of any length', () => {
+  expect(loopIds(chained())).toContainEqual(['c0', 'c1', 'c2', 'c3', 'c4'])
+})
+
+test('nodes off the reference that no link joins to it are no loop', () => {
+  expect(loopIds(chained()).flat()).not.toContain('i0')
+  expect(loopIds(chained()).flat()).not.toContain('i1')
+})
+
+test("under compress every node of a loop asks the engine for at least the engine's 5-unit minimum", () => {
+  const g = ledByOneBp()
+  const inLoops = new Set(loopIds(g).flat())
+  expect(inLoops.has('tiny')).toBe(true)
+  for (const asked of compressed(g).filter(n => inLoops.has(n.id))) {
+    expect(asked.length).toBeGreaterThanOrEqual(5 * 1000)
+  }
+})
+
+// looped's reference with two loops off it: 99.8 kb in one run, and 22.3 kb
+// that 100 SNP bubbles cut into 301 runs
+function beaded(): Graph {
+  const g = looped(true)
+  const bubbles = 100
+  const piece = Math.floor((22_300 - 2 * bubbles) / (bubbles + 1))
+  const runs = Array.from({ length: bubbles + 1 }, (_, k) => k)
+  return {
+    ...g,
+    nodes: [
+      ...g.nodes.filter(n => n.id !== 'own'),
+      offReference('long', 99_800, 69_500),
+      ...runs.flatMap(k => [
+        offReference(`p${k}`, piece, 19_500),
+        ...(k < bubbles
+          ? [offReference(`s${k}`, 1, 19_500), offReference(`t${k}`, 1, 19_500)]
+          : []),
+      ]),
+    ],
+    edges: [
+      ...g.edges.filter(e => e.from !== 'own' && e.to !== 'own'),
+      { from: 'r99', to: 'long' },
+      { from: 'long', to: 'r100' },
+      { from: 'r39', to: 'p0' },
+      { from: `p${bubbles}`, to: 'r40' },
+      ...runs.slice(0, -1).flatMap(k => [
+        { from: `p${k}`, to: `s${k}` },
+        { from: `p${k}`, to: `t${k}` },
+        { from: `s${k}`, to: `p${k + 1}` },
+        { from: `t${k}`, to: `p${k + 1}` },
+      ]),
+    ],
+  }
+}
+
+test('under compress a 99.8 kb loop of one run asks the engine for more than a 22.3 kb loop that variation cuts into a few hundred runs', () => {
+  const g = beaded()
+  const cut = g.nodes.filter(n => /^[pst]\d/.test(n.id)).map(n => n.id)
+  expect(cut).toHaveLength(301)
+  expect(requestedOf(g, ['long'])).toBeGreaterThan(requestedOf(g, cut))
 })
 
 test('under compress a loop asks the engine for more length the more bp it holds, however many runs it is cut into', () => {
