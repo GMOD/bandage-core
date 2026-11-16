@@ -337,28 +337,83 @@ test('nothing on the reference is folded, nor a link turning the reference back 
   }
 })
 
-test('a piece leaving the reference against its strand attaches where that read of the node ends', () => {
-  const graph = load([
-    `S\tr1\t${bases(1000)}`,
-    'S\tr2\tC',
-    `S\tr3\t${bases(1000)}`,
-    'S\ta1\tT',
-    'L\tr1\t+\tr2\t+\t0M',
-    'L\tr2\t+\tr3\t+\t0M',
-    'L\tr1\t-\ta1\t+\t0M',
-    'L\ta1\t+\tr3\t+\t0M',
-    'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
-    'W\talt\t1\tchr\t0\t*\t<r1>a1>r3',
-  ])
-  const positions = {
-    'r1-': at(0, 1000),
-    'r2+': at(1000, 1001),
-    'r3+': at(1001, 2001),
-    'a1+': at(1000, 1001, 20),
-  }
-  const [site] = build(graph, positions, 0.001).collapsed?.sites ?? []
-  expect(site).toMatchObject({ nodes: ['a1+'], start: 0, end: 1001, bp: 1002 })
-  expect(folded(build(graph, positions, 0.5))).toEqual([])
+describe('a piece that turns strand, touching the same end of the reference nodes it attaches to, is never folded', () => {
+  test('leaving the start of r1, read against its strand, for the start of r3', () => {
+    const graph = load([
+      `S\tr1\t${bases(1000)}`,
+      'S\tr2\tC',
+      `S\tr3\t${bases(1000)}`,
+      'S\ta1\tT',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr1\t-\ta1\t+\t0M',
+      'L\ta1\t+\tr3\t+\t0M',
+      'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+      'W\talt\t1\tchr\t0\t*\t<r1>a1>r3',
+    ])
+    const positions = {
+      'r1-': at(0, 1000),
+      'r2+': at(1000, 1001),
+      'r3+': at(1001, 2001),
+      'a1+': at(1000, 1001, 20),
+    }
+    for (const scale of [0.001, 0.5]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toEqual([])
+      expect(drawnNodes(batch).has('a1+')).toBe(true)
+    }
+  })
+
+  test('leaving the end of r1 and coming back into the end of r1', () => {
+    const graph = load([
+      `S\tr1\t${bases(1000)}`,
+      `S\tr2\t${bases(1000)}`,
+      'S\tx\tT',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr1\t+\tx\t+\t0M',
+      'L\tx\t+\tr1\t-\t0M',
+      'W\tref\t0\tchr\t0\t2000\t>r1>r2',
+      'W\tturn\t1\tchr\t0\t*\t>r1>x<r1',
+    ])
+    const positions = {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 2000),
+      'x+': at(1000, 1001, 20),
+    }
+    for (const scale of [0.5, 0.01]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toEqual([])
+      expect(drawnNodes(batch).has('x+')).toBe(true)
+      expect(batch.edgeCurveRuns.size).toBe(graph.edges.length)
+    }
+  })
+
+  test('leaving the end of r1 and coming into the end of r2', () => {
+    const graph = load([
+      `S\tr1\t${bases(1000)}`,
+      'S\tr2\tC',
+      `S\tr3\t${bases(1000)}`,
+      'S\tx\tT',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr1\t+\tx\t+\t0M',
+      'L\tx\t+\tr2\t-\t0M',
+      'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+      'W\tturn\t1\tchr\t0\t*\t>r1>x<r2',
+    ])
+    const positions = {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1001),
+      'r3+': at(1001, 2001),
+      'x+': at(1000, 1001, 20),
+    }
+    for (const scale of [0.5, 0.01]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toEqual([])
+      expect(drawnNodes(batch).has('x+')).toBe(true)
+      expect(batch.edgeCurveRuns.size).toBe(graph.edges.length)
+    }
+  })
 })
 
 test('a piece with a node the layout did not place is not folded', () => {

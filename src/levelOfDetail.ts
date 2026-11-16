@@ -74,6 +74,12 @@ const leavesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
 const arrivesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
   node.stable.start + (forward(node, strand) ? 0 : node.length)
 
+const endTouched = (
+  node: AnchoredNode,
+  strand: '+' | '-' | undefined,
+  leaving: boolean,
+) => (leaving === forward(node, strand) ? 'end' : 'start')
+
 function walksByNode(graph: Graph) {
   const haplotypes = haplotypeIndex(graph)
   const byName = new Map<string, number>()
@@ -140,7 +146,10 @@ function unitsOf(
       parent.set(find(from), find(to))
     }
   }
-  const components = new Map<string, Unit & { tied: boolean }>()
+  const components = new Map<
+    string,
+    Unit & { tied: boolean; ends: Set<'start' | 'end'> }
+  >()
   const componentOf = (id: string) => {
     const root = find(id)
     const known = components.get(root)
@@ -149,6 +158,7 @@ function unitsOf(
       edges: [],
       feet: [],
       attachments: [],
+      ends: new Set<'start' | 'end'>(),
       refNames: new Set<string>(),
       walks: [],
       bp: 0,
@@ -185,6 +195,11 @@ function unitsOf(
             outsideId === from
               ? leavesAt(outside, fromStrand)
               : arrivesAt(outside, toStrand),
+          )
+          component.ends.add(
+            outsideId === from
+              ? endTouched(outside, fromStrand, true)
+              : endTouched(outside, toStrand, false),
           )
         } else {
           component.tied = true
@@ -227,14 +242,18 @@ function unitsOf(
     }
   })
   const units: Unit[] = [...skips]
-  for (const { tied, ...component } of components.values()) {
+  for (const { tied, ends, ...component } of components.values()) {
     const walks = new Set<number>()
     for (const id of component.nodes) {
       for (const walk of byNode.get(id) ?? []) {
         walks.add(walk)
       }
     }
-    if (!tied && component.feet.length > 0 && walks.size > 0) {
+    if (
+      !tied &&
+      (ends.size === 2 || component.feet.length === 1) &&
+      walks.size > 0
+    ) {
       units.push({
         ...component,
         bp: component.bp + spread(component.attachments),
