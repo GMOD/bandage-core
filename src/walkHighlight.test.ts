@@ -1,5 +1,8 @@
 import { parseGFA } from './gfa-core/index'
+import { departureTable } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
+import { gfaTables } from './gfa/gfaTables'
+import { graphFromTables } from './gfa/graphTables'
 import { anchorGraph } from './pathAnchoring'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
 import {
@@ -465,4 +468,54 @@ test('two links between one pair of nodes each carry the walks that step them', 
     [forward],
     [back],
   ])
+})
+
+// GRCh38 reads 1 2 3; A reads 1, then leaves for 8, which its departure
+// steps reversed, and rejoins at 3. Two links join 1 and 8, and two join 8
+// and 3, one for each way 8 can be read; the graph holds 8- 3+ as 3- 8+
+function reversedDeparture() {
+  const t = gfaTables(
+    [
+      'H\tVN:Z:1.1',
+      ...[1, 2, 3, 8].map(id => `S\t${id}\t*\tLN:i:1000`),
+      'L\t1\t+\t2\t+\t0M',
+      'L\t2\t+\t3\t+\t0M',
+      'L\t1\t+\t8\t+\t0M',
+      'L\t1\t+\t8\t-\t0M',
+      'L\t8\t+\t3\t+\t0M',
+      'L\t8\t-\t3\t+\t0M',
+      'W\tGRCh38\t0\tchr1\t0\t3000\t>1>2>3',
+      'W\tA\t1\ta\t0\t1000\t>1',
+      'W\tA\t1\ta\t2000\t3000\t>3',
+    ].join('\n'),
+  )!
+  return graphFromTables({
+    ...t,
+    departures: departureTable(),
+    gaps: {
+      names: ['A#1#a'],
+      walks: Int32Array.of(1),
+      edges: Uint8Array.of(0),
+      starts: Float64Array.of(1000),
+      ends: Float64Array.of(2000),
+      segmentOffsets: Int32Array.of(0, 1),
+      segments: {
+        kinds: Uint8Array.of(0),
+        bp: Float64Array.of(1000),
+        missingBp: Float64Array.of(0),
+        before: Float64Array.of(NaN),
+        after: Float64Array.of(NaN),
+        stepOffsets: Int32Array.of(0, 1),
+        steps: Int32Array.of(t.nodes.names.indexOf('8')),
+        reversed: Uint8Array.of(1),
+      },
+    },
+  })
+}
+
+test("a lifted walk's departure takes the links its steps read their nodes on, where another link joins the same nodes the other way", () => {
+  const departed = reversedDeparture()
+  expect(
+    linksOf(departed, walkHighlight(departed, 'A#1#a')!.edgeIndexes),
+  ).toEqual(['1+ 8-', '3- 8+'])
 })
