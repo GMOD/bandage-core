@@ -149,7 +149,8 @@ reads them.
   changes it smoothly. `followTransform` then only translates: the reference in
   the window lies where the window puts its bp across the pane, as nearly as a
   rigid drawing can in the least-squares sense over the bp the window holds,
-  moved no further than keeps the window's stretch inside the pane. A pan is a
+  moved no further than keeps the window's stretch inside the pane's edges
+  (not its padding, so the slide is even wherever it fits). A pan is a
   pure slide, a zoom magnifies about the window's reference, and a window is
   drawn no wider than the pane
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and

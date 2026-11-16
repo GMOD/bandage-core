@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { gunzipSync } from 'node:zlib'
+
 import { cutScale, followTransform, referenceProfile } from './pipeline'
 
 import type { ReferenceProfile } from './pipeline'
@@ -187,7 +191,7 @@ test('a window narrower than the widest is drawn narrower than the pane, and non
   }
 })
 
-test("a window's stretch is kept inside the pane where the least-squares place would put some of it past an edge", () => {
+test("a window's stretch is kept inside the pane where the least-squares place would put some of it past the pane's edge", () => {
   const scale = scaleOf(windingProfile, { start: 0, end: 10_000 }, 4_000)
   for (let start = 0; start <= 6_000; start += 250) {
     const window = { start, end: start + 4_000 }
@@ -202,12 +206,8 @@ test("a window's stretch is kept inside the pane where the least-squares place w
       x0 = Math.min(x0, x)
       x1 = Math.max(x1, x)
     }
-    expect(x0 * scale + t.translateX).toBeGreaterThanOrEqual(
-      PADS.padLeft - 1e-6,
-    )
-    expect(x1 * scale + t.translateX).toBeLessThanOrEqual(
-      PANE.width - PADS.padRight + 1e-6,
-    )
+    expect(x0 * scale + t.translateX).toBeGreaterThanOrEqual(-1e-6)
+    expect(x1 * scale + t.translateX).toBeLessThanOrEqual(PANE.width + 1e-6)
   }
 })
 
@@ -245,3 +245,134 @@ test('no reference in the window, or no room, places nothing', () => {
     ),
   ).toBeUndefined()
 })
+
+// Reference profiles FMMM drew for real snapped cuts, each the cut a review
+// found the drawing jumping most on in a pan when the window was kept inside
+// the padding: the pieces the windows of a pan at the locus's own width reach,
+// with the cut's scale at that width in a 1400 by 300 track
+interface PanFixture {
+  cut: [number, number]
+  viewSpan: number
+  level: number
+  scale: number
+  pieces: number[]
+}
+
+function panFixture(name: string) {
+  const fixture = JSON.parse(
+    gunzipSync(
+      readFileSync(join(__dirname, '../test_data/follow', name)),
+    ).toString(),
+  ) as PanFixture
+  const pieces = Array.from(
+    { length: fixture.pieces.length / 4 },
+    (_, i) => {
+      const [bp0 = 0, bp1 = 0, x0 = 0, x1 = 0] = fixture.pieces.slice(
+        4 * i,
+        4 * i + 4,
+      )
+      return { bp0, bp1, x0, x1 }
+    },
+  )
+  const ends = pieces
+    .flatMap(p => [
+      { bp: p.bp0, x: p.x0 },
+      { bp: p.bp1, x: p.x1 },
+    ])
+    .sort((p, q) => p.bp - q.bp)
+  return { ...fixture, profile: { pieces, ends } }
+}
+
+// how far the drawn reference runs in x over the bp from `from` to `to`,
+// counting where it jumps from one piece to the next
+function drawnRun(
+  pieces: ReferenceProfile['pieces'],
+  from: number,
+  to: number,
+) {
+  let run = 0
+  pieces.forEach((q, i) => {
+    const lo = Math.max(from, q.bp0)
+    const hi = Math.min(to, q.bp1)
+    const p = pieces[i - 1]
+    if (hi > lo) {
+      run += (Math.abs(q.x1 - q.x0) * (hi - lo)) / (q.bp1 - q.bp0)
+    }
+    if (p && p.bp1 <= to && q.bp0 >= from) {
+      run += Math.abs(q.x0 - p.x1)
+    }
+  })
+  return run
+}
+
+function stretchOf(
+  pieces: ReferenceProfile['pieces'],
+  window: { start: number; end: number },
+) {
+  let x0 = Infinity
+  let x1 = -Infinity
+  for (const p of pieces) {
+    const lo = Math.max(window.start, p.bp0)
+    const hi = Math.min(window.end, p.bp1)
+    if (hi > lo) {
+      for (const bp of [lo, hi]) {
+        const x = p.x0 + ((p.x1 - p.x0) * (bp - p.bp0)) / (p.bp1 - p.bp0)
+        x0 = Math.min(x0, x)
+        x1 = Math.max(x1, x)
+      }
+    }
+  }
+  return { x0, x1 }
+}
+
+const TRACK = { width: 1400, height: 300 }
+
+test.each([
+  'pggbY.9256605.json.gz',
+  'gap571.27851264.json.gz',
+  'plain.115394758.json.gz',
+  'c4.32044767.json.gz',
+  'gstm1.109631102.json.gz',
+])(
+  "a pan a ruler pixel at a time moves the drawing at most a pixel, unless it holds the window's stretch at the pane's edge, and then no further than the drawn reference runs at the window's ends, on %s",
+  name => {
+    const { cut, viewSpan, level, scale, profile } = panFixture(name)
+    const centre = (cut[0] + cut[1]) / 2
+    const step = viewSpan / TRACK.width
+    const atEdge = (window: { start: number; end: number }, x: number) => {
+      const { x0, x1 } = stretchOf(profile.pieces, window)
+      return (
+        Math.abs(x0 * scale + x) < 1e-6 ||
+        Math.abs(x1 * scale + x - TRACK.width) < 1e-6
+      )
+    }
+    let before: { start: number; end: number; x: number } | undefined
+    let steps = 0
+    for (let c = centre - level / 4; c < centre + level / 4; c += step) {
+      const window = { start: c - viewSpan / 2, end: c + viewSpan / 2 }
+      const { translateX } = defined(
+        followTransform(
+          profile,
+          window,
+          scale,
+          flat,
+          TRACK.width,
+          TRACK.height,
+          PADS,
+        ),
+      )
+      if (before) {
+        const held = atEdge(before, before.x) || atEdge(window, translateX)
+        const run =
+          drawnRun(profile.pieces, before.start, window.start) +
+          drawnRun(profile.pieces, before.end, window.end)
+        expect(Math.abs(translateX - before.x)).toBeLessThanOrEqual(
+          held ? 1 + scale * run : 1,
+        )
+        steps++
+      }
+      before = { ...window, x: translateX }
+    }
+    expect(steps).toBeGreaterThan(300)
+  },
+)

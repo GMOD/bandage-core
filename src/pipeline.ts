@@ -671,8 +671,8 @@ export function followTransform(
     }
   }
   const inside = (tx: number) => {
-    const lower = padLeft - scale * x0
-    const upper = paneWidth - padRight - scale * x1
+    const lower = -scale * x0
+    const upper = paneWidth - scale * x1
     return lower <= upper
       ? Math.min(upper, Math.max(lower, tx))
       : (lower + upper) / 2
