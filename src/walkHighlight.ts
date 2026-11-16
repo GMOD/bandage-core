@@ -4,8 +4,14 @@ import { linkKey } from './gfa/linkKey'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
+import { abgrHex } from './renderer/colorBits'
 import { ownStrand } from './util/geometry'
-import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
+import {
+  encodedColor,
+  encodingStops,
+  resolveEncoding,
+  splitFamilies,
+} from './walkEncoding'
 import { liftedPasses, passInk, walkPassesOf } from './walkPasses'
 
 import type { GraphGap } from './gfa/departures'
@@ -438,6 +444,8 @@ function laneColors(
   encoding: WalkEncoding,
   ramp: ReferenceRamp | undefined,
   layer: WalkLayer | undefined,
+  lanes: readonly string[] = [],
+  taken: readonly string[] = [],
 ) {
   const places =
     encoding.field !== 'reference' || !ramp
@@ -449,6 +457,8 @@ function laneColors(
           walkPassesOf(walk, id => byId.get(id)?.length ?? 0, layer?.passes),
           encodedColor(encoding),
           layer?.passNames,
+          lanes,
+          taken,
         )
       : undefined
   const colors = new Map<string, number>()
@@ -547,13 +557,26 @@ export function walkLift(
       ),
     ),
   )
-  const walks = lifted.map(({ walk }, i) => {
+  const laneInks = encodings.map(encoding =>
+    encodingStops(encoding).map(stop => abgrHex(stop.abgr)),
+  )
+  const taken: string[] = []
+  const walks = lifted.map(({ walk, layer }, i) => {
     const encoding = encodings[i]!
-    return {
-      ...walk,
+    const colored = laneColors(
+      graph,
+      index.byId,
+      walk,
       encoding,
-      ...laneColors(graph, index.byId, walk, encoding, ramp, lifted[i]!.layer),
+      ramp,
+      layer,
+      laneInks.filter((_, j) => j !== i).flat(),
+      taken,
+    )
+    for (const ink of colored.walkPasses?.inks ?? []) {
+      taken.push(abgrHex(ink))
     }
+    return { ...walk, encoding, ...colored }
   })
   return liftOf(walks, ramp)
 }

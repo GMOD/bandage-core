@@ -195,15 +195,22 @@ export interface LiftedPasses extends WalkPasses {
   ownInk: number
 }
 
+// `lanes` are the other lifted walks' lane colours and `taken` the pass
+// colours of the walks lifted before this one, as hex
 export function liftedPasses(
   found: WalkPasses,
   ownInk: number,
   names: readonly string[] = [],
+  lanes: readonly string[] = [],
+  taken: readonly string[] = [],
 ): LiftedPasses {
   const { passes, bundled } = found
-  const inks = passPalette(abgrHex(ownInk), bundled ? 1 : passes.length).map(
-    hexAbgr,
-  )
+  const inks = passPalette(
+    abgrHex(ownInk),
+    bundled ? 1 : passes.length,
+    lanes,
+    taken,
+  ).map(hexAbgr)
   const labels = bundled
     ? [`${passes.length} passes`]
     : passes.map((_, i) => names[i] ?? `pass ${i + 1}`)

@@ -280,7 +280,7 @@ export function encodingSwatchCss(encoding: WalkEncoding) {
 
 // Colours a pass may take, in the order passes take them: Okabe and Ito's,
 // then Tol's
-const PASS_HUES = [
+export const PASS_HUES = [
   '#D55E00',
   '#0072B2',
   '#009E73',
@@ -293,35 +293,73 @@ const PASS_HUES = [
   '#44AA99',
   '#CCBB44',
   '#AA3377',
+  '#117733',
+  '#DDCC77',
+  '#CC6677',
+  '#AA4499',
+  '#88CCEE',
+  '#EE6677',
+  '#228833',
+  '#4477AA',
+  '#66CCEE',
+  '#EE8866',
+  '#EEDD88',
+  '#FFAABB',
+  '#99DDFF',
+  '#44BB99',
+  '#BBCC33',
+  '#AAAA00',
+  '#EE7733',
+  '#0077BB',
+  '#33BBEE',
+  '#EE3377',
+  '#CC3311',
+  '#009988',
+  '#661100',
+  '#6699CC',
+  '#994455',
+  '#997700',
+  '#EECC66',
+  '#004488',
 ]
 
-// how far apart in OKLab a pass's colour stands from its walk's own, and from
-// the walk's other passes'
+// How far apart in OKLab a pass's colour stands from every lifted walk's lane
+// colours, a ramp's at each of its stops, and from every pass colour taken
+// before it, its own walk's or an earlier walk's
 export const PASS_FROM_WALK = 0.17
-export const PASS_FROM_PASS = 0.12
+export const PASS_FROM_PASS = 0.18
 
-const oklabGap = (a: string, b: string) => {
+export const oklabGap = (a: string, b: string) => {
   const p = oklab(a)
   const q = oklab(b)
   return Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!)
 }
 
-// The colours of a walk's passes, `count` of them, none near the walk's own
-// colour, which its lane keeps off its passes: the first hues clear of it and
-// of each other, then the hues furthest from it
-export function passPalette(own: string, count: number) {
+const nearestGap = (hue: string, colours: readonly string[]) =>
+  colours.reduce((least, c) => Math.min(least, oklabGap(hue, c)), Infinity)
+
+// The colours of a walk's passes, `count` of them: each the first hue in
+// PASS_HUES that keeps both distances, or where none does the hue that breaks
+// them least
+export function passPalette(
+  own: string,
+  count: number,
+  lanes: readonly string[] = [],
+  taken: readonly string[] = [],
+) {
+  const walks = [own].concat(lanes)
   const picked: string[] = []
-  for (const hue of PASS_HUES) {
-    if (
-      picked.length < count &&
-      oklabGap(hue, own) >= PASS_FROM_WALK &&
-      picked.every(p => oklabGap(p, hue) >= PASS_FROM_PASS)
-    ) {
-      picked.push(hue)
-    }
+  const slack = (hue: string) =>
+    Math.min(
+      nearestGap(hue, walks) - PASS_FROM_WALK,
+      nearestGap(hue, taken.concat(picked)) - PASS_FROM_PASS,
+    )
+  while (picked.length < Math.min(count, PASS_HUES.length)) {
+    const open = PASS_HUES.filter(hue => !picked.includes(hue))
+    picked.push(
+      open.find(hue => slack(hue) >= 0) ??
+        open.reduce((most, hue) => (slack(hue) > slack(most) ? hue : most)),
+    )
   }
-  const rest = PASS_HUES.filter(hue => !picked.includes(hue)).sort(
-    (a, b) => oklabGap(b, own) - oklabGap(a, own),
-  )
-  return picked.concat(rest).slice(0, count)
+  return picked
 }

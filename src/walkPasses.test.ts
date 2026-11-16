@@ -6,7 +6,10 @@ import { threadsPasses } from './renderer/walkLanes'
 import {
   PASS_FROM_PASS,
   PASS_FROM_WALK,
+  PASS_HUES,
   WALK_SCHEMES,
+  encodingStops,
+  oklabGap,
   passPalette,
   schemeColor,
 } from './walkEncoding'
@@ -18,6 +21,7 @@ import {
   walkPassesOf,
 } from './walkPasses'
 
+import type { WalkLayer } from './walkEncoding'
 import type { WalkHighlight } from './walkHighlight'
 import type { WalkPasses } from './walkPasses'
 
@@ -227,17 +231,90 @@ test('past MOST_PASS_THREADS passes a walk bundles them', () => {
   expect(passesFor(MOST_PASS_THREADS + 1).bundled).toBe(true)
 })
 
-test("a walk's pass colours stand clear of its own colour and of each other", () => {
-  for (const { value } of WALK_SCHEMES) {
+// every pair of the colours apart by at least `gap` in OKLab
+const apart = (
+  colours: readonly string[],
+  from: readonly string[],
+  gap: number,
+) =>
+  colours.flatMap(c =>
+    from.filter(f => f !== c && oklabGap(c, f) < gap).map(f => `${c} ${f}`),
+  )
+
+test("a walk's pass colours keep PASS_FROM_WALK from its own colour and PASS_FROM_PASS from each other, on every family and shade a lane takes", () => {
+  for (const { value } of WALK_SCHEMES.filter(s => s.value !== 'rainbow')) {
     for (const t of [0.2, 0.5, 0.85]) {
-      const hex = abgrHex(schemeColor(value, t))
-      const palette = passPalette(hex, MOST_PASS_THREADS)
+      const own = abgrHex(schemeColor(value, t))
+      const palette = passPalette(own, MOST_PASS_THREADS)
       expect(palette).toHaveLength(MOST_PASS_THREADS)
-      expect(new Set(palette).size).toBe(MOST_PASS_THREADS)
-      expect(palette[0]).not.toBe(hex)
+      expect(apart(palette, [own], PASS_FROM_WALK)).toEqual([])
+      expect(apart(palette, palette, PASS_FROM_PASS)).toEqual([])
     }
   }
-  expect(PASS_FROM_WALK).toBeGreaterThan(PASS_FROM_PASS)
+  expect(oklabGap('#D55E00', '#E69F00')).toBeLessThan(PASS_FROM_PASS)
+})
+
+function liftedTogether(layers: WalkLayer[]) {
+  const graph = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        [
+          SEGMENTS,
+          `W\thap\t1\tctg\t0\t*\t>f1${'>a>b>c>d'.repeat(6)}>f2`,
+          `W\tsib\t2\tctg\t0\t*\t>f1${'>a>b>c>d'.repeat(3)}>f2`,
+          `W\tkin\t3\tctg\t0\t*\t>f1${'>a>b>c>d'.repeat(3)}>f2`,
+        ].join('\n'),
+      ),
+    ),
+    'ref',
+  )
+  const lift = walkLift(graph, layers)!
+  const inksOf = (name: string) =>
+    lift.walks.find(w => w.name === name)?.walkPasses?.inks.map(abgrHex) ?? []
+  const lanesBut = (name: string) =>
+    lift.walks
+      .filter(w => w.name !== name)
+      .flatMap(w => encodingStops(w.encoding).map(s => abgrHex(s.abgr)))
+  return { inksOf, lanesBut }
+}
+
+test("a walk's pass colours keep PASS_FROM_WALK from every other lifted walk's lane colour", () => {
+  const { inksOf, lanesBut } = liftedTogether([
+    { walk: 'ref#0#chr' },
+    { walk: HAP, color: { field: 'pass' } },
+    { walk: 'kin#3#ctg' },
+  ])
+  expect(inksOf(HAP)).toHaveLength(MOST_PASS_THREADS)
+  expect(apart(inksOf(HAP), lanesBut(HAP), PASS_FROM_WALK)).toEqual([])
+})
+
+test('two walks coloured by pass take pass colours PASS_FROM_PASS apart, and each keeps PASS_FROM_WALK from the lanes of the rest', () => {
+  const { inksOf, lanesBut } = liftedTogether([
+    { walk: 'ref#0#chr' },
+    { walk: 'sib#2#ctg', color: { field: 'pass' } },
+    { walk: 'kin#3#ctg', color: { field: 'pass' } },
+  ])
+  const first = inksOf('sib#2#ctg')
+  const second = inksOf('kin#3#ctg')
+  expect([first.length, second.length]).toEqual([3, 3])
+  expect(apart(first, lanesBut('sib#2#ctg'), PASS_FROM_WALK)).toEqual([])
+  expect(apart(second, lanesBut('kin#3#ctg'), PASS_FROM_WALK)).toEqual([])
+  expect(
+    apart(second.concat(first), second.concat(first), PASS_FROM_PASS),
+  ).toEqual([])
+})
+
+test('where no hue left keeps both distances, a pass takes the one that breaks them least', () => {
+  const own = '#808080'
+  const crowd = PASS_HUES.slice(2)
+  const [picked] = passPalette(own, 1, crowd)
+  const slack = (hue: string) =>
+    Math.min(...[own, ...crowd].map(c => oklabGap(hue, c) - PASS_FROM_WALK))
+  const best = PASS_HUES.reduce((most, hue) =>
+    slack(hue) > slack(most) ? hue : most,
+  )
+  expect(slack(best)).toBeLessThan(0)
+  expect(picked).toBe(best)
 })
 
 test('a walk lifted alone and coloured by pass threads, each visit in its pass colour and the rest in its own', () => {
@@ -261,10 +338,8 @@ test('passes take the names a layer gives them, and a reversed pass is marked in
   ])!
   const drawn = lift.walks[0]!.walkPasses!
   expect(drawn.labels).toEqual(['copy A', 'pass 2'])
-  expect(drawn.passes.map(p => [p.reversed, p.againBp, p.reversedBp])).toEqual(
-    [
-      [false, 0, 0],
-      [true, 16, 16],
-    ],
-  )
+  expect(drawn.passes.map(p => [p.reversed, p.againBp, p.reversedBp])).toEqual([
+    [false, 0, 0],
+    [true, 16, 16],
+  ])
 })

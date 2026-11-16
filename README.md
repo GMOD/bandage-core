@@ -172,6 +172,12 @@ it is on, so the trips round the repeat can be followed one by one.
   is one small shared node is not taken for a copy. Past six they share one
   colour and one count; where the band is too thin to keep the threads apart
   they fuse into one band
+- A pass's colour is the first of Okabe and Ito's, then Tol's, that stands at
+  least `PASS_FROM_WALK` in OKLab from every lifted walk's lane colours, a
+  ramp's at each stop, and at least `PASS_FROM_PASS` from every pass colour
+  taken before it, its own walk's or an earlier walk's. Where no colour left
+  keeps both, as with several walks coloured by pass lifted together, it takes
+  the one that breaks them least
 - Each pass is named on the graph through `layoutLabels`, keyed in `graphKey`,
   and shown along a bar of the haplotype's own length (`passBars`,
   `passBarTree`) that colours only the stretches the walk steps again, under a
