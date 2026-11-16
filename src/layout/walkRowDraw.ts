@@ -1,4 +1,5 @@
 import { el, elOf } from '../el'
+import { nameable } from '../genes/geneNames'
 import {
   FROM_ELSEWHERE_TEXT,
   GAP_CAUSE_TEXT,
@@ -824,7 +825,10 @@ export function rowGeneBoxes(
       w: Math.max(2, X(g.end) - x),
     }
   })
-  const narrowestFirst = [...boxes].sort((a, b) => a.w - b.w)
+  const lettered = new Set(nameable(genes, g => g.name))
+  const narrowestFirst = boxes
+    .filter(box => lettered.has(box.g))
+    .sort((a, b) => a.w - b.w)
   const taken: [number, number][] = []
   const named = new Set(
     (barPx >= MIN_LETTERED_BAR_PX ? narrowestFirst : []).filter(

@@ -91,8 +91,9 @@ export interface LabelLayout {
   unlabelled?: UnlabelledPlaceholders
 }
 
-// How much of a gene the cut's backbone carries, when that is not all of it,
-// in the unit of the gene's length: `35 of 132.8 kb`
+// How much of a gene the drawing holds, when that is not all of it, in the
+// unit of the gene's length: `35 of 132.8 kb`. On the reference that is the
+// drawn backbone's share, on a haplotype's own contig its walk records' share
 export function geneCoverageNote(pin: GenePin) {
   const length = pin.gene.end - pin.gene.start
   if (pin.covered >= 0.98) {

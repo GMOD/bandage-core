@@ -140,6 +140,33 @@ test('shorter genes take their name room first', () => {
   ])
 })
 
+test("a row's gene with no symbol keeps its box and no name, unless none of the row's genes has one", () => {
+  const X = (bp: number) => bp * 2
+  const lettered = (names: string[]) =>
+    rowGeneBoxes(
+      names.map((name, i) => ({
+        name,
+        start: i * 200,
+        end: i * 200 + 150,
+        exons: [],
+      })),
+      X,
+      50,
+      { namesAbove: 2000 },
+    ).map(box => [box.name, !!box.label])
+  expect(
+    lettered(['AMY1A', 'LOC105378878', 'ENSG00000289697.1_PAR_Y']),
+  ).toEqual([
+    ['AMY1A', true],
+    ['LOC105378878', false],
+    ['ENSG00000289697.1_PAR_Y', false],
+  ])
+  expect(lettered(['LOC105378878', 'NR_046018.2'])).toEqual([
+    ['LOC105378878', true],
+    ['NR_046018.2', true],
+  ])
+})
+
 // Narrowed beside the key at amylase, the reference row's boxes for AMY2A,
 // AMY1A, AMY1B and AMY1C were too small for their names, which went missing
 test('a name too long for its box on the reference row goes above it, with a leader down to the box', () => {

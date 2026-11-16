@@ -179,8 +179,14 @@ test('a symbol is any name but an accession standing in for one', () => {
       'LOC105378878',
       'NR_046018.2',
       'chr1:1001-2000',
+      '',
+      ' ',
+      'gene-LOC105378878',
+      'ENSG00000289697.1_PAR_Y',
+      'LOC100130417.1',
+      'gene-CFH',
     ].filter(hasGeneSymbol),
-  ).toEqual(['CFH', 'AMY1A', 'C4orf33', 'HLA-DRB1', 'MIR4632'])
+  ).toEqual(['CFH', 'AMY1A', 'C4orf33', 'HLA-DRB1', 'MIR4632', 'gene-CFH'])
 })
 
 // GRCh38 over 0-2000; a haplotype's walk of 2100 bp from 4500 on its contig,

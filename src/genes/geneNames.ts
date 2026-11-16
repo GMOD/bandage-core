@@ -4,14 +4,23 @@ import { pathOrigin } from '../pathAnchoring'
 import type { GenePin } from './genePins'
 
 // An identifier standing in where a gene has no symbol: an Ensembl stable id
-// (ENSG00000289697, ENSMUSG…, with or without its version), NCBI's LOC and
-// RefSeq accessions (LOC105378878, NR_046018), or the `chr1:101-200` a BED
-// row with no name is given
+// (ENSG00000289697, ENSMUSG…, with or without its version, and the _PAR_Y of
+// a copy on Y's pseudoautosomal regions), NCBI's LOC and RefSeq accessions
+// (LOC105378878, NR_046018), with or without a version, each with or without
+// the `gene-` a GFF3 ID puts before it, or the `chr1:101-200` a BED row with
+// no name is given
 const ACCESSION =
-  /^(?:ENS[A-Z]*[GT]\d{6,}(?:\.\d+)?|LOC\d+|[NX][MR]_\d+(?:\.\d+)?|\S+:\d+-\d+)$/
+  /^(?:gene-)?(?:ENS[A-Z]*[GT]\d{6,}(?:\.\d+)?(?:_PAR_Y)?|LOC\d+(?:\.\d+)?|[NX][MR]_\d+(?:\.\d+)?|\S+:\d+-\d+)$/
 
 export function hasGeneSymbol(name: string) {
-  return !ACCESSION.test(name)
+  return name.trim() !== '' && !ACCESSION.test(name)
+}
+
+// The ones a drawing may name: those with a symbol, or every one where none
+// has
+export function nameable<T>(items: readonly T[], nameOf: (item: T) => string) {
+  const symbolled = items.filter(item => hasGeneSymbol(nameOf(item)))
+  return symbolled.length > 0 ? symbolled : items
 }
 
 export interface NamedGenePin {
@@ -58,17 +67,16 @@ export function namedGenePins(
   liftedWalks: readonly string[] = [],
 ) {
   const lifted = new Set(liftedWalks.map(name => pathOrigin(name).name))
-  const symbolled = pins.filter(pin => hasGeneSymbol(pin.gene.name))
-  const nameable = symbolled.length > 0 ? symbolled : pins
+  const named = nameable(pins, pin => pin.gene.name)
   const onLift = (pin: GenePin) =>
     !pin.onReference && lifted.has(pin.gene.refName)
   const namedElsewhere = new Set(
-    nameable.flatMap(pin =>
+    named.flatMap(pin =>
       pin.onReference || onLift(pin) ? [pin.gene.name] : [],
     ),
   )
   const offReference = new Map<string, GenePin>()
-  for (const pin of nameable) {
+  for (const pin of named) {
     const { name } = pin.gene
     const best = offReference.get(name)
     if (
@@ -79,7 +87,7 @@ export function namedGenePins(
       offReference.set(name, pin)
     }
   }
-  return nameable.flatMap(pin =>
+  return named.flatMap(pin =>
     pin.onReference
       ? [{ pin, name: pin.gene.name }]
       : onLift(pin)
