@@ -147,9 +147,10 @@ reads them.
   the cut, its layout, the view's width and the pane, so every window the cut
   holds is drawn at that scale. `followTransform` then only translates: the
   reference in the window lies where the window puts its bp across the pane, as
-  nearly as a rigid drawing can, in the least-squares sense over the bp the
-  window holds. A pan is a pure slide, a window is drawn no wider than the pane,
-  and one narrower than the cut's widest is drawn narrower
+  nearly as a rigid drawing can in the least-squares sense over the bp the
+  window holds, moved no further than keeps the window's stretch inside the
+  pane. A pan is a pure slide, a window is drawn no wider than the pane, and one
+  narrower than the cut's widest is drawn narrower
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths

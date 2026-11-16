@@ -170,6 +170,28 @@ test('a window narrower than the widest is drawn narrower than the pane, and non
   }
 })
 
+test("a window's stretch is kept inside the pane where the least-squares place would put some of it past an edge", () => {
+  const scale = scaleOf(windingProfile, { start: 0, end: 10_000 }, 4_000)
+  for (let start = 0; start <= 6_000; start += 250) {
+    const window = { start, end: start + 4_000 }
+    const t = placed(window, scale, windingProfile)
+    let x0 = Infinity
+    let x1 = -Infinity
+    for (let bp = start; bp <= start + 4_000; bp += 5) {
+      const p = defined(windingProfile.find(q => q.bp0 <= bp && bp <= q.bp1))
+      const x = p.x0 + ((p.x1 - p.x0) * (bp - p.bp0)) / (p.bp1 - p.bp0)
+      x0 = Math.min(x0, x)
+      x1 = Math.max(x1, x)
+    }
+    expect(x0 * scale + t.translateX).toBeGreaterThanOrEqual(
+      PADS.padLeft - 1e-6,
+    )
+    expect(x1 * scale + t.translateX).toBeLessThanOrEqual(
+      PANE.width - PADS.padRight + 1e-6,
+    )
+  }
+})
+
 test('a window running past the drawn reference keeps the part drawn under its own stretch of the pane', () => {
   const scale = scaleOf(profile, { start: 1_000, end: 4_000 }, 2_000)
   const t = placed({ start: 3_500, end: 5_500 }, scale)

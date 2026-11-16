@@ -639,6 +639,8 @@ export function followTransform(
     padLeft + (usableWidth * (bp - window.start)) / span
   let covered = 0
   let offset = 0
+  let x0 = Infinity
+  let x1 = -Infinity
   for (const piece of pieces) {
     const lo = Math.max(window.start, piece.bp0)
     const hi = Math.min(window.end, piece.bp1)
@@ -646,12 +648,21 @@ export function followTransform(
       const mid = (lo + hi) / 2
       covered += hi - lo
       offset += (hi - lo) * (ruler(mid) - scale * xOn(piece, mid))
+      x0 = Math.min(x0, xOn(piece, lo), xOn(piece, hi))
+      x1 = Math.max(x1, xOn(piece, lo), xOn(piece, hi))
     }
+  }
+  const inside = (tx: number) => {
+    const lower = padLeft - scale * x0
+    const upper = paneWidth - padRight - scale * x1
+    return lower <= upper
+      ? Math.min(upper, Math.max(lower, tx))
+      : (lower + upper) / 2
   }
   return usableWidth > 0 && usableHeight > 0 && span > 0 && covered > 0
     ? {
         scale,
-        translateX: offset / covered,
+        translateX: inside(offset / covered),
         translateY: fittedTranslateY(bounds, usableHeight, scale, padTop),
       }
     : undefined
