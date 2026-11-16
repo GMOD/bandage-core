@@ -1129,6 +1129,49 @@ describe('the drawing through a folded site', () => {
     expect(strokesOf(drawn, 'r2+')[0]?.points).toEqual(jogged['r2+'])
   })
 
+  test("a link from a node of a straightened run that is not one of the reference's own leaves the node where it is drawn", () => {
+    const skipping = load([
+      `S\tr1\t${bases(1000)}`,
+      'S\tr2\tC',
+      'S\tr3\tC',
+      `S\tr4\t${bases(30)}`,
+      `S\tr5\t${bases(1000)}`,
+      'S\ta1\tT',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr3\t+\tr4\t+\t0M',
+      'L\tr4\t+\tr5\t+\t0M',
+      'L\tr1\t+\ta1\t+\t0M',
+      'L\ta1\t+\tr3\t+\t0M',
+      'L\tr2\t+\tr5\t+\t0M',
+      'W\tref\t0\tchr\t0\t2032\t>r1>r2>r3>r4>r5',
+      'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r4>r5',
+      'W\tw\t2\tchr\t0\t*\t>r1>r2>r5',
+    ])
+    const laid = {
+      'r1+': at(0, 1000),
+      'r2+': [
+        { x: 1000, y: 10 },
+        { x: 1001, y: 10 },
+      ],
+      'r3+': at(1001, 1002),
+      'r4+': at(1002, 1032),
+      'r5+': at(1032, 2032),
+      'a1+': at(1000, 1001, 20),
+    }
+    const out = edgeIndex(skipping, 'r2+', 'r5+')
+    const batch = build(skipping, laid, 0.1)
+    expect(folded(batch)).toEqual(['a1+'])
+    expect(batch.collapsed?.bridges.has(out)).toBe(false)
+    const end = strokesOf(batch, 'r2+')[0]?.points.at(-1)
+    expect(end).toEqual({ x: 1001, y: 0 })
+    const [first] = lanesOf(batch, out)[0]?.curves ?? []
+    expect({ x: first?.x0, y: first?.y0 }).toEqual(end)
+    const drawn = build(skipping, laid, 0.1, { smallSites: 'nodes' })
+    const [own] = lanesOf(drawn, out)[0]?.curves ?? []
+    expect({ x: own?.x0, y: own?.y0 }).toEqual(laid['r2+'][1])
+  })
+
   test('the reference through a run with a node laid farther than SMALL_SITE_PX from that line is drawn where it is laid, nodes and links, at the even stroke', () => {
     const bent = { ...positions, 'r2+': at(1000, 1001, 35) }
     const batch = build(graph, bent, 0.1, depth)

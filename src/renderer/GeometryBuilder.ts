@@ -1134,6 +1134,44 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const chord = chordOf(run)
     return chord ? points.map(chord) : points
   }
+  // a link's curve with each end at a node drawn on a run's straight line
+  // moved there, with the control point beside it
+  const shiftAt = (id: string, x: number, y: number) => {
+    const run = collapse.through.get(id)
+    const at = run && chordOf(run)?.({ x, y })
+    return at ? { dx: at.x - x, dy: at.y - y } : undefined
+  }
+  const meetingDrawnNodes = (
+    curves: BezierCurve[],
+    from: string,
+    to: string,
+  ) => {
+    const first = curves[0]
+    const last = curves.at(-1)
+    const start = first && shiftAt(from, first.x0, first.y0)
+    const end = last && shiftAt(to, last.x1, last.y1)
+    return start || end
+      ? curves.map((c, i) => ({
+          ...c,
+          ...(i === 0 && start
+            ? {
+                x0: c.x0 + start.dx,
+                y0: c.y0 + start.dy,
+                cx0: c.cx0 + start.dx,
+                cy0: c.cy0 + start.dy,
+              }
+            : {}),
+          ...(i === curves.length - 1 && end
+            ? {
+                x1: c.x1 + end.dx,
+                y1: c.y1 + end.dy,
+                cx1: c.cx1 + end.dx,
+                cy1: c.cy1 + end.dy,
+              }
+            : {}),
+        }))
+      : curves
+  }
   const curvesAlongRun = (run: FoldRun, curves: BezierCurve[]) => {
     const chord = chordOf(run)
     const first = curves[0]
@@ -1809,8 +1847,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             : nodeInk(fromNode),
         )
       } else if (inView(baseCurves)) {
-        stroke(baseCurves, edgeThickness, edgeColor)
-        arrowOn(baseCurves)
+        const drawn = meetingDrawnNodes(baseCurves, edge.from, edge.to)
+        stroke(drawn, edgeThickness, edgeColor)
+        arrowOn(drawn)
       }
     } else {
       const offsets = pathRibbonOffsets(
@@ -1824,10 +1863,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       // is half a spacing off, which beats a sixth `computeEdgeCurves` call to
       // rebuild a curve the fan is already centred on.
       const arrowRibbon = Math.floor((numPaths - 1) / 2)
+      const drawn = meetingDrawnNodes(baseCurves, edge.from, edge.to)
       for (let pathIdx = 0; pathIdx < numPaths; pathIdx++) {
         const { x, y } = offsets[pathIdx]!
-        const curves =
-          x === 0 && y === 0 ? baseCurves : translateCurves(baseCurves, x, y)
+        const curves = x === 0 && y === 0 ? drawn : translateCurves(drawn, x, y)
         if (!inView(curves)) {
           continue
         }
