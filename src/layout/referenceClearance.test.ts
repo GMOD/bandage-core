@@ -2,6 +2,7 @@ import { figureFit } from '../figureSettings'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
 import { engineSettingsOf, forceLayout } from '../pipeline'
 import { ASSUMED_FIT, fitRoom } from './fitAssumptions'
+import { createForceLayoutCache } from './forceCache'
 import { clearOfReference } from './referenceClearance'
 
 import type { LayoutEngineKind } from '../layoutEngines'
@@ -291,4 +292,26 @@ test("a figure that states no size is laid out for its own 1200 by 800 pane, whi
     clearOfReference(graph, laid, tall, fit)[a.id]![0]!.y
   expect(pushed(figureFit({}))).toBe(pushed({ width: 1200, height: 800 }))
   expect(pushed(figureFit({}))).not.toBe(pushed({ width: 1200, height: 280 }))
+})
+
+test("through the cache a stress layout is forceLayout's at the fit it is asked for", async () => {
+  const { nodes, positions } = backbone(30)
+  const a = allele(0, 1050)
+  const graph: Graph = { name: 'g', nodes: [...nodes, a], edges: [] }
+  const laid = { ...positions, [a.id]: flat(1050, 1051, 0.3) }
+  const engine = () =>
+    Promise.resolve({ result: { nodePositions: laid }, duration: 0 })
+  const stress = engineSettingsOf({ engine: 'stress' })
+  const narrow = { width: 900, height: 280 }
+  const cached = await createForceLayoutCache().layout(
+    graph,
+    stress,
+    engine,
+    narrow,
+  )
+  const direct = await forceLayout(graph, stress, engine, narrow)
+  expect(cached.result.nodePositions).toEqual(direct.result.nodePositions)
+  expect(cached.result.nodePositions).not.toEqual(
+    (await forceLayout(graph, stress, engine)).result.nodePositions,
+  )
 })

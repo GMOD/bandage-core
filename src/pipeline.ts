@@ -190,20 +190,25 @@ export function engineRequest(
 
 // What a force layout of this graph is a function of, as a cache key: every
 // engine setting, whether it seeds, the reference path the seeds follow, and
-// the pane it is sized for.
+// what it reads of the pane it is sized for: the stress engine's clearance
+// its width and height, a compressing spread's loop floor its width.
 export function engineKey(
   graph: Graph,
   settings: EngineSettings,
   fit?: FitSize,
 ) {
+  const s = engineSettingsOf(settings)
   const anchored = graph.nodes.some(isBackbone)
   const { width, height } = fitOrAssumed(fit)
   return [
-    ...Object.values(engineSettingsOf(settings)),
+    ...Object.values(s),
     anchored,
     graph.referencePath ?? '',
-    width,
-    height,
+    ...(s.engine === 'stress'
+      ? [width, height]
+      : isProportional(spreadFor(s.bubbleSpread).law)
+        ? []
+        : [width]),
   ].join('|')
 }
 

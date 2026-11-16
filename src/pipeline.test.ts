@@ -75,16 +75,17 @@ test('a layout at another spacing is cached apart', () => {
   )
 })
 
-test('a layout sized for another fit is cached apart, and one with none is the assumed fit', () => {
-  expect(engineKey(graph, engine, { width: 900, height: 280 })).not.toBe(
-    engineKey(graph, engine),
+test('a stress layout sized for another fit is cached apart, and one with none is the assumed fit', () => {
+  const stress = { ...engine, engine: 'stress' as const }
+  expect(engineKey(graph, stress, { width: 900, height: 280 })).not.toBe(
+    engineKey(graph, stress),
   )
-  expect(engineKey(graph, engine, { width: 1200, height: 600 })).not.toBe(
-    engineKey(graph, engine),
+  expect(engineKey(graph, stress, { width: 1200, height: 600 })).not.toBe(
+    engineKey(graph, stress),
   )
-  expect(engineKey(graph, engine, ASSUMED_FIT)).toBe(engineKey(graph, engine))
-  expect(engineKey(graph, engine, { width: 0, height: 0 })).toBe(
-    engineKey(graph, engine),
+  expect(engineKey(graph, stress, ASSUMED_FIT)).toBe(engineKey(graph, stress))
+  expect(engineKey(graph, stress, { width: 0, height: 0 })).toBe(
+    engineKey(graph, stress),
   )
 })
 
