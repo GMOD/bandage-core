@@ -1,6 +1,7 @@
 import { firstNodeAtOrAfter, isBackbone } from './anchoredNodes'
 import { unclipped } from './layout/trimToWindow'
 import { referenceVisits } from './pathAnchoring'
+import { canonicalEdgeOrder } from './util/canonicalOrder'
 import {
   computeEdgeCurves,
   edgeJoinOf,
@@ -488,10 +489,9 @@ export function closableLinks(graph: Graph, edgeIndexes: number[]) {
     }
   })
   return new Set(
-    edgeIndexes.filter(ei => {
-      const edge = graph.edges[ei]!
-      return !join(edge.from, edge.to)
-    }),
+    canonicalEdgeOrder(edgeIndexes.map(ei => ({ ...graph.edges[ei]!, ei })))
+      .filter(edge => !join(edge.from, edge.to))
+      .map(({ ei }) => ei),
   )
 }
 
