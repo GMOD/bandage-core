@@ -166,6 +166,7 @@ export {
   RAMP_KEY_STOPS,
   drawnMarks,
   graphKey,
+  unlabelledText,
   walkKeyEntry,
 } from './graphKey'
 export type {

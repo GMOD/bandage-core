@@ -3,7 +3,7 @@ import { SHORT_SKIP_KEY, deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import { drawnMarks, graphKey } from './graphKey'
+import { drawnMarks, graphKey, unlabelledText } from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
@@ -352,6 +352,23 @@ test('nodes not shown carry no count where every placeholder is labelled', () =>
   expect(all?.text).toBe(NOT_LOADED_TEXT)
   expect(all).not.toHaveProperty('under')
   expect(notShown(ones(budget + 1))?.under).toBe('1 unlabelled, 1 bp')
+})
+
+// A host that measures the key before it places labels sizes it once: the
+// line for the count is there whether the labels leave any placeholder
+// unlabelled or not, and unlabelledText fills it after
+test('nodes not shown keep their line for the count, blank, for a host that places labels after it sizes the key', () => {
+  const reserved = entries(withPlaceholder, {}, { unlabelled: 'reserved' })
+  expect(reserved.find(e => e.key === 'not-shown')?.under).toBe('')
+  expect(
+    entries(graph, {}, { unlabelled: 'reserved' }).find(
+      e => e.key === 'not-shown',
+    ),
+  ).toBeUndefined()
+  expect(unlabelledText(unlabelledOf([5, 5, 5]))).toBe('')
+  expect(
+    unlabelledText(unlabelledOf(Array.from({ length: 100 }, () => 1))),
+  ).toBe('91 unlabelled, each 1 bp')
 })
 
 test('the outline is keyed as exons, or as genes where every gene is one exon', () => {

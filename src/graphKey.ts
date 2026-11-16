@@ -216,8 +216,11 @@ export interface GraphKeyOptions {
   // the reference strip has a tab past an edge
   stripOverhangs?: boolean
   // the placeholders the labels left without a length: layoutLabels'
-  // `unlabelled`
-  unlabelled?: UnlabelledPlaceholders
+  // `unlabelled`. A host that sizes its pane by the key before it places the
+  // labels passes 'reserved': the line under is kept, blank, whenever
+  // placeholders are drawn, for unlabelledText to fill once they are placed,
+  // so no label can change the key's height
+  unlabelled?: UnlabelledPlaceholders | 'reserved'
 }
 
 // LIFT_BACKDROP_COLOR reads paler alone than faded strokes do where they
@@ -246,13 +249,15 @@ const entry = (
 const counted = (n: number, one: string, many: string) =>
   `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
 
-function unlabelledText({ count, smallest, largest }: UnlabelledPlaceholders) {
-  const n = count.toLocaleString('en-US')
-  return count === 1
-    ? `${n} unlabelled, ${formatBp(largest)}`
-    : smallest === largest
-      ? `${n} unlabelled, each ${formatBp(largest)}`
-      : `${n} unlabelled, ${formatBp(largest)} or less each`
+export function unlabelledText(unlabelled?: UnlabelledPlaceholders) {
+  const n = unlabelled?.count.toLocaleString('en-US')
+  return !unlabelled
+    ? ''
+    : unlabelled.count === 1
+      ? `${n} unlabelled, ${formatBp(unlabelled.largest)}`
+      : unlabelled.smallest === unlabelled.largest
+        ? `${n} unlabelled, each ${formatBp(unlabelled.largest)}`
+        : `${n} unlabelled, ${formatBp(unlabelled.largest)} or less each`
 }
 
 const roundDepth = (depth: number) =>
@@ -532,9 +537,11 @@ export function graphKey(
               {
                 key: 'not-shown',
                 text: NOT_LOADED_TEXT,
-                ...(o.unlabelled
-                  ? { under: unlabelledText(o.unlabelled) }
-                  : {}),
+                ...(o.unlabelled === 'reserved'
+                  ? { under: '' }
+                  : o.unlabelled
+                    ? { under: unlabelledText(o.unlabelled) }
+                    : {}),
                 swatch: {
                   kind: 'hollow',
                   ink: NOT_LOADED_FILL_COLOR,
