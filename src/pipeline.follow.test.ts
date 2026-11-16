@@ -478,7 +478,7 @@ test.each([
   'c4.32044767.json.gz',
   'gstm1.109631102.json.gz',
 ])(
-  "a pan a ruler pixel at a time moves the drawing at most a pixel, unless it holds the window's stretch at the pane's edge, and then no further than the drawn reference runs at the window's ends, on %s",
+  "a pan a ruler pixel at a time keeps the window's stretch inside the pane and moves the drawing at most a pixel, unless it holds that stretch at the pane's edge, and then no further than the drawn reference runs at the window's ends, on %s",
   name => {
     const { cut, viewSpan, level, scale, profile: drawn } = panFixture(name)
     const centre = (cut[0] + cut[1]) / 2
@@ -518,8 +518,13 @@ test.each([
         allowed: held ? 1 + scale * run : 1,
       }
     })
+    const outside = placements.filter(({ x, ...window }) => {
+      const { x0, x1 } = stretchOf(drawn.pieces, window)
+      return x0 * scale + x < -1e-6 || x1 * scale + x > TRACK.width + 1e-6
+    })
     expect(steps.length).toBeGreaterThan(300)
     expect(steps.filter(s => s.moved > s.allowed)).toEqual([])
+    expect(outside).toEqual([])
   },
 )
 
