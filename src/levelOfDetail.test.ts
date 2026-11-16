@@ -2,11 +2,12 @@ import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { departureTable, departureTails } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import { SMALL_SITE_PX } from './levelOfDetail'
+import { SMALL_SITE_PX, foldedSites } from './levelOfDetail'
 import { haplotypeCount } from './nodeWidths'
 import { anchorGraph } from './pathAnchoring'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
+import { baseEdgeCurves } from './util/edgeCurves'
 import { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 import { walkLift } from './walkHighlight'
 
@@ -580,6 +581,31 @@ test('a site no shown walk steps is drawn, an allele or a skip', () => {
   const batch = build(skipped.graph, skipped.positions, 0.01)
   expect(batch.collapsed?.sites).toEqual([])
   expect(batch.edgeCurveRuns.has(2)).toBe(true)
+})
+
+test('the fold follows the skips the drawing holds and hides, on the same graph and curves', () => {
+  const { graph, positions } = skip(1)
+  const axis = { scaleX: 0.01, scaleY: 0.01 }
+  const { deletions } = layoutGeometryInputs(
+    { nodePositions: positions },
+    drawingOf(graph),
+  )
+  const curvesAt = (version: number) =>
+    baseEdgeCurves(positions, graph, axis, deletions, version)
+  const skipsOf = (
+    curves: ReturnType<typeof curvesAt>,
+    held: typeof deletions | undefined,
+    hidden?: Set<number>,
+  ) =>
+    foldedSites(graph, positions, axis, curves, held, hidden).sites.map(
+      s => s.edges,
+    )
+  const curves = curvesAt(0)
+  expect(skipsOf(curves, deletions)).toEqual([[2]])
+  expect(skipsOf(curves, deletions, new Set([2]))).toEqual([])
+  expect(skipsOf(curvesAt(1), undefined)).toEqual([])
+  expect(skipsOf(curvesAt(2), deletions, new Set([2]))).toEqual([])
+  expect(skipsOf(curvesAt(3), deletions)).toEqual([[2]])
 })
 
 test('a skip the drawing leaves out is not folded', () => {
