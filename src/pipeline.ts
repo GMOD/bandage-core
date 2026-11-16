@@ -636,8 +636,16 @@ export function cutScale(
     : undefined
 }
 
+function nearestEnd(ends: readonly ReferenceEnd[], bp: number) {
+  return ends.reduce<ReferenceEnd | undefined>(
+    (best, end) =>
+      best && Math.abs(best.bp - bp) <= Math.abs(end.bp - bp) ? best : end,
+    undefined,
+  )
+}
+
 export function followTransform(
-  { pieces }: ReferenceProfile,
+  { pieces, ends }: ReferenceProfile,
   window: { start: number; end: number },
   scale: number,
   bounds: { minY: number; h: number },
@@ -677,10 +685,19 @@ export function followTransform(
       ? Math.min(upper, Math.max(lower, tx))
       : (lower + upper) / 2
   }
-  return usableWidth > 0 && usableHeight > 0 && span > 0 && covered > 0
+  const end =
+    covered > 0 ? undefined : nearestEnd(ends, (window.start + window.end) / 2)
+  const translateX =
+    covered > 0
+      ? inside(offset / covered)
+      : end && ruler(end.bp) - scale * end.x
+  return usableWidth > 0 &&
+    usableHeight > 0 &&
+    span > 0 &&
+    translateX !== undefined
     ? {
         scale,
-        translateX: inside(offset / covered),
+        translateX,
         translateY: fittedTranslateY(bounds, usableHeight, scale, padTop),
       }
     : undefined

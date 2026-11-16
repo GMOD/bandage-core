@@ -218,18 +218,27 @@ test('a window running past the drawn reference keeps the part drawn under its o
   expect(xAtBp(3_750) * scale + t.translateX).toBeCloseTo(middle)
 })
 
-test('no reference in the window, or no room, places nothing', () => {
-  expect(
-    followTransform(
-      profile,
-      { start: 9_000, end: 9_500 },
-      1,
-      flat,
-      PANE.width,
-      PANE.height,
-      PADS,
-    ),
-  ).toBeUndefined()
+test('a window past the drawn reference slides the drawing on with the ruler from where the reference left it', () => {
+  const scale = scaleOf(profile, { start: 1_000, end: 4_000 }, 1_000)
+  const near = placed({ start: 3_999, end: 4_999 }, scale)
+  const lastX = (t: { translateX: number }) => xAtBp(4_000) * scale + t.translateX
+  const ruler = (window: { start: number }, bp: number) =>
+    PADS.padLeft + (USABLE * (bp - window.start)) / 1_000
+  expect(lastX(near)).toBeCloseTo(ruler({ start: 3_999 }, 4_000), 1)
+  for (const start of [4_000, 4_500, 9_000, 1_000_000]) {
+    const t = placed({ start, end: start + 1_000 }, scale)
+    expect(t.scale).toBe(scale)
+    expect(t.translateY).toBe(near.translateY)
+    expect(lastX(t)).toBeCloseTo(ruler({ start }, 4_000), 6)
+  }
+  const before = placed({ start: -1_000_000, end: -999_000 }, scale)
+  expect(xAtBp(1_000) * scale + before.translateX).toBeCloseTo(
+    ruler({ start: -1_000_000 }, 1_000),
+    6,
+  )
+})
+
+test('no room places nothing', () => {
   expect(
     cutScale(profile, { start: 1_000, end: 4_000 }, 1_000, flat, 70, 300, PADS),
   ).toBeUndefined()
