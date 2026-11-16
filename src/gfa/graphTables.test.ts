@@ -406,3 +406,20 @@ test('a node placed off the reference takes its strand from its walk, whatever n
   expect(strandsOf(off)).toEqual(['1+', '2-'])
   expect(strandsOf(withColumn)).toEqual(['1+', '2-'])
 })
+
+test('a node the reference walk of the tables steps at another pass than the one it is placed at takes the strand of the pass it is placed at', () => {
+  const t = tables({
+    names: ['1', '2'],
+    stable: [
+      ['R#0#chr', 0, 0],
+      ['R#0#chr', 10, 0],
+    ],
+    walks: [{ name: 'R#0#chr', start: 100, steps: [[1, false]] }],
+  })
+  const placed = {
+    ...t,
+    nodes: { ...t.nodes, reversed: Uint8Array.from([0, 1]) },
+  }
+  expect(strandsOf(t)).toEqual(['1?', '2+'])
+  expect(strandsOf(placed)).toEqual(['1+', '2-'])
+})
