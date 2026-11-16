@@ -344,7 +344,7 @@ export function figureSvg(
   }
   const pins: GenePin[] =
     o.genes?.length && !layout.tubeMap && !rows
-      ? genePins(graph, o.genes, layout.nodePositions)
+      ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
       : []
   const ink = nodeInk(graph, nodeById, contigThickness, nodeWidth)
   const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)

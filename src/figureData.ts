@@ -413,7 +413,7 @@ export function figureData(
   })
   let stretch = 0
   const pinned = o.genes?.length
-    ? genePins(graph, o.genes, layout.nodePositions)
+    ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
     : []
   for (const pin of pinned) {
     const gene = pin.gene.name

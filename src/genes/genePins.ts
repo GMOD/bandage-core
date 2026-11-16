@@ -1,4 +1,8 @@
-import { firstNodeAtOrAfter, isAnchored } from '../anchoredNodes'
+import {
+  drawnAlongStable,
+  firstNodeAtOrAfter,
+  isAnchored,
+} from '../anchoredNodes'
 import { polylineSlice } from '../layout/mergeRuns'
 import { svgPath } from '../util/geometry'
 
@@ -47,6 +51,22 @@ interface RefNameNodes {
   reach: number
 }
 
+// A stretch of a node's stable sequence, in bp from the node's start there,
+// as fractions of its drawn line. A stranded layout draws the node as its id
+// reads it, which is end to start where the sequence steps it the other way.
+function alongLine(
+  node: AnchoredNode,
+  from: number,
+  to: number,
+  stranded: boolean,
+) {
+  const a = node.length ? from / node.length : 0
+  const b = node.length ? to / node.length : 0
+  return stranded && !drawnAlongStable(node)
+    ? ([1 - b, 1 - a] as const)
+    : ([a, b] as const)
+}
+
 // A gene lands on the backbone refName it equals. An assembly's `chr6` lands
 // on none, so a host renames its genes onto the graph's `GRCh38#0#chr6` with
 // featuresOnBackbone once it knows the backbone lies on that assembly.
@@ -54,6 +74,8 @@ export function genePins(
   graph: Graph,
   genes: GeneModel[],
   positions: Record<string, NodeSegment[]>,
+  // LayoutResult.stranded
+  stranded = false,
 ): GenePin[] {
   // Per refName and sorted once, so a gene reads the few nodes it lies over.
   // Every gene used to read every backbone node on each frame of a node drag:
@@ -110,11 +132,13 @@ export function genePins(
         if (b <= a) {
           continue
         }
-        const stretch = polylineSlice(
-          line,
-          (a - nodeStart) / node.length,
-          (b - nodeStart) / node.length,
+        const [from, to] = alongLine(
+          node,
+          a - nodeStart,
+          b - nodeStart,
+          stranded,
         )
+        const stretch = polylineSlice(line, from, to)
         if (stretch.length === 1) {
           stretch.push({ ...stretch[0]! })
         }
@@ -131,7 +155,12 @@ export function genePins(
       const distance = Math.abs(pinBp - mid)
       if (distance < atDistance) {
         atDistance = distance
-        const along = node.length ? (pinBp - nodeStart) / node.length : 0
+        const [along] = alongLine(
+          node,
+          pinBp - nodeStart,
+          pinBp - nodeStart,
+          stranded,
+        )
         at = polylineSlice(line, along, along)[0]
       }
     }
