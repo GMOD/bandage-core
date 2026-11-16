@@ -1,31 +1,22 @@
 import { isBackbone } from './anchoredNodes'
-import { haplotypeOf } from './nodeWidths'
-import { overlaps } from './overlayLabels'
+import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
-import { spanPx } from './util/edgeCurves'
 import { weakMemo } from './util/weakMemo'
 
-import type { Box } from './overlayLabels'
-import type { Tick } from './renderer/types'
+import type { AnchoredNode } from './anchoredNodes'
 import type { Graph, GraphNode, NodeSegment } from './types'
 import type { EdgeCurves } from './util/edgeCurves'
 import type { AxisScale } from './util/geometry'
 
-// screen px
-export const SITE_EXTENT_PX = 3
-export const SITE_REACH_PX = 8
-export const TICK_MIN_PX = 3
-export const TICK_MAX_PX = 12
-export const TICK_WIDTH_PX = 1.5
-const TICK_CELL_PX = 32
-const TICK_CELL_ROW = 1 << 20
+export const SMALL_SITE_PX = 3
+
+export type SmallSites = 'hidden' | 'nodes'
 
 interface Point {
   x: number
   y: number
 }
 
-// where an edge's curve meets the reference: its start, or its end
 interface Foot {
   edge: number
   atEnd: boolean
@@ -35,53 +26,58 @@ interface Unit {
   nodes: string[]
   edges: number[]
   feet: Foot[]
-  anchors: string[]
+  attachments: number[]
+  refNames: Set<string>
   walks: number[]
-  skip: boolean
+  bp: number
+  skip: number | undefined
 }
 
 export interface Site {
   nodes: string[]
   edges: number[]
+  refName: string
+  start: number
+  end: number
+  bp: number
   x: number
   y: number
-  nx: number
-  ny: number
   count: number
   total: number
-  anchors: string[]
 }
 
-export interface Collapse {
+export interface Fold {
   sites: Site[]
   nodes: ReadonlySet<string>
   edges: ReadonlySet<number>
   siteOf: ReadonlyMap<string, Site>
+  pxPerBp: number
 }
 
-export const NO_COLLAPSE: Collapse = {
+export const NO_FOLD: Fold = {
   sites: [],
   nodes: new Set(),
   edges: new Set(),
   siteOf: new Map(),
+  pxPerBp: 0,
 }
 
-const offReference = (node: GraphNode) => !isBackbone(node) && !node.placeholder
-const onReference = (node: GraphNode | undefined) =>
+const onReference = (node: GraphNode | undefined): node is AnchoredNode =>
   !!node && isBackbone(node) && !node.placeholder
 
-function shownWalks(graph: Graph) {
-  const haplotypes = new Map<string, number>()
+const forward = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
+  (strand ?? '+') === (node.stable.strand ?? '+')
+
+const leavesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
+  node.stable.start + (forward(node, strand) ? node.length : 0)
+
+const arrivesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
+  node.stable.start + (forward(node, strand) ? 0 : node.length)
+
+function walksByNode(graph: Graph) {
+  const haplotypes = haplotypeIndex(graph)
   const byName = new Map<string, number>()
   const byNode = new Map<string, Set<number>>()
-  const indexOf = (haplotype: string) => {
-    const known = haplotypes.get(haplotype)
-    const index = known ?? haplotypes.size
-    if (known === undefined) {
-      haplotypes.set(haplotype, index)
-    }
-    return index
-  }
   const visit = (nodeId: string, walk: number) => {
     const walks = byNode.get(nodeId)
     if (walks) {
@@ -91,7 +87,7 @@ function shownWalks(graph: Graph) {
     }
   }
   for (const path of graph.paths ?? []) {
-    const walk = indexOf(haplotypeOf(path))
+    const walk = haplotypes.get(haplotypeOf(path)) ?? 0
     byName.set(path.name, walk)
     for (const id of path.nodeIds) {
       visit(id, walk)
@@ -116,32 +112,34 @@ function unitsOf(
   hiddenEdges: ReadonlySet<number> | undefined,
 ) {
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const { total, byNode, walkNamed } = shownWalks(graph)
+  const { total, byNode, walkNamed } = walksByNode(graph)
   const parent = new Map<string, string>()
   for (const node of graph.nodes) {
-    if (offReference(node)) {
+    if (!isBackbone(node)) {
       parent.set(node.id, node.id)
     }
   }
   const find = (id: string) => {
     let root = id
-    while (parent.get(root) !== root) {
-      root = parent.get(root)!
+    let up = parent.get(root)
+    while (up !== undefined && up !== root) {
+      root = up
+      up = parent.get(root)
     }
     let at = id
     while (at !== root) {
-      const next = parent.get(at)!
+      const next = parent.get(at) ?? root
       parent.set(at, root)
       at = next
     }
     return root
   }
   const off = (id: string) => parent.has(id)
-  graph.edges.forEach(({ from, to }) => {
+  for (const { from, to } of graph.edges) {
     if (off(from) && off(to)) {
       parent.set(find(from), find(to))
     }
-  })
+  }
   const components = new Map<string, Unit & { tied: boolean }>()
   const componentOf = (id: string) => {
     const root = find(id)
@@ -150,9 +148,11 @@ function unitsOf(
       nodes: [],
       edges: [],
       feet: [],
-      anchors: [],
+      attachments: [],
+      refNames: new Set<string>(),
       walks: [],
-      skip: false,
+      bp: 0,
+      skip: undefined,
       tied: false,
     }
     if (!known) {
@@ -162,20 +162,30 @@ function unitsOf(
   }
   for (const node of graph.nodes) {
     if (off(node.id)) {
-      componentOf(node.id).nodes.push(node.id)
+      const component = componentOf(node.id)
+      component.nodes.push(node.id)
+      component.bp += node.length
     }
   }
   const skips: Unit[] = []
-  graph.edges.forEach(({ from, to, pathIds }, edge) => {
+  graph.edges.forEach(({ from, to, fromStrand, toStrand, pathIds }, edge) => {
     const inside = off(from) ? from : off(to) ? to : undefined
-    const outside = off(from) ? to : from
+    const outsideId = off(from) ? to : from
+    const outside = nodeById.get(outsideId)
+    const fromNode = nodeById.get(from)
+    const toNode = nodeById.get(to)
     if (inside !== undefined) {
       const component = componentOf(inside)
       component.edges.push(edge)
-      if (!off(outside)) {
-        if (onReference(nodeById.get(outside))) {
-          component.feet.push({ edge, atEnd: outside === to })
-          component.anchors.push(outside)
+      if (!off(outsideId)) {
+        if (onReference(outside)) {
+          component.feet.push({ edge, atEnd: outsideId === to })
+          component.refNames.add(outside.stable.refName)
+          component.attachments.push(
+            outsideId === from
+              ? leavesAt(outside, fromStrand)
+              : arrivesAt(outside, toStrand),
+          )
         } else {
           component.tied = true
         }
@@ -183,8 +193,8 @@ function unitsOf(
     } else if (
       deletions?.has(edge) &&
       !hiddenEdges?.has(edge) &&
-      onReference(nodeById.get(from)) &&
-      onReference(nodeById.get(to))
+      onReference(fromNode) &&
+      onReference(toNode)
     ) {
       const walks = new Set<number>()
       for (const name of pathIds ?? []) {
@@ -201,9 +211,17 @@ function unitsOf(
             { edge, atEnd: false },
             { edge, atEnd: true },
           ],
-          anchors: [from, to],
+          attachments: [
+            leavesAt(fromNode, fromStrand),
+            arrivesAt(toNode, toStrand),
+          ],
+          refNames: new Set([fromNode.stable.refName, toNode.stable.refName]),
           walks: [...walks],
-          skip: true,
+          bp: (deletions.get(edge) ?? []).reduce(
+            (sum, id) => sum + (nodeById.get(id)?.length ?? 0),
+            0,
+          ),
+          skip: edge,
         })
       }
     }
@@ -217,21 +235,20 @@ function unitsOf(
       }
     }
     if (!tied && component.feet.length > 0 && walks.size > 0) {
-      units.push({ ...component, walks: [...walks] })
+      units.push({
+        ...component,
+        bp: component.bp + spread(component.attachments),
+        walks: [...walks],
+      })
     }
   }
-  const startOf = (id: string) => nodeById.get(id)?.stable?.start ?? 0
-  const orderOf = (unit: Unit) =>
-    unit.anchors.reduce(
-      (least, id) => Math.min(least, startOf(id)),
-      Number.POSITIVE_INFINITY,
-    )
-  const keyOf = (unit: Unit) => unit.nodes[0] ?? `#${unit.edges[0]}`
+  const backbone = graph.nodes.filter(onReference)
+  const keyOf = (unit: Unit) => unit.nodes[0] ?? `#${unit.skip}`
   const sorted = units
-    .map(unit => ({ unit, order: orderOf(unit), key: keyOf(unit) }))
+    .map(unit => ({ unit, start: least(unit.attachments), key: keyOf(unit) }))
     .sort((a, b) =>
-      a.order !== b.order
-        ? a.order - b.order
+      a.start !== b.start
+        ? a.start - b.start
         : a.key < b.key
           ? -1
           : a.key > b.key
@@ -239,46 +256,24 @@ function unitsOf(
             : 0,
     )
     .map(({ unit }) => unit)
-  const backbone = graph.nodes
-    .filter(onReference)
-    .sort((a, b) => startOf(a.id) - startOf(b.id) || (a.id < b.id ? -1 : 1))
-    .map(n => n.id)
   return {
     units: sorted,
     total,
-    backbone,
-    backboneIndex: new Map(backbone.map((id, i) => [id, i])),
-    startOf,
+    backbone: backbone.map(n => n.id),
+    backboneBp: backbone.reduce((sum, n) => sum + n.length, 0),
   }
 }
+
+const least = (values: readonly number[]) =>
+  values.reduce((a, b) => Math.min(a, b), Infinity)
+
+const most = (values: readonly number[]) =>
+  values.reduce((a, b) => Math.max(a, b), -Infinity)
+
+const spread = (values: readonly number[]) =>
+  values.length > 0 ? most(values) - least(values) : 0
 
 const unitsCache = weakMemo<Graph, ReturnType<typeof unitsOf>>()
-
-// the box round some points, as its diagonal on screen
-function screenDiagonal(points: Iterable<Point>, axis: AxisScale) {
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const { x, y } of points) {
-    minX = Math.min(minX, x)
-    minY = Math.min(minY, y)
-    maxX = Math.max(maxX, x)
-    maxY = Math.max(maxY, y)
-  }
-  return maxX < minX
-    ? 0
-    : Math.hypot((maxX - minX) * axis.scaleX, (maxY - minY) * axis.scaleY)
-}
-
-function* nodePoints(
-  nodes: readonly string[],
-  positions: Record<string, NodeSegment[]>,
-) {
-  for (const id of nodes) {
-    yield* positions[id] ?? []
-  }
-}
 
 function footPoint(curves: EdgeCurves, { edge, atEnd }: Foot) {
   const line = curves.get(edge)
@@ -296,143 +291,93 @@ const mean = (points: readonly Point[]) => ({
   y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
 })
 
-// The site a unit is too small to draw at: the mean of its feet on the
-// reference, or nothing where it draws as it is
-function siteAt(
-  unit: Unit,
-  positions: Record<string, NodeSegment[]>,
-  curves: EdgeCurves,
-  axis: AxisScale,
-) {
-  const feet = unit.feet.map(foot => footPoint(curves, foot))
-  const placed = feet.flatMap(p => (p ? [p] : []))
-  const skipped = unit.skip ? curves.get(unit.edges[0]!) : undefined
-  const small = skipped
-    ? spanPx(skipped, axis) < SITE_EXTENT_PX
-    : !unit.skip &&
-      unit.nodes.every(id => positions[id]?.length) &&
-      screenDiagonal(nodePoints(unit.nodes, positions), axis) < SITE_EXTENT_PX
-  return small &&
-    placed.length === feet.length &&
-    screenDiagonal(placed, axis) < SITE_REACH_PX
-    ? mean(placed)
-    : undefined
-}
-
-const middleOf = (line: NodeSegment[] | undefined) => {
-  const first = line?.[0]
-  const last = line?.at(-1)
-  return first && last
-    ? { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }
-    : undefined
-}
-
-// The way the reference runs at a site, on screen, from the first of its
-// anchors along the reference to the last, or across their neighbours where
-// those lie on one point
-function alongReference(
-  anchors: readonly string[],
-  positions: Record<string, NodeSegment[]>,
-  axis: AxisScale,
-  { backbone, backboneIndex }: ReturnType<typeof unitsOf>,
-) {
-  const indexes = anchors.map(id => backboneIndex.get(id) ?? 0)
-  const lo = indexes.reduce((a, b) => Math.min(a, b), Infinity)
-  const hi = indexes.reduce((a, b) => Math.max(a, b), -Infinity)
-  const between = (a: number, b: number) => {
-    const from = middleOf(positions[backbone[a] ?? ''])
-    const to = middleOf(positions[backbone[b] ?? ''])
-    const dx = from && to ? (to.x - from.x) * axis.scaleX : 0
-    const dy = from && to ? (to.y - from.y) * axis.scaleY : 0
-    const length = Math.hypot(dx, dy)
-    return length > 0 ? { dx: dx / length, dy: dy / length } : undefined
+function drawnPx(line: readonly NodeSegment[], axis: AxisScale) {
+  let px = 0
+  for (let i = 1; i < line.length; i++) {
+    const a = line[i - 1]
+    const b = line[i]
+    px +=
+      a && b
+        ? Math.hypot((b.x - a.x) * axis.scaleX, (b.y - a.y) * axis.scaleY)
+        : 0
   }
-  return (
-    between(lo, hi) ??
-    between(Math.max(0, lo - 1), Math.min(backbone.length - 1, hi + 1)) ?? {
-      dx: 1,
-      dy: 0,
-    }
-  )
+  return px
 }
 
-function collapseOf(
+function referencePxPerBp(
+  backbone: readonly string[],
+  backboneBp: number,
+  positions: Record<string, NodeSegment[]>,
+  axis: AxisScale,
+) {
+  const px = backbone.reduce(
+    (sum, id) => sum + drawnPx(positions[id] ?? [], axis),
+    0,
+  )
+  return backboneBp > 0 ? px / backboneBp : 0
+}
+
+function foldOf(
   graph: Graph,
   positions: Record<string, NodeSegment[]>,
   axis: AxisScale,
   curves: EdgeCurves,
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
-): Collapse {
-  const units = unitsCache(graph, [deletions, hiddenEdges], () =>
-    unitsOf(graph, deletions, hiddenEdges),
+): Fold {
+  const { units, total, backbone, backboneBp } = unitsCache(
+    graph,
+    [deletions, hiddenEdges],
+    () => unitsOf(graph, deletions, hiddenEdges),
   )
-  const near = (a: Point, b: Point) =>
-    Math.hypot((a.x - b.x) * axis.scaleX, (a.y - b.y) * axis.scaleY) <
-    SITE_REACH_PX
-  const groups: { at: Point; last: Point; units: Unit[] }[] = []
-  for (const unit of units.units) {
-    const at = siteAt(unit, positions, curves, axis)
-    const open = groups.at(-1)
-    if (at && open && near(at, open.at)) {
-      open.units.push(unit)
-      open.last = at
-    } else if (at) {
-      groups.push({ at, last: at, units: [unit] })
-    }
-  }
-  const stamp = new Int32Array(units.total).fill(-1)
+  const pxPerBp = referencePxPerBp(backbone, backboneBp, positions, axis)
   const nodes = new Set<string>()
   const edges = new Set<number>()
   const siteOf = new Map<string, Site>()
-  const sites = groups.map((group, index) => {
-    let count = 0
-    const site: Site = {
-      nodes: [],
-      edges: [],
-      anchors: [],
-      x: (group.at.x + group.last.x) / 2,
-      y: (group.at.y + group.last.y) / 2,
-      nx: 0,
-      ny: 0,
-      count: 0,
-      total: units.total,
-    }
-    for (const unit of group.units) {
-      for (const walk of unit.walks) {
-        if (stamp[walk] !== index) {
-          stamp[walk] = index
-          count++
-        }
+  const sites: Site[] = []
+  for (const unit of units) {
+    const feet = unit.feet.flatMap(foot => {
+      const point = footPoint(curves, foot)
+      return point ? [point] : []
+    })
+    const [refName] = unit.refNames
+    if (
+      refName !== undefined &&
+      unit.refNames.size === 1 &&
+      pxPerBp > 0 &&
+      unit.bp * pxPerBp < SMALL_SITE_PX &&
+      feet.length === unit.feet.length &&
+      unit.nodes.every(id => positions[id]?.length)
+    ) {
+      const site: Site = {
+        nodes: unit.nodes,
+        edges: unit.edges,
+        refName,
+        start: least(unit.attachments),
+        end: most(unit.attachments),
+        bp: unit.bp,
+        ...mean(feet),
+        count: unit.walks.length,
+        total,
       }
+      sites.push(site)
       for (const id of unit.nodes) {
-        site.nodes.push(id)
         nodes.add(id)
         siteOf.set(id, site)
       }
       for (const edge of unit.edges) {
-        site.edges.push(edge)
         edges.add(edge)
       }
-      for (const id of unit.anchors) {
-        site.anchors.push(id)
-      }
     }
-    const { dx, dy } = alongReference(site.anchors, positions, axis, units)
-    site.count = count
-    site.nx = dy
-    site.ny = -dx
-    return site
-  })
-  return { sites, nodes, edges, siteOf }
+  }
+  return { sites, nodes, edges, siteOf, pxPerBp }
 }
 
-const collapseCache = weakMemo<EdgeCurves, Collapse>()
+const foldCache = weakMemo<EdgeCurves, Fold>()
 
-// The sites too small at this scale to draw as nodes and links, each drawn as
-// a tick instead: a pure function of the graph, its layout and the axis, held
-// against the curves derived for that axis
-export function collapsedSites(
+// The sites too small to draw at this scale: a pure function of the graph,
+// its layout and the axis, held against the curves derived for that axis
+export function foldedSites(
   graph: Graph,
   positions: Record<string, NodeSegment[]>,
   axis: AxisScale,
@@ -440,76 +385,7 @@ export function collapsedSites(
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
 ) {
-  return collapseCache(curves, [graph, positions, deletions, hiddenEdges], () =>
-    collapseOf(graph, positions, axis, curves, deletions, hiddenEdges),
-  )
-}
-
-// A tick's foot and top in backing-store px, under a transform whose dpr is
-// 1 for css px
-export function tickEnds(
-  tick: Pick<Tick, 'x' | 'y' | 'nx' | 'ny' | 'offset' | 'height'>,
-  t: {
-    scaleX: number
-    scaleY: number
-    translateX: number
-    translateY: number
-    dpr: number
-  },
-) {
-  const x = tick.x * t.scaleX + t.translateX
-  const y = tick.y * t.scaleY + t.translateY
-  const along = (px: number) => ({
-    x: x + tick.nx * px * t.dpr,
-    y: y + tick.ny * px * t.dpr,
-  })
-  return [along(tick.offset), along(tick.offset + tick.height)] as const
-}
-
-const cell = (px: number) => Math.floor(px / TICK_CELL_PX)
-const keyOf = (cx: number, cy: number) => cx * TICK_CELL_ROW + cy
-
-// Whether a screen box lies over any tick, a grid of cells over the ticks
-// answering it, so a label's every try costs the few ticks near it
-export function ticksUnder(
-  ticks: readonly Tick[],
-  t: { scaleX: number; scaleY: number; translateX: number; translateY: number },
-) {
-  const cells = new Map<number, Box[]>()
-  for (const tick of ticks) {
-    const [foot, top] = tickEnds(tick, { ...t, dpr: 1 })
-    const box = {
-      x0: Math.min(foot.x, top.x) - tick.thickness,
-      x1: Math.max(foot.x, top.x) + tick.thickness,
-      y0: Math.min(foot.y, top.y) - tick.thickness,
-      y1: Math.max(foot.y, top.y) + tick.thickness,
-    }
-    for (let cx = cell(box.x0); cx <= cell(box.x1); cx++) {
-      for (let cy = cell(box.y0); cy <= cell(box.y1); cy++) {
-        const held = cells.get(keyOf(cx, cy))
-        if (held) {
-          held.push(box)
-        } else {
-          cells.set(keyOf(cx, cy), [box])
-        }
-      }
-    }
-  }
-  return (box: Box) => {
-    let under = false
-    for (let cx = cell(box.x0); cx <= cell(box.x1) && !under; cx++) {
-      for (let cy = cell(box.y0); cy <= cell(box.y1) && !under; cy++) {
-        under = !!cells.get(keyOf(cx, cy))?.some(tick => overlaps(tick, box))
-      }
-    }
-    return under
-  }
-}
-
-export function tickHeightPx(count: number, total: number) {
-  return (
-    TICK_MIN_PX +
-    (TICK_MAX_PX - TICK_MIN_PX) *
-      (total > 1 ? Math.min(1, (count - 1) / (total - 1)) : 0)
+  return foldCache(curves, [graph, positions, deletions, hiddenEdges], () =>
+    foldOf(graph, positions, axis, curves, deletions, hiddenEdges),
   )
 }

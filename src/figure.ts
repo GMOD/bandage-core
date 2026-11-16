@@ -58,6 +58,7 @@ import type {
   WalkRowsWithCalls,
 } from './layout/walkRowDraw'
 import type { WalkRows } from './layout/walkRows'
+import type { SmallSites } from './levelOfDetail'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
@@ -89,9 +90,9 @@ export interface FigureOptions {
   connectorThickness?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
-  // true when absent: a site too small to draw at the figure's scale draws
-  // as a tick
-  levelOfDetail?: boolean
+  // 'hidden' when absent: a site too small to draw at the figure's scale is
+  // not drawn; 'nodes' draws it
+  smallSites?: SmallSites
   // the window the graph was cut for, which the anchored layouts and the
   // reference-position ramp span
   region?: { refName: string; start: number; end: number }
@@ -192,8 +193,6 @@ function swatchSvg(swatch: GraphKeySwatch, id: string) {
       return `<rect x="4" y="4" width="10" height="10" rx="2" ${inkAttrs('fill', swatch.ink)}/>`
     case 'width':
       return `<rect y="${9 - swatch.px / 2}" width="${BAR_PX}" height="${swatch.px}" ${inkAttrs('fill', swatch.ink)}/>`
-    case 'tick':
-      return `<line x1="${SWATCH_PX / 2}" x2="${SWATCH_PX / 2}" y1="15" y2="${15 - swatch.px}" ${inkAttrs('stroke', swatch.ink)} stroke-width="${swatch.width}"/>`
     case 'hollow':
       return `<rect x="1" y="5" width="${SWATCH_PX - 2}" height="8" rx="4" ${inkAttrs('fill', swatch.ink)} ${inkAttrs('stroke', swatch.rim)} stroke-width="${swatch.rimPx}"/>`
     case 'line':
@@ -247,7 +246,7 @@ function headingSvg(text: string): KeyAt {
   })
 }
 
-const HEADED = new Set(['Node thickness', 'Link thickness', 'Tick height'])
+const HEADED = new Set(['Node thickness', 'Link thickness'])
 
 function graphKeySvg(sections: GraphKeySection[], idPrefix: string) {
   return sections.flatMap(({ group, entries }) => [
@@ -495,7 +494,6 @@ export function figureSvg(
           nodeById,
           alleleDeletions: layout.alleleDeletions ?? [],
           positionsVersion: 0,
-          ticks: batch.ticks,
           passLabels: facets
             ? []
             : passLabelCandidates(batch, highlight, t, {

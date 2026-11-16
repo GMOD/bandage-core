@@ -5,8 +5,7 @@ import { busiestEdge, edgeWidthFactor } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp } from './graphLabels'
-import { TICK_WIDTH_PX, tickHeightPx } from './levelOfDetail'
-import { depthKey, frequencyKey, haplotypeCount } from './nodeWidths'
+import { depthKey, frequencyKey } from './nodeWidths'
 import { referenceLabel } from './reference'
 import {
   REFERENCE_RAMP_LIGHTNESS,
@@ -22,7 +21,6 @@ import {
   NOT_LOADED_FILL_COLOR,
   NOT_LOADED_RIM_PX,
   REFERENCE_RAMP_ALT_COLOR,
-  TICK_COLOR,
   packHsl,
   rampFraction,
   skipDashes,
@@ -62,8 +60,6 @@ export type GraphKeySwatch =
   | { kind: 'chip'; ink: number }
   // a node or link as thick as the drawing makes it, `px` across
   | { kind: 'width'; ink: number; px: number }
-  // a tick standing `px` tall, `width` px across
-  | { kind: 'tick'; ink: number; px: number; width: number }
   // a node the cut did not load, hollow in its rim
   | { kind: 'hollow'; ink: number; rim: number; rimPx: number }
   // a link's stroke, dashed or the plain stroke of a skip too short to dash
@@ -96,7 +92,6 @@ export type GraphKeySectionId =
   | 'walks'
   | 'node-width'
   | 'link-width'
-  | 'tick-height'
   | 'halo'
   | 'links'
   | 'skips'
@@ -104,18 +99,13 @@ export type GraphKeySectionId =
   | 'exon'
   | 'overhang'
   | 'compressed'
+  | 'too-small'
 
 export interface GraphKeySection {
   id: GraphKeySectionId
   // the group a reader may head the section with: a thickness's entries are
   // counts that read only under it
-  group?:
-    | 'Color'
-    | 'Walks'
-    | 'Node thickness'
-    | 'Link thickness'
-    | 'Tick height'
-    | 'Marks'
+  group?: 'Color' | 'Walks' | 'Node thickness' | 'Link thickness' | 'Marks'
   entries: GraphKeyEntry[]
 }
 
@@ -125,11 +115,12 @@ export interface GraphKeySection {
 // no lifted walk's lane, which under a lift is faded; a node in the
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
 // node; nodes of more than one thickness; each lifted walk's passes, by lane;
-// heads along a lane, pointing back along a node or either way; a tick. A
-// lifted walk's lane on a skip is its walk's, keyed by the walk.
+// heads along a lane, pointing back along a node or either way; the nodes and
+// skips folded as too small to draw. A lifted walk's lane on a skip is its
+// walk's, keyed by the walk.
 export function drawnMarks(
   batches: readonly (Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'> &
-    Partial<Pick<RenderBatch, 'arrows' | 'ticks'>>)[],
+    Partial<Pick<RenderBatch, 'arrows' | 'collapsed'>>)[],
 ) {
   const marks = {
     dashedSkip: false,
@@ -144,11 +135,19 @@ export function drawnMarks(
     headsAgainst: false,
     headsAlong: false,
     headsHaloed: false,
-    ticks: false,
+    foldedNodes: new Set<string>(),
+    foldedSkips: new Set<number>(),
   }
   let width: number | undefined
-  for (const { edgeCurves, nodeStrokes, arrows = [], ticks = [] } of batches) {
-    marks.ticks ||= ticks.length > 0
+  for (const { edgeCurves, nodeStrokes, arrows = [], collapsed } of batches) {
+    for (const { nodes, edges } of collapsed?.sites ?? []) {
+      for (const id of nodes) {
+        marks.foldedNodes.add(id)
+      }
+      for (const edge of nodes.length === 0 ? edges : []) {
+        marks.foldedSkips.add(edge)
+      }
+    }
     for (const { skip, span = 0, walk } of edgeCurves) {
       if (walk === undefined) {
         if (!skip) {
@@ -271,6 +270,14 @@ export function unlabelledText(unlabelled?: UnlabelledPlaceholders) {
       : unlabelled.smallest === unlabelled.largest
         ? `${n} unlabelled, each ${formatBp(unlabelled.largest)}`
         : `${n} unlabelled, ${formatBp(unlabelled.largest)} or less each`
+}
+
+export function tooSmallText(nodes: number, skips: number) {
+  const parts = [
+    ...(nodes > 0 ? [counted(nodes, 'node', 'nodes')] : []),
+    ...(skips > 0 ? [counted(skips, 'skip', 'skips')] : []),
+  ]
+  return `${parts.join(' and ')} too small to draw`
 }
 
 const roundDepth = (depth: number) =>
@@ -478,18 +485,6 @@ export function graphKey(
         )
       : []
 
-  const shown = haplotypeCount(graph)
-  const tickEntries: GraphKeyEntry[] = o.marks.ticks
-    ? (shown > 1 ? [shown, 1] : [1]).map(n =>
-        entry(`tick-${n}`, counted(n, 'walk', 'walks'), {
-          kind: 'tick',
-          ink: TICK_COLOR,
-          px: tickHeightPx(n, shown),
-          width: TICK_WIDTH_PX,
-        }),
-      )
-    : []
-
   const skipInk = lifted
     ? fadeAbgr(EDGE_DELETION_COLOR, FADED_ALPHA)
     : EDGE_DELETION_COLOR
@@ -525,7 +520,6 @@ export function graphKey(
     { id: 'walks', group: 'Walks', entries: walkEntries },
     { id: 'node-width', group: 'Node thickness', entries: nodeWidthEntries },
     { id: 'link-width', group: 'Link thickness', entries: linkWidthEntries },
-    { id: 'tick-height', group: 'Tick height', entries: tickEntries },
     {
       id: 'halo',
       group: 'Marks',
@@ -611,6 +605,21 @@ export function graphKey(
       entries: layout.compressed
         ? [{ key: 'compressed', text: COMPRESSED_KEY }]
         : [],
+    },
+    {
+      id: 'too-small',
+      entries:
+        o.marks.foldedNodes.size + o.marks.foldedSkips.size > 0
+          ? [
+              {
+                key: 'too-small',
+                text: tooSmallText(
+                  o.marks.foldedNodes.size,
+                  o.marks.foldedSkips.size,
+                ),
+              },
+            ]
+          : [],
     },
   ]
   return sections.filter(section => section.entries.length > 0)

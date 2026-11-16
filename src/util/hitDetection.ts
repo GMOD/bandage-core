@@ -4,7 +4,7 @@ import { weakMemo } from './weakMemo'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Box } from '../overlayLabels'
-import type { RenderBatch, Tick } from '../renderer/types'
+import type { RenderBatch } from '../renderer/types'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
@@ -189,7 +189,7 @@ export function findHoveredNode(
   axis: AxisScale,
   version = 0,
   ink?: NodeInk,
-  // RenderBatch.collapsed, whose nodes a tick stands for and no node draws
+  // RenderBatch.collapsed: the folded nodes, which draw nothing
   collapsed?: RenderBatch['collapsed'],
 ) {
   const yToX = yToXOf(axis)
@@ -220,40 +220,6 @@ export function findHoveredNode(
     if (dist < best && dist < reach(ink?.halfWidthPx(nodeId) ?? 0)) {
       best = dist
       hovered = nodeId
-    }
-  }
-  return hovered
-}
-
-const TICK_REACH_PX = 3
-
-// The tick under a point, nearest first: what it stands for and how many
-// shown walks step it are the host's to show
-export function findHoveredTick(
-  ticks: readonly Tick[] | undefined,
-  graphX: number,
-  graphY: number,
-  axis: AxisScale,
-) {
-  const px = graphX * axis.scaleX
-  const py = graphY * axis.scaleY
-  let hovered: Tick | undefined
-  let best = Infinity
-  for (const tick of ticks ?? []) {
-    const x = tick.x * axis.scaleX
-    const y = tick.y * axis.scaleY
-    const top = tick.offset + tick.height
-    const dist = distanceToSegment(
-      px,
-      py,
-      x + tick.nx * tick.offset,
-      y + tick.ny * tick.offset,
-      x + tick.nx * top,
-      y + tick.ny * top,
-    )
-    if (dist < best && dist < Math.max(TICK_REACH_PX, tick.thickness)) {
-      best = dist
-      hovered = tick
     }
   }
   return hovered
@@ -330,7 +296,7 @@ export function findHoveredEdge(
   // LayoutResult.stranded, as the drawing was given it, so the curve tested
   // joins the node ends the drawn link does
   stranded: boolean | undefined,
-  // RenderBatch.collapsed: the links a tick stands for, which no link draws
+  // RenderBatch.collapsed: the folded links, which draw nothing
   collapsed: RenderBatch['collapsed'],
 ) {
   const yToX = yToXOf(axis)

@@ -15,7 +15,6 @@ import { LABEL_PAD } from './overlayLabels'
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
 import type { LabelLayoutSource } from './labelLayout'
-import type { Tick } from './renderer/types'
 import type { NodeSegment } from './types'
 
 const bubble = {
@@ -895,40 +894,4 @@ test('the labels of a 15,000-node drawing fitted to a track lay out in under a m
   expect(layout.genes).toHaveLength(9)
   expect(layout.sizes).toHaveLength(nodeLabelBudget(1588, 322))
   expect(lookups).toBeLessThan(1_000_000)
-})
-
-test("a placeholder's length keeps off the ticks the drawing stands at its middle", () => {
-  const [node] = placeholders([11_084])
-  const tick = {
-    x: 300,
-    y: 250,
-    nx: 1,
-    ny: 0,
-    offset: -6,
-    height: 12,
-    thickness: 0.75,
-    color: 0,
-    count: 1,
-    total: 2,
-    nodes: [],
-    edges: [],
-  }
-  const laid = (ticks?: Tick[]) =>
-    layoutLabels(
-      source({
-        nodePositions: {
-          p0: [
-            { x: 300, y: 200 },
-            { x: 300, y: 300 },
-          ],
-        },
-        nodeLengths: new Map([['p0', node!.length]]),
-        nodeById: new Map([['p0', node!]]),
-        ticks,
-      }),
-    ).sizes
-  expect(laid().map(l => [l.text, l.y])).toEqual([['11.1 kb', 250]])
-  const [moved] = laid([tick])
-  expect(moved?.text).toBe('11.1 kb')
-  expect(Math.abs((moved?.y ?? 250) - 250)).toBeGreaterThan(8 + tick.thickness)
 })

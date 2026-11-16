@@ -75,20 +75,10 @@ export { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 // the ratio the renderer sizes its backing store with, which the transform
 // handed to it has to be multiplied by
 export { getDpr } from './renderer/canvas'
-export type { Renderer, Tick } from './renderer/types'
-export {
-  SITE_EXTENT_PX,
-  SITE_REACH_PX,
-  TICK_MAX_PX,
-  TICK_MIN_PX,
-  TICK_WIDTH_PX,
-  tickHeightPx,
-} from './levelOfDetail'
-export {
-  findHoveredEdge,
-  findHoveredNode,
-  findHoveredTick,
-} from './util/hitDetection'
+export type { Renderer } from './renderer/types'
+export { SMALL_SITE_PX } from './levelOfDetail'
+export type { Fold, Site, SmallSites } from './levelOfDetail'
+export { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 export type { NodeInk } from './util/hitDetection'
 export type { AxisScale } from './util/geometry'
 export { wheelZoomFactor } from './util/wheelZoom'

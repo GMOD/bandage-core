@@ -425,7 +425,7 @@ test("a lifted walk's own copy of a gene is named with its haplotype, and a gene
 
 // A 1 bp SNP, a 1 bp deletion and a 2 bp insertion beside a 300 bp allele, on
 // a straight reference at 1 bp a layout unit: at a 1200 px figure the three
-// small ones are under a pixel and the allele is over a hundred
+// small ones are under 3 px and the allele is over a hundred
 const SITES = [
   `S\tr1\t${'A'.repeat(1000)}`,
   'S\tr2\tC',
@@ -484,11 +484,11 @@ test.each([
     '__snapshots__/figure_lod_off_lifted.svg',
   ],
 ])(
-  'with level of detail off, a figure %s draws as it did before ticks',
+  'with small sites drawn as nodes, a figure %s draws every node',
   async (_, lifted, file) => {
     const svg = figureSvg(sites, sitesLayout, {
       walks: lifted,
-      levelOfDetail: false,
+      smallSites: 'nodes',
     })
     await expect(
       svg.replace(/bandage-core@[^&]+/, 'bandage-core@VERSION'),
@@ -496,17 +496,15 @@ test.each([
   },
 )
 
-test('a figure draws its small sites as ticks by default, keyed by their height', () => {
-  const on = figureSvg(sites, sitesLayout)
-  const off = figureSvg(sites, sitesLayout, { levelOfDetail: false })
-  expect(on).toMatch(
-    /<text y="13" font-weight="bold">Tick height<\/text>.*?<line x1="9" x2="9" y1="15" y2="3" stroke="#3c4148" stroke-width="1.5"\/><text x="23" y="13">3 walks<\/text>.*?<line x1="9" x2="9" y1="15" y2="12" stroke="#3c4148" stroke-width="1.5"\/><text x="23" y="13">1 walk<\/text>/,
-  )
-  expect(off).not.toContain('Tick height')
-  const ticks = (svg: string) =>
-    svg.match(
-      /<path d="(M[\d.]+ [\d.]+L[\d.]+ [\d.]+)+" fill="none" stroke="rgb\(60,65,72\)" stroke-width="1.5" stroke-linecap="butt"/g,
-    ) ?? []
-  expect(ticks(on)).toHaveLength(1)
-  expect(ticks(off)).toHaveLength(0)
+test('by default a figure folds its small sites, draws the allele, and says how many it folded in a last key line', () => {
+  const folded = figureSvg(sites, sitesLayout)
+  const drawn = figureSvg(sites, sitesLayout, { smallSites: 'nodes' })
+  const line = '<text y="13">2 nodes and 1 skip too small to draw</text>'
+  expect(folded).toContain(line)
+  expect(drawn).not.toContain('too small to draw')
+  const key = folded.slice(0, folded.indexOf(line))
+  expect(key).not.toMatch(/Tick/)
+  const strokes = (svg: string) => svg.match(/<path /g)?.length ?? 0
+  expect(strokes(folded)).toBeLessThan(strokes(drawn))
+  expect(folded).not.toContain('<line x1="9" x2="9"')
 })

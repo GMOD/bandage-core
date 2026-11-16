@@ -1,11 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
-import {
-  NO_COLLAPSE,
-  TICK_WIDTH_PX,
-  collapsedSites,
-  tickHeightPx,
-} from '../levelOfDetail'
+import { NO_FOLD, foldedSites } from '../levelOfDetail'
 import { nodeWidthPx, walkLaneWidthPx, widthNorm } from '../nodeWidths'
 import {
   PATH_LIGHTNESS,
@@ -48,6 +43,7 @@ import {
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
+import type { SmallSites } from '../levelOfDetail'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from '../util/geometry'
@@ -58,7 +54,6 @@ import type {
   NodeStroke,
   RenderBatch,
   Run,
-  Tick,
 } from './types'
 import type { Normal, VisitFrame } from './walkLanes'
 
@@ -342,19 +337,29 @@ function normal(a: Point | undefined, b: Point | undefined) {
   return len > 0 ? { nx: -dy / len, ny: dx / len } : undefined
 }
 
-function straightCurves(from: Point, to: Point): BezierCurve[] {
-  return [
-    {
-      x0: from.x,
-      y0: from.y,
-      cx0: from.x + (to.x - from.x) / 3,
-      cy0: from.y + (to.y - from.y) / 3,
-      cx1: from.x + ((to.x - from.x) * 2) / 3,
-      cy1: from.y + ((to.y - from.y) * 2) / 3,
-      x1: to.x,
-      y1: to.y,
-    },
-  ]
+function straightened(
+  curves: BezierCurve[],
+  from: Point | undefined,
+  to: Point | undefined,
+) {
+  const first = curves[0]
+  const last = curves.at(-1)
+  const a = from ?? (first && { x: first.x0, y: first.y0 })
+  const b = to ?? (last && { x: last.x1, y: last.y1 })
+  return a && b
+    ? [
+        {
+          x0: a.x,
+          y0: a.y,
+          cx0: a.x + (b.x - a.x) / 3,
+          cy0: a.y + (b.y - a.y) / 3,
+          cx1: a.x + ((b.x - a.x) * 2) / 3,
+          cy1: a.y + ((b.y - a.y) * 2) / 3,
+          x1: b.x,
+          y1: b.y,
+        },
+      ]
+    : curves
 }
 
 const MITRE_LIMIT = 0.1
@@ -452,8 +457,8 @@ export interface BuildOptions {
   // Bumped when a drag moves the positions in place, which their identity
   // cannot report. Only the shared curve cache reads it; see baseEdgeCurves.
   version?: number
-  // true when absent: what is too small to draw at this scale draws as a tick
-  levelOfDetail?: boolean
+  // 'hidden' when absent: what is too small to draw at this scale is not drawn
+  smallSites?: SmallSites
 }
 
 export function hslToRgb(
@@ -563,7 +568,6 @@ export { REFERENCE_RAMP_MAX_HUE } from '../referenceRampCss'
 const REFERENCE_RAMP_ALT_RGB = [60, 65, 72] as const
 export const REFERENCE_RAMP_ALT_COLOR = packAbgr(...REFERENCE_RAMP_ALT_RGB, 255)
 export const REFERENCE_RAMP_ALT_CSS = `rgb(${REFERENCE_RAMP_ALT_RGB.join(', ')})`
-export const TICK_COLOR = REFERENCE_RAMP_ALT_COLOR
 // A stretch whose nodes a cut didn't load is no sequence on the ramp, no exon
 // and no allele off the reference, so it is drawn hollow in an untinted grey
 // lighter than the off-reference charcoal
@@ -963,7 +967,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     stranded,
     hiddenEdges,
     version = 0,
-    levelOfDetail = true,
+    smallSites = 'hidden',
   } = options
   const widthScale = widthNorm(graph, nodeWidth)
   const busiest = edgeWidth === 'walks' ? busiestEdge(graph) : 0
@@ -981,16 +985,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     deletionRoutes,
     stranded,
   )
-  const collapse = levelOfDetail
-    ? collapsedSites(
-        graph,
-        nodePositions,
-        axis,
-        sharedCurves,
-        deletions,
-        hiddenEdges,
-      )
-    : NO_COLLAPSE
+  const collapse =
+    smallSites === 'hidden'
+      ? foldedSites(
+          graph,
+          nodePositions,
+          axis,
+          sharedCurves,
+          deletions,
+          hiddenEdges,
+        )
+      : NO_FOLD
 
   const nodeStrokes: NodeStroke[] = []
   const nodeStrokeRuns = new Map<string, Run>()
@@ -1563,10 +1568,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const fromFrames = lines?.frames.get(edge.from)
       const toFrames = lines?.frames.get(edge.to)
       const laneCurves = collapsed
-        ? straightCurves(
-            fromSite ?? { x: baseCurves[0]!.x0, y: baseCurves[0]!.y0 },
-            toSite ?? { x: last.x1, y: last.y1 },
-          )
+        ? straightened(baseCurves, fromSite, toSite)
         : baseCurves
       for (let lane = 0; lane < laneWalks.length; lane++) {
         const walk = laneWalks[lane]!
@@ -1772,36 +1774,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
-  const referenceInkPx = (id: string) => {
-    const node = nodeById.get(id)
-    const width = node
-      ? nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
-      : contigThickness
-    const laned = !!liftedWalks.length && !!highlight?.nodeIds.has(id)
-    return !laned
-      ? width / 2
-      : threaded
-        ? (bandWidthPx(lanePasses) * thinned + MIN_LANE_STROKE_PX) / 2
-        : (laneWidthOf(id) * liftedWalks.length) / 2
-  }
-  const ticks: Tick[] = collapse.sites.map(site => ({
-    x: site.x,
-    y: site.y,
-    nx: site.nx,
-    ny: site.ny,
-    offset: site.anchors.reduce(
-      (most, id) => Math.max(most, referenceInkPx(id)),
-      0,
-    ),
-    height: tickHeightPx(site.count, site.total),
-    thickness: TICK_WIDTH_PX / 2,
-    color: TICK_COLOR,
-    count: site.count,
-    total: site.total,
-    nodes: site.nodes,
-    edges: site.edges,
-  }))
-
   return {
     nodeStrokes,
     nodeStrokeRuns,
@@ -1809,7 +1781,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     arrowRuns,
     edgeCurves,
     edgeCurveRuns,
-    ticks,
-    collapsed: { nodes: collapse.nodes, edges: collapse.edges },
+    collapsed: collapse,
   }
 }

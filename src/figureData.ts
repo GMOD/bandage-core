@@ -11,6 +11,7 @@ import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAt, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
+import { NO_FOLD, SMALL_SITE_PX } from './levelOfDetail'
 import { haplotypeCount, nodeFrequency, withFrequencies } from './nodeWidths'
 import { LABEL_PX } from './overlayLabels'
 import { passBars } from './passBar'
@@ -41,6 +42,7 @@ import type { GraphKeySection } from './graphKey'
 import type { RowInk } from './layout/rowInks'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { LayoutModeValue } from './layoutModes'
+import type { Fold } from './levelOfDetail'
 import type { LaneSlide, RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
@@ -71,7 +73,7 @@ export type FigureDataOptions = Pick<
   | 'fitToDrawing'
   | 'genes'
   | 'nodeLengths'
-  | 'levelOfDetail'
+  | 'smallSites'
 >
 
 type Columns<T> = { [K in keyof T]: T[K][] }
@@ -222,21 +224,16 @@ interface GraphKeyRow {
   rimPx: number | null
 }
 
-// a tick standing for a site too small to draw at the figure's scale: from
-// `offset` px off (x, y) along (nx, ny) on screen to `offset + height`, with
-// `count` of `total` shown walks stepping the nodes and links it names
-interface TickRow {
-  panel: string
-  tick: number
+// a site folded as too small to draw: where it attaches to the reference,
+// the nodes and links it folds, and how many of the shown haplotypes step it
+interface SiteRow {
+  site: number
+  refName: string
+  start: number
+  end: number
+  bp: number
   x: number
   y: number
-  nx: number
-  ny: number
-  offset: number
-  height: number
-  width: number
-  color: string
-  alpha: number
   count: number
   total: number
   nodes: string
@@ -276,6 +273,38 @@ const alphaOf = (c: number) => abgrAlpha(c) / 255
 const BASELINE_TO_MIDDLE = 0.35
 const SIZE_LABEL_PX = 10
 
+function siteTable(fold: Fold) {
+  const sites = columns<SiteRow>({
+    site: [],
+    refName: [],
+    start: [],
+    end: [],
+    bp: [],
+    x: [],
+    y: [],
+    count: [],
+    total: [],
+    nodes: [],
+    links: [],
+  })
+  fold.sites.forEach((s, site) => {
+    sites.push({
+      site,
+      refName: s.refName,
+      start: s.start,
+      end: s.end,
+      bp: s.bp,
+      x: s.x,
+      y: s.y,
+      count: s.count,
+      total: s.total,
+      nodes: s.nodes.join(','),
+      links: s.edges.join(','),
+    })
+  })
+  return sites.out
+}
+
 function graphKeyTable(sections: GraphKeySection[]) {
   const table = columns<GraphKeyRow>({
     section: [],
@@ -314,10 +343,7 @@ function graphKeyTable(sections: GraphKeySection[]) {
           swatch?.kind === 'scale'
             ? swatch.stops.map(s => abgrHex(s.ink)).join(',')
             : '',
-        px:
-          swatch?.kind === 'width' || swatch?.kind === 'tick'
-            ? swatch.px
-            : null,
+        px: swatch?.kind === 'width' ? swatch.px : null,
         dashed: swatch?.kind === 'line' && swatch.dashed,
         rim: swatch?.kind === 'hollow' ? abgrHex(swatch.rim) : '',
         rimPx: swatch?.kind === 'hollow' ? swatch.rimPx : null,
@@ -535,24 +561,6 @@ export function figureData(
     alpha: [],
   })
 
-  const ticks = columns<TickRow>({
-    panel: [],
-    tick: [],
-    x: [],
-    y: [],
-    nx: [],
-    ny: [],
-    offset: [],
-    height: [],
-    width: [],
-    color: [],
-    alpha: [],
-    count: [],
-    total: [],
-    nodes: [],
-    links: [],
-  })
-
   const batches: RenderBatch[] = []
   for (const { highlight, name: panel, firstKeyRow } of panels) {
     const batch = geometry(highlight, axis)
@@ -649,26 +657,12 @@ export function figureData(
         })
       }
     })
-    batch.ticks?.forEach((t, tick) => {
-      ticks.push({
-        panel,
-        tick,
-        x: t.x,
-        y: t.y,
-        nx: t.nx,
-        ny: t.ny,
-        offset: t.offset,
-        height: t.height,
-        width: t.thickness * 2,
-        color: abgrHex(t.color),
-        alpha: alphaOf(t.color),
-        count: t.count,
-        total: t.total,
-        nodes: t.nodes.join(','),
-        links: t.edges.join(','),
-      })
-    })
   }
+
+  const fold =
+    (o.smallSites ?? FIGURE_DEFAULTS.smallSites) === 'hidden'
+      ? (batches[0]?.collapsed ?? NO_FOLD)
+      : undefined
 
   const placed = layoutLabels({
     paneWidth: width,
@@ -691,7 +685,6 @@ export function figureData(
     nodeById,
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
-    ticks: batches[0]?.ticks,
     passLabels:
       facets || !batches[0]
         ? []
@@ -867,6 +860,15 @@ export function figureData(
       },
       // the graph's key, as every reader draws it (graphKey.ts)
       graphKey: graphKeyTable(key),
+      ...(fold
+        ? {
+            smallSites: {
+              mode: 'hidden',
+              px: SMALL_SITE_PX,
+              bp: fold.pxPerBp > 0 ? SMALL_SITE_PX / fold.pxPerBp : null,
+            },
+          }
+        : {}),
     },
     panels: {
       panel: panels.map(p => p.name),
@@ -884,7 +886,7 @@ export function figureData(
     nodes: nodes.out,
     edges: edges.out,
     arrows: arrows.out,
-    ticks: ticks.out,
+    ...(fold ? { sites: siteTable(fold) } : {}),
     nodeInfo: {
       node: graph.nodes.map(n => n.id),
       name: graph.nodes.map(n => n.name),

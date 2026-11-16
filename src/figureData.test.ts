@@ -14,7 +14,7 @@ import { layoutLabels } from './labelLayout'
 import { liftedRowInks, rowInkAt } from './layout/rowInks'
 import { walkRows } from './layout/walkRows'
 import { layoutEngine } from './layoutEngines'
-import { tickHeightPx } from './levelOfDetail'
+import { SMALL_SITE_PX } from './levelOfDetail'
 import {
   drawingBounds,
   engineSettingsOf,
@@ -23,7 +23,6 @@ import {
   loadGraph,
 } from './pipeline'
 import { graphBackbone } from './reference'
-import { TICK_COLOR } from './renderer/GeometryBuilder'
 import { abgrHex } from './renderer/colorBits'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
@@ -49,7 +48,7 @@ test('every column of a table is one row long per row', async () => {
     d.nodes,
     d.edges,
     d.arrows,
-    d.ticks,
+    d.sites ?? {},
     d.nodeInfo,
     d.rowLabels,
   ]) {
@@ -67,15 +66,23 @@ test('an anchored layout states its reference axis and its rows', async () => {
   expect(d.rowLabels.label[0]).toMatch(/Reference/)
 })
 
-test('every node of the node table is drawn or stood for by a tick, never both', async () => {
-  const d = await gfaFigureData(read('ecoli_pggb_subgraph.gfa'), 'ecoli', {
-    engine: 'stress',
-  })
-  const ticked = d.ticks.nodes.flatMap(nodes => nodes.split(','))
+const listed = (column: string[] | undefined) =>
+  (column ?? []).flatMap(ids => (ids ? ids.split(',') : []))
+
+test('every node of the node table is drawn or listed as folded, never both, and with small sites drawn as nodes every one is drawn', async () => {
+  const gfa = read('ecoli_pggb_subgraph.gfa')
+  const d = await gfaFigureData(gfa, 'ecoli', { engine: 'stress' })
+  const folded = listed(d.sites?.nodes)
   const drawn = new Set(d.nodes.node)
-  expect(ticked.length).toBeGreaterThan(0)
-  expect(ticked.filter(id => drawn.has(id))).toEqual([])
-  expect(new Set([...drawn, ...ticked])).toEqual(new Set(d.nodeInfo.node))
+  expect(folded.length).toBeGreaterThan(0)
+  expect(folded.filter(id => drawn.has(id))).toEqual([])
+  expect(new Set([...drawn, ...folded])).toEqual(new Set(d.nodeInfo.node))
+  const all = await gfaFigureData(gfa, 'ecoli', {
+    engine: 'stress',
+    smallSites: 'nodes',
+  })
+  expect(new Set(all.nodes.node)).toEqual(new Set(all.nodeInfo.node))
+  expect(all.sites).toBeUndefined()
 })
 
 test('the node table counts how often the reference walks each node', async () => {
@@ -506,8 +513,8 @@ test("a gene's name is labelled with its leader to its pin, and the inks are the
 })
 
 // a 1 bp SNP taken by one of three walks and a 1 bp deletion taken by two,
-// each under a pixel at a 1200 px fit of a 2 kb reference
-test('the ticks table gives each tick its place, height, count of the shown walks and the nodes and links it stands for', () => {
+// each under 3 px at a 1200 px fit of a 2 kb reference
+test('the sites table lists each folded site, its nodes and links each once and none drawn, and meta states the mode and threshold', () => {
   const graph = loadGraph(
     [
       `S\tr1\t${'A'.repeat(1000)}`,
@@ -527,7 +534,7 @@ test('the ticks table gives each tick its place, height, count of the shown walk
       'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r5',
       'W\tw\t2\tchr\t0\t*\t>r1>r2>r3>r5',
     ].join('\n'),
-    'ticks',
+    'sites',
   )
   const at = (x0: number, x1: number, y = 0) => [
     { x: x0, y },
@@ -544,38 +551,46 @@ test('the ticks table gives each tick its place, height, count of the shown walk
     },
   }
   const d = figureData(graph, layout)
-  expect(lengths(d.ticks)).toEqual(new Set([2]))
   const index = (from: string, to: string) =>
     graph.edges.findIndex(e => e.from === from && e.to === to)
-  expect(d.ticks).toMatchObject({
-    panel: ['', ''],
-    tick: [0, 1],
+  const into = index('r1+', 'a1+')
+  const out = index('a1+', 'r3+')
+  const skip = index('r3+', 'r5+')
+  expect(d.sites).toEqual({
+    site: [0, 1],
+    refName: ['ref#0#chr', 'ref#0#chr'],
+    start: [1000, 1501],
+    end: [1001, 1502],
+    bp: [2, 1],
     x: [1000.5, 1501.5],
     y: [0, 0],
-    nx: [0, 0],
-    ny: [-1, -1],
     count: [1, 2],
     total: [3, 3],
     nodes: ['a1+', ''],
-    links: [
-      [index('r1+', 'a1+'), index('a1+', 'r3+')].join(','),
-      `${index('r3+', 'r5+')}`,
-    ],
-    color: [abgrHex(TICK_COLOR), abgrHex(TICK_COLOR)],
+    links: [[into, out].join(','), `${skip}`],
   })
-  expect(d.ticks.height[0]).toBe(tickHeightPx(1, 3))
-  expect(d.ticks.height[1]).toBe(tickHeightPx(2, 3))
-  expect(d.ticks.offset.every(px => px > 0)).toBe(true)
-  expect(d.nodes.node).not.toContain('a1+')
-  expect(d.edges.edge).not.toContain(index('r3+', 'r5+'))
-  const keyRows = d.meta.graphKey.swatch.flatMap((swatch, i) =>
-    swatch === 'tick' ? [[d.meta.graphKey.text[i], d.meta.graphKey.px[i]]] : [],
+  const links = (d.sites?.links ?? []).flatMap(ids =>
+    ids.split(',').map(Number),
   )
-  expect(keyRows).toEqual([
-    ['3 walks', tickHeightPx(3, 3)],
-    ['1 walk', tickHeightPx(1, 3)],
-  ])
-  const off = figureData(graph, layout, { levelOfDetail: false })
-  expect(off.ticks.tick).toEqual([])
-  expect(off.nodes.node).toContain('a1+')
+  const byIndex = (a: number, b: number) => a - b
+  expect(links.toSorted(byIndex)).toEqual([into, out, skip].toSorted(byIndex))
+  expect(d.nodes.node).not.toContain('a1+')
+  for (const edge of links) {
+    expect(d.edges.edge).not.toContain(edge)
+  }
+  expect(d.meta.smallSites?.mode).toBe('hidden')
+  expect(d.meta.smallSites?.px).toBe(SMALL_SITE_PX)
+  expect(d.meta.smallSites?.bp).toBeCloseTo(SMALL_SITE_PX / d.meta.scaleX)
+  const keyRow = d.meta.graphKey.key.indexOf('too-small')
+  expect(d.meta.graphKey.text[keyRow]).toBe(
+    '1 node and 1 skip too small to draw',
+  )
+  expect(d.meta.graphKey.swatch[keyRow]).toBe('')
+  const nodes = figureData(graph, layout, { smallSites: 'nodes' })
+  expect(nodes.sites).toBeUndefined()
+  expect(nodes.meta.smallSites).toBeUndefined()
+  expect(Object.keys(nodes)).not.toContain('sites')
+  expect(Object.keys(nodes.meta)).not.toContain('smallSites')
+  expect(nodes.nodes.node).toContain('a1+')
+  expect(nodes.meta.graphKey.key).not.toContain('too-small')
 })

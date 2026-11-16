@@ -1,46 +1,32 @@
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import {
-  SITE_EXTENT_PX,
-  SITE_REACH_PX,
-  TICK_MAX_PX,
-  TICK_MIN_PX,
-  tickEnds,
-  tickHeightPx,
-} from './levelOfDetail'
+import { SMALL_SITE_PX } from './levelOfDetail'
+import { haplotypeCount } from './nodeWidths'
 import { anchorGraph } from './pathAnchoring'
-import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
-import { TICK_COLOR, buildGeometry } from './renderer/GeometryBuilder'
-import { abgrToCssRgba } from './renderer/colorBits'
+import { buildGeometry } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
-import { recordingCanvas } from './renderer/recordingCanvas'
-import {
-  distanceToSegment,
-  findHoveredEdge,
-  findHoveredNode,
-  findHoveredTick,
-} from './util/hitDetection'
+import { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 import { walkLift } from './walkHighlight'
 
 import type { BuildOptions } from './renderer/GeometryBuilder'
-import type { Tick } from './renderer/types'
-import type { Graph, NodeSegment } from './types'
+import type { Graph, NodeSegment, PathVisit } from './types'
 
 const load = (lines: string[]) =>
   anchorGraph(convertGFAToGraph(parseGFA(lines.join('\n'))), 'ref')
+
+const bases = (bp: number) => 'A'.repeat(bp)
 
 const at = (x0: number, x1: number, y = 0): NodeSegment[] => [
   { x: x0, y },
   { x: x1, y },
 ]
 
-// held per graph, as a host holds them
 const drawings = new WeakMap<Graph, ReturnType<typeof deletionDrawing>>()
-const drawingOf = (graph: Graph) => {
-  const held = drawings.get(graph)
-  const drawing = held ?? deletionDrawing(graph, deletionEdges(graph), true)
-  if (!held) {
+const drawingOf = (graph: Graph, show = true) => {
+  const held = show ? drawings.get(graph) : undefined
+  const drawing = held ?? deletionDrawing(graph, deletionEdges(graph), show)
+  if (show && !held) {
     drawings.set(graph, drawing)
   }
   return drawing
@@ -51,9 +37,13 @@ function build(
   positions: Record<string, NodeSegment[]>,
   scale = 1,
   more: Partial<BuildOptions> = {},
+  show = true,
 ) {
   return buildGeometry({
-    ...layoutGeometryInputs({ nodePositions: positions }, drawingOf(graph)),
+    ...layoutGeometryInputs(
+      { nodePositions: positions },
+      drawingOf(graph, show),
+    ),
     graph,
     nodeById: new Map(graph.nodes.map(n => [n.id, n])),
     colorScheme: 'uniform',
@@ -65,188 +55,125 @@ function build(
   })
 }
 
+const folded = (batch: ReturnType<typeof build>) =>
+  [...(batch.collapsed?.nodes ?? [])].toSorted()
 const drawnNodes = (batch: ReturnType<typeof build>) =>
   new Set(batch.nodeStrokeRuns.keys())
-const ticked = (batch: ReturnType<typeof build>) =>
-  (batch.ticks ?? []).flatMap(t => t.nodes)
+const edgeIndex = (graph: Graph, from: string, to: string) =>
+  graph.edges.findIndex(e => e.from === from && e.to === to)
 
-// r2 is the reference's allele of `width` px and a1 the alt's; the alt
-// leaves r1's end and comes back at r3's start, `gap` px on
-function snp(width: number, gap = 1) {
+// a1, `altBp` long, takes the place of r2, `refBp` long, between 1 kb
+// flanks, drawn one layout unit a bp, so the reference's px per bp is the
+// scale
+function snp(
+  altBp: number,
+  refBp: number,
+  walks = ['W\talt\t1\tchr\t0\t*\t>r1>a1>r3'],
+) {
   const graph = load([
-    'S\tr1\tAAAA',
-    'S\tr2\tC',
-    'S\tr3\tGGGG',
-    'S\ta1\tT',
+    `S\tr1\t${bases(1000)}`,
+    `S\tr2\t${bases(refBp)}`,
+    `S\tr3\t${bases(1000)}`,
+    `S\ta1\t${bases(altBp)}`,
     'L\tr1\t+\tr2\t+\t0M',
     'L\tr2\t+\tr3\t+\t0M',
     'L\tr1\t+\ta1\t+\t0M',
     'L\ta1\t+\tr3\t+\t0M',
-    'W\tref\t0\tchr\t0\t9\t>r1>r2>r3',
-    'W\talt\t1\tchr\t0\t9\t>r1>a1>r3',
+    `W\tref\t0\tchr\t0\t${2000 + refBp}\t>r1>r2>r3`,
+    ...walks,
   ])
   return {
     graph,
     positions: {
-      'r1+': at(0, 100),
-      'r2+': at(100, 100 + gap),
-      'r3+': at(100 + gap, 200),
-      'a1+': at(100, 100 + width, 10),
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1000 + refBp),
+      'r3+': at(1000 + refBp, 2000 + refBp),
+      'a1+': at(1000, 1000 + altBp, 20),
     },
   }
 }
 
-describe('a site is collapsed only under both thresholds', () => {
+// a skip over r2, `bp` long, between 1 kb flanks
+function skip(bp: number, walks = ['W\tdel\t1\tchr\t0\t*\t>r1>r3']) {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    `S\tr2\t${bases(bp)}`,
+    `S\tr3\t${bases(1000)}`,
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr1\t+\tr3\t+\t0M',
+    `W\tref\t0\tchr\t0\t${2000 + bp}\t>r1>r2>r3`,
+    ...walks,
+  ])
+  return {
+    graph,
+    positions: {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1000 + bp),
+      'r3+': at(1000 + bp, 2000 + bp),
+    },
+  }
+}
+
+test('a site is small under SMALL_SITE_PX, which is 3 px', () => {
+  expect(SMALL_SITE_PX).toBe(3)
+})
+
+describe('a site folds when its bp and the reference bp between its attachments come to under SMALL_SITE_PX', () => {
   test.each([
-    [SITE_EXTENT_PX - 0.1, 1, true],
-    [SITE_EXTENT_PX + 0.1, 1, false],
-    [1, SITE_REACH_PX - 0.1, true],
-    [1, SITE_REACH_PX + 0.1, false],
+    [1, 1, 1.49, true],
+    [1, 1, 1.51, false],
+    [1, 10, 0.27, true],
+    [1, 10, 0.28, false],
+    [10, 1, 0.28, false],
   ])(
-    'an allele %f px long attached %f px apart: collapsed %s',
-    (width, gap, collapsed) => {
-      const { graph, positions } = snp(width, gap)
-      const batch = build(graph, positions)
-      expect(ticked(batch)).toEqual(collapsed ? ['a1+'] : [])
-      expect(drawnNodes(batch).has('a1+')).toBe(!collapsed)
-      expect(batch.collapsed?.edges.size).toBe(collapsed ? 2 : 0)
-      expect(batch.edgeCurveRuns.size).toBe(collapsed ? 2 : 4)
+    'a %i bp allele in place of %i bp at %f px a bp folds: %s',
+    (altBp, refBp, scale, isFolded) => {
+      const { graph, positions } = snp(altBp, refBp)
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.pxPerBp).toBeCloseTo(scale, 9)
+      expect(folded(batch)).toEqual(isFolded ? ['a1+'] : [])
+      expect(drawnNodes(batch).has('a1+')).toBe(!isFolded)
+      expect(batch.collapsed?.edges.size).toBe(isFolded ? 2 : 0)
+      expect(batch.edgeCurveRuns.size).toBe(isFolded ? 2 : 4)
     },
   )
 
   test.each([
-    [SITE_EXTENT_PX - 0.1, true],
-    [SITE_EXTENT_PX + 0.1, false],
-  ])('a skip spanning %f px: collapsed %s', (span, collapsed) => {
-    const graph = load([
-      'S\tr1\tAAAA',
-      'S\tr2\tC',
-      'S\tr3\tGGGG',
-      'L\tr1\t+\tr2\t+\t0M',
-      'L\tr2\t+\tr3\t+\t0M',
-      'L\tr1\t+\tr3\t+\t0M',
-      'W\tref\t0\tchr\t0\t9\t>r1>r2>r3',
-      'W\tdel\t1\tchr\t0\t8\t>r1>r3',
-    ])
-    const batch = build(graph, {
-      'r1+': at(0, 100),
-      'r2+': at(100, 100 + span),
-      'r3+': at(100 + span, 200),
-    })
-    expect(batch.ticks?.map(t => t.edges)).toEqual(collapsed ? [[2]] : [])
-    expect(batch.edgeCurveRuns.has(2)).toBe(!collapsed)
+    [2, 1.49, true],
+    [2, 1.51, false],
+  ])('a skip over %i bp at %f px a bp folds: %s', (bp, scale, isFolded) => {
+    const { graph, positions } = skip(bp)
+    const batch = build(graph, positions, scale)
+    expect(batch.collapsed?.sites.map(s => s.edges)).toEqual(
+      isFolded ? [[2]] : [],
+    )
+    expect(batch.edgeCurveRuns.has(2)).toBe(!isFolded)
     expect(drawnNodes(batch)).toEqual(new Set(['r1+', 'r2+', 'r3+']))
   })
 })
 
-test('a small component attached at two reference points more than SITE_REACH_PX apart is not collapsed', () => {
-  const graph = load([
-    'S\tr1\tAAAA',
-    'S\tr2\tCCCCCCCC',
-    'S\tr3\tGGGG',
-    'S\ta1\tT',
-    'L\tr1\t+\tr2\t+\t0M',
-    'L\tr2\t+\tr3\t+\t0M',
-    'L\tr1\t+\ta1\t+\t0M',
-    'L\ta1\t+\tr3\t+\t0M',
-    'W\tref\t0\tchr\t0\t16\t>r1>r2>r3',
-    'W\talt\t1\tchr\t0\t9\t>r1>a1>r3',
-  ])
-  const positions = {
-    'r1+': at(0, 100),
-    'r2+': at(100, 150),
-    'r3+': at(150, 250),
-    'a1+': at(100, 100.5, 10),
+// `count` 1 bp SNPs, each between 200 bp of reference, laid out two ways: a
+// straight line one unit a bp, and a winding line like a force layout's, its
+// short nodes floored to 15 units, its alleles off on either side at any angle
+// and its long nodes drawn longer or shorter than their bp
+function snpRun(count: number) {
+  const lines = [`S\tr0\t${bases(200)}`]
+  const straight: Record<string, NodeSegment[]> = { 'r0+': at(0, 200) }
+  const winding: Record<string, NodeSegment[]> = {
+    'r0+': [
+      { x: 0, y: 0 },
+      { x: 100, y: 40 },
+      { x: 150, y: 0 },
+    ],
   }
-  const batch = build(graph, positions)
-  expect(batch.ticks).toEqual([])
-  expect(drawnNodes(batch).has('a1+')).toBe(true)
-})
-
-test('nothing on the reference and no placeholder is collapsed, nor what hangs from a placeholder', () => {
-  const graph = load([
-    'S\tr1\tAAAA',
-    'S\tr2\tC',
-    'S\tr3\tGGGG',
-    'S\tp1\t*\tLN:i:5000\tnl:i:1',
-    'S\ta1\tT',
-    'L\tr1\t+\tr2\t+\t0M',
-    'L\tr2\t+\tr3\t+\t0M',
-    'L\tr1\t+\tp1\t+\t0M',
-    'L\tp1\t+\ta1\t+\t0M',
-    'L\ta1\t+\tr3\t+\t0M',
-    'W\tref\t0\tchr\t0\t9\t>r1>r2>r3',
-    'W\talt\t1\tchr\t0\t*\t>r1>p1>a1>r3',
-  ])
-  expect(graph.nodes.find(n => n.name === 'p1')?.placeholder).toBe(true)
-  const positions = {
-    'r1+': at(0, 100),
-    'r2+': at(100, 100.1),
-    'r3+': at(100.1, 200),
-    'p1+': at(100, 100.2, 10),
-    'a1+': at(100.2, 100.3, 10),
-  }
-  for (const scale of [0.01, 1, 100]) {
-    const batch = build(graph, positions, scale)
-    expect(batch.ticks).toEqual([])
-    expect(drawnNodes(batch)).toEqual(new Set(Object.keys(positions)))
-  }
-})
-
-test('a site no shown walk steps is drawn as it is, never as a tick', () => {
-  const graph = load([
-    'S\tr1\tAAAA',
-    'S\tr2\tC',
-    'S\tr3\tGGGG',
-    'S\ta1\tT',
-    'L\tr1\t+\tr2\t+\t0M',
-    'L\tr2\t+\tr3\t+\t0M',
-    'L\tr1\t+\ta1\t+\t0M',
-    'L\ta1\t+\tr3\t+\t0M',
-    'W\tref\t0\tchr\t0\t9\t>r1>r2>r3',
-  ])
-  const { positions } = snp(1)
-  const batch = build(graph, positions)
-  expect(batch.ticks).toEqual([])
-  expect(drawnNodes(batch).has('a1+')).toBe(true)
-})
-
-test('a tick is TICK_MIN_PX tall for one walk, TICK_MAX_PX for all of them, and in proportion between', () => {
-  expect(tickHeightPx(1, 9)).toBe(TICK_MIN_PX)
-  expect(tickHeightPx(9, 9)).toBe(TICK_MAX_PX)
-  expect(tickHeightPx(5, 9)).toBeCloseTo((TICK_MIN_PX + TICK_MAX_PX) / 2)
-  expect(tickHeightPx(1, 1)).toBe(TICK_MIN_PX)
-  const graph = load([
-    'S\tr1\tAAAA',
-    'S\tr2\tC',
-    'S\tr3\tGGGG',
-    'S\ta1\tT',
-    'L\tr1\t+\tr2\t+\t0M',
-    'L\tr2\t+\tr3\t+\t0M',
-    'L\tr1\t+\ta1\t+\t0M',
-    'L\ta1\t+\tr3\t+\t0M',
-    'W\tref\t0\tchr\t0\t9\t>r1>r2>r3',
-    'W\tx\t1\tchr\t0\t9\t>r1>a1>r3',
-    'W\tx\t2\tchr\t0\t9\t>r1>a1>r3',
-    'W\ty\t1\tchr\t0\t9\t>r1>r2>r3',
-  ])
-  const [tick] = build(graph, snp(1).positions).ticks ?? []
-  expect(tick).toMatchObject({ count: 2, total: 4 })
-  expect(tick?.height).toBeCloseTo(
-    TICK_MIN_PX + (TICK_MAX_PX - TICK_MIN_PX) / 3,
-  )
-})
-
-// SNPs every `pitch` px along a reference running left to right, their
-// alleles on alternate sides of it
-function snpRun(count: number, pitch: number, flip = 1) {
-  const lines = ['S\tr0\tAAAA']
-  const positions: Record<string, NodeSegment[]> = { 'r0+': at(0, flip * 50) }
   const refSteps = ['>r0']
   const altSteps = ['>r0']
-  let x = 50
+  let x = 200
+  let wx = 150
+  let wy = 0
   for (let i = 1; i <= count; i++) {
-    lines.push(`S\ts${i}\tC`, `S\ta${i}\tT`, `S\tr${i}\tGGGG`)
+    lines.push(`S\ts${i}\tC`, `S\ta${i}\tT`, `S\tr${i}\t${bases(200)}`)
     const prev = `r${i - 1}`
     lines.push(
       `L\t${prev}\t+\ts${i}\t+\t0M`,
@@ -254,196 +181,264 @@ function snpRun(count: number, pitch: number, flip = 1) {
       `L\t${prev}\t+\ta${i}\t+\t0M`,
       `L\ta${i}\t+\tr${i}\t+\t0M`,
     )
-    positions[`s${i}+`] = at(flip * x, flip * (x + 0.5))
-    positions[`a${i}+`] = at(flip * x, flip * (x + 0.5), i % 2 ? 6 : -6)
-    positions[`r${i}+`] = at(flip * (x + 0.5), flip * (x + pitch))
+    straight[`s${i}+`] = at(x, x + 1)
+    straight[`a${i}+`] = at(x, x + 1, i % 2 ? 6 : -6)
+    straight[`r${i}+`] = at(x + 1, x + 201)
+    const turn = (i * 2.3) % (2 * Math.PI)
+    const long = 80 + ((i * 53) % 170)
+    winding[`s${i}+`] = [
+      { x: wx, y: wy },
+      { x: wx + 15, y: wy },
+    ]
+    winding[`a${i}+`] = [
+      { x: wx + 2, y: wy + 12 * Math.sin(turn) },
+      { x: wx + 2 + 15 * Math.cos(turn), y: wy + 15 * Math.sin(turn) },
+    ]
+    winding[`r${i}+`] = [
+      { x: wx + 15, y: wy },
+      { x: wx + 15 + long / 2, y: wy + (i % 3) * 30 },
+      { x: wx + 15 + long, y: wy },
+    ]
     refSteps.push(`>s${i}>r${i}`)
     altSteps.push(`>a${i}>r${i}`)
-    x += pitch
+    x += 201
+    wx += 15 + long
+    wy += i % 2 ? 25 : -10
   }
   lines.push(
     `W\tref\t0\tchr\t0\t*\t${refSteps.join('')}`,
     `W\talt\t1\tchr\t0\t*\t${altSteps.join('')}`,
   )
-  return { graph: load(lines), positions }
+  return { graph: load(lines), straight, winding }
 }
 
-const footAndTop = (tick: Tick, scale: number) =>
-  tickEnds(tick, {
-    scaleX: scale,
-    scaleY: scale,
-    translateX: 0,
-    translateY: 0,
-    dpr: 1,
-  })
-
-test('every tick stands on the same side of the reference, whichever side its alleles lie', () => {
-  const right = snpRun(6, 20)
-  const ticks = build(right.graph, right.positions).ticks ?? []
-  expect(ticks).toHaveLength(6)
-  expect(ticks.every(t => t.ny < 0 && t.nx === 0)).toBe(true)
-  const left = snpRun(6, 20, -1)
-  const back = build(left.graph, left.positions).ticks ?? []
-  expect(back).toHaveLength(6)
-  expect(back.every(t => t.ny > 0)).toBe(true)
+test('both layouts fold the same set at the same px a bp of reference, whatever their nodes are drawn at', () => {
+  const { graph, straight, winding } = snpRun(12)
+  const perBp = (positions: Record<string, NodeSegment[]>) =>
+    build(graph, positions, 1).collapsed?.pxPerBp ?? 0
+  const across = perBp(straight) / perBp(winding)
+  expect(across).not.toBeCloseTo(1)
+  const seen = new Set<number>()
+  for (const scale of [0.5, 1, 1.2, 1.49, 1.51, 2, 4]) {
+    const a = folded(build(graph, straight, scale))
+    const b = folded(build(graph, winding, scale * across))
+    expect(b).toEqual(a)
+    seen.add(a.length)
+  }
+  expect(seen).toEqual(new Set([12, 0]))
 })
 
-test('sites closer than SITE_REACH_PX share a tick, and no tick overlaps another', () => {
-  const { graph, positions } = snpRun(40, 2)
-  const ticks = build(graph, positions).ticks ?? []
-  const sites = ticks.flatMap(t => t.nodes)
-  expect(sites.toSorted()).toEqual(
-    Array.from({ length: 40 }, (_, i) => `a${i + 1}+`).toSorted(),
-  )
-  expect(ticks.length).toBeGreaterThan(40 / (SITE_REACH_PX / 2) - 1)
-  expect(ticks.length).toBeLessThan(40)
-  ticks.forEach((a, i) => {
-    const [a0, a1] = footAndTop(a, 1)
-    for (const b of ticks.slice(i + 1)) {
-      const [b0, b1] = footAndTop(b, 1)
-      const apart = Math.min(
-        distanceToSegment(b0.x, b0.y, a0.x, a0.y, a1.x, a1.y),
-        distanceToSegment(b1.x, b1.y, a0.x, a0.y, a1.x, a1.y),
-      )
-      expect(apart).toBeGreaterThan(a.thickness + b.thickness)
+test('identical sites anywhere on a winding reference all fold or all stay', () => {
+  const { graph, winding } = snpRun(12)
+  const unit = build(graph, winding, 1).collapsed?.pxPerBp ?? 0
+  const counts = new Set<number>()
+  for (let i = 0; i <= 60; i++) {
+    const scale = ((0.5 + i * 0.05) * SMALL_SITE_PX) / 2 / unit
+    counts.add(folded(build(graph, winding, scale)).length)
+  }
+  expect(counts).toEqual(new Set([12, 0]))
+})
+
+test('under a monotone zoom each node changes state once at most, zooming in draws again exactly what was folded, and a pan reuses the fold', () => {
+  const { graph, winding } = snpRun(12)
+  const changes = new Map<string, number>()
+  let before = new Set<string>()
+  const scales = Array.from({ length: 80 }, (_, i) => 0.05 * 1.06 ** i)
+  for (const scale of scales) {
+    const now = new Set(build(graph, winding, scale).collapsed?.nodes)
+    for (const id of graph.nodes.map(n => n.id)) {
+      if (before.has(id) !== now.has(id) && scale !== scales[0]) {
+        changes.set(id, (changes.get(id) ?? 0) + 1)
+      }
     }
-  })
+    before = now
+  }
+  expect(changes.size).toBe(12)
+  expect([...changes.values()].every(n => n === 1)).toBe(true)
+  const out = build(graph, winding, 0.05)
+  const close = build(graph, winding, 50)
+  expect(close.collapsed?.nodes.size).toBe(0)
+  const restored = [...drawnNodes(close)].filter(id => !drawnNodes(out).has(id))
+  expect(restored.toSorted()).toEqual(folded(out))
+  expect(close.edgeCurveRuns.size).toBe(graph.edges.length)
+  const fold = build(graph, winding, 0.3).collapsed
+  expect(build(graph, winding, 0.3).collapsed).toBe(fold)
+  build(graph, winding, 0.7)
+  expect(build(graph, winding, 0.3).collapsed).toEqual(fold)
 })
 
-test('a tick is painted after everything else, over the reference, the links, the skips and the heads', () => {
+// p1, `placeholderBp` long and not loaded, joins r1 to a1, which rejoins the
+// reference at r3; a2 hangs from p1 alone
+function placeholder(placeholderBp: number) {
   const graph = load([
-    'S\tr1\tAAAA',
+    `S\tr1\t${bases(1000)}`,
     'S\tr2\tC',
-    'S\tr3\tGGGG',
-    'S\tr4\tC',
-    'S\tr5\tGGGG',
+    `S\tr3\t${bases(1000)}`,
+    `S\tp1\t*\tLN:i:${placeholderBp}\tnl:i:1`,
     'S\ta1\tT',
+    'S\ta2\tG',
     'L\tr1\t+\tr2\t+\t0M',
     'L\tr2\t+\tr3\t+\t0M',
-    'L\tr3\t+\tr4\t+\t0M',
-    'L\tr4\t+\tr5\t+\t0M',
-    'L\tr1\t+\ta1\t+\t0M',
+    'L\tr1\t+\tp1\t+\t0M',
+    'L\tp1\t+\ta1\t+\t0M',
     'L\ta1\t+\tr3\t+\t0M',
-    'L\tr1\t+\tr5\t+\t0M',
-    'L\tr3\t+\tr5\t+\t0M',
-    'W\tref\t0\tchr\t0\t*\t>r1>r2>r3>r4>r5',
-    'W\talt\t1\tchr\t0\t*\t>r1>a1>r3>r5',
-    'W\tdel\t1\tchr\t0\t*\t>r1>r5',
+    'L\tp1\t+\ta2\t+\t0M',
+    'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+    'W\talt\t1\tchr\t0\t*\t>r1>p1>a1>r3',
   ])
-  const batch = build(graph, {
-    'r1+': at(0, 100),
-    'r2+': at(100, 101),
-    'r3+': at(101, 200),
-    'r4+': at(200, 201),
-    'r5+': at(201, 300),
-    'a1+': at(100, 101, 10),
-  })
-  expect(batch.ticks).toHaveLength(2)
-  expect(batch.arrows.length).toBeGreaterThan(0)
-  expect(batch.edgeCurves.some(e => e.skip)).toBe(true)
-  const { canvas, paints } = recordingCanvas()
-  const renderer = new Canvas2DRenderer(canvas)
-  renderer.uploadGeometry(batch)
-  renderer.updateTransform({
-    scaleX: 1,
-    scaleY: 1,
-    translateX: 0,
-    translateY: 0,
-    dpr: 1,
-  })
-  renderer.render([1, 1, 1, 1])
-  const tickInk = abgrToCssRgba(TICK_COLOR)
-  const last = paints.at(-1)!
-  expect(last).toMatchObject({ kind: 'stroke', style: tickInk })
-  const ends = (batch.ticks ?? []).flatMap(t => footAndTop(t, 1))
-  expect(last.points).toEqual(ends)
-})
+  return {
+    graph,
+    positions: {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1001),
+      'r3+': at(1001, 2001),
+      'p1+': at(1000, 1010, 20),
+      'a1+': at(1010, 1011, 20),
+      'a2+': at(1010, 1011, 40),
+    },
+  }
+}
 
-test('zooming in past the thresholds draws again exactly the nodes that were collapsed', () => {
-  const { graph, positions } = snpRun(10, 20)
-  const out = build(graph, positions, 1)
-  const close = build(graph, positions, 10)
-  const collapsed = ticked(out)
-  expect(collapsed).toHaveLength(10)
-  expect(close.ticks).toEqual([])
-  const restored = [...drawnNodes(close)].filter(id => !drawnNodes(out).has(id))
-  expect(restored.toSorted()).toEqual(collapsed.toSorted())
-  expect(close.edgeCurveRuns.size).toBe(graph.edges.length)
-})
-
-test('the same transform draws the same ticks whatever was drawn before it', () => {
-  const { graph, positions } = snpRun(12, 3)
-  const fresh = build(graph, positions, 1).ticks
-  build(graph, positions, 0.3)
-  build(graph, positions, 7)
-  expect(build(graph, positions, 1).ticks).toEqual(fresh)
-  const again = snpRun(12, 3)
-  build(again.graph, again.positions, 2)
-  expect(build(again.graph, again.positions, 1).ticks).toEqual(fresh)
-})
-
-test('turned off, a drawing has no ticks and draws every node and link', () => {
-  const { graph, positions } = snpRun(10, 20)
-  const off = build(graph, positions, 1, { levelOfDetail: false })
-  expect(off.ticks).toEqual([])
-  expect(drawnNodes(off)).toEqual(new Set(Object.keys(positions)))
-  expect(off.edgeCurveRuns.size).toBe(graph.edges.length)
-})
-
-test('a tick under the pointer names the nodes and links it stands for, which no node or link hit test returns', () => {
-  const { graph, positions } = snp(1)
-  const axis = { scaleX: 1, scaleY: 1 }
-  const batch = build(graph, positions)
-  const [tick] = batch.ticks ?? []
-  const [foot, top] = footAndTop(tick!, 1)
-  const hit = findHoveredTick(
-    batch.ticks,
-    (foot.x + top.x) / 2,
-    (foot.y + top.y) / 2,
-    axis,
+test('a not-loaded placeholder under the threshold folds with what hangs from it, and one at or above it stays', () => {
+  const small = placeholder(20)
+  expect(small.graph.nodes.find(n => n.name === 'p1')?.placeholder).toBe(true)
+  const folding = build(small.graph, small.positions, 0.1)
+  expect(folded(folding)).toEqual(['a1+', 'a2+', 'p1+'])
+  expect(folding.collapsed?.sites).toMatchObject([{ bp: 23, count: 1 }])
+  expect(drawnNodes(folding)).toEqual(new Set(['r1+', 'r2+', 'r3+']))
+  expect(folded(build(small.graph, small.positions, 3 / 23 + 0.001))).toEqual(
+    [],
   )
-  expect(hit).toMatchObject({ nodes: ['a1+'], count: 1, total: 2 })
-  expect(hit?.edges.toSorted()).toEqual([2, 3])
-  expect(findHoveredTick(batch.ticks, 50, 0, axis)).toBeUndefined()
-  expect(findHoveredNode(positions, 100.5, 10, axis)).toBe('a1+')
-  expect(
-    findHoveredNode(positions, 100.5, 10, axis, 0, undefined, batch.collapsed),
-  ).toBeNull()
-  const edgeAt = (collapsed?: typeof batch.collapsed) =>
-    findHoveredEdge(
-      positions,
-      graph,
-      100,
-      5,
-      axis,
-      false,
-      0,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      collapsed,
-    )
-  expect(edgeAt()).toBe(2)
-  expect([2, 3]).not.toContain(edgeAt(batch.collapsed))
+  const large = placeholder(5000)
+  expect(folded(build(large.graph, large.positions, 0.1))).toEqual([])
 })
 
-test('with walks lifted, a lane stepping a collapsed site runs straight along the reference there, with no head on what it stands for', () => {
-  const { graph, positions: laid } = snp(1)
-  const { 'a1+': allele, ...rest } = laid
-  const positions = { 'a1+': allele, ...rest }
+test('nothing on the reference is folded, nor a link turning the reference back on itself', () => {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    'S\tr2\tC',
+    `S\tr3\t${bases(1000)}`,
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr1\t+\tr3\t-\t0M',
+    'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+    'W\tinv\t1\tchr\t0\t*\t>r1<r3',
+  ])
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3-': at(1001, 2001),
+  }
+  for (const scale of [0.0001, 0.01, 1]) {
+    const batch = build(graph, positions, scale)
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(drawnNodes(batch)).toEqual(new Set(Object.keys(positions)))
+    expect(batch.edgeCurveRuns.has(edgeIndex(graph, 'r1+', 'r3-'))).toBe(true)
+  }
+})
+
+test('a site no shown walk steps is drawn, an allele or a skip', () => {
+  const allele = snp(1, 1, [])
+  expect(folded(build(allele.graph, allele.positions, 0.01))).toEqual([])
+  expect(
+    drawnNodes(build(allele.graph, allele.positions, 0.01)).has('a1+'),
+  ).toBe(true)
+  const skipped = skip(1, [])
+  const batch = build(skipped.graph, skipped.positions, 0.01)
+  expect(batch.collapsed?.sites).toEqual([])
+  expect(batch.edgeCurveRuns.has(2)).toBe(true)
+})
+
+test('a skip the drawing leaves out is not folded', () => {
+  const { graph, positions } = skip(1)
+  expect(drawingOf(graph, false).hidden.has(2)).toBe(true)
+  const batch = build(graph, positions, 0.01, {}, false)
+  expect(batch.collapsed?.sites).toEqual([])
+  expect(batch.collapsed?.edges.has(2)).toBe(false)
+})
+
+describe('a site counts the shown haplotypes stepping it once each, of all of them', () => {
+  // a1 and a2 make one off-reference piece, which both of x's contigs step
+  const lines = [
+    `S\tr1\t${bases(1000)}`,
+    'S\tr2\tC',
+    `S\tr3\t${bases(1000)}`,
+    'S\ta1\tT',
+    'S\ta2\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr1\t+\ta1\t+\t0M',
+    'L\ta1\t+\ta2\t+\t0M',
+    'L\ta2\t+\tr3\t+\t0M',
+    'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+    'W\tx\t1\tchr\t0\t1001\t>r1>a1',
+    'W\tx\t1\tchr\t1001\t2002\t>a2>r3',
+    'W\ty\t1\tchr\t0\t2001\t>r1>r2>r3',
+  ]
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1001, 2001),
+    'a1+': at(1000, 1001, 20),
+    'a2+': at(1001, 1002, 20),
+  }
+
+  test('two nodes of one piece and two contigs of one haplotype count once', () => {
+    const graph = load(lines)
+    expect(graph.paths?.length).toBe(4)
+    const [site] = build(graph, positions, 0.01).collapsed?.sites ?? []
+    expect(site).toMatchObject({ nodes: ['a1+', 'a2+'], count: 1, total: 3 })
+    expect(site?.total).toBe(haplotypeCount(graph))
+  })
+
+  test('a haplotype stepping a piece only through a departure visit counts', () => {
+    const graph = load(lines.filter(l => !l.startsWith('W\tx')))
+    const unstepped = build(graph, positions, 0.01).collapsed?.sites
+    expect(unstepped).toEqual([])
+    const visit: PathVisit = {
+      path: 'y#1#chr',
+      sample: 'y',
+      start: 1000,
+      strand: '+',
+    }
+    const visited = {
+      ...graph,
+      nodes: graph.nodes.map(n =>
+        n.id === 'a1+' ? { ...n, departureVisits: [visit] } : n,
+      ),
+    }
+    const [site] = build(visited, positions, 0.01).collapsed?.sites ?? []
+    expect(site).toMatchObject({ nodes: ['a1+', 'a2+'], count: 1, total: 2 })
+  })
+})
+
+test('with walks lifted, a lane stepping a folded site runs straight along the reference there, with no head and no arrow on what was folded', () => {
+  const { graph, positions } = snp(1, 1)
   const highlight = walkLift(graph, [
     { walk: 'ref#0#chr' },
     { walk: 'alt#1#chr', color: { field: 'pass' } },
-  ])!
-  const batch = build(graph, positions, 1, { highlight })
-  expect(ticked(batch)).toEqual(['a1+'])
+  ])
+  const wide = Object.fromEntries(
+    Object.entries(positions).map(([id, line]) => [
+      id,
+      line.map(p => ({ x: p.x / 100, y: p.y })),
+    ]),
+  )
+  const into = edgeIndex(graph, 'r1+', 'a1+')
+  const out = edgeIndex(graph, 'a1+', 'r3+')
+  const drawn = build(graph, wide, 10, { highlight, smallSites: 'nodes' })
+  expect(drawn.arrowRuns.has(into) || drawn.arrowRuns.has(out)).toBe(true)
+  expect(drawn.arrows.some(a => a.node === 'a1+')).toBe(true)
+  const batch = build(graph, wide, 10, { highlight })
+  expect(folded(batch)).toEqual(['a1+'])
   expect(batch.nodeStrokeRuns.has('a1+')).toBe(false)
   expect(batch.arrows.some(a => a.node === 'r1+')).toBe(true)
   expect(batch.arrows.filter(a => a.node === 'a1+')).toEqual([])
-  const lanes = [2, 3].flatMap(edge => {
-    const run = batch.edgeCurveRuns.get(edge)!
-    return batch.edgeCurves.slice(run.start, run.start + run.count)
+  expect(batch.arrowRuns.has(into)).toBe(false)
+  expect(batch.arrowRuns.has(out)).toBe(false)
+  const lanes = [into, out].flatMap(edge => {
+    const run = batch.edgeCurveRuns.get(edge)
+    return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
   })
   expect(lanes.length).toBeGreaterThan(0)
   for (const { curves } of lanes) {
@@ -453,6 +448,49 @@ test('with walks lifted, a lane stepping a collapsed site runs straight along th
       expect(Math.abs(c.cy1 - c.y0)).toBeLessThan(1)
     }
   }
-  const [tick] = batch.ticks ?? []
-  expect(tick!.offset).toBeGreaterThan(3)
+})
+
+test('with small sites drawn as nodes, nothing is folded and every node and link draws', () => {
+  const { graph, straight } = snpRun(10)
+  const batch = build(graph, straight, 0.01, { smallSites: 'nodes' })
+  expect(batch.collapsed?.sites).toEqual([])
+  expect(drawnNodes(batch)).toEqual(new Set(Object.keys(straight)))
+  expect(batch.edgeCurveRuns.size).toBe(graph.edges.length)
+})
+
+test('a point at a folded site finds the reference node or link there, never what was folded', () => {
+  const { graph, positions } = snp(1, 1)
+  const axis = { scaleX: 1, scaleY: 1 }
+  const batch = build(graph, positions)
+  expect(folded(batch)).toEqual(['a1+'])
+  const node = (x: number, y: number, collapsed: typeof batch.collapsed) =>
+    findHoveredNode(positions, x, y, axis, 0, undefined, collapsed)
+  expect(node(1000.5, 20, undefined)).toBe('a1+')
+  expect(node(1000.5, 20, batch.collapsed)).toBeNull()
+  expect(node(1000.5, 2, batch.collapsed)).toBe('r2+')
+  expect(node(999, 4, batch.collapsed)).toBe('r1+')
+  const edge = (x: number, y: number, collapsed: typeof batch.collapsed) =>
+    findHoveredEdge(
+      positions,
+      graph,
+      x,
+      y,
+      axis,
+      false,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      collapsed,
+    )
+  const into = edgeIndex(graph, 'r1+', 'a1+')
+  expect(edge(1000, 10, undefined)).toBe(into)
+  expect(batch.collapsed?.edges.has(into)).toBe(true)
+  const reference = [
+    edgeIndex(graph, 'r1+', 'r2+'),
+    edgeIndex(graph, 'r2+', 'r3+'),
+  ]
+  expect(reference).toContain(edge(1000, 4, batch.collapsed))
+  expect(reference).toContain(edge(1000.5, 1, batch.collapsed))
 })

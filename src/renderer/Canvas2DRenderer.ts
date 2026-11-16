@@ -1,4 +1,3 @@
-import { tickEnds } from '../levelOfDetail'
 import { getDpr, syncCanvasSize } from './canvas'
 import {
   abgrToCssRgba,
@@ -14,7 +13,6 @@ import type {
   RenderBatch,
   Renderer,
   Run,
-  Tick,
   TransformUniform,
 } from './types'
 
@@ -121,7 +119,7 @@ export class Canvas2DRenderer implements Renderer {
     }
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    const { links, nodes, skips, liftedNodes, halos, arrows, ticks } =
+    const { links, nodes, skips, liftedNodes, halos, arrows } =
       this.paintedGroups(batch)
     for (const { color, items } of links) {
       this.strokeCurves(items, color, t)
@@ -138,9 +136,6 @@ export class Canvas2DRenderer implements Renderer {
     this.haloArrows(halos, t)
     for (const { color, items } of arrows) {
       this.fillArrows(items, color, t)
-    }
-    for (const { color, items } of ticks) {
-      this.strokeTicks(items, color, t)
     }
   }
 
@@ -185,11 +180,6 @@ export class Canvas2DRenderer implements Renderer {
         color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
         weight: 0,
         last: inRun(arrowRun, i),
-      })),
-      ticks: groupByPaint(batch.ticks ?? [], tick => ({
-        color: tick.color,
-        weight: tick.thickness,
-        last: false,
       })),
     })
   }
@@ -308,20 +298,6 @@ export class Canvas2DRenderer implements Renderer {
     ctx.stroke()
   }
 
-  private strokeTicks(items: Tick[], color: number, t: TransformUniform) {
-    const ctx = this.ctx
-    ctx.lineCap = 'butt'
-    ctx.strokeStyle = abgrToCssRgba(color)
-    ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
-    ctx.beginPath()
-    for (const tick of items) {
-      const [foot, top] = tickEnds(tick, t)
-      ctx.moveTo(foot.x, foot.y)
-      ctx.lineTo(top.x, top.y)
-    }
-    ctx.stroke()
-  }
-
   private traceArrows(items: Arrowhead[], t: TransformUniform) {
     const ctx = this.ctx
     ctx.beginPath()
@@ -408,7 +384,6 @@ interface PaintedGroups {
   liftedNodes: Group<NodeStroke>[]
   halos: Arrowhead[]
   arrows: Group<Arrowhead>[]
-  ticks: Group<Tick>[]
 }
 
 interface Group<T> {

@@ -33,7 +33,7 @@ export type FigureSceneOptions = Pick<
   | 'fitToDrawing'
   | 'walkRows'
   | 'walkRowPitch'
-  | 'levelOfDetail'
+  | 'smallSites'
 >
 
 // What figureSvg and figureData both draw from: the fit's bounds, the colors,
@@ -134,7 +134,7 @@ export function figureScene(
         highlight,
         axis,
         referenceRamp,
-        levelOfDetail: o.levelOfDetail ?? FIGURE_DEFAULTS.levelOfDetail,
+        smallSites: o.smallSites ?? FIGURE_DEFAULTS.smallSites,
       }),
   }
 }

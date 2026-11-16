@@ -3,17 +3,15 @@ import { SHORT_SKIP_KEY, deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import { drawnMarks, graphKey, unlabelledText } from './graphKey'
+import { drawnMarks, graphKey, tooSmallText, unlabelledText } from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
-import { TICK_MAX_PX, TICK_MIN_PX, TICK_WIDTH_PX } from './levelOfDetail'
 import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform } from './pipeline'
 import { graphBackbone } from './reference'
 import {
   REFERENCE_RAMP_ALT_COLOR,
-  TICK_COLOR,
   buildGeometry,
   computeReferenceRamp,
 } from './renderer/GeometryBuilder'
@@ -23,6 +21,7 @@ import { axisScaleOf } from './viewport'
 import { walkLift } from './walkHighlight'
 
 import type { GraphKeyOptions, GraphKeySection } from './graphKey'
+import type { Fold, Site, SmallSites } from './levelOfDetail'
 import type { BuildOptions, ReferenceRamp } from './renderer/GeometryBuilder'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
@@ -58,7 +57,7 @@ interface Scene {
   referenceRamp?: ReferenceRamp
   width?: number
   bounds?: BuildOptions['viewportBounds']
-  levelOfDetail?: boolean
+  smallSites?: SmallSites
 }
 
 // The drawing a host would paint at a `width` px fit: the batch the key's
@@ -85,9 +84,7 @@ function drawn(g: Graph, s: Scene = {}) {
     axis: axisScaleOf(fit.scale, pixelRows),
     referenceRamp: s.referenceRamp,
     ...(s.bounds ? { viewportBounds: s.bounds } : {}),
-    ...(s.levelOfDetail === undefined
-      ? {}
-      : { levelOfDetail: s.levelOfDetail }),
+    ...(s.smallSites ? { smallSites: s.smallSites } : {}),
   })
   return { layout, batch }
 }
@@ -522,11 +519,7 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
     ...(skips.some(e => !dashed(e.span)) ? ['short-skip'] : []),
     ...(batch.nodeStrokes.some(n => n.placeholder) ? ['not-shown'] : []),
     ...(widths.size > 1 ? ['width-thickest', 'width-thinnest'] : []),
-    ...new Set(
-      (batch.ticks ?? []).flatMap(t =>
-        t.total > 1 ? [`tick-${t.total}`, 'tick-1'] : ['tick-1'],
-      ),
-    ),
+    ...(batch.collapsed?.sites.length ? ['too-small'] : []),
   ])
   const keyed = new Set(
     sections.flatMap(section => section.entries.map(entry => entry.key)),
@@ -600,7 +593,7 @@ const INVERTED = load(
 )
 
 // a 1 bp SNP and a 1 bp deletion, each under a pixel at a 600 px fit of a
-// 2 kb reference, which draw as ticks
+// 2 kb reference, which fold
 const SMALL = load(
   [
     `S\tr1\t${'A'.repeat(1000)}`,
@@ -643,21 +636,21 @@ const smallSites = (): Scene => {
 }
 
 const CUTS: [string, Graph, (g: Graph) => Scene][] = [
-  ['small sites drawn as ticks', SMALL, smallSites],
+  ['small sites folded', SMALL, smallSites],
   [
-    'small sites drawn as ticks under two lifted walks',
+    'small sites folded under two lifted walks',
     SMALL,
     g => ({ ...smallSites(), lift: lifting(g, ['w#1#chr', 'w#2#chr']) }),
   ],
   [
-    'small sites with level of detail off',
+    'small sites drawn as nodes',
     SMALL,
-    () => ({ ...smallSites(), levelOfDetail: false }),
+    () => ({ ...smallSites(), smallSites: 'nodes' }),
   ],
   [
-    'a skip too short on screen to arc, with level of detail off',
+    'a skip too short on screen to arc, drawn as nodes',
     SKIPPED,
-    g => ({ ...unarced(g), levelOfDetail: false }),
+    g => ({ ...unarced(g), smallSites: 'nodes' }),
   ],
   [
     "a repeat's walk lifted alone and coloured by pass",
@@ -779,34 +772,79 @@ test('the census fails on a planted extra entry and on a planted missing one', (
   expect(census(dropped, batch, s).missing).toEqual(['short-skip'])
 })
 
-test('the key gains a tick height scale, from all shown walks to one, only where a tick is drawn', () => {
-  const ticked = drawn(SMALL, smallSites())
-  expect(ticked.batch.ticks?.map(t => t.count)).toEqual([1, 2])
-  const sections = graphKey(SMALL, ticked.layout, {
-    marks: drawnMarks([ticked.batch]),
+test('the key says how many nodes and skips are too small to draw, in one line with no swatch, last', () => {
+  expect(
+    [
+      [1, 0],
+      [2, 0],
+      [0, 1],
+      [0, 2],
+      [1, 1],
+      [3, 2],
+      [1234, 0],
+    ].map(([nodes = 0, skips = 0]) => tooSmallText(nodes, skips)),
+  ).toEqual([
+    '1 node too small to draw',
+    '2 nodes too small to draw',
+    '1 skip too small to draw',
+    '2 skips too small to draw',
+    '1 node and 1 skip too small to draw',
+    '3 nodes and 2 skips too small to draw',
+    '1,234 nodes too small to draw',
+  ])
+  const { layout, batch } = drawn(SMALL, smallSites())
+  expect(batch.collapsed?.sites.map(s => s.nodes)).toEqual([['a1+'], []])
+  const sections = graphKey(SMALL, layout, { marks: drawnMarks([batch]) })
+  const last = sections.at(-1)
+  expect(last).toEqual({
+    id: 'too-small',
+    entries: [
+      { key: 'too-small', text: '1 node and 1 skip too small to draw' },
+    ],
   })
-  const scale = sections.find(s => s.id === 'tick-height')!
-  expect(scale.group).toBe('Tick height')
-  expect(scale.entries.map(e => [e.text, e.swatch])).toEqual([
-    [
-      '3 walks',
-      { kind: 'tick', ink: TICK_COLOR, px: TICK_MAX_PX, width: TICK_WIDTH_PX },
-    ],
-    [
-      '1 walk',
-      { kind: 'tick', ink: TICK_COLOR, px: TICK_MIN_PX, width: TICK_WIDTH_PX },
-    ],
-  ])
-  const off = { ...smallSites(), levelOfDetail: false }
-  expect(keys(SMALL, off)).not.toContain('tick-1')
-  expect(keys(SMALL, { ...smallSites(), width: 60_000 })).not.toContain(
-    'tick-1',
+  expect(keys(SMALL, { ...smallSites(), smallSites: 'nodes' })).not.toContain(
+    'too-small',
   )
-  const dropped = sections.filter(s => s.id !== 'tick-height')
-  expect(census(dropped, ticked.batch, smallSites()).missing).toEqual([
-    'tick-3',
-    'tick-1',
+  expect(keys(SMALL, { ...smallSites(), width: 60_000 })).not.toContain(
+    'too-small',
+  )
+  const dropped = sections.filter(s => s.id !== 'too-small')
+  expect(census(dropped, batch, smallSites()).missing).toEqual(['too-small'])
+})
+
+const site = (nodes: string[], edges: number[]): Site => ({
+  nodes,
+  edges,
+  refName: 'chr',
+  start: 0,
+  end: 0,
+  bp: 0,
+  x: 0,
+  y: 0,
+  count: 1,
+  total: 1,
+})
+
+const foldOf = (sites: Site[]): Fold => ({
+  sites,
+  nodes: new Set(sites.flatMap(s => s.nodes)),
+  edges: new Set(sites.flatMap(s => s.edges)),
+  siteOf: new Map(),
+  pxPerBp: 1,
+})
+
+test("the key's counts are the folded nodes and skip links, each once, however many sites or panels hold them", () => {
+  const fold = foldOf([
+    site(['a1', 'a2'], [1, 2, 3]),
+    site(['a3'], [4, 5]),
+    site([], [7]),
+    site([], [8]),
   ])
+  const panel = { edgeCurves: [], nodeStrokes: [], collapsed: fold }
+  const marks = drawnMarks([panel, panel])
+  expect([marks.foldedNodes.size, marks.foldedSkips.size]).toEqual([3, 2])
+  const text = graphKey(SMALL, {}, { marks }).at(-1)?.entries[0]?.text
+  expect(text).toBe('3 nodes and 2 skips too small to draw')
 })
 
 test('a walk coloured by pass keys each pass by its name, a bundle by its count, and heads by the way they point', () => {

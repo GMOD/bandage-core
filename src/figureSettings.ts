@@ -4,6 +4,7 @@ import { ENGINE_DEFAULTS } from './pipeline'
 
 import type { ColorScheme } from './colorSchemes'
 import type { EdgeWidth } from './edgeWidths'
+import type { SmallSites } from './levelOfDetail'
 import type { NodeWidth } from './nodeWidths'
 import type { EngineSettings } from './pipeline'
 
@@ -19,8 +20,8 @@ export interface FigureSettings extends Partial<EngineSettings> {
   connectorThickness?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
-  // a site too small to draw at the figure's scale drawn as a tick
-  levelOfDetail?: boolean
+  // 'hidden': a site too small to draw at the figure's scale is not drawn
+  smallSites?: SmallSites
   // the interval the reference ramp spans where it is not the cut window
   colorDomain?: { start: number; end: number }
 }
@@ -35,7 +36,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   contigThickness: 6,
   connectorThickness: 2,
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
-  levelOfDetail: true,
+  smallSites: 'hidden',
 }
 
 // The pane a figure fits its drawing into, which its force layout is sized for
