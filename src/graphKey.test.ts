@@ -232,12 +232,23 @@ test('drawn marks read dashed and short skips off the batch, leaving lanes to th
     dashedSkip: false,
     shortSkip: true,
   })
+  expect(marks([curve({ skip: true, span: 200, walk: 0 })])).toMatchObject({
+    dashedSkip: false,
+    shortSkip: false,
+  })
+})
+
+test('a skip too short on screen to arc, drawn as its plain link, is a skip too short to dash', () => {
   expect(
-    marks([
-      curve({ skip: true, span: 200, walk: 0 }),
-      curve({ skip: true, span: 0 }),
+    drawnMarks([
+      {
+        edgeCurves: [
+          { curves: [], thickness: 1, color: 0, skip: true, span: 0 },
+        ],
+        nodeStrokes: [],
+      },
     ]),
-  ).toMatchObject({ dashedSkip: false, shortSkip: false })
+  ).toMatchObject({ dashedSkip: false, shortSkip: true, plainLink: false })
 })
 
 test("a hollow node's thickness is not a thickness the nodes vary by", () => {
@@ -374,9 +385,7 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
     batch.nodeStrokes.filter(n => !n.placeholder).map(n => n.thickness),
   )
   const lanes = new Set(batch.nodeStrokes.flatMap(n => n.walk ?? []))
-  const skips = batch.edgeCurves.filter(
-    e => e.skip && e.walk === undefined && (e.span ?? 0) > 0,
-  )
+  const skips = batch.edgeCurves.filter(e => e.skip && e.walk === undefined)
   const dashed = (span = 0) => span >= DASHED_SPAN_PX
   const charcoal = batch.nodeStrokes.some(
     n => n.color === REFERENCE_RAMP_ALT_COLOR,
@@ -403,6 +412,28 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
   return {
     extra: [...keyed].filter(key => !classes.has(key)),
     missing: [...classes].filter(key => !keyed.has(key)),
+  }
+}
+
+// SKIPPED's reference laid out with v2 a tenth of a layout unit long, so the
+// skip over it spans under a pixel and draws as its plain link
+function unarced(g: Graph): Scene {
+  const layout = layoutModeByValue('ordered').run(g, undefined)!
+  const at = (x0: number, x1: number) => [
+    { x: x0, y: 0 },
+    { x: x1, y: 0 },
+  ]
+  return {
+    layout: {
+      ...layout,
+      nodePositions: {
+        ...layout.nodePositions,
+        'v1+': at(0, 100),
+        'v2+': at(100, 100.1),
+        'v3+': at(100.1, 200),
+        'a1+': at(100, 100.1).map(p => ({ ...p, y: 20 })),
+      },
+    },
   }
 }
 
@@ -443,6 +474,7 @@ const CUTS: [string, Graph, (g: Graph) => Scene][] = [
     g => ({ lift: lifting(g, [REF, ALT]) }),
   ],
   ['short solid skips only', SKIPPED, () => ({ width: 120 })],
+  ['a skip too short on screen to arc', SKIPPED, unarced],
   [
     'a lifted walk beside a dashed skip it does not take',
     SKIPPED,

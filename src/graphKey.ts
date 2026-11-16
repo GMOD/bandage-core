@@ -128,12 +128,10 @@ export function drawnMarks(
       if (walk === undefined) {
         if (!skip) {
           marks.plainLink = true
-        } else if (span > 0) {
-          if (skipDashes(span)) {
-            marks.dashedSkip = true
-          } else {
-            marks.shortSkip = true
-          }
+        } else if (skipDashes(span)) {
+          marks.dashedSkip = true
+        } else {
+          marks.shortSkip = true
         }
       }
     }
