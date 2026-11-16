@@ -142,6 +142,108 @@ function bruteWidest(
   return widest
 }
 
+test('a node drawn bent is read as a piece per bend, its bp shared by how far along the line each bend lies', () => {
+  const lengths = winding
+    .slice(1)
+    .map((b, i) => Math.hypot(b.x - (winding[i]?.x ?? 0), b.y - (winding[i]?.y ?? 0)))
+  const total = lengths.reduce((sum, l) => sum + l, 0)
+  let walked = 0
+  expect(windingProfile.pieces).toHaveLength(winding.length - 1)
+  windingProfile.pieces.forEach((piece, i) => {
+    const bp0 = (10_000 * walked) / total
+    walked += lengths[i] ?? 0
+    expect(piece.bp0).toBeCloseTo(bp0, 6)
+    expect(piece.bp1).toBeCloseTo((10_000 * walked) / total, 6)
+    expect([piece.x0, piece.x1]).toEqual([winding[i]?.x, winding[i + 1]?.x])
+  })
+})
+
+// A reference of whole-bp pieces whose x wanders, and jumps at some joints,
+// from a fixed seed
+function wanderingProfile(seed: number) {
+  let state = seed
+  const next = (n: number) => {
+    state = (state * 1_103_515_245 + 12_345) % 2 ** 31
+    return state % n
+  }
+  const pieces: ReferenceProfile['pieces'] = []
+  let bp = 0
+  let x = 0
+  for (let i = 0; i < 40; i++) {
+    const length = 20 + next(100)
+    const x0 = next(5) === 0 ? x + next(81) - 40 : x
+    x = x0 + next(121) - 60
+    pieces.push({ bp0: bp, bp1: bp + length, x0, x1: x })
+    bp += length
+  }
+  const ends = pieces
+    .flatMap(p => [
+      { bp: p.bp0, x: p.x0 },
+      { bp: p.bp1, x: p.x1 },
+    ])
+    .sort((p, q) => p.bp - q.bp)
+  return { profile: { pieces, ends }, end: bp }
+}
+
+// every whole-bp window, taking in each piece it meets even at a single bp
+function wholeBpWidest(shown: ReferenceProfile, end: number, reach: number) {
+  let widest = 0
+  for (let a = 0; a + reach <= end; a++) {
+    let x0 = Infinity
+    let x1 = -Infinity
+    for (const p of shown.pieces) {
+      const lo = Math.max(a, p.bp0)
+      const hi = Math.min(a + reach, p.bp1)
+      if (hi >= lo) {
+        for (const bp of [lo, hi]) {
+          const x = p.x0 + ((p.x1 - p.x0) * (bp - p.bp0)) / (p.bp1 - p.bp0)
+          x0 = Math.min(x0, x)
+          x1 = Math.max(x1, x)
+        }
+      }
+    }
+    widest = Math.max(widest, x1 - x0)
+  }
+  return widest
+}
+
+test("a cut's scale finds the widest stretch where a piece's end enters a window as well as where one leaves it", () => {
+  for (const seed of [1, 7, 42]) {
+    const { profile: shown, end } = wanderingProfile(seed)
+    for (const reach of [150, 400, 900, 1_700]) {
+      const scale = defined(
+        cutScale(
+          shown,
+          { start: 0, end },
+          reach,
+          { h: 0 },
+          PANE.width,
+          PANE.height,
+          PADS,
+        ),
+      )
+      expect(USABLE / scale).toBeCloseTo(wholeBpWidest(shown, end, reach), 6)
+    }
+  }
+})
+
+test("a cut's scale reads no window running past the cut's end, where the reference drawn runs on", () => {
+  const runsOn = referenceProfile(
+    { name: 'runs on', nodes: [node('r+', 0, 700)], edges: [] },
+    {
+      'r+': [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 100, y: 300 },
+        { x: 400, y: 300 },
+      ],
+    },
+  )
+  expect(USABLE / scaleOf(runsOn, { start: 0, end: 400 }, 200)).toBeCloseTo(
+    100,
+  )
+})
+
 test("a cut's scale is the widest stretch over every window it holds, not a sample of them", () => {
   for (const reach of [1_500, 3_000, 4_500]) {
     const scale = scaleOf(windingProfile, { start: 0, end: 10_000 }, reach)
@@ -242,6 +344,35 @@ test('a window past the drawn reference slides the drawing on with the ruler fro
     ruler({ start: -1_000_000 }, 1_000),
     6,
   )
+})
+
+test('a window whose stretch is wider than the pane is centred in it', () => {
+  const t = placed({ start: 1_000, end: 4_000 }, 5)
+  const left = xAtBp(1_000) * 5 + t.translateX
+  const right = xAtBp(4_000) * 5 + t.translateX
+  expect(left + right).toBeCloseTo(PANE.width)
+})
+
+test("the drawing is centred between the pane's top and bottom pads, and the window runs between its left and right ones", () => {
+  const pads = { padLeft: 100, padTop: 30, padRight: 20, padBottom: 90 }
+  const bounds = { minY: -20, h: 50 }
+  const t = defined(
+    followTransform(
+      profile,
+      { start: 2_000, end: 3_000 },
+      2,
+      bounds,
+      PANE.width,
+      PANE.height,
+      pads,
+    ),
+  )
+  const top = bounds.minY * 2 + t.translateY
+  const bottom = (bounds.minY + bounds.h) * 2 + t.translateY
+  expect(top - pads.padTop).toBeCloseTo(PANE.height - pads.padBottom - bottom)
+  expect(top).toBeGreaterThan(pads.padTop + 1)
+  const middle = xAtBp(2_500) * 2 + t.translateX
+  expect(middle).toBeCloseTo((pads.padLeft + PANE.width - pads.padRight) / 2)
 })
 
 test('no room places nothing', () => {
