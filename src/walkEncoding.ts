@@ -25,6 +25,7 @@ export const WALK_FIELDS = [
   { value: 'progress', label: 'Progress along the walk' },
   { value: 'walk', label: 'One colour for the walk' },
   { value: 'reference', label: 'Reference position' },
+  { value: 'pass', label: 'Each pass through repeated nodes' },
 ] as const
 
 export type WalkField = (typeof WALK_FIELDS)[number]['value']
@@ -68,6 +69,11 @@ export interface PassSpan {
 export interface WalkLayer {
   walk: string
   color?: Partial<WalkEncoding>
+  // passes for a walk that steps no node twice in this graph, as a graph
+  // that folds its copies gives them; they never move passes the walk shows
+  passes?: readonly PassSpan[]
+  // in place of `pass 1`, `pass 2`
+  passNames?: readonly string[]
 }
 
 // the families lifted haplotypes take by default, in the order they were picked
@@ -94,12 +100,15 @@ export function resolveEncoding(
       : askedScheme
     : family
   const round = Math.floor(picked / FAMILIES.length) % SHADES.length
-  return field === 'walk' && scheme === family && round > 0
+  return flatField(field) && scheme === family && round > 0
     ? { field, scheme, shade: SHADES[round] }
-    : alone || field === 'walk'
+    : alone || flatField(field)
       ? { field, scheme }
       : { field, scheme, darkest: TOGETHER_DARKEST }
 }
+
+// A lane coloured by pass takes its walk's one colour off its passes
+const flatField = (field: WalkField) => field === 'walk' || field === 'pass'
 
 const TOGETHER_DARKEST = 0.55
 
@@ -115,7 +124,7 @@ const SHADES = [BASE_T, 0.85, 0.2]
 const STRETCH_GAP = 0.08
 
 const rampsOn = ({ field, scheme }: WalkEncoding) =>
-  field !== 'walk' && scheme !== 'rainbow'
+  !flatField(field) && scheme !== 'rainbow'
 
 // Ramps lifted together that share a family split it, the first taking the
 // pale end, so past the fourth walk no two gradients pass through one colour
@@ -239,7 +248,7 @@ export function schemeColor(scheme: WalkScheme, t: number, darkest?: number) {
 // the field has nothing to say about, off the reference for `reference`
 export function encodedColor(encoding: WalkEncoding, t?: number) {
   const { field, scheme, darkest, shade = BASE_T } = encoding
-  return field === 'walk'
+  return flatField(field)
     ? schemeColor(scheme, shade)
     : t === undefined
       ? NO_VALUE_COLOR
@@ -256,7 +265,7 @@ export function encodingStops(encoding: WalkEncoding) {
     color: schemeCss(scheme, t, darkest),
     abgr: schemeColor(scheme, t, darkest),
   })
-  return field === 'walk'
+  return flatField(field)
     ? [stop(0, shade)]
     : Array.from({ length: 7 }, (_, i) => stop(i / 6, along(encoding, i / 6)))
 }
@@ -267,4 +276,52 @@ export function encodingSwatchCss(encoding: WalkEncoding) {
   return stops.length === 1
     ? stops[0]!.color
     : `linear-gradient(to right, ${stops.map(s => `${s.color} ${s.offset * 100}%`).join(', ')})`
+}
+
+// Colours a pass may take, in the order passes take them: Okabe and Ito's,
+// then Tol's
+const PASS_HUES = [
+  '#D55E00',
+  '#0072B2',
+  '#009E73',
+  '#CC79A7',
+  '#E69F00',
+  '#56B4E9',
+  '#882255',
+  '#332288',
+  '#999933',
+  '#44AA99',
+  '#CCBB44',
+  '#AA3377',
+]
+
+// how far apart in OKLab a pass's colour stands from its walk's own, and from
+// the walk's other passes'
+export const PASS_FROM_WALK = 0.17
+export const PASS_FROM_PASS = 0.12
+
+const oklabGap = (a: string, b: string) => {
+  const p = oklab(a)
+  const q = oklab(b)
+  return Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!)
+}
+
+// The colours of a walk's passes, `count` of them, none near the walk's own
+// colour, which its lane keeps off its passes: the first hues clear of it and
+// of each other, then the hues furthest from it
+export function passPalette(own: string, count: number) {
+  const picked: string[] = []
+  for (const hue of PASS_HUES) {
+    if (
+      picked.length < count &&
+      oklabGap(hue, own) >= PASS_FROM_WALK &&
+      picked.every(p => oklabGap(p, hue) >= PASS_FROM_PASS)
+    ) {
+      picked.push(hue)
+    }
+  }
+  const rest = PASS_HUES.filter(hue => !picked.includes(hue)).sort(
+    (a, b) => oklabGap(b, own) - oklabGap(a, own),
+  )
+  return picked.concat(rest).slice(0, count)
 }

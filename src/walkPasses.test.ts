@@ -1,7 +1,16 @@
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { anchorGraph } from './pathAnchoring'
-import { walkHighlight } from './walkHighlight'
+import { abgrHex } from './renderer/colorBits'
+import { threadsPasses } from './renderer/walkLanes'
+import {
+  PASS_FROM_PASS,
+  PASS_FROM_WALK,
+  WALK_SCHEMES,
+  passPalette,
+  schemeColor,
+} from './walkEncoding'
+import { walkHighlight, walkLift } from './walkHighlight'
 import {
   MOST_PASS_THREADS,
   passesOf,
@@ -216,4 +225,42 @@ test('past MOST_PASS_THREADS passes a walk bundles them', () => {
   expect(passesFor(MOST_PASS_THREADS).passes).toHaveLength(MOST_PASS_THREADS)
   expect(passesFor(MOST_PASS_THREADS).bundled).toBe(false)
   expect(passesFor(MOST_PASS_THREADS + 1).bundled).toBe(true)
+})
+
+test("a walk's pass colours stand clear of its own colour and of each other", () => {
+  for (const { value } of WALK_SCHEMES) {
+    for (const t of [0.2, 0.5, 0.85]) {
+      const hex = abgrHex(schemeColor(value, t))
+      const palette = passPalette(hex, MOST_PASS_THREADS)
+      expect(palette).toHaveLength(MOST_PASS_THREADS)
+      expect(new Set(palette).size).toBe(MOST_PASS_THREADS)
+      expect(palette[0]).not.toBe(hex)
+    }
+  }
+  expect(PASS_FROM_WALK).toBeGreaterThan(PASS_FROM_PASS)
+})
+
+test('a walk lifted alone and coloured by pass threads, each visit in its pass colour and the rest in its own', () => {
+  const graph = graphOf('>f1>a>b>c>d>a>b>c>d>f2')
+  const lift = walkLift(graph, [{ walk: HAP, color: { field: 'pass' } }])!
+  const walk = lift.walks[0]!
+  const drawn = walk.walkPasses!
+  expect(threadsPasses(lift.walks)).toBe(true)
+  expect(walk.passColors.get('a+')).toEqual(drawn.inks)
+  expect(drawn.inks).toHaveLength(2)
+  expect(walk.passColors.get('f1+')).toEqual([drawn.ownInk])
+  expect(drawn.labels).toEqual(['pass 1', 'pass 2'])
+  expect(abgrHex(drawn.ownInk)).not.toBe(abgrHex(drawn.inks[0]!))
+  expect(threadsPasses(walkLift(graph, [{ walk: HAP }])!.walks)).toBe(false)
+})
+
+test('passes take the names a layer gives them, and a reversed pass says so', () => {
+  const graph = graphOf('>f1>a>b>c>d>x<d<c<b<a>f2')
+  const lift = walkLift(graph, [
+    { walk: HAP, color: { field: 'pass' }, passNames: ['copy A'] },
+  ])!
+  expect(lift.walks[0]!.walkPasses!.labels).toEqual([
+    'copy A',
+    'pass 2, reversed',
+  ])
 })

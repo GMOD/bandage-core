@@ -1,3 +1,6 @@
+import { abgrHex, hexAbgr } from './renderer/colorBits'
+import { passPalette } from './walkEncoding'
+
 import type { PassSpan } from './walkEncoding'
 import type { WalkHighlight } from './walkHighlight'
 
@@ -179,3 +182,37 @@ export function walkPassesOf(
     ? statedPasses(walk, lengthOf, spans)
     : found
 }
+
+// What a lifted walk's passes draw with: a label and a colour each, one of
+// each for the lot where they are bundled, and the walk's own colour off them
+export interface LiftedPasses extends WalkPasses {
+  labels: string[]
+  inks: number[]
+  ownInk: number
+}
+
+export const passText = (name: string, pass: Pick<WalkPass, 'reversed'>) =>
+  pass.reversed ? `${name}, reversed` : name
+
+export function liftedPasses(
+  found: WalkPasses,
+  ownInk: number,
+  names: readonly string[] = [],
+): LiftedPasses {
+  const { passes, bundled } = found
+  const inks = passPalette(abgrHex(ownInk), bundled ? 1 : passes.length).map(
+    hexAbgr,
+  )
+  return {
+    ...found,
+    labels: bundled
+      ? [`${passes.length} passes`]
+      : passes.map((pass, i) => passText(names[i] ?? `pass ${i + 1}`, pass)),
+    inks,
+    ownInk,
+  }
+}
+
+// The ink of a visit on pass `pass`, -1 for none
+export const passInk = (drawn: LiftedPasses, pass: number) =>
+  pass < 0 ? drawn.ownInk : drawn.inks[drawn.bundled ? 0 : pass]!

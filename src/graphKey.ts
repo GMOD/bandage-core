@@ -110,8 +110,8 @@ export interface GraphKeySection {
 // the dashes; a node hollow for the bp a cut did not load; a node or link in
 // no lifted walk's lane, which under a lift is faded; a node in the
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
-// node; nodes of more than one thickness. A lifted walk's lane on a skip is
-// its walk's, keyed by the walk.
+// node; nodes of more than one thickness; each lifted walk's passes, by lane.
+// A lifted walk's lane on a skip is its walk's, keyed by the walk.
 export function drawnMarks(
   batches: readonly Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'>[],
 ) {
@@ -124,6 +124,7 @@ export function drawnMarks(
     offReference: false,
     threads: false,
     widthsVary: false,
+    passes: new Map<number, Set<number>>(),
   }
   let width: number | undefined
   for (const { edgeCurves, nodeStrokes } of batches) {
@@ -157,6 +158,15 @@ export function drawnMarks(
       }
       if (pass > 0) {
         marks.threads = true
+      }
+    }
+    for (const strokes of [edgeCurves, nodeStrokes]) {
+      for (const { walk, walkPass = -1 } of strokes) {
+        if (walk !== undefined && walkPass >= 0) {
+          const drawn = marks.passes.get(walk) ?? new Set<number>()
+          drawn.add(walkPass)
+          marks.passes.set(walk, drawn)
+        }
       }
     }
   }
@@ -337,12 +347,38 @@ export function graphKey(
       : []
   const domain = o.lift?.referenceDomain
   const walkReference = domain && { ...domain, name: reference }
+  // a walk coloured by pass keys each pass it draws in its colour, or the
+  // count its bundle draws in one
+  const passEntries = (walk: LiftedWalk, lane: number) => {
+    const drawn = walk.walkPasses
+    const shown = o.marks.passes.get(lane)
+    return !drawn || !shown?.size
+      ? []
+      : drawn.bundled
+        ? [
+            entry(`passes-${walk.name}`, drawn.labels[0]!, {
+              kind: 'swatch',
+              ink: drawn.inks[0]!,
+            }),
+          ]
+        : drawn.labels.flatMap((text, pass) =>
+            shown.has(pass)
+              ? [
+                  entry(`pass-${walk.name}-${pass}`, text, {
+                    kind: 'swatch',
+                    ink: drawn.inks[pass]!,
+                  }),
+                ]
+              : [],
+          )
+  }
   const walkEntries: GraphKeyEntry[] = [
     ...(o.panels
       ? []
-      : (o.lift?.walks ?? []).map(w =>
+      : (o.lift?.walks ?? []).flatMap((w, lane) => [
           walkKeyEntry(w, label(w.name), walkReference),
-        )),
+          ...passEntries(w, lane),
+        ])),
     ...(lifted && o.marks.offReference ? [offReference('lift-off')] : []),
     ...faded,
     ...(!o.panels && o.lift && o.marks.threads

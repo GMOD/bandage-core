@@ -6,11 +6,13 @@ import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
 import { ownStrand } from './util/geometry'
 import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
+import { liftedPasses, passInk, walkPassesOf } from './walkPasses'
 
 import type { GraphGap } from './gfa/departures'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { Graph, GraphNode, GraphPath } from './types'
 import type { WalkEncoding, WalkLayer } from './walkEncoding'
+import type { LiftedPasses } from './walkPasses'
 
 // One walk lifted out of the drawing: the nodes it visits and the links it
 // takes, how far along the walk each node is, and what it carries through the
@@ -56,6 +58,8 @@ export interface WalkHighlight {
 
 export interface LiftedWalk extends WalkHighlight {
   encoding: WalkEncoding
+  // the walk's passes, where its lane is coloured by them
+  walkPasses?: LiftedPasses
   // the lane colour at each node the walk visits
   colors: Map<string, number>
   // the colour at each visit, in the order the walk makes them
@@ -416,24 +420,36 @@ function laneColors(
   walk: WalkHighlight,
   encoding: WalkEncoding,
   ramp: ReferenceRamp | undefined,
+  layer: WalkLayer | undefined,
 ) {
   const places =
-    encoding.field === 'progress' || !ramp
+    encoding.field !== 'reference' || !ramp
       ? undefined
       : referencePlaces(graph, byId, walk, ramp)
+  const walkPasses =
+    encoding.field === 'pass'
+      ? liftedPasses(
+          walkPassesOf(walk, id => byId.get(id)?.length ?? 0, layer?.passes),
+          encodedColor(encoding),
+          layer?.passNames,
+        )
+      : undefined
   const colors = new Map<string, number>()
   const passColors = new Map<string, number[]>()
   for (const [id, progress] of walk.passProgress) {
     const at = places?.get(id)
-    const each = progress.map((t, pass) =>
+    const passed = walkPasses?.visitPass.get(id)
+    const each = progress.map((t, visit) =>
       byId.get(id)?.placeholder
         ? NOT_LOADED_COLOR
-        : encodedColor(encoding, places ? at?.[pass] : t),
+        : walkPasses
+          ? passInk(walkPasses, passed?.[visit] ?? -1)
+          : encodedColor(encoding, places ? at?.[visit] : t),
     )
     colors.set(id, each[0]!)
     passColors.set(id, each)
   }
-  return { colors, passColors }
+  return { colors, passColors, ...(walkPasses ? { walkPasses } : {}) }
 }
 
 // Each visit's fraction along the ramp, in the order the walk makes them. A
@@ -519,7 +535,7 @@ export function walkLift(
     return {
       ...walk,
       encoding,
-      ...laneColors(graph, index.byId, walk, encoding, ramp),
+      ...laneColors(graph, index.byId, walk, encoding, ramp, lifted[i]!.layer),
     }
   })
   return liftOf(walks, ramp)
@@ -549,7 +565,14 @@ export function facetLifts(
         {
           ...walk,
           encoding,
-          ...laneColors(graph, byId, walk, encoding, ramp),
+          ...laneColors(
+            graph,
+            byId,
+            walk,
+            encoding,
+            ramp,
+            layers.find(l => l.walk === walk.name),
+          ),
         },
       ],
       ramp,

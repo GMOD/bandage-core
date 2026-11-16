@@ -28,11 +28,11 @@ import { weakMemo } from '../util/weakMemo'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import {
   THREAD_PITCH_PX,
-  THREAD_PX,
   bandScale,
   bandWidthPx,
   liftLanes,
   slotCentres,
+  threadHalfWidthPx,
   threadsPasses,
   walkSteps,
 } from './walkLanes'
@@ -962,7 +962,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const lanePasses = liftedWalks.map(w => w.mostPasses)
   const thinned = threaded ? bandScale(lanePasses) : 1
   const fields =
-    highlight && liftedWalks.length > 1
+    highlight && (liftedWalks.length > 1 || threaded)
       ? lanesCache(
           highlight,
           [nodePositions, version, axis.scaleX, axis.scaleY],
@@ -1015,8 +1015,19 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const eased = frame?.offsets?.[at] ?? frame?.offset
     return eased === undefined ? fallback : eased * thinned
   }
-  const laneHalfWidth = (laneWidth: number) =>
-    threaded ? (THREAD_PX / 2) * thinned : laneWidth / 2
+  const laneHalfWidth = (laneWidth: number, lane: number) =>
+    threaded
+      ? threadHalfWidthPx(thinned, !!liftedWalks[lane]?.walkPasses?.bundled)
+      : laneWidth / 2
+  // the walk's visit a thread carries, and the walk's pass it is on
+  const passMark = (lane: number, nodeId: string, thread: number) => {
+    const visit = visitOf(lane, nodeId, thread)
+    const pass = liftedWalks[lane]?.walkPasses?.visitPass.get(nodeId)?.[visit]
+    return {
+      ...(threaded ? { visit } : {}),
+      ...(pass === undefined ? {} : { walkPass: pass }),
+    }
+  }
   const plainNormals = new Map<string, Normal[]>()
   const visitNormals = new WeakMap<VisitFrame['normals'], Normal[]>()
   const visitOf = (lane: number, nodeId: string, thread: number) =>
@@ -1252,6 +1263,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       color: number,
       walk: number,
       pass: number,
+      mark: { visit?: number; walkPass?: number },
       startNormal: Normal,
       offsetX: number,
       endNormal: Normal,
@@ -1263,6 +1275,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         color,
         walk,
         pass,
+        ...mark,
         normal: startNormal,
         offsetX,
         endNormal,
@@ -1316,8 +1329,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         toSegments,
         yToX,
       )
-      const single = laneWalks.length === 1
-      const thickness = laneHalfWidth(laneWidthOf(edge.from))
+      const single = laneWalks.length === 1 && !threaded
       const fromFrames = lines?.frames.get(edge.from)
       const toFrames = lines?.frames.get(edge.to)
       for (let lane = 0; lane < laneWalks.length; lane++) {
@@ -1358,12 +1370,13 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           if (inView(curves)) {
             laneStroke(
               curves,
-              thickness,
+              laneHalfWidth(laneWidthOf(edge.from), lane),
               threadColor(lane, edge.from, pass) ??
                 threadColor(lane, edge.to, toPass) ??
                 plainEdgeColor,
               lane,
               pass,
+              passMark(lane, edge.from, pass),
               from.normal,
               offsetX,
               to.normal,
@@ -1490,7 +1503,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       }
     } else if (drawable && lanes) {
       const laneWidth = walkLaneWidthPx(width, lanes.length)
-      const thickness = laneHalfWidth(laneWidth)
       const frames = lines?.frames.get(nodeId)
       for (let lane = 0; lane < lanes.length; lane++) {
         const laneColor = lanes[lane]!.colors.get(nodeId)
@@ -1498,15 +1510,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           continue
         }
         const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS
+        const thickness = laneHalfWidth(laneWidth, lane)
         for (const pass of onThreads) {
           const passColor = threadColor(lane, nodeId, pass) ?? laneColor
-          if (lanes.length === 1) {
+          const mark = passMark(lane, nodeId, pass)
+          if (lanes.length === 1 && !threaded) {
             nodeStrokes.push({
               points: segments,
               thickness,
               color: passColor,
               walk: lane,
               pass,
+              ...mark,
             })
             continue
           }
@@ -1526,6 +1541,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             color: passColor,
             walk: lane,
             pass,
+            ...mark,
             normals,
             offsetX,
             ...(offsets && { offsets }),

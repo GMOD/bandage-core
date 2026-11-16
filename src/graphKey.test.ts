@@ -474,6 +474,18 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
       ? ['faded-links']
       : []),
     ...(batch.nodeStrokes.some(n => (n.pass ?? 0) > 0) ? ['walk-passes'] : []),
+    ...[batch.nodeStrokes, batch.edgeCurves].flatMap(marks =>
+      marks.flatMap(({ walk, walkPass = -1 }) => {
+        const lifted = walk === undefined ? undefined : s.lift?.walks[walk]
+        return lifted && walkPass >= 0
+          ? [
+              lifted.walkPasses?.bundled
+                ? `passes-${lifted.name}`
+                : `pass-${lifted.name}-${walkPass}`,
+            ]
+          : []
+      }),
+    ),
     ...(!s.lift && batch.edgeCurves.some(e => e.walk === undefined && !e.skip)
       ? ['link']
       : []),
@@ -513,7 +525,45 @@ function unarced(g: Graph): Scene {
   }
 }
 
+const byPass = (g: Graph, walks: string[]) =>
+  walkLift(
+    g,
+    walks.map(walk => ({
+      walk,
+      ...(walk === 'ref#0#chr' ? {} : { color: { field: 'pass' as const } }),
+    })),
+  )
+
+const MANY = load(
+  [
+    'S\tv1\tAAAA',
+    'S\tv2\tCC',
+    'S\tv3\tGGG',
+    'L\tv1\t+\tv2\t+\t0M',
+    'L\tv2\t+\tv3\t+\t0M',
+    'L\tv2\t+\tv1\t+\t0M',
+    'W\tref\t0\tchr\t0\t9\t>v1>v2>v3',
+    `W\tmany\t1\tchr\t0\t*\t${'>v1>v2'.repeat(9)}>v3`,
+  ].join('\n'),
+  'ref',
+)
+
 const CUTS: [string, Graph, (g: Graph) => Scene][] = [
+  [
+    "a repeat's walk lifted alone and coloured by pass",
+    REPEAT,
+    g => ({ lift: byPass(g, ['dup#1#chr']) }),
+  ],
+  [
+    "a repeat's walk coloured by pass beside the reference",
+    REPEAT,
+    g => ({ lift: byPass(g, ['ref#0#chr', 'dup#1#chr']) }),
+  ],
+  [
+    'a walk of more passes than take a colour each',
+    MANY,
+    g => ({ lift: byPass(g, ['many#1#chr']) }),
+  ],
   [
     'a repeat whose passes its walks state, both lifted',
     REPEAT,
@@ -607,4 +657,40 @@ test('the census fails on a planted extra entry and on a planted missing one', (
   expect(census(planted, batch, s).extra).toEqual(['deletion'])
   const dropped = sections.filter(section => section.id !== 'skips')
   expect(census(dropped, batch, s).missing).toEqual(['short-skip'])
+})
+
+test('a walk coloured by pass keys each pass by its name, a bundle by its count, and heads by the way they point', () => {
+  const keyed = (g: Graph, s: Scene) => {
+    const { layout, batch } = drawn(g, s)
+    const sections = graphKey(g, layout, {
+      lift: s.lift,
+      marks: drawnMarks([batch]),
+    })
+    return {
+      sections,
+      batch,
+      texts: sections.flatMap(x => x.entries).map(e => [e.key, e.text]),
+    }
+  }
+  const lone = keyed(REPEAT, { lift: byPass(REPEAT, ['dup#1#chr']) })
+  expect(lone.texts).toEqual(
+    expect.arrayContaining([
+      ['pass-dup#1#chr-0', 'pass 1'],
+      ['pass-dup#1#chr-1', 'pass 2'],
+    ]),
+  )
+  const many = keyed(MANY, { lift: byPass(MANY, ['many#1#chr']) })
+  expect(many.texts).toEqual(
+    expect.arrayContaining([['passes-many#1#chr', '9 passes']]),
+  )
+  expect(many.texts.filter(([key]) => key?.startsWith('pass-'))).toEqual([])
+  const s = { lift: byPass(REPEAT, ['dup#1#chr']) }
+  const dropped = lone.sections.map(section => ({
+    ...section,
+    entries: section.entries.filter(e => !e.key.startsWith('pass-')),
+  }))
+  expect(census(dropped, lone.batch, s).missing).toEqual([
+    'pass-dup#1#chr-0',
+    'pass-dup#1#chr-1',
+  ])
 })

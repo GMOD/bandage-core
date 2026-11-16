@@ -13,7 +13,12 @@ export interface EdgeCurveBatch {
   thickness: number
   color: number
   walk?: number
+  // the thread's slot across its walk's band at the node it leaves
   pass?: number
+  // the walk's visit to that node, and the walk's pass it is on, -1 for none,
+  // where the walk is coloured by pass
+  visit?: number
+  walkPass?: number
   normal?: LaneSlide['normal']
   offsetX?: number
   endNormal?: LaneSlide['normal']
@@ -37,7 +42,12 @@ export interface NodeStroke {
   thickness: number
   color: number
   walk?: number
+  // the thread's slot across its walk's band
   pass?: number
+  // the walk's visit to the node, and the walk's pass it is on, -1 for none,
+  // where the walk is coloured by pass
+  visit?: number
+  walkPass?: number
   normals?: { nx: number; ny: number }[]
   offsetX?: number
   // a lane offset at each point, where it varies along the node
