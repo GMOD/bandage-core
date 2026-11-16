@@ -532,9 +532,7 @@ export function figureSvg(
     renderer.uploadGeometry(v.batch)
     renderer.updateTransform({ ...v.t, dpr: 1 })
     renderer.render([1, 1, 1, 1])
-    return (
-      markup() + overlays(v.highlight, v.t, v.labels, w, h, v.batch)
-    )
+    return markup() + overlays(v.highlight, v.t, v.labels, w, h, v.batch)
   }
 
   // The graph's key and the walk rows' entries for the drawing `views` hold,

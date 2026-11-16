@@ -293,7 +293,7 @@ test("figureData's arrows table marks the heads the canvas strokes a white halo 
   const { graph, layout, tables } = data(walk)
   const { arrows } = tables
   expect(arrows.halo).toHaveLength(arrows.x.length)
-  const scene = figureScene(graph, layout, { width: 600, height: 300, walks: byPass })
+  const scene = figureScene(graph, layout, { walks: byPass })
   const pixelRows = layout.pixelRows ?? false
   const fit = fitTransform(scene.bounds, 600, 300, pixelRows)!
   const batch = scene.geometry(scene.lift, axisScaleOf(fit.scale, pixelRows))

@@ -2,6 +2,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 import { COMPRESSED_KEY } from './bubbleSpreads'
+import { figureSvg } from './figure'
 import {
   figureData,
   gfaFigureData,
@@ -28,7 +29,6 @@ import { graphBackbone } from './reference'
 import { abgrHex } from './renderer/colorBits'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
-import { figureSvg } from './figure'
 import { walkLift } from './walkHighlight'
 
 import type { BubbleSpread } from './bubbleSpreads'
@@ -799,8 +799,8 @@ test('with walks lifted across a folded site, a gene over a reference node the l
   expect(new Set(drawn.exons.node)).toEqual(new Set(['r1+', 'r2+', 'r3+']))
   const outlined = (smallSites: 'hidden' | 'nodes') =>
     (
-      figureSvg(graph, layout, { genes, walks, smallSites }).match(
-        /<mask[\s\S]*?<\/mask>/,
+      /<mask[\s\S]*?<\/mask>/.exec(
+        figureSvg(graph, layout, { genes, walks, smallSites }),
       )?.[0] ?? ''
     ).match(/<path /g)?.length
   expect(outlined('nodes')).toBe(2 * 3)
