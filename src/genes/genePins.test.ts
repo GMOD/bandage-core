@@ -75,3 +75,75 @@ test('an exon on a node the reference steps against its id lands at the end the 
     ),
   ).toEqual([0, 10])
 })
+
+const HAPLOTYPE = 'HG00097#1#CM0001.1'
+const offReference = (id: string, start: number, length: number) => ({
+  ...anchored(id, start, length),
+  stable: { refName: HAPLOTYPE, start, rank: 1, strand: '+' as const },
+})
+const gene = (name: string, refName: string, start: number, end: number) => ({
+  name,
+  refName,
+  start,
+  end,
+  strand: 1,
+  exons: [{ start, end }],
+})
+const along = (ids: string[], shift: number) =>
+  Object.fromEntries(
+    ids.map((id, i) => [
+      id,
+      [
+        { x: shift + i * 100, y: 0 },
+        { x: shift + (i + 1) * 100, y: 0 },
+      ],
+    ]),
+  )
+
+test('pins recomputed for a dragged node read no walk step again', () => {
+  let stepReads = 0
+  const counted = (name: string, nodeIds: string[], start: number) => ({
+    name,
+    start,
+    get nodeIds() {
+      stepReads += nodeIds.length
+      return nodeIds
+    },
+  })
+  const graph: Graph = {
+    name: 'g',
+    nodes: [
+      anchored('r1', 0, 1000),
+      anchored('r2', 1000, 1000),
+      offReference('h1', 5000, 100),
+    ],
+    edges: [],
+    paths: [
+      counted('chr1', ['r1', 'r2'], 0),
+      counted(HAPLOTYPE, ['r1', 'h1', 'r2'], 4500),
+    ],
+  }
+  const genes = [
+    gene('REF', 'chr1', 200, 1800),
+    gene('OWN', HAPLOTYPE, 5050, 7050),
+  ]
+  const summary = (shift: number) =>
+    genePins(graph, genes, along(['r1', 'r2', 'h1'], shift)).map(p => [
+      p.gene.name,
+      p.at.x,
+      p.walks,
+      p.covered,
+    ])
+  expect(summary(0)).toEqual([
+    ['REF', 100, 2, 1],
+    ['OWN', 300, 1, 0.775],
+  ])
+  const firstReads = stepReads
+  expect(firstReads).toBeGreaterThan(0)
+  expect(summary(30)).toEqual([
+    ['REF', 130, 2, 1],
+    ['OWN', 330, 1, 0.775],
+  ])
+  expect(summary(60)[0]![1]).toBe(160)
+  expect(stepReads).toBe(firstReads)
+})

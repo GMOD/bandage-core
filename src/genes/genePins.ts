@@ -58,27 +58,76 @@ interface RefNameNodes {
   reference: boolean
 }
 
+// What a graph says of its genes that no layout or drag changes, read once
+// per graph: its anchored nodes by refName, where its walks lie on each
+// contig, and how many walks step the nodes under each gene span asked about
+interface GraphGenes {
+  byRefName: Map<string, RefNameNodes>
+  stretches: Map<string, { start: number; end: number }>
+  walks: Map<string, number>
+}
+
+const graphGenesCache = new WeakMap<Graph, GraphGenes>()
+
+function graphGenesOf(graph: Graph) {
+  let known = graphGenesCache.get(graph)
+  if (!known) {
+    known = {
+      byRefName: anchoredByRefName(graph),
+      stretches: walkStretches(graph),
+      walks: new Map(),
+    }
+    graphGenesCache.set(graph, known)
+  }
+  return known
+}
+
+const spanKey = (gene: GeneModel) =>
+  `${gene.refName}\t${gene.start}\t${gene.end}`
+
+function anchoredByRefName(graph: Graph) {
+  const byRefName = new Map<string, RefNameNodes>()
+  for (const node of graph.nodes) {
+    if (isAnchored(node)) {
+      const { refName } = node.stable
+      const entry =
+        byRefName.get(refName) ??
+        byRefName
+          .set(refName, {
+            nodes: [],
+            reach: 0,
+            reference: node.stable.rank === 0,
+          })
+          .get(refName)!
+      entry.nodes.push(node)
+      entry.reach = Math.max(entry.reach, node.length)
+    }
+  }
+  for (const { nodes } of byRefName.values()) {
+    nodes.sort((a, b) => a.stable.start - b.stable.start)
+  }
+  return byRefName
+}
+
 // Where each walk's records lie on its contig, from the first record's start
 // to the last one's end, by the contig's name
-function walkStretches(graph: Graph, contigs: ReadonlySet<string>) {
+function walkStretches(graph: Graph) {
   const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
   const stretches = new Map<string, { start: number; end: number }>()
   for (const path of graph.paths ?? []) {
     const origin = pathOrigin(path.name)
-    if (contigs.has(origin.name)) {
-      const start = path.start ?? origin.start
-      const end = path.nodeIds.reduce(
-        (sum, id) => sum + (lengths.get(id) ?? 0),
-        start,
-      )
-      const seen = stretches.get(origin.name)
-      stretches.set(
-        origin.name,
-        seen
-          ? { start: Math.min(seen.start, start), end: Math.max(seen.end, end) }
-          : { start, end },
-      )
-    }
+    const start = path.start ?? origin.start
+    const end = path.nodeIds.reduce(
+      (sum, id) => sum + (lengths.get(id) ?? 0),
+      start,
+    )
+    const seen = stretches.get(origin.name)
+    stretches.set(
+      origin.name,
+      seen
+        ? { start: Math.min(seen.start, start), end: Math.max(seen.end, end) }
+        : { start, end },
+    )
   }
   return stretches
 }
@@ -130,34 +179,12 @@ export function genePins(
   positions: Record<string, NodeSegment[]>,
   stranded = false,
 ): GenePin[] {
-  // Per refName and sorted once, so a gene reads the few nodes it lies over.
-  // Every gene used to read every backbone node on each frame of a node drag:
-  // 199 ms for 100 genes over 15k nodes, now 12.
-  const byRefName = new Map<string, RefNameNodes>()
-  for (const node of graph.nodes) {
-    if (isAnchored(node)) {
-      const { refName } = node.stable
-      if (positions[node.id]?.length) {
-        const entry =
-          byRefName.get(refName) ??
-          byRefName
-            .set(refName, {
-              nodes: [],
-              reach: 0,
-              reference: node.stable.rank === 0,
-            })
-            .get(refName)!
-        entry.nodes.push(node)
-        entry.reach = Math.max(entry.reach, node.length)
-      }
-    }
-  }
-  for (const { nodes } of byRefName.values()) {
-    nodes.sort((a, b) => a.stable.start - b.stable.start)
-  }
+  // A node drag recomputes the pins each frame and reads no walk's steps
+  const known = graphGenesOf(graph)
+  const uncounted = new Map<string, Set<string>>()
   const pins: Omit<GenePin, 'walks'>[] = []
   for (const gene of genes) {
-    const onRefName = byRefName.get(gene.refName)
+    const onRefName = known.byRefName.get(gene.refName)
     if (!onRefName) {
       continue
     }
@@ -167,6 +194,8 @@ export function genePins(
     let at: NodeSegment | undefined
     let atDistance = Infinity
     let covered = 0
+    const key = spanKey(gene)
+    const under = known.walks.has(key) ? undefined : new Set<string>()
     const mid = (gene.start + gene.end) / 2
     const { nodes, reach, reference } = onRefName
     for (
@@ -180,7 +209,11 @@ export function genePins(
       if (nodeEnd <= gene.start) {
         continue
       }
-      const line = positions[node.id]!
+      under?.add(node.id)
+      const line = positions[node.id]
+      if (!line?.length) {
+        continue
+      }
       nodeIds.add(node.id)
       covered += Math.min(nodeEnd, gene.end) - Math.max(nodeStart, gene.start)
       const nodeParts: string[] = []
@@ -224,6 +257,9 @@ export function genePins(
       }
     }
     if (at) {
+      if (under) {
+        uncounted.set(key, under)
+      }
       pins.push({
         gene,
         exons: parts.join(''),
@@ -235,16 +271,16 @@ export function genePins(
       })
     }
   }
-  const walked = walkStretches(
-    graph,
-    new Set(pins.flatMap(p => (p.onReference ? [] : [p.gene.refName]))),
-  )
-  const walks = walksStepping(
-    graph,
-    pins.map(p => p.nodeIds),
-  )
+  if (uncounted.size > 0) {
+    const counted = walksStepping(graph, [...uncounted.values()])
+    for (const [key, ids] of uncounted) {
+      known.walks.set(key, counted.get(ids) ?? 0)
+    }
+  }
   return pins.map(pin => {
-    const stretch = walked.get(pin.gene.refName)
+    const stretch = pin.onReference
+      ? undefined
+      : known.stretches.get(pin.gene.refName)
     const { start, end } = pin.gene
     return {
       ...pin,
@@ -255,7 +291,7 @@ export function genePins(
           ) /
           (end - start)
         : pin.covered,
-      walks: walks.get(pin.nodeIds) ?? 0,
+      walks: known.walks.get(spanKey(pin.gene)) ?? 0,
     }
   })
 }
