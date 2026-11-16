@@ -362,6 +362,86 @@ describe('skips at one site', () => {
     ).toBeCloseTo(SKIP_LEVEL_PX, 5)
   })
 
+  test('two skips whose feet land on the same pixels the other way round rise a stroke apart', () => {
+    const turned = {
+      ...positions(),
+      'n3+': [
+        { x: 30, y: 0 },
+        { x: 20, y: 0 },
+      ],
+      'n5+': [
+        { x: 10, y: 0 },
+        { x: 0, y: 0 },
+      ],
+    }
+    const curves = baseEdgeCurves(
+      turned,
+      {
+        name: 'site',
+        nodes: backbone,
+        edges: [
+          { from: 'n0+', to: 'n2+' },
+          { from: 'n3+', to: 'n5+' },
+        ],
+      },
+      axis,
+      new Map([
+        [0, ['n1+']],
+        [1, ['n4+']],
+      ]),
+      0,
+      {
+        0: [{ x: 15, y: 0 }],
+        1: [{ x: 15, y: 0 }],
+      },
+    )
+    expect(
+      Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  test('two skips whose spans only abut keep the paths their layout gave them', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [1, 3, [2]],
+    ])
+    for (const arc of [curves.get(0)!, curves.get(1)!]) {
+      expect(heightPx(arc)).toBeLessThan(1)
+    }
+  })
+
+  test("the same skips laid out for another graph take that graph's levels", () => {
+    const deletions = new Map([
+      [0, ['n1+']],
+      [1, ['n4+']],
+    ])
+    const routes: DeletionRoutes = {
+      0: [{ x: 15, y: 0 }],
+      1: [{ x: 35, y: 0 }],
+    }
+    const drawn = (edges: Graph['edges']) =>
+      baseEdgeCurves(
+        positions(),
+        { name: 'site', nodes: backbone, edges },
+        axis,
+        deletions,
+        0,
+        routes,
+      )
+    const nested = drawn([
+      { from: 'n0+', to: 'n2+' },
+      { from: 'n0+', to: 'n5+' },
+    ])
+    expect(heightPx(nested.get(1)!)).toBeGreaterThanOrEqual(SKIP_LEVEL_PX)
+    const apart = drawn([
+      { from: 'n0+', to: 'n2+' },
+      { from: 'n3+', to: 'n5+' },
+    ])
+    for (const arc of [apart.get(0)!, apart.get(1)!]) {
+      expect(heightPx(arc)).toBeLessThan(1)
+    }
+  })
+
   test('a skip inside a longer one draws inside it, whether or not they share an anchor', () => {
     const curves = skips([
       [0, 4, [1, 2, 3]],
