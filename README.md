@@ -186,11 +186,12 @@ it is on, so the trips round the repeat can be followed one by one.
 - Heads along a lane point the way its walk runs: wherever a lane reads a node
   against the way the node is drawn, and along every thread of a lane coloured
   by pass. The canvas renderer draws them, so every host shows them
-- A graph that keeps each copy of a repeat as separate nodes, as
-  Minigraph-Cactus does, gives a walk nothing to step twice, so it shows no
-  passes. A layer's `passes` states them in the walk's own bp instead, as
-  another graph of the same haplotype that folds the copies gives them; stated
-  passes never move passes the walk shows
+- A graph that keeps each copy of a repeat as its own nodes gives a walk nothing
+  to step twice, so it shows no passes. Minigraph-Cactus folds little, but not
+  nothing: on the hosted amylase cut HG00128#1 steps thousands of nodes twice. A
+  layer's `passes` states them in the walk's own bp instead, as another graph of
+  the same haplotype that folds the copies gives them; stated passes never move
+  passes the walk shows
 - Pass count is not gene copy number. A pass is a trip round whatever nodes the
   graph shares between copies: a copy the graph keeps apart adds no pass, a
   repeat it folds outside the gene adds passes, and the walk alone does not say
