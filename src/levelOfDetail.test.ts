@@ -1194,18 +1194,18 @@ describe('the drawing through a folded site', () => {
   describe('the reference through a run meets the drawn nodes at its ends where the reference leaves and enters them, and each node in it runs the way it is laid', () => {
     // r2, 1 bp, between 1 kb flanks, a1 in its place; a layout that draws
     // each node along the strand its id names
-    const laidOut = (graph: Graph) => {
+    const laidOut = (loaded: Graph) => {
       const along = (name: string, x0: number, x1: number, y = 0) => {
-        const node = graph.nodes.find(n => n.name === name)
+        const node = loaded.nodes.find(n => n.name === name)
         return node && isAnchored(node) && !drawnAlongStable(node)
           ? at(x1, x0, y)
           : at(x0, x1, y)
       }
       return {
-        [idOf(graph, 'r1')]: along('r1', 0, 1000),
-        [idOf(graph, 'r2')]: along('r2', 1000, 1001),
-        [idOf(graph, 'r3')]: along('r3', 1001, 2001),
-        [idOf(graph, 'a1')]: along('a1', 1000, 1001, 20),
+        [idOf(loaded, 'r1')]: along('r1', 0, 1000),
+        [idOf(loaded, 'r2')]: along('r2', 1000, 1001),
+        [idOf(loaded, 'r3')]: along('r3', 1001, 2001),
+        [idOf(loaded, 'a1')]: along('a1', 1000, 1001, 20),
       }
     }
     test.each([

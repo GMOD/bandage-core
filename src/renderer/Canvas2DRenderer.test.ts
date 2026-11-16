@@ -418,7 +418,7 @@ describe('a link turning strand against the reference is painted over the nodes 
     expect([0, 1, 2].map(turnOf)).toEqual([undefined, undefined, true])
   })
 
-  test('it is painted after the nodes, the reference\'s own links before them', () => {
+  test("it is painted after the nodes, the reference's own links before them", () => {
     const { renderer, strokes } = makeRenderer()
     renderer.uploadGeometry(turning)
     renderer.updateTransform(TRANSFORM)
