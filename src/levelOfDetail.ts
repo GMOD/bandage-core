@@ -1,4 +1,5 @@
 import { isBackbone } from './anchoredNodes'
+import { departureTails } from './gfa/departures'
 import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
 import { weakMemo } from './util/weakMemo'
@@ -240,6 +241,7 @@ function unitsOf(
     }
   })
   const units: Unit[] = [...skips]
+  const tails = departureTails(graph)
   for (const { tied, ends, ...component } of components.values()) {
     const walks = new Set<number>()
     for (const id of component.nodes) {
@@ -250,6 +252,7 @@ function unitsOf(
     if (
       !tied &&
       (ends.size === 2 || component.feet.length === 1) &&
+      !component.nodes.some(id => tails.has(id)) &&
       walks.size > 0
     ) {
       units.push({

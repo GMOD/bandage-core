@@ -1,5 +1,6 @@
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
+import { departureTable, departureTails } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { SMALL_SITE_PX } from './levelOfDetail'
 import { haplotypeCount } from './nodeWidths'
@@ -500,6 +501,73 @@ test('a piece with a node the layout did not place is not folded', () => {
   expect(build(graph, positions, 0.01).collapsed?.sites).toEqual([])
   const placed = { ...positions, 'a2+': at(1001, 1001.5, 20) }
   expect(folded(build(graph, placed, 0.01))).toEqual(['a1+', 'a2+', 'a3+'])
+})
+
+describe('a piece attached at one end folds only where the cut holds the rest of it', () => {
+  // t hangs from the end of r1 alone and y steps it only through a departure
+  const lines = [
+    `S\tr1\t${bases(1000)}`,
+    `S\tr2\t${bases(1000)}`,
+    'S\tt\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr1\t+\tt\t+\t0M',
+    'W\tref\t0\tchr\t0\t2000\t>r1>r2',
+    'W\ty\t1\tchr\t0\t2000\t>r1>r2',
+  ]
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 2000),
+    't+': at(1000, 1001, 20),
+  }
+  const visited = (leavePos: number) => {
+    const graph = load(lines)
+    const visit: PathVisit = {
+      path: 'y#1#chr',
+      sample: 'y',
+      start: 1000,
+      strand: '+',
+    }
+    const departure = {
+      name: 'y#1#chr',
+      hapStart: 1000,
+      ownBp: 1,
+      missingBp: 0,
+      leavePos,
+      leaveReversed: false,
+      leavePasses: 1,
+      rejoinPos: 1000,
+      rejoinReversed: false,
+      rejoinPasses: 1,
+      fromSteps: true,
+    }
+    return {
+      ...graph,
+      nodes: graph.nodes.map(n =>
+        n.id === 't+' ? { ...n, departureVisits: [visit] } : n,
+      ),
+      departures: {
+        ...departureTable([departure]),
+        offsets: Int32Array.from([0, 1]),
+        steps: Int32Array.from([graph.nodes.findIndex(n => n.id === 't+')]),
+      },
+    }
+  }
+
+  test('a departure leaving and rejoining inside the cut holds it, and it folds', () => {
+    const graph = visited(500)
+    expect(departureTails(graph).size).toBe(0)
+    expect(folded(build(graph, positions, 0.01))).toEqual(['t+'])
+  })
+
+  test('a departure leaving from past the cut, the window holding only its way back, keeps it drawn', () => {
+    const graph = visited(-93_000)
+    expect([...departureTails(graph)]).toEqual(['t+'])
+    for (const scale of [0.01, 0.5]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toEqual([])
+      expect(drawnNodes(batch).has('t+')).toBe(true)
+    }
+  })
 })
 
 test('a site no shown walk steps is drawn, an allele or a skip', () => {

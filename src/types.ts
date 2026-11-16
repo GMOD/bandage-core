@@ -194,7 +194,7 @@ export interface LayoutResult {
   // height take the wider of this and the nodes.
   extent?: { minX?: number; minY?: number; maxX?: number; maxY?: number }
   // What the fit frames in place of every node, where some reach off toward a
-  // place the cut does not hold (pipeline.ts departureTails)
+  // place the cut does not hold (gfa/departures.ts departureTails)
   frame?: { minX: number; minY: number; maxX: number; maxY: number }
   // The tube map's shapes, which TubeMapOverlay draws in place of the canvas's
   // nodes and edges.
