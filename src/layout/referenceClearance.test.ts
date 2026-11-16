@@ -255,3 +255,27 @@ test('a host that names no engine gets FMMM, and every node left where it was la
   })
   expect(out).toEqual(laid)
 })
+
+test('the stress engine lays an allele clear of the reference at the fit forceLayout is given: further in layout units for a narrower pane, the same in px', async () => {
+  const stress = engineSettingsOf({ engine: 'stress' })
+  const narrow = (await laidAt(stress, { width: 900, height: 280 })).pushed
+  const assumed = (await laidAt(stress)).pushed
+  expect(narrow).toBeGreaterThan(assumed)
+  expect(((narrow - 0.3) * (900 - 80)) / 3000).toBeCloseTo(
+    ((assumed - 0.3) * (1200 - 80)) / 3000,
+  )
+})
+
+test('a pane whose height binds the fit widens the clearance in layout units by the fit it gives', () => {
+  const { nodes, positions } = backbone(30)
+  const a = allele(0, 1050)
+  const graph: Graph = { name: 'g', nodes: [...nodes, a], edges: [] }
+  const laid = { ...positions, [a.id]: flat(1050, 1051, 0.3) }
+  const tall = { minX: 0, maxX: 3000, minY: 0, maxY: 1500 }
+  const pushed = (height: number) =>
+    clearOfReference(graph, laid, tall, { width: 1200, height })[a.id]![0]!.y -
+    0.3
+  expect(pushed(280) / pushed(800)).toBeCloseTo(
+    (1200 - 80) / 3000 / ((280 - 80) / 1500),
+  )
+})
