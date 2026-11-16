@@ -1,4 +1,5 @@
 import { isBackbone } from '../anchoredNodes'
+import { compareIds } from '../util/canonicalOrder'
 import { strandSides } from '../util/geometry'
 import { pushTo } from '../util/groups'
 import { coversGraph } from './bubbleHalos'
@@ -160,13 +161,6 @@ function reversed(f: Found): Found {
   }
 }
 
-let collator: Intl.Collator | undefined
-
-const byName = (a: string, b: string) => {
-  collator ??= new Intl.Collator(undefined, { numeric: true })
-  return collator.compare(a, b)
-}
-
 function onReference(a: GraphNode, b: GraphNode) {
   return isBackbone(a) && isBackbone(b) && a.stable.refName === b.stable.refName
 }
@@ -179,7 +173,7 @@ function forward(f: Found, nodes: GraphNode[]) {
   const b = nodes[f.sink >> 1]!
   const byRef = onReference(a, b) ? a.stable!.start - b.stable!.start : 0
   const bySide = ((f.sink ^ 1) & 1) - (f.source & 1)
-  return (byRef || bySide || byName(a.name, b.name)) < 0
+  return (byRef || bySide || compareIds(a.name, b.name)) < 0
 }
 
 function nodesOf(f: Found) {
@@ -306,7 +300,9 @@ export function superbubblesFromGraph(
         ...(placedOn ? {} : { offReference: true as const }),
       }
     })
-    .sort((a, b) => a.start - b.start || a.end - b.end || byName(a.key, b.key))
+    .sort(
+      (a, b) => a.start - b.start || a.end - b.end || compareIds(a.key, b.key),
+    )
 }
 
 // The bubbles a drawing marks: the reach rule's, with any that is the whole

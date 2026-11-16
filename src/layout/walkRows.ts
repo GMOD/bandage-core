@@ -1,4 +1,5 @@
 import { panSNHaplotype } from '../pansn'
+import { compareIds } from '../util/canonicalOrder'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 
 import type { Departure, GapCause } from '../gfa/departures'
@@ -205,7 +206,7 @@ export function filterSamples<R extends NamedRow & { label: string }>(
   return samples
     ? rows
         .filter(r => named(r) >= 0)
-        .sort((a, b) => named(a) - named(b) || a.label.localeCompare(b.label))
+        .sort((a, b) => named(a) - named(b) || compareIds(a.label, b.label))
     : rows
 }
 

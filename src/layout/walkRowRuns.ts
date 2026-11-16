@@ -9,6 +9,7 @@ import {
 import { referenceOf, tableNodeIds, tablePath } from '../gfa/graphTables'
 import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
+import { compareIds } from '../util/canonicalOrder'
 import { groupBy } from '../util/groups'
 
 import type {
@@ -1352,7 +1353,7 @@ export function walkRowRuns(
     (a, b) =>
       Number(b.meta.complete) - Number(a.meta.complete) ||
       b.meta.bp - a.meta.bp ||
-      a.meta.label.localeCompare(b.meta.label),
+      compareIds(a.meta.label, b.meta.label),
   )
   for (const meta of [referenceRow, ...rows.map(r => r.meta)]) {
     const haplotype = haplotypeOf(meta.name)

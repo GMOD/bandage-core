@@ -1528,16 +1528,6 @@ describe("tables that state each step's pass", () => {
       ]),
     ).toEqual([
       [
-        'lone#1',
-        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
-        [
-          [0, 1000, 0],
-          [1000, 2500, undefined],
-          [3500, 1000, undefined, 'elsewhere'],
-          [4500, 300, undefined],
-        ],
-      ],
-      [
         'lone2#1',
         '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
         [
@@ -1545,6 +1535,16 @@ describe("tables that state each step's pass", () => {
           [300, 1000, undefined, 'elsewhere'],
           [1300, 2500, undefined],
           [3800, 1000, 4000],
+        ],
+      ],
+      [
+        'lone#1',
+        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
+        [
+          [0, 1000, 0],
+          [1000, 2500, undefined],
+          [3500, 1000, undefined, 'elsewhere'],
+          [4500, 300, undefined],
         ],
       ],
     ])
