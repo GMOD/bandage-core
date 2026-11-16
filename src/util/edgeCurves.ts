@@ -25,6 +25,7 @@ const MIN_ARC_SPAN_PX = 1
 // a dashed skip's width at the default connector, 4.4 px, rounded up
 export const SKIP_LEVEL_PX = 5
 const REACH_SAMPLES = 8
+const RISE_SAMPLES = 64
 // the side, as farthestPx signs it along the reference, the stress engine
 // arches a deletion's route to: over the backbone
 const ROUTES_ARCH_ABOVE = -1
@@ -94,7 +95,7 @@ export function baseEdgeCurves(
       }
       if (deletions) {
         const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-        const { levels, alone } = sitesCache(deletions, [graph], () =>
+        const { spans, levels, alone } = sitesCache(deletions, [graph], () =>
           skipSites(
             deletionEdges(graph).filter(d => deletions.has(d.edgeIndex)),
           ),
@@ -108,31 +109,46 @@ export function baseEdgeCurves(
           onChord.set(chord, (onChord.get(chord) ?? 0) + 1)
         }
         const highestOnChord = new Map<string, number>()
+        const levelHeights = new Map<number, number>()
         for (const ei of Array.from(curves.arcs).sort(
           (a, b) => levelOf(a) - levelOf(b) || a - b,
         )) {
-          const edge = graph.edges[ei]!
-          const arc = curves.get(ei)!
           const chord = chords.get(ei)!
           const level = Math.max(
             levelOf(ei),
             (highestOnChord.get(chord) ?? 0) + 1,
           )
           highestOnChord.set(chord, level)
-          const height = level * SKIP_LEVEL_PX
-          const farthest = farthestPx(arc, axis)
-          const shared = !alone.has(ei) || onChord.get(chord)! > 1
-          if (shared && Math.abs(farthest) < height) {
-            const from = nodeById.get(edge.from)?.stable?.start ?? 0
-            const to = nodeById.get(edge.to)?.stable?.start ?? 0
-            const side = routes?.[ei]
-              ? from <= to
-                ? ROUTES_ARCH_ABOVE
-                : -ROUTES_ARCH_ABOVE
-              : Math.sign(farthest) || 1
-            curves.set(ei, archOf(arc, axis, height * side))
-          }
+          levelHeights.set(ei, level * SKIP_LEVEL_PX)
         }
+        insideOut(
+          spans.filter(s => curves.arcs.has(s.edgeIndex)),
+          (span, inside) => {
+            const ei = span.edgeIndex
+            const edge = graph.edges[ei]!
+            const arc = curves.get(ei)!
+            const height = Math.max(
+              levelHeights.get(ei)!,
+              inside > 0 ? inside + SKIP_LEVEL_PX : 0,
+            )
+            const farthest = farthestPx(arc, axis, REACH_SAMPLES)
+            const shared = !alone.has(ei) || onChord.get(chords.get(ei)!)! > 1
+            const arches = shared && Math.abs(farthest) < height
+            if (arches) {
+              const from = nodeById.get(edge.from)?.stable?.start ?? 0
+              const to = nodeById.get(edge.to)?.stable?.start ?? 0
+              const side = routes?.[ei]
+                ? from <= to
+                  ? ROUTES_ARCH_ABOVE
+                  : -ROUTES_ARCH_ABOVE
+                : Math.sign(farthest) || 1
+              curves.set(ei, archOf(arc, axis, height * side))
+            }
+            return arches
+              ? height
+              : Math.abs(farthestPx(arc, axis, RISE_SAMPLES))
+          },
+        )
       }
       return curves
     },
@@ -144,17 +160,14 @@ const sitesCache = weakMemo<
   ReturnType<typeof skipSites>
 >()
 
-// A skip's level is one above the highest of the skips inside its span, so a
-// skip nested in a longer one draws inside it; of two over one span, the later
-// edge nests the earlier, and of two whose feet land on the same pixels, the
-// later rises above the earlier. Taken by end, each skip finds the skips
-// inside it among those taken before it that start no earlier, in a
-// prefix-max tree over its sequence's starts, latest first. A skip alone, its
-// span overlapping no other's and its feet on pixels of their own, keeps the
-// path it has.
-function skipSites(spans: DeletionEdge[]) {
-  const levels = new Map<number, number>()
-  const overlapping = new Set<number>()
+// Each span in turn, given the highest `rise` returned for the spans inside
+// it: of two over one span, the later edge nests the earlier. Taken by end,
+// each span finds the spans inside it among those taken before it that start
+// no earlier, in a prefix-max tree over its sequence's starts, latest first.
+function insideOut(
+  spans: DeletionEdge[],
+  rise: (span: DeletionEdge, inside: number) => number,
+) {
   for (const group of groupBy(spans, s => s.refName).values()) {
     const starts = Array.from(new Set(group.map(s => s.start))).sort(
       (a, b) => b - a,
@@ -168,11 +181,27 @@ function skipSites(spans: DeletionEdge[]) {
       for (let i = at; i > 0; i -= i & -i) {
         inside = Math.max(inside, highest[i]!)
       }
-      levels.set(span.edgeIndex, inside + 1)
+      const own = rise(span, inside)
       for (let i = at; i <= starts.length; i += i & -i) {
-        highest[i] = Math.max(highest[i]!, inside + 1)
+        highest[i] = Math.max(highest[i]!, own)
       }
     }
+  }
+}
+
+// A skip's level is one above the highest of the skips inside its span, so a
+// skip nested in a longer one draws inside it; of two whose feet land on the
+// same pixels, the later rises above the earlier. A skip alone, its span
+// overlapping no other's and its feet on pixels of their own, keeps the path
+// it has.
+function skipSites(spans: DeletionEdge[]) {
+  const levels = new Map<number, number>()
+  insideOut(spans, (span, inside) => {
+    levels.set(span.edgeIndex, inside + 1)
+    return inside + 1
+  })
+  const overlapping = new Set<number>()
+  for (const group of groupBy(spans, s => s.refName).values()) {
     let farthest: DeletionEdge | undefined
     for (const span of group.toSorted((a, b) => a.start - b.start)) {
       if (farthest && span.start < farthest.end) {
@@ -183,6 +212,7 @@ function skipSites(spans: DeletionEdge[]) {
     }
   }
   return {
+    spans,
     levels,
     alone: new Set(
       spans.flatMap(s => (overlapping.has(s.edgeIndex) ? [] : [s.edgeIndex])),
@@ -222,12 +252,12 @@ function screenChord(curves: BezierCurve[], axis: AxisScale) {
 
 // The arc's farthest stray from its chord on screen, positive toward
 // (-uy, ux) of the chord run from the link's start
-function farthestPx(curves: BezierCurve[], axis: AxisScale) {
+function farthestPx(curves: BezierCurve[], axis: AxisScale, samples: number) {
   const { ax, ay, ux, uy } = screenChord(curves, axis)
   let farthest = 0
   for (const c of curves) {
-    for (let k = 1; k < REACH_SAMPLES; k++) {
-      const p = curvePointAt(c, k / REACH_SAMPLES)
+    for (let k = 1; k < samples; k++) {
+      const p = curvePointAt(c, k / samples)
       const off = (p.y * axis.scaleY - ay) * ux - (p.x * axis.scaleX - ax) * uy
       farthest = Math.abs(off) > Math.abs(farthest) ? off : farthest
     }

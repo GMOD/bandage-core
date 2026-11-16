@@ -456,6 +456,35 @@ describe('skips at one site', () => {
     }
   })
 
+  test('a skip over one whose route already rises far rises a stroke above it', () => {
+    const curves = baseEdgeCurves(
+      positions(),
+      {
+        name: 'site',
+        nodes: backbone,
+        edges: [
+          { from: 'n0+', to: 'n4+' },
+          { from: 'n1+', to: 'n3+' },
+        ],
+      },
+      axis,
+      new Map([
+        [0, ['n1+', 'n2+', 'n3+']],
+        [1, ['n2+']],
+      ]),
+      0,
+      {
+        0: [{ x: 25, y: 0 }],
+        1: [{ x: 25, y: -400 }],
+      },
+    )
+    const inner = heightPx(curves.get(1)!)
+    expect(inner).toBeGreaterThan(15 * SKIP_LEVEL_PX)
+    expect(heightPx(curves.get(0)!) - inner).toBeGreaterThanOrEqual(
+      widestSkipPx,
+    )
+  })
+
   test('two skips over one span between the same anchors rise a stroke apart', () => {
     const curves = skips([
       [0, 2, [1]],
