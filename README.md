@@ -146,6 +146,44 @@ reads them.
   backbone lies on. `featuresOnBackbone` renames that assembly's genes onto the
   backbone's refNames, and `genePins` pins only those
 
+## Threading by pass
+
+A haplotype that goes round a repeat steps the same nodes again on each trip.
+Lifted with `color: { field: 'pass' }`, its lane splits into one thread per
+visit at each node it steps again, and each thread takes the colour of the pass
+it is on, so the trips round the repeat can be followed one by one.
+
+- `passesOf(walk, lengthOf)` reads the passes off the walk alone. The first pass
+  starts at the first node the walk steps again later, and a new pass starts
+  wherever the walk comes back to a node it already stepped during the current
+  pass. Only steps on nodes the walk steps more than once take a pass's colour;
+  the rest of the haplotype keeps its own lane colour. A pass that reads what it
+  steps again on the other strand is marked `reversed`
+- Up to six passes get a thread, a colour and a name each, `pass 1` and on, or
+  the layer's `passNames`. Past six they share one colour and one count; where
+  the band is too thin to keep the threads apart they fuse into one band
+- Each pass is named on the graph through `layoutLabels`, keyed in `graphKey`,
+  and shown along a bar of the haplotype's own length (`passBars`,
+  `passBarTree`) that colours only the stretches the walk steps again, under a
+  bracket for each pass's extent
+- Heads along a lane point the way its walk runs: wherever a lane reads a node
+  against the way the node is drawn, and along every thread of a lane coloured
+  by pass. The canvas renderer draws them, so every host shows them
+- A graph that keeps each copy of a repeat as separate nodes, as
+  Minigraph-Cactus does, gives a walk nothing to step twice, so it shows no
+  passes. A layer's `passes` states them in the walk's own bp instead, as
+  another graph of the same haplotype that folds the copies gives them; stated
+  passes never move passes the walk shows
+- Pass count is not gene copy number. A pass is a trip round whatever nodes the
+  graph shares between copies: a copy the graph keeps apart adds no pass, a
+  repeat it folds outside the gene adds passes, and the walk alone does not say
+  where a unit starts, so a copy missing its first nodes shifts the boundaries
+  after it
+- In `figureData`, a lifted walk's node and link rows carry `pass`, the thread's
+  slot across its band; `visit`, which of the walk's visits to the node the
+  thread draws; and `walkPass`, the walk's pass that visit is on. The `passes`
+  and `passRuns` tables hold the bar, and `labels` rows of kind `pass` the names
+
 ## Figures
 
 - `figureSvg` draws a graph and its lifted walks to a standalone SVG. The
