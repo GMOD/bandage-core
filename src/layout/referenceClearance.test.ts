@@ -225,3 +225,33 @@ test('a tall pane narrows the clearance only where its height binds the fit', ()
 test('with no fit the clearance is sized for the assumed one', () => {
   expect(allelePushed()).toBe(allelePushed(ASSUMED_FIT))
 })
+
+async function laidAt(
+  settings: Parameters<typeof forceLayout>[1],
+  fit?: { width: number; height: number },
+) {
+  const { nodes, positions } = backbone(30)
+  const a = allele(0, 1050)
+  const graph: Graph = { name: 'g', nodes: [...nodes, a], edges: [] }
+  const laid = { ...positions, [a.id]: flat(1050, 1051, 0.3) }
+  const { result } = await forceLayout(
+    graph,
+    settings,
+    () => Promise.resolve({ result: { nodePositions: laid }, duration: 0 }),
+    fit,
+  )
+  return {
+    laid,
+    out: result.nodePositions,
+    pushed: result.nodePositions[a.id]![0]!.y,
+  }
+}
+
+test('a host that names no engine gets FMMM, and every node left where it was laid', async () => {
+  const { laid, out } = await laidAt({
+    quality: 2,
+    linearLayout: false,
+    bubbleSpread: 'auto',
+  })
+  expect(out).toEqual(laid)
+})
