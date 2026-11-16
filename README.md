@@ -146,31 +146,41 @@ reads them.
   backbone lies on. `featuresOnBackbone` renames that assembly's genes onto the
   backbone's refNames, and `genePins` pins only those
 
-## Level of detail
+## Small sites
 
-- Where what hangs off the reference is too small to draw at the current scale,
-  `buildGeometry` draws a tick in its place: an off-reference component (the
-  nodes off the reference joined to each other, with the links that attach them)
-  whose drawn extent is under `SITE_EXTENT_PX`, attached at points on the
-  reference within `SITE_REACH_PX` of each other, and a skip whose span is under
-  `SITE_EXTENT_PX`. Sites within `SITE_REACH_PX` along the reference share a
-  tick. Nothing on the reference, no placeholder and nothing hanging from a
-  placeholder is collapsed, nor what no shown walk steps
-- A tick stands off the reference on one side, the left of the way the reference
-  runs, so above a reference drawn left to right. Its height runs from
-  `TICK_MIN_PX` for one walk to `TICK_MAX_PX` for all the shown walks, by how
-  many step any of the nodes or skips it stands for, and it is painted last,
-  over everything else. The key's "Tick height" scale shows both ends
-- The rule depends only on the layout and the scale, so zooming in past the
-  thresholds draws the nodes again, and a pan reuses what a zoom derived.
-  `levelOfDetail: false` draws every node and link, as before
-- A lifted walk's lane at a collapsed site runs straight along the reference,
-  and draws no head on what the tick stands for
-- The batch's `ticks` and `collapsed` say what each tick stands for:
-  `findHoveredTick` finds one under the pointer, `findHoveredNode` and
-  `findHoveredEdge` take `collapsed` to skip what no node or link draws, and
-  `layoutLabels` takes `ticks` to keep labels off them. `figureData` returns
-  them as the `ticks` table
+- At overview a drawing shows the graph's structure, not every SNP. By default
+  (`smallSites: 'hidden'`) `buildGeometry` leaves out a site too small to draw
+  at the current scale: an off-reference piece (the nodes off the reference
+  joined to each other, with the links that attach them) or a skip, whose bp
+  plus the reference bp between where it attaches come to under `SMALL_SITE_PX`
+  at the reference's px per bp. `smallSites: 'nodes'` draws everything
+- The reference's px per bp is one number per scale: the drawn length of every
+  reference node on screen over their bp. A force layout draws short nodes
+  longer than their bp, so a local measure at a site's attachments would fold a
+  site by how its neighbours happen to be drawn; one number folds identical
+  sites alike anywhere, and folds the same sites in either layout at the same px
+  per bp
+- A not-loaded placeholder under the threshold folds too, with whatever hangs
+  only from it, and its length label with it. Larger placeholders are structure
+  and stay
+- Nothing on the reference is folded, nor a link turning the reference back on
+  itself, nor what no shown walk steps. A lifted walk's lane runs straight along
+  the reference through a folded site, with no head on what was folded
+- The fold depends only on the layout and the scale: zooming in past the
+  threshold draws each site again, a pan reuses what the zoom derived, and under
+  a steady zoom each node changes state once at most
+- The key ends with one line, only where something is folded:
+  `N nodes and M skips too small to draw`, counting each folded node and skip
+  link once
+- The batch's `collapsed` holds the fold: `findHoveredNode` and
+  `findHoveredEdge` take it as a required argument, so a point at a folded site
+  finds the reference, and `layoutLabels` takes its nodes as `folded`, which
+  carry no label. `figureData` lists each folded site in its `sites` table
+  (where it attaches to the reference, the nodes and links folded, and how many
+  of the shown haplotypes step it) and states the mode and threshold in
+  `meta.smallSites`; with `'nodes'` it adds neither
+- In either state a lifted lane's stroke is never thinner than
+  `MIN_LANE_STROKE_PX`, however far a walk's many passes thin its threads
 
 ## Threading by pass
 
