@@ -165,7 +165,8 @@ it is on, so the trips round the repeat can be followed one by one.
 - Each pass is named on the graph through `layoutLabels`, keyed in `graphKey`,
   and shown along a bar of the haplotype's own length (`passBars`,
   `passBarTree`) that colours only the stretches the walk steps again, under a
-  bracket for each pass's extent
+  solid line over each of a pass's stretches, a dotted hairline joining them and
+  the pass's name over its longest
 - Heads along a lane point the way its walk runs: wherever a lane reads a node
   against the way the node is drawn, and along every thread of a lane coloured
   by pass. The canvas renderer draws them, so every host shows them

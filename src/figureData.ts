@@ -191,6 +191,8 @@ interface PassRow {
   pass: number
   start: number
   end: number
+  // bp of the pass on nodes the walk steps more than once
+  repeatBp: number
   text: string
   color: string
   reversed: boolean
@@ -731,6 +733,7 @@ export function figureData(
     pass: [],
     start: [],
     end: [],
+    repeatBp: [],
     text: [],
     color: [],
     reversed: [],

@@ -7,7 +7,8 @@ import type { WalkLift } from './walkHighlight'
 
 // A lifted walk along its own length, beside the drawing: in its own colour,
 // each stretch it steps on a node it steps again in the colour of the pass
-// it is on, and over the bar each pass's extent with its name. Only a walk
+// it is on, and over the bar a line over each such stretch of a pass, a dotted
+// hairline joining them and the pass's name over its longest. Only a walk
 // coloured by pass that has passes has one.
 export interface PassBar {
   walk: string
@@ -19,6 +20,7 @@ export interface PassBar {
     pass: number
     start: number
     end: number
+    repeatBp: number
     text: string
     ink: number
     reversed: boolean
@@ -43,6 +45,7 @@ export function passBars(lift: WalkLift | undefined) {
               pass: i,
               start: pass.start,
               end: pass.end,
+              repeatBp: pass.repeatBp,
               text: drawn.bundled ? `${i + 1}` : drawn.labels[i]!,
               ink: passInk(drawn, i),
               reversed: pass.reversed,
@@ -94,33 +97,73 @@ export function passBarTree(bar: PassBar, label: string, width: number) {
     { x: SIDE_PX, y: TITLE_Y, ...FONT, 'font-weight': 'bold' },
     `${label} along its length`,
   )
-  const extents = bar.passes.flatMap(pass => {
-    const from = x(pass.start)
-    const to = x(pass.end)
+  const named: { from: number; to: number }[] = []
+  const brackets = bar.passes.flatMap(pass => {
+    const own: { start: number; end: number }[] = []
+    for (const run of bar.runs) {
+      const last = own.at(-1)
+      if (run.pass === pass.pass && last && run.start - last.end < bpPerPx) {
+        last.end = run.end
+      } else if (run.pass === pass.pass) {
+        own.push({ start: run.start, end: run.end })
+      }
+    }
     const ink = abgrHex(pass.ink)
-    const bracket = el('path', {
-      d: `M${from},${EXTENT_Y + 3}V${EXTENT_Y}H${to}V${EXTENT_Y + 3}`,
+    const solid = own.map(run =>
+      el('path', {
+        d: `M${x(run.start)},${EXTENT_Y + 3}V${EXTENT_Y}H${x(run.end)}V${EXTENT_Y + 3}`,
+        fill: 'none',
+        stroke: ink,
+        'stroke-width': 1.5,
+      }),
+    )
+    const gaps = own
+      .slice(1)
+      .map(
+        (run, i) =>
+          `M${x(own[i]?.end ?? run.start)},${EXTENT_Y}H${x(run.start)}`,
+      )
+      .join('')
+    const longest = own.reduce<{ start: number; end: number } | undefined>(
+      (most, run) =>
+        !most || run.end - run.start > most.end - most.start ? run : most,
+      undefined,
+    )
+    const half = (pass.text.length * CHAR_PX) / 2 + 2
+    const centre =
+      longest &&
+      Math.min(
+        Math.max((x(longest.start) + x(longest.end)) / 2, half),
+        width - half,
+      )
+    const clear =
+      centre !== undefined &&
+      named.every(n => centre + half <= n.from || centre - half >= n.to)
+    if (clear) {
+      named.push({ from: centre - half, to: centre + half })
+    }
+    const name =
+      clear &&
+      el(
+        'text',
+        {
+          x: centre,
+          y: EXTENT_Y - 3,
+          ...FONT,
+          'font-weight': 'bold',
+          fill: ink,
+          'text-anchor': 'middle',
+        },
+        pass.text,
+      )
+    const dotted = el('path', {
+      d: gaps,
       fill: 'none',
       stroke: ink,
-      'stroke-width': 1.5,
+      'stroke-width': 0.75,
+      'stroke-dasharray': '1 2',
     })
-    return pass.text.length * CHAR_PX + 4 <= to - from
-      ? [
-          bracket,
-          el(
-            'text',
-            {
-              x: (from + to) / 2,
-              y: EXTENT_Y - 3,
-              ...FONT,
-              'font-weight': 'bold',
-              fill: ink,
-              'text-anchor': 'middle',
-            },
-            pass.text,
-          ),
-        ]
-      : [bracket]
+    return (gaps ? [dotted] : []).concat(solid, name ? [name] : [])
   })
   const ground = el('rect', {
     x: SIDE_PX,
@@ -161,6 +204,6 @@ export function passBarTree(bar: PassBar, label: string, width: number) {
   return {
     tag: 'g',
     attrs: {},
-    children: [title].concat(extents, [ground], stretches, axis),
+    children: [title].concat(brackets, [ground], stretches, axis),
   }
 }

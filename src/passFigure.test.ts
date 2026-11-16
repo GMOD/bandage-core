@@ -6,9 +6,9 @@ import { THREAD_INK } from './graphKey'
 import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
 import { LABEL_PAD, LABEL_PX, labelWidth } from './overlayLabels'
-import { passBars } from './passBar'
+import { passBarTree, passBars } from './passBar'
 import { anchorGraph } from './pathAnchoring'
-import { abgrHex } from './renderer/colorBits'
+import { abgrHex, hexAbgr } from './renderer/colorBits'
 import {
   LANE_HEADS_KEY,
   LANE_HEAD_HALO_PX,
@@ -16,9 +16,11 @@ import {
 } from './renderer/laneHeads'
 import { walkLift } from './walkHighlight'
 
+import type { El } from './el'
 import type { GenePin } from './genes/genePins'
 import type { LabelLayoutSource } from './labelLayout'
 import type { LabelCandidate } from './overlayLabels'
+import type { PassBar } from './passBar'
 import type { PassLabelItem } from './passLabels'
 import type { WalkLayer } from './walkEncoding'
 
@@ -272,4 +274,88 @@ test("the key's heads swatch draws a head of the size, ink and halo the threads'
   expect(right!.y - left!.y).toBeCloseTo(-2 * halfWidth, 0)
   expect(tip!.x - notch!.x).toBeCloseTo(length * 0.75, 0)
   expect(halo![1]).toBe(head[1])
+})
+
+const BAR: PassBar = {
+  walk: HAP,
+  bp: 1000,
+  ownInk: hexAbgr('#888888'),
+  bundled: false,
+  runs: [
+    { pass: 0, start: 0, end: 100, ink: hexAbgr('#d55e00') },
+    { pass: 1, start: 100, end: 120, ink: hexAbgr('#0072b2') },
+    { pass: 1, start: 900, end: 1000, ink: hexAbgr('#0072b2') },
+  ],
+  passes: [
+    {
+      pass: 0,
+      start: 0,
+      end: 100,
+      repeatBp: 100,
+      reversed: false,
+      text: 'pass 1',
+      ink: hexAbgr('#d55e00'),
+    },
+    {
+      pass: 1,
+      start: 100,
+      end: 1000,
+      repeatBp: 120,
+      reversed: false,
+      text: 'pass 2',
+      ink: hexAbgr('#0072b2'),
+    },
+  ],
+}
+
+function elements(tree: El | string): El[] {
+  return typeof tree === 'string'
+    ? []
+    : [tree, ...tree.children.flatMap(elements)]
+}
+
+const spanOf = (d: string) => {
+  const xs = [...d.matchAll(/[MH](-?[\d.]+)/g)].map(m => Number(m[1]))
+  return [
+    xs.reduce((least, x) => Math.min(least, x), Infinity),
+    xs.reduce((most, x) => Math.max(most, x), -Infinity),
+  ]
+}
+
+// 1000 bp over 1000 px past a 12 px side
+test('the bar colours each run and brackets each pass along its runs, joined by a dotted hairline and named over its longest run', () => {
+  const tree = elements(passBarTree(BAR, HAP, 1024))
+  const stretches = tree
+    .filter(e => e.tag === 'rect' && e.attrs.fill !== '#888888')
+    .map(e => [e.attrs.x, e.attrs.width])
+  expect(stretches).toEqual([
+    [12, 100],
+    [112, 20],
+    [912, 100],
+  ])
+  const strokes = (ink: string) =>
+    tree.filter(e => e.tag === 'path' && e.attrs.stroke === ink)
+  const solid = (ink: string) =>
+    strokes(ink)
+      .filter(e => e.attrs['stroke-dasharray'] === undefined)
+      .map(e => spanOf(String(e.attrs.d)))
+  const dotted = (ink: string) =>
+    strokes(ink)
+      .filter(e => e.attrs['stroke-dasharray'] !== undefined)
+      .map(e => spanOf(String(e.attrs.d)))
+  expect(solid('#d55e00')).toEqual([[12, 112]])
+  expect(dotted('#d55e00')).toEqual([])
+  expect(solid('#0072b2')).toEqual([
+    [112, 132],
+    [912, 1012],
+  ])
+  expect(dotted('#0072b2')).toEqual([[132, 912]])
+  const name = tree.find(e => e.tag === 'text' && e.children[0] === 'pass 2')
+  expect(name?.attrs.x).toBe(962)
+})
+
+test("figureData's passes say how much of each pass is sequence the walk steps again", () => {
+  const { tables } = data('>f1>a>b>c>d>a>b>p>c>d>a>b>c>d>f2')
+  expect(tables.passes.repeatBp).toEqual([16, 16, 16])
+  expect(tables.passes.end[1]! - tables.passes.start[1]!).toBe(416)
 })
