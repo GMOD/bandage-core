@@ -495,6 +495,7 @@ export function figureSvg(
           nodeById,
           alleleDeletions: layout.alleleDeletions ?? [],
           positionsVersion: 0,
+          ticks: batch.ticks,
           passLabels: facets
             ? []
             : passLabelCandidates(batch, highlight, t, {

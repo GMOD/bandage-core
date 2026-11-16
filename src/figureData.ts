@@ -691,6 +691,7 @@ export function figureData(
     nodeById,
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
+    ticks: batches[0]?.ticks,
     passLabels:
       facets || !batches[0]
         ? []

@@ -1,9 +1,11 @@
 import { isBackbone } from './anchoredNodes'
 import { haplotypeOf } from './nodeWidths'
+import { overlaps } from './overlayLabels'
 import { panSNHaplotype } from './pansn'
 import { spanPx } from './util/edgeCurves'
 import { weakMemo } from './util/weakMemo'
 
+import type { Box } from './overlayLabels'
 import type { Tick } from './renderer/types'
 import type { Graph, GraphNode, NodeSegment } from './types'
 import type { EdgeCurves } from './util/edgeCurves'
@@ -15,6 +17,8 @@ export const SITE_REACH_PX = 8
 export const TICK_MIN_PX = 3
 export const TICK_MAX_PX = 12
 export const TICK_WIDTH_PX = 1.5
+const TICK_CELL_PX = 32
+const TICK_CELL_ROW = 1 << 20
 
 interface Point {
   x: number
@@ -460,6 +464,46 @@ export function tickEnds(
     y: y + tick.ny * px * t.dpr,
   })
   return [along(tick.offset), along(tick.offset + tick.height)] as const
+}
+
+const cell = (px: number) => Math.floor(px / TICK_CELL_PX)
+const keyOf = (cx: number, cy: number) => cx * TICK_CELL_ROW + cy
+
+// Whether a screen box lies over any tick, a grid of cells over the ticks
+// answering it, so a label's every try costs the few ticks near it
+export function ticksUnder(
+  ticks: readonly Tick[],
+  t: { scaleX: number; scaleY: number; translateX: number; translateY: number },
+) {
+  const cells = new Map<number, Box[]>()
+  for (const tick of ticks) {
+    const [foot, top] = tickEnds(tick, { ...t, dpr: 1 })
+    const box = {
+      x0: Math.min(foot.x, top.x) - tick.thickness,
+      x1: Math.max(foot.x, top.x) + tick.thickness,
+      y0: Math.min(foot.y, top.y) - tick.thickness,
+      y1: Math.max(foot.y, top.y) + tick.thickness,
+    }
+    for (let cx = cell(box.x0); cx <= cell(box.x1); cx++) {
+      for (let cy = cell(box.y0); cy <= cell(box.y1); cy++) {
+        const held = cells.get(keyOf(cx, cy))
+        if (held) {
+          held.push(box)
+        } else {
+          cells.set(keyOf(cx, cy), [box])
+        }
+      }
+    }
+  }
+  return (box: Box) => {
+    let under = false
+    for (let cx = cell(box.x0); cx <= cell(box.x1) && !under; cx++) {
+      for (let cy = cell(box.y0); cy <= cell(box.y1) && !under; cy++) {
+        under = !!cells.get(keyOf(cx, cy))?.some(tick => overlaps(tick, box))
+      }
+    }
+    return under
+  }
 }
 
 export function tickHeightPx(count: number, total: number) {

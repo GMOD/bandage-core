@@ -9,6 +9,7 @@ import {
 } from './graphLabels'
 import { HALO_FACTOR } from './halo'
 import { keyColumnBox } from './keyColumn'
+import { ticksUnder } from './levelOfDetail'
 import {
   LABEL_CHAR_PX,
   LABEL_PAD,
@@ -27,8 +28,9 @@ import type {
   NodeKinds,
   UnlabelledPlaceholders,
 } from './graphLabels'
-import type { Box, LabelCandidate, PlacedLabel } from './overlayLabels'
+import type { Box, LabelCandidate, PlacedLabel, TakeBox } from './overlayLabels'
 import type { PassLabelItem } from './passLabels'
+import type { Tick } from './renderer/types'
 import type { AlleleDeletion, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
@@ -72,6 +74,8 @@ export interface LabelLayoutSource {
   positionsVersion: number
   // the names of lifted walks' passes: passLabelCandidates
   passLabels?: LabelCandidate<PassLabelItem>[]
+  // RenderBatch.ticks, which no label covers
+  ticks?: readonly Tick[]
 }
 
 // where a small variant's tick stands, its foot just above its nodes
@@ -225,7 +229,14 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
       y1: 44,
     })
   }
-  const take = occupancy(frame, reserved)
+  const onTick = ticksUnder(m.ticks ?? [], {
+    scaleX,
+    scaleY,
+    translateX,
+    translateY,
+  })
+  const taken = occupancy(frame, reserved)
+  const take: TakeBox = box => !onTick(box) && taken(box)
   const sizeCandidates =
     m.nodePositions && m.labelsNodeSizes
       ? sizeLabelCandidates({
@@ -253,6 +264,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     {
       leaders: budget,
       clear: (box, id) =>
+        !onTick(box) &&
         !otherNodeUnder(grown(box, ink), under => under === id),
     },
   )
