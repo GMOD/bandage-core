@@ -160,8 +160,10 @@ export function placeLabels<T>(
         : stackFrom(c, text, c.flipY, c.flipY < c.y ? -1 : 1).placed)
     )
   }
-  // rows up and down from `nearest` to the pane's edges, slid as `stackFrom`
-  // slides, nearest first
+  // rows up and down from `nearest` to the pane's edges, nearest first, and
+  // of two as near the higher, then the one to the left; slid either way to
+  // the pane's edges from a point on the pane, so a spot past a reserved box
+  // is found, else as `stackFrom` slides
   const nearestFree = (
     c: LabelCandidate<T>,
     text: string,
@@ -169,9 +171,14 @@ export function placeLabels<T>(
   ) => {
     const w = labelWidth(text)
     const rows = Math.ceil(frame.height / row)
+    const across = slides(
+      insideFrame({ x0: from.x, x1: from.x, y0: from.y, y1: from.y }, frame)
+        ? Math.max(from.x, frame.width - from.x)
+        : (c.slide ?? 0),
+    )
     const spots: { box: Box; x: number; y: number; distance: number }[] = []
     for (let k = -rows; k <= rows; k++) {
-      for (const dx of slides(c.slide ?? 0)) {
+      for (const dx of across) {
         const x = from.x + dx
         const y = from.y + k * row
         const box = boxAt(x, y, w)

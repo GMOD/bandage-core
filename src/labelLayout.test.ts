@@ -720,6 +720,29 @@ test('a gene name next to the key slides clear of it rather than vanish', () => 
   expect(geneLeader(label!, at, 6).x2).toBe(at.x)
 })
 
+// BandageJS fits the drawing to the whole pane, so a pin can sit under the
+// key's column, where every spot by it is reserved
+test('a gene pinned under the key column is named outside the column, with a leader to its pin', () => {
+  const keyLeft = 800 - 2 * LEGEND_INSET_PX - 200
+  const at = { x: keyLeft + 100, y: 200 }
+  const layout = layoutLabels(
+    source({
+      genePins: [pin(at)],
+      nodePositions: {
+        bb: [
+          { x: keyLeft - 100, y: 200 },
+          { x: 780, y: 200 },
+        ],
+      },
+      legendSize: { width: 200, height: 40 },
+    }),
+  )
+  const [label] = layout.genes
+  expect(label?.text).toBe('hemA')
+  expect(label!.x + label!.w / 2).toBeLessThanOrEqual(keyLeft)
+  expect(geneLeader(label!, at, 6).x2).toBe(at.x)
+})
+
 test('a small variant stands as a tick above its nodes, with no chip', () => {
   const { bubbles, ticks } = layoutLabels(
     source({

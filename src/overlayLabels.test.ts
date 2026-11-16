@@ -172,3 +172,19 @@ test('a chip the pane edge would cut is dropped', () => {
   )
   expect(placed.map(p => p.item)).toEqual(['whole'])
 })
+
+test('a label kept from being dropped stands past a reserved column, nearest its point, and only for a point on the pane', () => {
+  const column = { x0: 300, x1: 400, y0: 0, y1: 300 }
+  const placed = placeLabels(
+    [
+      { item: 'a', x: 350, y: 150, text: 'gene', nearest: { x: 350, y: 150 } },
+      { item: 'b', x: 900, y: 150, text: 'gene', nearest: { x: 900, y: 150 } },
+    ],
+    frame,
+    occupancy(frame, [column]),
+    [column],
+  )
+  expect(placed.map(p => [p.item, p.y])).toEqual([['a', 150]])
+  expect(placed[0]!.x + placed[0]!.w / 2).toBeLessThanOrEqual(300)
+  expect(placed[0]!.x + placed[0]!.w / 2).toBeGreaterThan(300 - 8)
+})
