@@ -3,8 +3,8 @@ import type { GraphEdge, GraphNode } from '../types'
 const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 // Links in an order the graph states rather than the file: a layout that
-// reads its links in turn, as FMMM and the allele sweep do, then draws the
-// same graph the same whatever order its L lines came in. Each link is
+// reads its links in turn, as FMMM and the allele sweep do, then lays the
+// same graph out identically whatever order its L lines came in. Each link is
 // already in its canonical spelling (segmentOrientation.ts), so one sort key
 // covers both of a link's spellings.
 export function canonicalEdgeOrder<E extends GraphEdge>(edges: readonly E[]) {
