@@ -264,6 +264,16 @@ test('the fit frames the cut without a departure that rejoins past its end', asy
   expect(fit.w).toBe(reference.maxX - reference.minX)
 })
 
+test('the fit leaves out the steps of a departure past the cut wherever the cut lists them', async () => {
+  const tailed = tailedGraph(-6000)
+  const tailsFirst = {
+    ...tailed,
+    nodes: [...tailed.nodes.slice(3), ...tailed.nodes.slice(0, 3)],
+    departures: { ...tailed.departures!, steps: Int32Array.of(0, 1) },
+  }
+  expect(await stressBounds(tailsFirst)).toEqual(await stressBounds(tailed))
+})
+
 test('the fit frames a departure that leaves and rejoins on the cut', async () => {
   const { fit, nodes } = await stressBounds(tailedGraph(2500))
   expect(fit).toEqual({

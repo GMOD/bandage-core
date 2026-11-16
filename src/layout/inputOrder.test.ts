@@ -125,4 +125,10 @@ describe.each(['S', 'L'] as const)('the order of the %s lines', record => {
       }
     },
   )
+
+  test.each(cases)('changes no layout: $graph, $engine, $spread', async c => {
+    for (const { given, other } of await eachOrder(record, c)) {
+      expect(other.result).toEqual(given.result)
+    }
+  })
 })

@@ -233,11 +233,12 @@ export function engineKey(
 // and under compress the shortest loop off it, are sized in px at that fit.
 // Absent, or too small to hold a drawing, the layout assumes ASSUMED_FIT.
 export async function forceLayout(
-  graph: Graph,
+  given: Graph,
   settings: EngineSettings,
   engine: LayoutEngine,
   fit?: FitSize,
 ) {
+  const graph = { ...given, nodes: canonicalNodeOrder(given.nodes) }
   const sized = fitOrAssumed(fit)
   const spread = spreadFor(settings.bubbleSpread)
   const { shown: deletions, hidden: dropped } = deletionDrawing(
@@ -294,7 +295,7 @@ export async function forceLayout(
     routed.routes,
   )
   const { deletionRoutes } = routedPositions
-  const tails = departureTails(graph)
+  const tails = departureTails(given)
   const referenceStraight = engineSettingsOf(settings).engine === 'stress'
   const nodePositions = referenceStraight
     ? clearOfReference(
