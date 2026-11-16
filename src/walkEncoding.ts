@@ -110,7 +110,7 @@ export function resolveEncoding(
 // A lane coloured by pass takes its walk's one colour off its passes
 const flatField = (field: WalkField) => field === 'walk' || field === 'pass'
 
-const TOGETHER_DARKEST = 0.55
+export const TOGETHER_DARKEST = 0.55
 
 // Where a flat lane sits on its family: halfway between its ends
 const BASE_T = 0.5

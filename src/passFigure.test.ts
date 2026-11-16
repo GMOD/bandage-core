@@ -2,11 +2,18 @@ import { figureSvg } from './figure'
 import { figureData } from './figureData'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
+import { THREAD_INK } from './graphKey'
 import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
 import { LABEL_PAD, LABEL_PX, labelWidth } from './overlayLabels'
 import { passBars } from './passBar'
 import { anchorGraph } from './pathAnchoring'
+import { abgrHex } from './renderer/colorBits'
+import {
+  LANE_HEADS_KEY,
+  LANE_HEAD_HALO_PX,
+  laneHeadInk,
+} from './renderer/laneHeads'
 import { walkLift } from './walkHighlight'
 
 import type { GenePin } from './genes/genePins'
@@ -224,4 +231,45 @@ test("a pass's name never lands on a gene's name or another pass's", () => {
       )
     }
   }
+})
+
+const pointsOf = (d: string) =>
+  [...d.matchAll(/[ML](-?[\d.]+)[ ,](-?[\d.]+)/g)].map(m => ({
+    x: Number(m[1]),
+    y: Number(m[2]),
+  }))
+
+test("the key's heads swatch draws a head of the size, ink and halo the threads' heads are drawn with", () => {
+  const { graph, layout, tables } = data('>f1>a>b>c>d>a>b>c>d>a>b>c>d>f2')
+  const { arrows } = tables
+  const drawn = arrows.walk.flatMap((walk, i) =>
+    walk === null
+      ? []
+      : [
+          {
+            length: arrows.length[i]!,
+            halfWidth: arrows.halfWidth[i]!,
+            color: arrows.color[i]!,
+          },
+        ],
+  )
+  expect(drawn.length).toBeGreaterThan(0)
+  const svg = figureSvg(graph, layout, { width: 600, walks: byPass })
+  const entry = svg
+    .split('<g ')
+    .find(g => g.includes(`>${LANE_HEADS_KEY}</text>`))!
+  const halo =
+    /<path d="([^"]+)" fill="none" stroke="#ffffff" stroke-width="([\d.]+)"/.exec(
+      entry,
+    )
+  expect(halo).not.toBeNull()
+  expect(Number(halo![2])).toBe(2 * LANE_HEAD_HALO_PX)
+  const head = /<path d="([^"]+)" fill="(#[0-9a-f]{6})"\/>/.exec(entry)!
+  expect(head[2]).toBe(abgrHex(laneHeadInk(THREAD_INK, false)))
+  const [tip, left, notch, right] = pointsOf(head[1]!)
+  const { length, halfWidth } = drawn[0]!
+  expect(tip!.x - left!.x).toBeCloseTo(length, 0)
+  expect(right!.y - left!.y).toBeCloseTo(-2 * halfWidth, 0)
+  expect(tip!.x - notch!.x).toBeCloseTo(length * 0.75, 0)
+  expect(halo![1]).toBe(head[1])
 })

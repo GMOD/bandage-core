@@ -30,9 +30,15 @@ import { LABEL_CHAR_PX, LABEL_PAD, LABEL_PX } from './overlayLabels'
 import { PASS_BAR_HEIGHT, passBarTree, passBars } from './passBar'
 import { passLabelCandidates, passLeader } from './passLabels'
 import { fitTransform } from './pipeline'
-import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
+import { Canvas2DRenderer, arrowheadOutline } from './renderer/Canvas2DRenderer'
 import { EDGE_DELETION_COLOR } from './renderer/GeometryBuilder'
 import { abgrAlpha, abgrHex } from './renderer/colorBits'
+import {
+  LANE_HEAD_HALO_PX,
+  LANE_HEAD_LENGTH,
+  LANE_HEAD_MIN_PX,
+  laneHeadInk,
+} from './renderer/laneHeads'
 import { svgCanvas } from './renderer/svgCanvas'
 import { THREAD_PX } from './renderer/walkLanes'
 import { version } from './version'
@@ -122,6 +128,7 @@ export interface FigureOptions {
 const FONT = 'font-family="Helvetica, Arial, sans-serif" font-size="11"'
 const BAR_PX = 48
 const SWATCH_PX = 18
+const SWATCH_LANE_PX = 8
 const KEY_GAP_PX = 16
 const KEY_LINE_PX = 16
 const KEY_TALL_PX = 32
@@ -142,6 +149,29 @@ const swatchPx = (swatch: GraphKeySwatch | undefined) =>
     : swatch.kind === 'scale' || swatch.kind === 'width'
       ? BAR_PX
       : SWATCH_PX
+
+// Heads along a lane, as the drawing gives them: inside a lane as wide as a
+// head, or on a halo along a thread
+function headsSwatchSvg(ink: number, haloed: boolean) {
+  const width = haloed ? LANE_HEAD_MIN_PX : SWATCH_LANE_PX
+  const length = width * LANE_HEAD_LENGTH
+  const d = (haloed ? [length, SWATCH_PX] : [SWATCH_PX - 1])
+    .map(x => {
+      const [tip, left, notch, right] = arrowheadOutline(
+        { x, y: 9, angle: 0, length, halfWidth: width / 2, color: ink },
+        { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0, dpr: 1 },
+      )
+      return `M${[tip, left, notch, right].map(p => `${+p.x.toFixed(1)},${+p.y.toFixed(1)}`).join('L')}Z`
+    })
+    .join('')
+  return [
+    `<line y1="9" y2="9" x2="${SWATCH_PX}" ${inkAttrs('stroke', ink)} stroke-width="${haloed ? THREAD_PX : SWATCH_LANE_PX}"/>`,
+    haloed
+      ? `<path d="${d}" fill="none" stroke="#ffffff" stroke-width="${2 * LANE_HEAD_HALO_PX}" stroke-linejoin="round"/>`
+      : '',
+    `<path d="${d}" fill="${abgrHex(laneHeadInk(ink, !haloed))}"/>`,
+  ].join('')
+}
 
 // One key's swatch, drawn about the line 9 px down
 function swatchSvg(swatch: GraphKeySwatch, id: string) {
@@ -181,7 +211,7 @@ function swatchSvg(swatch: GraphKeySwatch, id: string) {
     case 'overhang':
       return `<path d="M0,9 L8,4 L8,14 Z M18,9 L10,4 L10,14 Z" fill="${abgrHex(EDGE_DELETION_COLOR)}"/>`
     case 'heads':
-      return `<rect y="6" width="${SWATCH_PX}" height="6" rx="2" ${inkAttrs('fill', swatch.ink)}/><path d="M3,5 L9,9 L3,13 Z M10,5 L16,9 L10,13 Z" fill="#fff" stroke="${abgrHex(swatch.ink)}" stroke-width="0.8"/>`
+      return headsSwatchSvg(swatch.ink, swatch.haloed)
   }
 }
 

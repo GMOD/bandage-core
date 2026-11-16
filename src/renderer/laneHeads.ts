@@ -1,4 +1,4 @@
-import { abgrBlue, abgrGreen, abgrRed, packAbgr } from './colorBits'
+import { contrastRatio, mixAbgr, packAbgr } from './colorBits'
 
 import type { Arrowhead } from './types'
 
@@ -14,28 +14,32 @@ export const BACKWARDS_KEY = 'walk runs backwards along the node'
 export const LANE_HEAD_MIN_PX = 6
 export const LANE_HEAD_SPACING_PX = 40
 export const LANE_HEAD_TURNS = 6
-const LANE_HEAD_LENGTH = 1.4
-const DARK_LANE = 0.5
-const ON_DARK = packAbgr(255, 255, 255, 255)
-const SHADE = 0.45
+export const LANE_HEAD_LENGTH = 1.4
+export const LANE_HEAD_HALO_PX = 1.5
+export const HEAD_CONTRAST = 3
 
-const luminance = (ink: number) =>
-  (0.2126 * abgrRed(ink) + 0.7152 * abgrGreen(ink) + 0.0722 * abgrBlue(ink)) /
-  255
+const BLACK = packAbgr(0, 0, 0, 255)
+const WHITE = packAbgr(255, 255, 255, 255)
+const MIX_STEPS = 32
+const inks = new Map<number, number>()
 
-const shaded = (ink: number) =>
-  packAbgr(
-    Math.round(abgrRed(ink) * SHADE),
-    Math.round(abgrGreen(ink) * SHADE),
-    Math.round(abgrBlue(ink) * SHADE),
-    255,
-  )
-
-// The ink of a head on a lane of `ink`: one that fits inside the lane stands
-// out of it, white on a dark lane and a shade of it on a pale one; one wider
-// than its lane is a shade of it
+// A head inside its lane is black or white, whichever stands further from the
+// lane; one wider than its lane stands on a white halo, in the lane's colour
+// darkened the least that keeps HEAD_CONTRAST from white
 export function laneHeadInk(ink: number, inside: boolean) {
-  return inside && luminance(ink) < DARK_LANE ? ON_DARK : shaded(ink)
+  const key = ink * 2 + (inside ? 1 : 0)
+  let head = inks.get(key)
+  if (head === undefined) {
+    head = inside
+      ? contrastRatio(BLACK, ink) > contrastRatio(WHITE, ink)
+        ? BLACK
+        : WHITE
+      : (Array.from({ length: MIX_STEPS + 1 }, (_, i) =>
+          mixAbgr(ink, BLACK, i / MIX_STEPS),
+        ).find(mixed => contrastRatio(mixed, WHITE) >= HEAD_CONTRAST) ?? BLACK)
+    inks.set(key, head)
+  }
+  return head
 }
 
 interface Spot {
@@ -143,7 +147,8 @@ export function laneHeadPlacer(scale: number, yToX: number) {
     const count =
       total > 0 ? Math.max(1, Math.floor(total / LANE_HEAD_SPACING_PX)) : 0
     const width = Math.max(2 * halfWidth, LANE_HEAD_MIN_PX)
-    const ink = laneHeadInk(color, 2 * halfWidth >= LANE_HEAD_MIN_PX)
+    const inside = 2 * halfWidth >= LANE_HEAD_MIN_PX
+    const ink = laneHeadInk(color, inside)
     const ownThread = threadGrid(walk, thread)
     const ownLane = laneGrid(walk)
     const heads: Arrowhead[] = []
@@ -179,6 +184,7 @@ export function laneHeadPlacer(scale: number, yToX: number) {
             pass: thread,
             node,
             against,
+            ...(inside ? {} : { halo: true }),
           })
         }
       }

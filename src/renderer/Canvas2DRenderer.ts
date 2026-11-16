@@ -4,6 +4,7 @@ import {
   brightenAbgr,
   normalizedRgbToCssRgba,
 } from './colorBits'
+import { LANE_HEAD_HALO_PX } from './laneHeads'
 
 import type {
   Arrowhead,
@@ -118,7 +119,7 @@ export class Canvas2DRenderer implements Renderer {
     }
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    const { links, nodes, skips, liftedNodes, arrows } =
+    const { links, nodes, skips, liftedNodes, halos, arrows } =
       this.paintedGroups(batch)
     for (const { color, items } of links) {
       this.strokeCurves(items, color, t)
@@ -132,6 +133,7 @@ export class Canvas2DRenderer implements Renderer {
     for (const { color, items } of liftedNodes) {
       this.strokeNodes(items, color, t)
     }
+    this.haloArrows(halos, t)
     for (const { color, items } of arrows) {
       this.fillArrows(items, color, t)
     }
@@ -173,6 +175,7 @@ export class Canvas2DRenderer implements Renderer {
         (e, k) => edgePaint(e, skipOrder[k]!),
       ),
       liftedNodes: nodes.filter(g => g.last),
+      halos: batch.arrows.filter(a => a.halo),
       arrows: groupByPaint(batch.arrows, (a, i) => ({
         color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
         weight: 0,
@@ -295,9 +298,8 @@ export class Canvas2DRenderer implements Renderer {
     ctx.stroke()
   }
 
-  private fillArrows(items: Arrowhead[], color: number, t: TransformUniform) {
+  private traceArrows(items: Arrowhead[], t: TransformUniform) {
     const ctx = this.ctx
-    ctx.fillStyle = abgrToCssRgba(color)
     ctx.beginPath()
     for (const a of items) {
       const [tip, left, notch, right] = arrowheadOutline(a, t)
@@ -307,7 +309,21 @@ export class Canvas2DRenderer implements Renderer {
       ctx.lineTo(right.x, right.y)
       ctx.closePath()
     }
-    ctx.fill()
+  }
+
+  private haloArrows(items: Arrowhead[], t: TransformUniform) {
+    if (items.length > 0) {
+      this.ctx.strokeStyle = 'rgba(255,255,255,1)'
+      this.ctx.lineWidth = 2 * LANE_HEAD_HALO_PX * t.dpr
+      this.traceArrows(items, t)
+      this.ctx.stroke()
+    }
+  }
+
+  private fillArrows(items: Arrowhead[], color: number, t: TransformUniform) {
+    this.ctx.fillStyle = abgrToCssRgba(color)
+    this.traceArrows(items, t)
+    this.ctx.fill()
   }
 
   dispose() {
@@ -366,6 +382,7 @@ interface PaintedGroups {
   nodes: Group<NodeStroke>[]
   skips: Group<EdgeCurveBatch>[]
   liftedNodes: Group<NodeStroke>[]
+  halos: Arrowhead[]
   arrows: Group<Arrowhead>[]
 }
 

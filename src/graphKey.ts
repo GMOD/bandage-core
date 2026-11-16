@@ -68,8 +68,9 @@ export type GraphKeySwatch =
   | { kind: 'halo'; ink: number }
   // a lane's threads side by side, one per pass through a node
   | { kind: 'threads'; ink: number }
-  // a lane with heads along it pointing the way its walk runs
-  | { kind: 'heads'; ink: number }
+  // a lane with heads along it pointing the way its walk runs, wider than a
+  // thread on a halo where `haloed`
+  | { kind: 'heads'; ink: number; haloed: boolean }
   // the reference strip's tab past its edge
   | { kind: 'overhang' }
 
@@ -132,6 +133,7 @@ export function drawnMarks(
     passes: new Map<number, Set<number>>(),
     headsAgainst: false,
     headsAlong: false,
+    headsHaloed: false,
   }
   let width: number | undefined
   for (const { edgeCurves, nodeStrokes, arrows = [] } of batches) {
@@ -176,10 +178,11 @@ export function drawnMarks(
         }
       }
     }
-    for (const { walk, against } of arrows) {
+    for (const { walk, against, halo } of arrows) {
       if (walk !== undefined) {
         marks.headsAgainst ||= !!against
         marks.headsAlong ||= !against
+        marks.headsHaloed ||= !!halo
       }
     }
   }
@@ -223,7 +226,7 @@ export interface GraphKeyOptions {
 export const FADED_KEY_INK = fadeAbgr(LIFT_BACKDROP_COLOR, 0.45)
 export const EXON_INK = hexAbgr(EXON_COLOR)
 const HALO_INK = hexAbgr(BUBBLE_HALO_COLOR)
-const THREAD_INK = packAbgr(68, 68, 68, 255)
+export const THREAD_INK = packAbgr(68, 68, 68, 255)
 
 // The reference-position ramp as a key's stops, one per 50 degrees of hue
 export const RAMP_KEY_STOPS: KeyStop[] = Array.from({ length: 7 }, (_, i) => ({
@@ -407,7 +410,7 @@ export function graphKey(
           entry(
             'lane-heads',
             o.marks.headsAlong ? LANE_HEADS_KEY : BACKWARDS_KEY,
-            { kind: 'heads', ink: THREAD_INK },
+            { kind: 'heads', ink: THREAD_INK, haloed: o.marks.headsHaloed },
           ),
         ]
       : []),

@@ -1,14 +1,34 @@
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
+import {
+  NO_VALUE_COLOR,
+  TOGETHER_DARKEST,
+  WALK_SCHEMES,
+  passPalette,
+  schemeColor,
+} from '../walkEncoding'
 import { walkLift } from '../walkHighlight'
 import { MOST_PASS_THREADS } from '../walkPasses'
+import { Canvas2DRenderer } from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
 import {
+  abgrBlue,
+  abgrGreen,
+  abgrRed,
+  contrastRatio,
+  hexAbgr,
+  packAbgr,
+  relativeLuminance,
+} from './colorBits'
+import {
+  HEAD_CONTRAST,
   LANE_HEAD_MIN_PX,
   LANE_HEAD_SPACING_PX,
+  laneHeadInk,
   laneHeadPlacer,
 } from './laneHeads'
+import { svgCanvas } from './svgCanvas'
 import {
   MIN_THREAD_PITCH_PX,
   THREAD_PITCH_PX,
@@ -410,4 +430,81 @@ test("a view panned in 10 px steps draws exactly the unbounded build's heads tha
     )
     expect(chain(bounds).map(headKey)).toEqual(inside.map(headKey))
   }
+})
+
+test('a head wider than its lane stands on a white halo drawn beneath every head, and a head inside its lane has none', () => {
+  const thin = drawn(`>f1${UNIT.repeat(3)}>f2`, [byPass()], STRAIGHT, 6)
+  expect(thin.laneHeads.length).toBeGreaterThan(0)
+  for (const head of thin.laneHeads) {
+    expect(head.halfWidth * 2).toBeGreaterThan(THREAD_PX)
+    expect(head.halo).toBe(true)
+  }
+  const wide = drawn('>f1<d<c<b<a>f2', [{ walk: HAP }])
+  expect(wide.laneHeads.length).toBeGreaterThan(0)
+  expect(wide.laneHeads.some(h => h.halo)).toBe(false)
+
+  const { canvas, markup } = svgCanvas(2400, 400)
+  const renderer = new Canvas2DRenderer(canvas)
+  renderer.uploadGeometry(thin.batch)
+  renderer.updateTransform({
+    scaleX: 6,
+    scaleY: 6,
+    translateX: 0,
+    translateY: 200,
+    dpr: 1,
+  })
+  renderer.render([1, 1, 1, 1])
+  const paths = markup().match(/<path [^>]*>/g) ?? []
+  const halo = paths.findIndex(p =>
+    p.includes('fill="none" stroke="rgb(255,255,255)" stroke-width="3"'),
+  )
+  const headFills = new Set(
+    thin.laneHeads.map(
+      ({ color }) =>
+        `fill="rgb(${abgrRed(color)},${abgrGreen(color)},${abgrBlue(color)})"`,
+    ),
+  )
+  const firstHead = paths.findIndex(p =>
+    [...headFills].some(fill => p.includes(fill)),
+  )
+  expect(halo).toBeGreaterThanOrEqual(0)
+  expect(firstHead).toBeGreaterThan(halo)
+  expect((paths[halo]!.match(/Z/g) ?? []).length).toBe(thin.laneHeads.length)
+})
+
+// every colour a lane can take: each scheme's ramp, with and without the
+// darker floor walks lifted together take, every pass colour, and the grey of
+// a node a reference-coloured walk has no value at
+function laneColours() {
+  const ramp = Array.from({ length: 101 }, (_, i) => i / 100)
+  return [
+    ...WALK_SCHEMES.flatMap(({ value }) =>
+      ramp.flatMap(t => [
+        schemeColor(value, t),
+        schemeColor(value, t, TOGETHER_DARKEST),
+      ]),
+    ),
+    ...passPalette('#000000', 12).map(hexAbgr),
+    NO_VALUE_COLOR,
+  ]
+}
+
+const WHITE = packAbgr(255, 255, 255, 255)
+
+test('a head keeps a contrast of 3:1 with its lane where it sits inside it, and with its white halo where it is wider, down to the darkest lane colour the palette gives', () => {
+  const colours = laneColours()
+  const darkest = colours.reduce((a, b) =>
+    relativeLuminance(b) < relativeLuminance(a) ? b : a,
+  )
+  expect(relativeLuminance(darkest)).toBeLessThan(0.05)
+  for (const lane of [darkest, ...colours]) {
+    expect(contrastRatio(laneHeadInk(lane, true), lane)).toBeGreaterThanOrEqual(
+      HEAD_CONTRAST,
+    )
+    expect(
+      contrastRatio(laneHeadInk(lane, false), WHITE),
+    ).toBeGreaterThanOrEqual(HEAD_CONTRAST)
+  }
+  expect(HEAD_CONTRAST).toBe(3)
+  expect(contrastRatio(packAbgr(0, 0, 0, 255), WHITE)).toBeCloseTo(21)
 })

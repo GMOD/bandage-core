@@ -70,6 +70,8 @@ export interface Arrowhead {
   pass?: number
   node?: string
   against?: boolean
+  // drawn on a white halo, LANE_HEAD_HALO_PX wide, beneath every head
+  halo?: boolean
 }
 
 // A contiguous run of one batch array.
