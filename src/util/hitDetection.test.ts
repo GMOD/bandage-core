@@ -4,6 +4,7 @@ import {
   distanceToSegment,
   findHoveredEdge,
   findHoveredNode,
+  otherNodeUnderBox,
 } from './hitDetection'
 
 import type { Graph } from '../types'
@@ -394,5 +395,85 @@ describe('hover on a row layout', () => {
         0,
       ),
     ).toBeNull()
+  })
+})
+
+describe('otherNodeUnderBox', () => {
+  const nodePositions = {
+    line: [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ],
+    crossing: [
+      { x: 50, y: -20 },
+      { x: 50, y: 20 },
+    ],
+  }
+  const under = otherNodeUnderBox(nodePositions, {
+    scaleX: 2,
+    scaleY: 2,
+    translateX: 10,
+    translateY: 10,
+  })
+  const overBoth = { x0: 100, x1: 120, y0: 5, y1: 15 }
+  const overLine = { x0: 20, x1: 60, y0: 5, y1: 15 }
+  const overNeither = { x0: 20, x1: 60, y0: 100, y1: 120 }
+
+  test('a box over two nodes covers another node unless both are its own', () => {
+    expect(under(overBoth, id => id === 'line')).toBe(true)
+    expect(under(overBoth, () => true)).toBe(false)
+  })
+
+  test('a box over its own node alone, or over none, covers no other', () => {
+    expect(under(overLine, id => id === 'line')).toBe(false)
+    expect(under(overLine, id => id === 'crossing')).toBe(true)
+    expect(under(overNeither, () => false)).toBe(false)
+  })
+
+  test('a label box over a drawing zoomed far out looks in the few cells it covers', () => {
+    const chain = Object.fromEntries(
+      Array.from({ length: 5000 }, (_, i) => [
+        `n${i}`,
+        [
+          { x: i * 4, y: 0 },
+          { x: i * 4 + 3, y: 0 },
+        ],
+      ]),
+    )
+    const covered = otherNodeUnderBox(chain, {
+      scaleX: 0.02,
+      scaleY: 0.02,
+      translateX: 0,
+      translateY: 0,
+    })
+    const box = { x0: 100, x1: 250, y0: -9, y1: 10 }
+    expect(covered(box, id => id !== 'n2000')).toBe(true)
+    const lookups = vi.spyOn(Map.prototype, 'get')
+    const coveredOwn = covered(box, () => true)
+    const looked = lookups.mock.calls.length
+    lookups.mockRestore()
+    expect(coveredOwn).toBe(false)
+    expect(looked).toBeLessThan(50)
+  })
+
+  test('the first other node under the box settles it', () => {
+    const fan = Object.fromEntries(
+      Array.from({ length: 1000 }, (_, i) => [
+        `n${i}`,
+        [
+          { x: i / 100, y: 0 },
+          { x: i / 100, y: 10 },
+        ],
+      ]),
+    )
+    const own = vi.fn<(nodeId: string) => boolean>(() => false)
+    const covered = otherNodeUnderBox(fan, {
+      scaleX: 1,
+      scaleY: 1,
+      translateX: 0,
+      translateY: 0,
+    })({ x0: -1, x1: 11, y0: 4, y1: 6 }, own)
+    expect(covered).toBe(true)
+    expect(own).toHaveBeenCalledTimes(1)
   })
 })

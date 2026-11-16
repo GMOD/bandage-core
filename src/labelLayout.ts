@@ -16,7 +16,7 @@ import {
   occupancy,
   placeLabels,
 } from './overlayLabels'
-import { nodesUnderBox, segmentMeetsBox } from './util/hitDetection'
+import { otherNodeUnderBox, segmentMeetsBox } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
@@ -126,7 +126,7 @@ export function geneLabelCandidates(
   pins: GenePin[],
   screen: (p: { x: number; y: number }) => { x: number; y: number },
   contigThickness: number,
-  nodesUnder: (box: Box) => ReadonlySet<string>,
+  otherNodeUnder: (box: Box, own: (nodeId: string) => boolean) => boolean,
 ) {
   const ink = contigThickness / 2
   const rim = ink + EXON_RIM_PX
@@ -154,7 +154,7 @@ export function geneLabelCandidates(
       slide: labelWidth(text) / 2,
       nearest: { x, y },
       fits: (box: Box) =>
-        [...nodesUnder(grown(box, ink))].every(id => pin.nodeIds.has(id)) &&
+        !otherNodeUnder(grown(box, ink), id => pin.nodeIds.has(id)) &&
         !exons.some(({ a, b }) => segmentMeetsBox(a, b, grown(box, rim))),
     }
   })
@@ -230,7 +230,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
         })
       : []
   const ink = m.contigThickness / 2
-  const nodesUnder = nodesUnderBox(
+  const otherNodeUnder = otherNodeUnderBox(
     m.nodePositions ?? {},
     { scaleX, scaleY, translateX, translateY },
     m.positionsVersion,
@@ -242,14 +242,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     {
       leaders: budget,
       clear: (box, id) =>
-        [
-          ...nodesUnder({
-            x0: box.x0 - ink,
-            x1: box.x1 + ink,
-            y0: box.y0 - ink,
-            y1: box.y1 + ink,
-          }),
-        ].every(under => under === id),
+        !otherNodeUnder(grown(box, ink), under => under === id),
     },
   )
 
@@ -295,7 +288,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     .filter(t => t.x >= 0 && t.x <= width && t.y >= 0 && t.y <= height)
 
   const genes = placeLabels(
-    geneLabelCandidates(m.genePins, screen, m.contigThickness, nodesUnder),
+    geneLabelCandidates(m.genePins, screen, m.contigThickness, otherNodeUnder),
     frame,
     take,
     reserved,

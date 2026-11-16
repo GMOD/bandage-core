@@ -122,6 +122,51 @@ function addToGrid<T>(
   }
 }
 
+function* occupiedWithin<V>(
+  level: Map<number, V>,
+  first: number,
+  last: number,
+) {
+  if (last - first < level.size) {
+    for (let key = first; key <= last; key++) {
+      const value = level.get(key)
+      if (value !== undefined) {
+        yield value
+      }
+    }
+  } else {
+    const within: [number, V][] = []
+    for (const entry of level) {
+      if (entry[0] >= first && entry[0] <= last) {
+        within.push(entry)
+      }
+    }
+    within.sort((a, b) => a[0] - b[0])
+    for (const [, value] of within) {
+      yield value
+    }
+  }
+}
+
+function* cellsWithin<T>(
+  cells: Map<number, Map<number, T[]>>,
+  cellSize: CellSize,
+  x: number,
+  y: number,
+  radiusX: number,
+  radiusY: number,
+) {
+  const cy0 = Math.floor((y - radiusY) / cellSize.y)
+  const cy1 = Math.floor((y + radiusY) / cellSize.y)
+  for (const column of occupiedWithin(
+    cells,
+    Math.floor((x - radiusX) / cellSize.x),
+    Math.floor((x + radiusX) / cellSize.x),
+  )) {
+    yield* occupiedWithin(column, cy0, cy1)
+  }
+}
+
 // The radius is per axis because the two axes need not be in the same units: a
 // row layout's x is bp and its y is screen px, so the same 5 px of slack is
 // hundreds of bp one way and 5 the other. Passing the x radius on both axes
@@ -133,30 +178,37 @@ function queryGrid<T>(
   y: number,
   radiusX: number,
   radiusY: number,
-): T[] {
-  const cx0 = Math.floor((x - radiusX) / cellSize.x)
-  const cx1 = Math.floor((x + radiusX) / cellSize.x)
-  const cy0 = Math.floor((y - radiusY) / cellSize.y)
-  const cy1 = Math.floor((y + radiusY) / cellSize.y)
+) {
   const results: T[] = []
   const seen = new Set<T>()
-  for (let cx = cx0; cx <= cx1; cx++) {
-    const row = cells.get(cx)
-    if (row) {
-      for (let cy = cy0; cy <= cy1; cy++) {
-        const cell = row.get(cy)
-        if (cell) {
-          for (const entry of cell) {
-            if (!seen.has(entry)) {
-              seen.add(entry)
-              results.push(entry)
-            }
-          }
-        }
+  for (const cell of cellsWithin(cells, cellSize, x, y, radiusX, radiusY)) {
+    for (const entry of cell) {
+      if (!seen.has(entry)) {
+        seen.add(entry)
+        results.push(entry)
       }
     }
   }
   return results
+}
+
+function someInGrid<T>(
+  cells: Map<number, Map<number, T[]>>,
+  cellSize: CellSize,
+  x: number,
+  y: number,
+  radiusX: number,
+  radiusY: number,
+  test: (entry: T) => boolean,
+) {
+  let found = false
+  for (const cell of cellsWithin(cells, cellSize, x, y, radiusX, radiusY)) {
+    found = cell.some(test)
+    if (found) {
+      break
+    }
+  }
+  return found
 }
 
 export class SpatialIndex {
@@ -168,6 +220,7 @@ export class SpatialIndex {
     // one number sets both axes, which is what a test that only cares about
     // bucketing wants
     cellSize?: number | CellSize,
+    smallestCell: CellSize = { x: 0, y: 0 },
   ) {
     // Segment boxes are collected first so the cell size can come from their
     // mean extent; the grid itself needs the size up front.
@@ -194,7 +247,11 @@ export class SpatialIndex {
       }
     }
 
-    this.cellSize = resolveCellSize(cellSize, boxes, extentX, extentY)
+    const fitted = resolveCellSize(cellSize, boxes, extentX, extentY)
+    this.cellSize = {
+      x: Math.max(fitted.x, smallestCell.x),
+      y: Math.max(fitted.y, smallestCell.y),
+    }
     for (const b of boxes) {
       addToGrid(
         this.cells,
@@ -210,6 +267,16 @@ export class SpatialIndex {
 
   query(x: number, y: number, radiusX: number, radiusY = radiusX) {
     return queryGrid(this.cells, this.cellSize, x, y, radiusX, radiusY)
+  }
+
+  some(
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
+    test: (entry: CellEntry) => boolean,
+  ) {
+    return someInGrid(this.cells, this.cellSize, x, y, radiusX, radiusY, test)
   }
 }
 

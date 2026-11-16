@@ -806,3 +806,46 @@ test('row labels past what an argument list holds lay out, the topmost row setti
     ).bubbles.map(b => b.y),
   )
 })
+
+// HPRC's amylase cut under the force layout: 15,000 nodes a few layout units
+// long along strands 10 px apart, fitted to a track at 0.02 px a unit, where
+// no label by a node is clear of the next strand
+test('the labels of a 15,000-node drawing fitted to a track lay out in under a second', () => {
+  const kept = placeholders(Array.from({ length: 250 }, () => 3))
+  const nodes = Array.from({ length: 15_000 }, (_, n) => {
+    const strand = n % 10
+    const step = Math.floor(n / 10)
+    const x = 5000 + step * 40
+    const y = 4000 + strand * 500 + 1000 * Math.sin(step / 200)
+    return {
+      id: step % 60 === 0 ? `p${(step / 60) * 10 + strand}` : `n${n}`,
+      line: [
+        { x, y },
+        { x: x + 3, y },
+      ],
+    }
+  })
+  const genePins = Array.from({ length: 9 }, (_, g) => {
+    const middle = nodes[(150 * g + 100) * 10 + 5]!
+    return { ...pin(middle.line[0]!), nodeIds: new Set([middle.id]) }
+  })
+  const started = performance.now()
+  const layout = layoutLabels(
+    source({
+      paneWidth: 1588,
+      canvasHeight: 322,
+      axisScale: { scaleX: 0.02, scaleY: 0.02 },
+      translateX: 100,
+      translateY: 20,
+      legendSize: { width: 219, height: 290 },
+      nodePositions: Object.fromEntries(nodes.map(n => [n.id, n.line])),
+      nodeLengths: new Map(kept.map(n => [n.id, n.length])),
+      nodeById: new Map(kept.map(n => [n.id, n])),
+      genePins,
+    }),
+  )
+  const elapsed = performance.now() - started
+  expect(layout.genes).toHaveLength(9)
+  expect(layout.sizes).toHaveLength(nodeLabelBudget(1588, 322))
+  expect(elapsed).toBeLessThan(1000)
+})

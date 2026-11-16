@@ -101,6 +101,29 @@ function getSpatialIndex(
   )
 }
 
+const LABEL_CELL_PX = 16
+
+const labelCache = weakMemo<Record<string, NodeSegment[]>, SpatialIndex>()
+
+// The nodes in cells no smaller than a label on screen, so a label's box
+// covers a few of them at any zoom
+function getLabelIndex(
+  nodePositions: Record<string, NodeSegment[]>,
+  version: number,
+  scaleX: number,
+  scaleY: number,
+) {
+  return labelCache(
+    nodePositions,
+    [version, scaleX, scaleY],
+    () =>
+      new SpatialIndex(nodePositions, undefined, {
+        x: LABEL_CELL_PX / Math.abs(scaleX),
+        y: LABEL_CELL_PX / Math.abs(scaleY),
+      }),
+  )
+}
+
 const edgeCache = weakMemo<Record<string, NodeSegment[]>, EdgeSpatialIndex>()
 
 function getEdgeSpatialIndex(
@@ -222,41 +245,36 @@ export function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
   return t0 <= t1
 }
 
-// The nodes whose centreline crosses a box in screen px, for a label that
-// must not cover a node it does not name
-export function nodesUnderBox(
+// Whether the centreline of a node other than the label's `own` crosses a box
+// in screen px, for a label that must not cover a node it does not name
+export function otherNodeUnderBox(
   nodePositions: Record<string, NodeSegment[]>,
   t: { scaleX: number; scaleY: number; translateX: number; translateY: number },
   version = 0,
 ) {
-  const index = getSpatialIndex(nodePositions, version)
+  const index = getLabelIndex(nodePositions, version, t.scaleX, t.scaleY)
   const screen = (p: NodeSegment) => ({
     x: p.x * t.scaleX + t.translateX,
     y: p.y * t.scaleY + t.translateY,
   })
-  return (box: Box) => {
-    const hits = new Set<string>()
-    const candidates = index.query(
+  return (box: Box, own: (nodeId: string) => boolean) =>
+    index.some(
       ((box.x0 + box.x1) / 2 - t.translateX) / t.scaleX,
       ((box.y0 + box.y1) / 2 - t.translateY) / t.scaleY,
       Math.abs((box.x1 - box.x0) / 2 / t.scaleX),
       Math.abs((box.y1 - box.y0) / 2 / t.scaleY),
-    )
-    for (const { nodeId, segmentIdx } of candidates) {
-      const line = nodePositions[nodeId]!
-      if (
-        !hits.has(nodeId) &&
-        segmentMeetsBox(
-          screen(line[segmentIdx]!),
-          screen(line[segmentIdx + 1]!),
-          box,
+      ({ nodeId, segmentIdx }) => {
+        const line = nodePositions[nodeId]
+        const from = line?.[segmentIdx]
+        const to = line?.[segmentIdx + 1]
+        return (
+          from !== undefined &&
+          to !== undefined &&
+          !own(nodeId) &&
+          segmentMeetsBox(screen(from), screen(to), box)
         )
-      ) {
-        hits.add(nodeId)
-      }
-    }
-    return hits
-  }
+      },
+    )
 }
 
 export function findHoveredEdge(
