@@ -146,6 +146,32 @@ reads them.
   backbone lies on. `featuresOnBackbone` renames that assembly's genes onto the
   backbone's refNames, and `genePins` pins only those
 
+## Level of detail
+
+- Where what hangs off the reference is too small to draw at the current scale,
+  `buildGeometry` draws a tick in its place: an off-reference component (the
+  nodes off the reference joined to each other, with the links that attach them)
+  whose drawn extent is under `SITE_EXTENT_PX`, attached at points on the
+  reference within `SITE_REACH_PX` of each other, and a skip whose span is under
+  `SITE_EXTENT_PX`. Sites within `SITE_REACH_PX` along the reference share a
+  tick. Nothing on the reference, no placeholder and nothing hanging from a
+  placeholder is collapsed, nor what no shown walk steps
+- A tick stands off the reference on one side, the left of the way the reference
+  runs, so above a reference drawn left to right. Its height runs from
+  `TICK_MIN_PX` for one walk to `TICK_MAX_PX` for all the shown walks, by how
+  many step any of the nodes or skips it stands for, and it is painted last,
+  over everything else. The key's "Tick height" scale shows both ends
+- The rule depends only on the layout and the scale, so zooming in past the
+  thresholds draws the nodes again, and a pan reuses what a zoom derived.
+  `levelOfDetail: false` draws every node and link, as before
+- A lifted walk's lane at a collapsed site runs straight along the reference,
+  and draws no head on what the tick stands for
+- The batch's `ticks` and `collapsed` say what each tick stands for:
+  `findHoveredTick` finds one under the pointer, `findHoveredNode` and
+  `findHoveredEdge` take `collapsed` to skip what no node or link draws, and
+  `layoutLabels` takes `ticks` to keep labels off them. `figureData` returns
+  them as the `ticks` table
+
 ## Threading by pass
 
 A haplotype that goes round a repeat steps the same nodes again on each trip.
