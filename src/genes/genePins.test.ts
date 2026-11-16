@@ -1,3 +1,4 @@
+import { namedGenePins } from './geneNames'
 import { genePins } from './genePins'
 
 import type { Graph } from '../types'
@@ -171,4 +172,34 @@ test("a haplotype's gene is held only where its walk's records lie, not between 
     along(['h1', 'h2'], 0),
   )
   expect(pin!.covered * 49_900).toBeCloseTo(849)
+})
+
+// tubeMap/coarsen builds a route as a rank 1 node on the reference's refName
+test('a refName is the reference where any of its nodes is rank 0, whichever comes first', () => {
+  const graph: Graph = {
+    name: 'g',
+    nodes: [
+      {
+        ...anchored('route', 400, 50),
+        stable: { refName: 'chr1', start: 400, rank: 1, strand: '+' as const },
+      },
+      anchored('r1', 0, 1000),
+      offReference('a', 5000, 100),
+    ],
+    edges: [],
+    paths: [
+      { name: 'chr1', nodeIds: ['r1'], start: 0 },
+      { name: HAPLOTYPE, nodeIds: ['r1', 'a'], start: 4000 },
+    ],
+  }
+  const pins = genePins(
+    graph,
+    [gene('REFGENE', 'chr1', 100, 900), gene('REFGENE', HAPLOTYPE, 5010, 5090)],
+    along(['route', 'r1', 'a'], 0),
+  )
+  expect(pins.map(p => p.onReference)).toEqual([true, false])
+  expect(namedGenePins(pins, [HAPLOTYPE]).map(n => n.name)).toEqual([
+    'REFGENE',
+    'REFGENE · HG00097#1',
+  ])
 })

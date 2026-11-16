@@ -1,4 +1,5 @@
 import {
+  REFERENCE_RANK,
   drawnAlongStable,
   firstNodeAtOrAfter,
   isAnchored,
@@ -93,12 +94,9 @@ function anchoredByRefName(graph: Graph) {
       const entry =
         byRefName.get(refName) ??
         byRefName
-          .set(refName, {
-            nodes: [],
-            reach: 0,
-            reference: node.stable.rank === 0,
-          })
+          .set(refName, { nodes: [], reach: 0, reference: false })
           .get(refName)!
+      entry.reference ||= node.stable.rank === REFERENCE_RANK
       entry.nodes.push(node)
       entry.reach = Math.max(entry.reach, node.length)
     }
