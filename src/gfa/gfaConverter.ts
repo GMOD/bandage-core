@@ -1,6 +1,6 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { stableCoordinate } from '../gfa-core/index'
-import { pathOrigin, surveyPaths, withStatedStrands } from '../pathAnchoring'
+import { pathOrigin, stateStrands, surveyPaths } from '../pathAnchoring'
 import { revisitedCount } from './graphTables'
 import { linkKey } from './linkKey'
 import {
@@ -330,10 +330,13 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
           id => lengths.get(id) ?? 0,
         )
       : undefined
+  if (anchoring) {
+    stateStrands(nodes, anchoring.pathVisits)
+  }
 
   return {
     name,
-    nodes: withStatedStrands(nodes, anchoring?.pathVisits),
+    nodes,
     edges,
     paths: paths.length > 0 ? paths : undefined,
     anchorPaths: anchoring?.anchorPaths,

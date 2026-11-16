@@ -148,26 +148,21 @@ function statedStrand(node: AnchoredNode, visits: PathVisits, p: number) {
   return first >= 0 ? visits.strand(atStart >= 0 ? atStart : first) : undefined
 }
 
-export function withStatedStrands(
-  nodes: GraphNode[],
-  visits: PathVisits | undefined,
-) {
+export function stateStrands(nodes: GraphNode[], visits: PathVisits) {
   const pathOf = new Map<string, number>()
   const pathIndex = (name: string) => {
-    const p = pathOf.get(name) ?? visits?.pathIndex(name) ?? -1
+    const p = pathOf.get(name) ?? visits.pathIndex(name)
     pathOf.set(name, p)
     return p
   }
-  return visits
-    ? nodes.map(node => {
-        const strand = isAnchored(node)
-          ? statedStrand(node, visits, pathIndex(node.stable.refName))
-          : undefined
-        return isAnchored(node) && strand
-          ? { ...node, stable: { ...node.stable, strand } }
-          : node
-      })
-    : nodes
+  for (const node of nodes) {
+    const strand = isAnchored(node)
+      ? statedStrand(node, visits, pathIndex(node.stable.refName))
+      : undefined
+    if (isAnchored(node) && strand) {
+      node.stable.strand = strand
+    }
+  }
 }
 
 // A segment's samples, sorted, by each path's sample's place in the graph's

@@ -1,6 +1,6 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { panSNFields, panSNSample } from '../pansn'
-import { pathOrigin, withStatedStrands } from '../pathAnchoring'
+import { pathOrigin, stateStrands } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
 import { ownStepRuns, stretchSegments } from './departures'
 import { linkKey } from './linkKey'
@@ -589,9 +589,12 @@ export function graphFromTables(
           samples: pathSamples,
         })
       : undefined
+  if (pathVisits) {
+    stateStrands(nodes, pathVisits)
+  }
   return {
     name,
-    nodes: withStatedStrands(nodes, pathVisits),
+    nodes,
     edges,
     paths: pathVisits ? paths : undefined,
     anchorPaths: pathVisits ? anchorPaths : undefined,
