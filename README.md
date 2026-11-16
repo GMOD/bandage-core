@@ -160,18 +160,31 @@ reads them.
   site by how its neighbours happen to be drawn; one number folds identical
   sites alike anywhere, and folds the same sites in either layout at the same px
   per bp
+- That number runs high where the reference has many short nodes, which are
+  drawn no shorter than a floor and so raise it, and there the fold is
+  conservative: a site folds at a smaller bp than the scale the long reference
+  nodes are drawn at would fold it at. On real cuts it was 1.7 times the long
+  nodes' scale on a chr16 window under the force layout, 2 times on KIV-2 under
+  the force layout and 1.65 times under the straight one; elsewhere 0.96 to 1.3
+  times
 - A not-loaded placeholder under the threshold folds too, with whatever hangs
   only from it, and its length label with it. Larger placeholders are structure
   and stay
 - Nothing on the reference is folded, nor a link turning the reference back on
-  itself, nor what no shown walk steps. A lifted walk's lane runs straight along
+  itself, nor what no shown walk steps. Nor is a piece that turns strand, whose
+  attachments all touch the same end of their reference nodes; a piece reaching
+  a reference node the cut did not load or a second reference sequence; a piece
+  holding a departure's steps to or from a place past the cut, whose other end
+  the cut does not hold; or anything of no bp. A skip is measured by how far
+  apart on the reference its ends are. A lifted walk's lane runs straight along
   the reference through a folded site, with no head on what was folded
 - The fold depends only on the layout and the scale: zooming in past the
   threshold draws each site again, a pan reuses what the zoom derived, and under
   a steady zoom each node changes state once at most
 - The key ends with one line, only where something is folded:
-  `N nodes and M skips too small to draw`, counting each folded node and skip
-  link once
+  `N nodes and M skips under B bp not drawn`, counting each folded node and skip
+  link once, B being `SMALL_SITE_PX` over the reference's px per bp rounded up
+- Folded nodes push no label aside
 - The batch's `collapsed` holds the fold: `findHoveredNode` and
   `findHoveredEdge` take it as a required argument, so a point at a folded site
   finds the reference, and `layoutLabels` takes its nodes as `folded`, which
