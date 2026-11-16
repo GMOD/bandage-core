@@ -117,7 +117,12 @@ export function mergeRuns(
       name: node.name,
       length: members.reduce((sum, n) => sum + n.length, 0),
       depth: node.depth,
-      stable: first.stable,
+      // the strand stated against the run's id, which the reference steps the
+      // way it steps the member against its own
+      stable:
+        first.stable && ownStrand(first.id) !== ownStrand(node.id)
+          ? { ...first.stable, strand: flip(first.stable.strand ?? '+') }
+          : first.stable,
     })
   }
   // A link can only reach a run at its free ends, the first member's start and

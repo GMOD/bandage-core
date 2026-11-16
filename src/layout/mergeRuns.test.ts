@@ -127,3 +127,30 @@ test('a link to the far end of a node attaches there, not across the run', () =>
   ])
   expect(merged.edges).toEqual([{ from: 'a+', to: 'd+', toStrand: '-' }])
 })
+
+// the run is x, then b read backwards; b is its only backbone member
+test("a run states its backbone member's strand against its own id", () => {
+  const run = (strand: '+' | '-' | undefined) =>
+    mergeRuns({
+      name: 'g',
+      nodes: [
+        { id: 'x+', name: 'x', length: 100, depth: 1 },
+        {
+          id: 'b-',
+          name: 'b',
+          length: 100,
+          depth: 1,
+          stable: {
+            refName: 'chr',
+            start: 0,
+            rank: 0,
+            ...(strand && { strand }),
+          },
+        },
+      ],
+      edges: [{ from: 'x+', to: 'b-', fromStrand: '+', toStrand: '-' }],
+    }).graph.nodes[0]!
+  expect(run('-')).toMatchObject({ id: 'x+', stable: { strand: '+' } })
+  expect(run('+')).toMatchObject({ id: 'x+', stable: { strand: '-' } })
+  expect(run(undefined)).toMatchObject({ id: 'x+', stable: { strand: '-' } })
+})

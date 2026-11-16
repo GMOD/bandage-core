@@ -1,3 +1,4 @@
+import { ownStrand } from './util/geometry'
 import { partitionPoint } from './util/partitionPoint'
 
 import type { StableCoordinate } from './gfa-core/index'
@@ -36,6 +37,12 @@ export function isOffReference(node: GraphNode): node is AnchoredNode {
     node.stable.rank > REFERENCE_RANK &&
     !node.placeholder
   )
+}
+
+// Whether a node's drawn line, which reads it as its id does, runs the way its
+// stable sequence steps it; a coordinate stating no strand is forward on it
+export function drawnAlongStable(node: AnchoredNode) {
+  return ownStrand(node.id) === (node.stable.strand ?? '+')
 }
 
 export function backboneNodes(graph: Graph) {

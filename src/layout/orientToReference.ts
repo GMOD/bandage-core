@@ -1,5 +1,4 @@
-import { isBackbone } from '../anchoredNodes'
-import { ownStrand } from '../util/geometry'
+import { drawnAlongStable, isBackbone } from '../anchoredNodes'
 
 import type { Graph, NodeSegment } from '../types'
 
@@ -26,7 +25,7 @@ export function orientToReference(graph: Graph, positions: Positions) {
   const points = backbone.flatMap(node => {
     const segments = positions[node.id]!
     const last = segments.length - 1
-    const forwards = ownStrand(node.id) === (node.stable.strand ?? '+')
+    const forwards = drawnAlongStable(node)
     return segments.map((p, i) => {
       const along = last === 0 ? 0.5 : i / last
       return {

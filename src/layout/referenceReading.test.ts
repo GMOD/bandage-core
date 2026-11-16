@@ -7,6 +7,7 @@ import { graphFromTables } from '../gfa/graphTables'
 import { layoutEngine } from '../layoutEngines'
 import { engineSettingsOf, forceLayout, loadGraph } from '../pipeline'
 import { ownStrand, strandSides } from '../util/geometry'
+import { readAlongReference } from './referenceReading'
 
 import type { LayoutEngineKind } from '../layoutEngines'
 import type { Graph, NodeSegment } from '../types'
@@ -74,7 +75,7 @@ const CASES = {
   'a run backwards': RUN_BACKWARDS,
   'every segment backwards': ALL_BACKWARDS,
 }
-const ANCHORINGS = { tags: true }
+const ANCHORINGS = { tags: true, paths: false }
 const ENGINES: LayoutEngineKind[] = ['fmmm', 'stress']
 
 const steppedOn = (c: Case, segment: string) =>
@@ -234,4 +235,54 @@ test('the link that skips reference a run steps backwards is found under tags', 
   expect(skips(load(ALL_BACKWARDS, true))).toEqual([
     { bp: 1100, bypassed: ['3'] },
   ])
+})
+
+test('the stress engine is handed a backbone node the reference steps against its id as the reference reads it, and its line turned back', () => {
+  const stable = { refName: 'chr', start: 0, rank: 0 }
+  const node = { name: 'n', length: 100, depth: 1 }
+  const request = {
+    graph: {
+      nodes: [
+        { ...node, id: 'a+', stable: { ...stable, strand: '-' as const } },
+        { ...node, id: 'b+', stable: { ...stable, strand: '+' as const } },
+        { ...node, id: 'c-', stable: { ...stable, strand: '-' as const } },
+        { ...node, id: 'd-', stable },
+        {
+          ...node,
+          id: 'x+',
+          stable: { ...stable, rank: 1, strand: '-' as const },
+        },
+      ],
+      edges: [
+        { from: 'a+', to: 'b+' },
+        { from: 'b+', to: 'c-' },
+        { from: 'c-', to: 'd-', fromStrand: '-' as const },
+      ],
+    },
+    options: {},
+  }
+  const read = readAlongReference(request)
+  expect(read.request.graph.nodes.map(n => n.id)).toEqual([
+    'a-',
+    'b+',
+    'c-',
+    'd+',
+    'x+',
+  ])
+  expect(read.request.graph.edges).toEqual([
+    { from: 'a-', to: 'b+', fromStrand: '+', toStrand: '+' },
+    { from: 'b+', to: 'c-' },
+    { from: 'c-', to: 'd+', fromStrand: '-', toStrand: '-' },
+  ])
+  const line = [
+    { x: 0, y: 0 },
+    { x: 5, y: 1 },
+  ]
+  expect(read.turnedBack({ 'a-': line, 'b+': line, 'd+': line })).toEqual({
+    'a+': line.toReversed(),
+    'b+': line,
+    'd-': line.toReversed(),
+  })
+  const along = { ...request, graph: { ...request.graph, nodes: [] } }
+  expect(readAlongReference(along).request).toBe(along)
 })
