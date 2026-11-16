@@ -238,6 +238,10 @@ interface SiteRow {
   total: number
   nodes: string
   links: string
+  // the reference nodes and links inside the site that, with walks lifted,
+  // are drawn only by the lanes crossing it
+  laneNodes: string
+  laneLinks: string
 }
 
 interface ArrowRow {
@@ -273,7 +277,31 @@ const alphaOf = (c: number) => abgrAlpha(c) / 255
 const BASELINE_TO_MIDDLE = 0.35
 const SIZE_LABEL_PX = 10
 
-function siteTable(fold: Fold) {
+function siteTable(
+  fold: Fold,
+  laneOnly: RenderBatch['laneOnly'],
+  edgeEnds: (edge: number) => { from: string; to: string } | undefined,
+) {
+  const index = new Map(fold.sites.map((s, site) => [s, site]))
+  const siteOfNode = (id: string) => {
+    const s = fold.within.get(id) ?? fold.siteOf.get(id)
+    return s ? index.get(s) : undefined
+  }
+  const laneNodes = fold.sites.map((): string[] => [])
+  const laneLinks = fold.sites.map((): number[] => [])
+  for (const id of laneOnly?.nodes ?? []) {
+    const site = siteOfNode(id)
+    if (site !== undefined) {
+      laneNodes[site]!.push(id)
+    }
+  }
+  for (const edge of laneOnly?.edges ?? []) {
+    const { from = '', to = '' } = edgeEnds(edge) ?? {}
+    const site = siteOfNode(from) ?? siteOfNode(to)
+    if (site !== undefined) {
+      laneLinks[site]!.push(edge)
+    }
+  }
   const sites = columns<SiteRow>({
     site: [],
     refName: [],
@@ -286,6 +314,8 @@ function siteTable(fold: Fold) {
     total: [],
     nodes: [],
     links: [],
+    laneNodes: [],
+    laneLinks: [],
   })
   fold.sites.forEach((s, site) => {
     sites.push({
@@ -300,6 +330,8 @@ function siteTable(fold: Fold) {
       total: s.total,
       nodes: s.nodes.join(','),
       links: s.edges.join(','),
+      laneNodes: laneNodes[site]!.join(','),
+      laneLinks: laneLinks[site]!.join(','),
     })
   })
   return sites.out
@@ -887,7 +919,15 @@ export function figureData(
     nodes: nodes.out,
     edges: edges.out,
     arrows: arrows.out,
-    ...(fold ? { sites: siteTable(fold) } : {}),
+    ...(fold
+      ? {
+          sites: siteTable(
+            fold,
+            batches[0]?.laneOnly,
+            edge => graph.edges[edge],
+          ),
+        }
+      : {}),
     nodeInfo: {
       node: graph.nodes.map(n => n.id),
       name: graph.nodes.map(n => n.name),

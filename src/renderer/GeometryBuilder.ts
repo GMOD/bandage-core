@@ -1016,6 +1016,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const site = collapse.within.get(nodeId)
     return !!site && crossed.has(site)
   }
+  const laneOnly = { nodes: new Set<string>(), edges: new Set<number>() }
   const laneSiteOf = (nodeId: string) =>
     collapse.siteOf.get(nodeId) ??
     (crossedAt(nodeId) ? collapse.within.get(nodeId) : undefined)
@@ -1589,6 +1590,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const toSite = laneSiteOf(edge.to)
     const across = collapsed || !!fromSite || !!toSite
     const bridge = collapse.bridges.get(ei)
+    if (laneWalks && fromSite && toSite && !collapsed) {
+      laneOnly.edges.add(ei)
+    }
     if (
       (laneWalks && !lanesMayShow(baseCurves, edge.from)) ||
       (collapsed && !laneWalks) ||
@@ -1736,6 +1740,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
 
   for (const [nodeId, segments] of Object.entries(nodePositions)) {
     const node = nodeById.get(nodeId)
+    if (node && crossedAt(nodeId)) {
+      laneOnly.nodes.add(nodeId)
+    }
     if (!node || collapse.nodes.has(nodeId) || crossedAt(nodeId)) {
       continue
     }
@@ -1830,5 +1837,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     edgeCurves,
     edgeCurveRuns,
     collapsed: collapse,
+    laneOnly,
   }
 }

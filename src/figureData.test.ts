@@ -569,7 +569,16 @@ test('the sites table lists each folded site, its nodes and links each once and 
     total: [3, 3],
     nodes: ['a1+', ''],
     links: [[into, out].join(','), `${skip}`],
+    laneNodes: ['', ''],
+    laneLinks: ['', ''],
   })
+  const lifted = figureData(graph, layout, {
+    walks: [{ walk: 'w#1#chr' }, { walk: 'w#2#chr' }],
+  })
+  expect(lifted.sites?.laneNodes).toEqual(['r2+', 'r4+'])
+  expect(lifted.sites?.laneLinks).toEqual(['', ''])
+  expect(lifted.nodes.node).not.toContain('r2+')
+  expect(lifted.nodes.node).not.toContain('r4+')
   const links = (d.sites?.links ?? []).flatMap(ids =>
     ids.split(',').map(Number),
   )

@@ -1091,6 +1091,10 @@ describe('the drawing through a folded site', () => {
     expect(batch.collapsed?.within).toEqual(new Map([['r2+', site]]))
     expect(batch.nodeStrokeRuns.has('r2+')).toBe(false)
     expect(batch.arrows.filter(a => a.node === 'r2+')).toEqual([])
+    expect(batch.laneOnly).toEqual({
+      nodes: new Set(['r2+']),
+      edges: new Set(),
+    })
     const into = [
       ...lanesOf(batch, edgeIndex(snpGraph, 'r1+', 'r2+')),
       ...lanesOf(batch, edgeIndex(snpGraph, 'r1+', 'a1+')),
