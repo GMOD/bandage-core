@@ -984,16 +984,32 @@ describe('arrowhead placement', () => {
   // the 1-5 bp skips at the amylase locus, at 240 kb across the pane, drew
   // as loops along the backbone; dropping them left pggb chrY's 88,829 bp
   // skip at 9.3 Mb, which seven haplotypes carry, drawn nowhere
-  test('a skip under a pixel on screen is drawn as the plain link it is, over the nodes', () => {
+  test("a skip under a pixel on screen is drawn as the plain link it is, over the nodes in a skip's ink", () => {
     const link = skipAt(0.05)
     expect(link.strokes).toHaveLength(1)
     expect(link.strokes[0]!.skip).toBeUndefined()
     const overNodes = {
       ...link,
-      strokes: [{ ...link.strokes[0]!, skip: true, span: 0 }],
+      strokes: [
+        {
+          ...link.strokes[0]!,
+          color: skipAt(0.2, []).strokes[0]!.color,
+          skip: true,
+          span: 0,
+        },
+      ],
     }
     expect(skipAt(0.05, [])).toEqual(overNodes)
     expect(skipAt(0.05, ['M+'])).toEqual(overNodes)
+  })
+
+  test('a skip a twentieth of a px across is stroked in the ink of one 2 px across', () => {
+    const arc = skipAt(0.2, []).strokes[0]!
+    const fallback = skipAt(0.005, []).strokes[0]!
+    expect(arc.span).toBeCloseTo(2, 5)
+    expect(fallback).toMatchObject({ skip: true, span: 0 })
+    expect(fallback.color).toBe(arc.color)
+    expect(fallback.color).not.toBe(skipAt(0.005).strokes[0]!.color)
   })
 
   // a head is 10 px on a plain link, so it waits for 30 px of link

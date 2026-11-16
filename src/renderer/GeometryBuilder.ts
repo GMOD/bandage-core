@@ -1205,7 +1205,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // So one head per edge, in the edge's own colour rather than a ribbon's,
     // since choosing a ribbon's would privilege one haplotype for a fact that
     // belongs to none of them. `undefined` means this call draws no head.
-    const plainEdgeColor = isDeletion ? EDGE_DELETION_COLOR : EDGE_DEFAULT_COLOR
+    const plainEdgeColor = deletions?.has(ei)
+      ? EDGE_DELETION_COLOR
+      : EDGE_DEFAULT_COLOR
     const edgeColor =
       !highlight || onWalk
         ? plainEdgeColor
