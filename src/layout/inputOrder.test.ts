@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs'
 
+import { spreadFor } from '../bubbleSpreads'
 import { LAYOUT_ENGINE_VALUES, layoutEngine } from '../layoutEngines'
-import { forceLayout, loadGraph } from '../pipeline'
+import { engineRequest, forceLayout, loadGraph } from '../pipeline'
+import { layoutScaling } from './drawnScale'
 
 import type { BubbleSpread } from '../bubbleSpreads'
 import type { LayoutEngineKind } from '../layoutEngines'
-import type { EngineRequest } from '../pipeline'
+import type { EngineRequest, EngineSettings } from '../pipeline'
 
 // chr runs r1..r4. x is an insertion between r1 and r2, v an allele read
 // reversed in place of r3, d dangles off r4, p and q are a piece no backbone
@@ -154,4 +156,48 @@ test('two links between one pair of nodes that differ only in which ends they jo
     'auto',
   )
   expect(other.request).toEqual(given.request)
+})
+
+// rank 0 on two stable sequences, each from offset 0: two backbone nodes tie
+// on their start
+const TWO_REFS = [
+  'S\tr1\t*\tLN:i:1000\tSN:Z:chrA\tSO:i:0\tSR:i:0',
+  'S\tr2\t*\tLN:i:1000\tSN:Z:chrA\tSO:i:1000\tSR:i:0',
+  'S\tq1\t*\tLN:i:1500\tSN:Z:chrB\tSO:i:0\tSR:i:0',
+  'S\tq2\t*\tLN:i:700\tSN:Z:chrB\tSO:i:1500\tSR:i:0',
+  'S\tx\t*\tLN:i:300\tSN:Z:alt\tSO:i:0\tSR:i:1',
+  'L\tr1\t+\tr2\t+\t0M',
+  'L\tq1\t+\tq2\t+\t0M',
+  'L\tr1\t+\tx\t+\t0M',
+  'L\tx\t+\tr2\t+\t0M',
+  'L\tr2\t+\tq1\t+\t0M',
+].join('\n')
+
+test('backbone nodes that tie on their start are seeded the same whatever order the S lines came in', async () => {
+  const given = await laidOut(TWO_REFS, 'fmmm', 'auto')
+  const other = await laidOut(
+    reordered(TWO_REFS, 'S', orders.reversed),
+    'fmmm',
+    'auto',
+  )
+  expect(other.request).toEqual(given.request)
+})
+
+test('engineRequest, asked directly, hands the engine one request whatever order the graph lists its nodes', () => {
+  const settings: EngineSettings = {
+    quality: 1,
+    linearLayout: false,
+    bubbleSpread: 'auto',
+  }
+  const requestFor = (text: string) => {
+    const graph = loadGraph(text, 'cut')
+    return engineRequest(
+      graph,
+      layoutScaling(graph, spreadFor('auto')),
+      settings,
+    )
+  }
+  expect(requestFor(reordered(TWO_REFS, 'S', orders.reversed))).toEqual(
+    requestFor(TWO_REFS),
+  )
 })
