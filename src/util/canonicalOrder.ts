@@ -9,7 +9,7 @@ const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 // covers both of a link's spellings.
 export function canonicalEdgeOrder<E extends GraphEdge>(edges: readonly E[]) {
   const key = (e: E) =>
-    `${e.from}\t${e.to}\t${e.fromStrand ?? ''}${e.toStrand ?? ''}`
+    `${e.from}\t${e.to}\t${e.fromStrand ?? ''}${e.toStrand ?? ''}\t${e.fromStrand ?? ''}`
   return edges
     .map(e => ({ e, k: key(e) }))
     .sort((a, b) => byKey(a.k, b.k))

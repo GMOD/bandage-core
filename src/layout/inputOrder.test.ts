@@ -132,3 +132,26 @@ describe.each(['S', 'L'] as const)('the order of the %s lines', record => {
     }
   })
 })
+
+// r2 and r3 joined end to start, end to end and start to start
+const TWIST = [
+  'S\tr1\t*\tLN:i:1000\tSN:Z:ref#chr\tSO:i:0\tSR:i:0',
+  'S\tr2\t*\tLN:i:1500\tSN:Z:ref#chr\tSO:i:1000\tSR:i:0',
+  'S\tr3\t*\tLN:i:1200\tSN:Z:ref#chr\tSO:i:2500\tSR:i:0',
+  'S\tr4\t*\tLN:i:1000\tSN:Z:ref#chr\tSO:i:3700\tSR:i:0',
+  'L\tr1\t+\tr2\t+\t0M',
+  'L\tr2\t+\tr3\t+\t0M',
+  'L\tr3\t+\tr4\t+\t0M',
+  'L\tr2\t+\tr3\t-\t0M',
+  'L\tr2\t-\tr3\t+\t0M',
+].join('\n')
+
+test('two links between one pair of nodes that differ only in which ends they join go to the engine in one order', async () => {
+  const given = await laidOut(TWIST, 'fmmm', 'auto')
+  const other = await laidOut(
+    reordered(TWIST, 'L', orders.reversed),
+    'fmmm',
+    'auto',
+  )
+  expect(other.request).toEqual(given.request)
+})
