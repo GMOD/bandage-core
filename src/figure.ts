@@ -89,6 +89,9 @@ export interface FigureOptions {
   connectorThickness?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
+  // true when absent: a site too small to draw at the figure's scale draws
+  // as a tick
+  levelOfDetail?: boolean
   // the window the graph was cut for, which the anchored layouts and the
   // reference-position ramp span
   region?: { refName: string; start: number; end: number }

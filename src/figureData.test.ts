@@ -14,6 +14,7 @@ import { layoutLabels } from './labelLayout'
 import { liftedRowInks, rowInkAt } from './layout/rowInks'
 import { walkRows } from './layout/walkRows'
 import { layoutEngine } from './layoutEngines'
+import { tickHeightPx } from './levelOfDetail'
 import {
   drawingBounds,
   engineSettingsOf,
@@ -22,6 +23,7 @@ import {
   loadGraph,
 } from './pipeline'
 import { graphBackbone } from './reference'
+import { TICK_COLOR } from './renderer/GeometryBuilder'
 import { abgrHex } from './renderer/colorBits'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
@@ -43,7 +45,14 @@ test('every column of a table is one row long per row', async () => {
   const d = await gfaFigureData(read('ecoli_rgfa_slice.gfa'), 'ecoli', {
     layout: 'auto',
   })
-  for (const table of [d.nodes, d.edges, d.arrows, d.nodeInfo, d.rowLabels]) {
+  for (const table of [
+    d.nodes,
+    d.edges,
+    d.arrows,
+    d.ticks,
+    d.nodeInfo,
+    d.rowLabels,
+  ]) {
     expect(lengths(table).size).toBe(1)
   }
   expect(d.nodes.x.length).toBeGreaterThan(0)
@@ -58,11 +67,15 @@ test('an anchored layout states its reference axis and its rows', async () => {
   expect(d.rowLabels.label[0]).toMatch(/Reference/)
 })
 
-test('every drawn node is in the node table', async () => {
+test('every node of the node table is drawn or stood for by a tick, never both', async () => {
   const d = await gfaFigureData(read('ecoli_pggb_subgraph.gfa'), 'ecoli', {
     engine: 'stress',
   })
-  expect(new Set(d.nodes.node)).toEqual(new Set(d.nodeInfo.node))
+  const ticked = d.ticks.nodes.flatMap(nodes => nodes.split(','))
+  const drawn = new Set(d.nodes.node)
+  expect(ticked.length).toBeGreaterThan(0)
+  expect(ticked.filter(id => drawn.has(id))).toEqual([])
+  expect(new Set([...drawn, ...ticked])).toEqual(new Set(d.nodeInfo.node))
 })
 
 test('the node table counts how often the reference walks each node', async () => {
@@ -490,4 +503,72 @@ test("a gene's name is labelled with its leader to its pin, and the inks are the
   expect(d.meta.inks.ramp).toHaveLength(7)
   const exon = d.meta.graphKey.key.indexOf('exon')
   expect(d.meta.graphKey.color[exon]).toBe(EXON_COLOR)
+})
+
+// a 1 bp SNP taken by one of three walks and a 1 bp deletion taken by two,
+// each under a pixel at a 1200 px fit of a 2 kb reference
+test('the ticks table gives each tick its place, height, count of the shown walks and the nodes and links it stands for', () => {
+  const graph = loadGraph(
+    [
+      `S\tr1\t${'A'.repeat(1000)}`,
+      'S\tr2\tC',
+      `S\tr3\t${'A'.repeat(500)}`,
+      'S\tr4\tG',
+      `S\tr5\t${'A'.repeat(500)}`,
+      'S\ta1\tT',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr3\t+\tr4\t+\t0M',
+      'L\tr4\t+\tr5\t+\t0M',
+      'L\tr1\t+\ta1\t+\t0M',
+      'L\ta1\t+\tr3\t+\t0M',
+      'L\tr3\t+\tr5\t+\t0M',
+      'W\tref\t0\tchr\t0\t2002\t>r1>r2>r3>r4>r5',
+      'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r5',
+      'W\tw\t2\tchr\t0\t*\t>r1>r2>r3>r5',
+    ].join('\n'),
+    'ticks',
+  )
+  const at = (x0: number, x1: number, y = 0) => [
+    { x: x0, y },
+    { x: x1, y },
+  ]
+  const layout = {
+    nodePositions: {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1001),
+      'r3+': at(1001, 1501),
+      'r4+': at(1501, 1502),
+      'r5+': at(1502, 2002),
+      'a1+': at(1000, 1001, 20),
+    },
+  }
+  const d = figureData(graph, layout)
+  expect(lengths(d.ticks)).toEqual(new Set([2]))
+  const index = (from: string, to: string) =>
+    graph.edges.findIndex(e => e.from === from && e.to === to)
+  expect(d.ticks).toMatchObject({
+    panel: ['', ''],
+    tick: [0, 1],
+    x: [1000.5, 1501.5],
+    y: [0, 0],
+    nx: [0, 0],
+    ny: [-1, -1],
+    count: [1, 2],
+    total: [3, 3],
+    nodes: ['a1+', ''],
+    links: [
+      [index('r1+', 'a1+'), index('a1+', 'r3+')].join(','),
+      `${index('r3+', 'r5+')}`,
+    ],
+    color: [abgrHex(TICK_COLOR), abgrHex(TICK_COLOR)],
+  })
+  expect(d.ticks.height[0]).toBe(tickHeightPx(1, 3))
+  expect(d.ticks.height[1]).toBe(tickHeightPx(2, 3))
+  expect(d.ticks.offset.every(px => px > 0)).toBe(true)
+  expect(d.nodes.node).not.toContain('a1+')
+  expect(d.edges.edge).not.toContain(index('r3+', 'r5+'))
+  const off = figureData(graph, layout, { levelOfDetail: false })
+  expect(off.ticks.tick).toEqual([])
+  expect(off.nodes.node).toContain('a1+')
 })

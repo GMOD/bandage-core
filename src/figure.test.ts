@@ -422,3 +422,76 @@ test("a lifted walk's own copy of a gene is named with its haplotype, and a gene
     d.labels.text.filter((_, i) => d.labels.kind[i] === 'gene').sort(),
   ).toEqual(['OWNG · alt#1', 'REFG'])
 })
+
+// A 1 bp SNP, a 1 bp deletion and a 2 bp insertion beside a 300 bp allele, on
+// a straight reference at 1 bp a layout unit: at a 1200 px figure the three
+// small ones are under a pixel and the allele is over a hundred
+const SITES = [
+  `S\tr1\t${'A'.repeat(1000)}`,
+  'S\tr2\tC',
+  `S\tr3\t${'A'.repeat(500)}`,
+  'S\tr4\tG',
+  `S\tr5\t${'A'.repeat(498)}`,
+  `S\tr6\t${'A'.repeat(400)}`,
+  `S\tr7\t${'A'.repeat(300)}`,
+  'S\ta1\tT',
+  'S\ti1\tTT',
+  `S\tb1\t${'T'.repeat(300)}`,
+  'L\tr1\t+\tr2\t+\t0M',
+  'L\tr2\t+\tr3\t+\t0M',
+  'L\tr3\t+\tr4\t+\t0M',
+  'L\tr4\t+\tr5\t+\t0M',
+  'L\tr5\t+\tr6\t+\t0M',
+  'L\tr6\t+\tr7\t+\t0M',
+  'L\tr1\t+\ta1\t+\t0M',
+  'L\ta1\t+\tr3\t+\t0M',
+  'L\tr3\t+\tr5\t+\t0M',
+  'L\tr5\t+\ti1\t+\t0M',
+  'L\ti1\t+\tr6\t+\t0M',
+  'L\tr5\t+\tb1\t+\t0M',
+  'L\tb1\t+\tr7\t+\t0M',
+  'W\tref\t0\tchr\t0\t2700\t>r1>r2>r3>r4>r5>r6>r7',
+  'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r5>i1>r6>r7',
+  'W\tw\t2\tchr\t0\t*\t>r1>r2>r3>r5>b1>r7',
+].join('\n')
+
+const at = (x0: number, x1: number, y = 0) => [
+  { x: x0, y },
+  { x: x1, y },
+]
+
+const sites = anchorGraph(convertGFAToGraph(parseGFA(SITES)), 'ref')
+const sitesLayout = {
+  nodePositions: {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1001, 1501),
+    'r4+': at(1501, 1502),
+    'r5+': at(1502, 2000),
+    'r6+': at(2000, 2400),
+    'r7+': at(2400, 2700),
+    'a1+': at(1000, 1001, 20),
+    'i1+': at(2000, 2002, 20),
+    'b1+': at(2000, 2400, 40),
+  },
+}
+
+test.each([
+  ['bare', undefined, '__snapshots__/figure_lod_off.svg'],
+  [
+    'with two walks lifted',
+    [{ walk: 'w#1#chr' }, { walk: 'w#2#chr' }],
+    '__snapshots__/figure_lod_off_lifted.svg',
+  ],
+])(
+  'with level of detail off, a figure %s draws as it did before ticks',
+  async (_, lifted, file) => {
+    const svg = figureSvg(sites, sitesLayout, {
+      walks: lifted,
+      levelOfDetail: false,
+    })
+    await expect(
+      svg.replace(/bandage-core@[^&]+/, 'bandage-core@VERSION'),
+    ).toMatchFileSnapshot(file)
+  },
+)

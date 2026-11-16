@@ -18,11 +18,20 @@
 export function recordingCanvas() {
   const strokes: string[] = []
   const fills: string[] = []
+  // every stroke and fill in the order painted, with the points each traced
+  const paints: {
+    kind: 'stroke' | 'fill'
+    style: string
+    width: number
+    points: { x: number; y: number }[]
+  }[] = []
+  let traced: { x: number; y: number }[] = []
   const lineWidths: number[] = []
   const points: { x: number; y: number }[] = []
   let clears = 0
   const at = (x: number, y: number) => {
     points.push({ x, y })
+    traced.push({ x, y })
   }
   const ctx = {
     canvas: { width: 800, height: 600, style: {} },
@@ -31,7 +40,9 @@ export function recordingCanvas() {
     lineWidth: 0,
     lineCap: '',
     lineJoin: '',
-    beginPath: () => {},
+    beginPath: () => {
+      traced = []
+    },
     moveTo: at,
     lineTo: at,
     closePath: () => {},
@@ -54,9 +65,21 @@ export function recordingCanvas() {
     stroke: () => {
       strokes.push(ctx.strokeStyle)
       lineWidths.push(ctx.lineWidth)
+      paints.push({
+        kind: 'stroke',
+        style: ctx.strokeStyle,
+        width: ctx.lineWidth,
+        points: traced,
+      })
     },
     fill: () => {
       fills.push(ctx.fillStyle)
+      paints.push({
+        kind: 'fill',
+        style: ctx.fillStyle,
+        width: 0,
+        points: traced,
+      })
     },
   }
   // The element is real (jsdom gives a genuine HTMLCanvasElement); only the
@@ -69,6 +92,7 @@ export function recordingCanvas() {
     fills,
     lineWidths,
     points,
+    paints,
     clears: () => clears,
   }
 }

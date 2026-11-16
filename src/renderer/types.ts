@@ -68,6 +68,25 @@ export interface Arrowhead {
   halo?: boolean
 }
 
+// A site too small to draw at this scale, as a stroke off the reference at
+// (x, y), in layout units, along (nx, ny) on screen from `offset` to
+// `offset + height` css px
+export interface Tick {
+  x: number
+  y: number
+  nx: number
+  ny: number
+  offset: number
+  height: number
+  // half-width in css px
+  thickness: number
+  color: number
+  count: number
+  total: number
+  nodes: string[]
+  edges: number[]
+}
+
 // A contiguous run of one batch array.
 export interface Run {
   start: number
@@ -85,6 +104,13 @@ export interface RenderBatch {
   // graph edge index -> its run of `edgeCurves`, so a renderer can find the
   // strokes belonging to one edge without re-deriving the path fan-out
   edgeCurveRuns: Map<number, Run>
+  // painted last, over everything else
+  ticks?: Tick[]
+  // what the ticks stand for, drawn as nothing else
+  collapsed?: {
+    nodes: ReadonlySet<string>
+    edges: ReadonlySet<number>
+  }
 }
 
 export interface TransformUniform {

@@ -19,6 +19,8 @@ export interface FigureSettings extends Partial<EngineSettings> {
   connectorThickness?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
+  // a site too small to draw at the figure's scale drawn as a tick
+  levelOfDetail?: boolean
   // the interval the reference ramp spans where it is not the cut window
   colorDomain?: { start: number; end: number }
 }
@@ -33,6 +35,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   contigThickness: 6,
   connectorThickness: 2,
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
+  levelOfDetail: true,
 }
 
 // The pane a figure fits its drawing into, which its force layout is sized for

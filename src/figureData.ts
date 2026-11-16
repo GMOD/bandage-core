@@ -71,6 +71,7 @@ export type FigureDataOptions = Pick<
   | 'fitToDrawing'
   | 'genes'
   | 'nodeLengths'
+  | 'levelOfDetail'
 >
 
 type Columns<T> = { [K in keyof T]: T[K][] }
@@ -219,6 +220,27 @@ interface GraphKeyRow {
   dashed: boolean
   rim: string
   rimPx: number | null
+}
+
+// a tick standing for a site too small to draw at the figure's scale: from
+// `offset` px off (x, y) along (nx, ny) on screen to `offset + height`, with
+// `count` of `total` shown walks stepping the nodes and links it names
+interface TickRow {
+  panel: string
+  tick: number
+  x: number
+  y: number
+  nx: number
+  ny: number
+  offset: number
+  height: number
+  width: number
+  color: string
+  alpha: number
+  count: number
+  total: number
+  nodes: string
+  links: string
 }
 
 interface ArrowRow {
@@ -510,6 +532,24 @@ export function figureData(
     alpha: [],
   })
 
+  const ticks = columns<TickRow>({
+    panel: [],
+    tick: [],
+    x: [],
+    y: [],
+    nx: [],
+    ny: [],
+    offset: [],
+    height: [],
+    width: [],
+    color: [],
+    alpha: [],
+    count: [],
+    total: [],
+    nodes: [],
+    links: [],
+  })
+
   const batches: RenderBatch[] = []
   for (const { highlight, name: panel, firstKeyRow } of panels) {
     const batch = geometry(highlight, axis)
@@ -605,6 +645,25 @@ export function figureData(
           alpha: alphaOf(a.color),
         })
       }
+    })
+    batch.ticks?.forEach((t, tick) => {
+      ticks.push({
+        panel,
+        tick,
+        x: t.x,
+        y: t.y,
+        nx: t.nx,
+        ny: t.ny,
+        offset: t.offset,
+        height: t.height,
+        width: t.thickness * 2,
+        color: abgrHex(t.color),
+        alpha: alphaOf(t.color),
+        count: t.count,
+        total: t.total,
+        nodes: t.nodes.join(','),
+        links: t.edges.join(','),
+      })
     })
   }
 
@@ -821,6 +880,7 @@ export function figureData(
     nodes: nodes.out,
     edges: edges.out,
     arrows: arrows.out,
+    ticks: ticks.out,
     nodeInfo: {
       node: graph.nodes.map(n => n.id),
       name: graph.nodes.map(n => n.name),

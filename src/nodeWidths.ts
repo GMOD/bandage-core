@@ -50,7 +50,7 @@ export function meanDepth(graph: Graph) {
   return length > 0 ? weighted / length : 0
 }
 
-function haplotypeOf(path: GraphPath) {
+export function haplotypeOf(path: GraphPath) {
   return path.sample === undefined
     ? (panSNHaplotype(path.name) ?? path.name)
     : `${path.sample}#${path.haplotype ?? 0}`
