@@ -411,3 +411,18 @@ test("each pass's name stands beside a point of its own pass's thread, in its ow
     expect(under.map(s => s.walkPass)).toEqual([item.pass])
   }
 })
+
+test('a faceted figure names no pass and draws no bar, in figureSvg as in figureData', () => {
+  const walk = '>f1>a>b>c>d>a>b>c>d>a>b>c>d>f2'
+  const graph = graphOf(walk)
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const faceted = { width: 600, walks: byPass, facet: 'walk' as const }
+  const svg = figureSvg(graph, layout, faceted)
+  expect(svg).not.toContain('along its length')
+  expect(svg).not.toMatch(/>pass \d/)
+  const tables = figureData(graph, layout, { ...faceted, height: 300 })
+  expect(tables.nodes.walkPass.some(p => p !== null && p >= 0)).toBe(true)
+  expect(passLabelTexts(tables)).toEqual([])
+  expect(tables.passes.walk).toEqual([])
+  expect(tables.passRuns.walk).toEqual([])
+})

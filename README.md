@@ -200,7 +200,9 @@ it is on, so the trips round the repeat can be followed one by one.
   slot across its band; `visit`, which of the walk's visits to the node the
   thread draws; and `walkPass`, the walk's pass that visit is on. The `passes`
   table holds each pass with its bp above, `passRuns` the bar's stretches, and
-  `labels` rows of kind `pass` the names on the graph
+  `labels` rows of kind `pass` the names on the graph. A faceted figure keeps
+  each panel's threads but names no pass, draws no bar and gives no `passes`,
+  `passRuns` or pass `labels` rows
 
 ## Figures
 
