@@ -2,12 +2,6 @@ import { contrastRatio, mixAbgr, packAbgr } from './colorBits'
 
 import type { Arrowhead } from './types'
 
-// Heads along a lifted walk's lane, pointing the way the walk runs: where it
-// reads a node against the way the node is drawn, and along every thread of a
-// lane coloured by pass. A head is about as wide as its lane, never under
-// LANE_HEAD_MIN_PX, and at least LANE_HEAD_SPACING_PX from any head of its
-// lane; the threads side by side take turns, each keeping that spacing times
-// their count, up to LANE_HEAD_TURNS, from its own heads.
 export const LANE_HEADS_KEY = 'the way the walk runs'
 export const BACKWARDS_KEY = 'walk runs backwards along the node'
 
@@ -23,9 +17,8 @@ const WHITE = packAbgr(255, 255, 255, 255)
 const MIX_STEPS = 32
 const inks = new Map<number, number>()
 
-// A head inside its lane is black or white, whichever stands further from the
-// lane; one wider than its lane stands on a white halo, in the lane's colour
-// darkened the least that keeps HEAD_CONTRAST from white
+// Inside its lane a head is black or white, whichever contrasts more; wider,
+// it is the lane's colour darkened the least that keeps HEAD_CONTRAST with white
 export function laneHeadInk(ink: number, inside: boolean) {
   const key = ink * 2 + (inside ? 1 : 0)
   let head = inks.get(key)
@@ -49,8 +42,6 @@ interface Spot {
 
 const NO_SPOTS: readonly Spot[] = []
 
-// Points on a grid of square cells `size` px wide, to find any nearer a point
-// than a reach of at most `size` by the cells around it
 function grid(size: number) {
   const columns = new Map<number, Map<number, Spot[]>>()
   return {
@@ -87,21 +78,17 @@ function grid(size: number) {
 }
 
 export interface LaneHeadStroke {
-  // the stroke's points in layout units, in the order the node is drawn
+  // layout units
   points: readonly Spot[]
   halfWidth: number
   color: number
   walk: number
   thread: number
-  // the lane's threads at the node
   threads: number
   node: string
-  // the walk reads the node against the order of its points
   against: boolean
 }
 
-// `scale` and `yToX` take layout units to screen px, as the geometry builder
-// states them
 export function laneHeadPlacer(scale: number, yToX: number) {
   const lanes = new Map<number, ReturnType<typeof grid>>()
   const threadGrids = new Map<number, Map<number, ReturnType<typeof grid>>>()

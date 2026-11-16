@@ -5,50 +5,29 @@ import { passPalette } from './walkEncoding'
 import type { PassSpan } from './walkEncoding'
 import type { RouteStep, WalkHighlight } from './walkHighlight'
 
-// A walk's passes through the nodes it steps more than once, read off the walk
-// alone. The first pass starts at the first node the walk steps again later; a
-// new pass starts wherever the walk re-enters a node it has stepped during the
-// pass it is on; a pass ends at its last step on a node the walk steps more
-// than once. Only a step on such a node is on a pass:
-// a node the walk steps once is on none, on a flank, between two passes or
-// inside one.
-//
-// The walk does not say where a unit of a repeat starts, so a copy missing its
-// first nodes shifts the boundaries after it (walkPasses.test.ts pins this).
 export interface WalkPass {
   // bp from the walk's first base
   start: number
   end: number
   steps: number
-  // bp of its steps on nodes the walk steps more than once
   repeatBp: number
-  // of those, bp on nodes an earlier step of the walk read, and bp of that
-  // read on the other strand than the walk first read it
   againBp: number
+  // against the walk's first read of each node
   reversedBp: number
-  // most of what it reads again it reads on the other strand
   reversed: boolean
 }
 
 export interface WalkPasses {
   passes: WalkPass[]
-  // beside each step of the route: the pass whose stretch holds it, and the
-  // pass it is on, -1 for none
+  // -1 for none
   withinPass: readonly Int32Array[]
   stepPass: readonly Int32Array[]
-  // each node's pass at every visit, in walk order, -1 for none
   visitPass: Map<string, number[]>
-  // stretches of consecutive steps on one pass, in bp from the walk's first
-  // base
   runs: { pass: number; start: number; end: number }[]
-  // more passes than take a thread and a colour each
   bundled: boolean
-  // the passes were stated for a walk that steps no node twice here
   stated: boolean
 }
 
-// The most passes that each take a thread, a colour and a label of their own;
-// a walk with more draws them in one colour under one count
 export const MOST_PASS_THREADS = 6
 
 type Stepped = Pick<WalkHighlight, 'routeSteps' | 'passes'>
@@ -148,9 +127,7 @@ export function passesOf(walk: Stepped, lengthOf: (id: string) => number) {
   return assemble(placed, lengthOf, pass + 1, again, false)
 }
 
-// Passes a host states in the walk's own bp, as another graph of the same
-// haplotype that folds its copies gives them: each step takes the span its
-// middle falls in
+// each step takes the stated span its middle falls in
 export function statedPasses(
   walk: Stepped,
   lengthOf: (id: string) => number,
@@ -168,8 +145,6 @@ export function statedPasses(
   return assemble(placed, lengthOf, spans.length, () => true, true)
 }
 
-// The passes a lifted walk draws: detected where the walk steps a node again,
-// else the ones its layer states
 export function walkPassesOf(
   walk: Stepped,
   lengthOf: (id: string) => number,
@@ -181,9 +156,6 @@ export function walkPassesOf(
     : found
 }
 
-// A lifted walk's pass as it is drawn: its name on the graph, its title in
-// the key and along the bar, which adds the bp it steps again, and its ink;
-// bundled passes share one of each
 export interface LiftedPass extends WalkPass {
   label: string
   title: string
@@ -195,8 +167,6 @@ export interface LiftedPasses extends Omit<WalkPasses, 'passes'> {
   ownInk: number
 }
 
-// `lanes` are the other lifted walks' lane colours and `taken` the pass
-// colours of the walks lifted before this one, as hex
 export function liftedPasses(
   found: WalkPasses,
   ownInk: number,
@@ -227,6 +197,5 @@ export function liftedPasses(
   }
 }
 
-// The ink of a visit on pass `pass`, -1 for none
 export const passInk = (drawn: LiftedPasses, pass: number) =>
   drawn.passes[pass]?.ink ?? drawn.ownInk

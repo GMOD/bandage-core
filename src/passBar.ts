@@ -5,14 +5,8 @@ import { passInk } from './walkPasses'
 
 import type { WalkLift } from './walkHighlight'
 
-// A lifted walk along its own length, beside the drawing: in its own colour,
-// each stretch it steps on a node it steps again in the colour of the pass
-// it is on, and over the bar a line over each such stretch of a pass, a dotted
-// hairline joining them and the pass's name over its longest. Only a walk
-// coloured by pass that has passes has one.
 export interface PassBar {
   walk: string
-  // bp from the walk's first base to its last
   bp: number
   ownInk: number
   runs: { pass: number; start: number; end: number; ink: number }[]
@@ -77,7 +71,6 @@ const niceStep = (span: number, most: number) => {
   return [1, 2, 5, 10].map(m => m * power).find(s => s >= raw) ?? raw
 }
 
-// The bar `width` px wide; stretches nearer than a px draw as one
 export function passBarTree(bar: PassBar, label: string, width: number) {
   const room = width - 2 * SIDE_PX
   const x = (bp: number) => SIDE_PX + (bar.bp > 0 ? (bp / bar.bp) * room : 0)

@@ -13,8 +13,6 @@ export const THREAD_TAPER_PX = 24
 export const MAX_BAND_PX = 48
 export const PASSES_KEY = 'a thread per pass through a node'
 
-// Walks lifted together draw a thread per pass through a node, and so does a
-// walk lifted alone and coloured by pass
 export const threadsPasses = (
   walks: readonly { mostPasses: number; encoding?: { field: string } }[],
 ) =>
@@ -56,8 +54,6 @@ function slotLayout(
 
 export const THREAD_PITCH_PX = THREAD_PX + THREAD_GAP_PX
 
-// A bundled walk's threads thinned under this far apart fuse into one band,
-// each as wide as its pitch and a seam more, so no gap shows between them
 export const MIN_THREAD_PITCH_PX = 2
 const FUSED_SEAM_PX = 0.5
 

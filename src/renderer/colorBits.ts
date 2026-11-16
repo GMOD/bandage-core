@@ -87,7 +87,6 @@ export function contrastRatio(a: number, b: number) {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
 }
 
-// `c` moved a fraction `t` of the way to `to`, opaque
 export function mixAbgr(c: number, to: number, t: number) {
   const mix = (a: number, b: number) => Math.round(a + (b - a) * t)
   return packAbgr(

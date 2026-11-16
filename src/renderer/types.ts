@@ -13,10 +13,8 @@ export interface EdgeCurveBatch {
   thickness: number
   color: number
   walk?: number
-  // the thread's slot across its walk's band at the node it leaves
+  // a slot across the band, at the node it leaves
   pass?: number
-  // the walk's visit to that node, and the walk's pass it is on, -1 for none,
-  // where the walk is coloured by pass
   visit?: number
   walkPass?: number
   normal?: LaneSlide['normal']
@@ -42,10 +40,8 @@ export interface NodeStroke {
   thickness: number
   color: number
   walk?: number
-  // the thread's slot across its walk's band
+  // a slot across the band
   pass?: number
-  // the walk's visit to the node, and the walk's pass it is on, -1 for none,
-  // where the walk is coloured by pass
   visit?: number
   walkPass?: number
   normals?: { nx: number; ny: number }[]
@@ -57,8 +53,7 @@ export interface NodeStroke {
 
 // One head per edge: its tip at (x, y) in layout units and its screen angle,
 // with the size in css px applied after the transform, so a head is the same
-// size at every zoom. A head on a lifted walk's lane names its walk and node,
-// and whether the walk reads the node against the way it is drawn.
+// size at every zoom.
 export interface Arrowhead {
   x: number
   y: number
@@ -70,7 +65,6 @@ export interface Arrowhead {
   pass?: number
   node?: string
   against?: boolean
-  // drawn on a white halo, LANE_HEAD_HALO_PX wide, beneath every head
   halo?: boolean
 }
 

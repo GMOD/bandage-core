@@ -84,12 +84,7 @@ interface NodeRow {
   alpha: number
   width: number
   walk: number | null
-  // three numbers on a lifted walk's stroke: `pass` is the thread's slot
-  // across its walk's band at the node, 0 nearest one side; `visit` is which
-  // of the walk's visits to the node the thread draws, 0 for the first;
-  // `walkPass` is the walk's pass that visit is on, -1 for none, under the
-  // pass colouring. A slot is not a visit: the band orders its threads to
-  // keep them from crossing
+  // pass is a slot across the band, not a visit; walkPass -1 for none
   pass: number | null
   walkPass: number | null
   visit: number | null
@@ -115,7 +110,7 @@ interface EdgeRow {
   width: number
   deletion: boolean
   walk: number | null
-  // as on a node's row, at the node the link leaves
+  // at the node the link leaves
   pass: number | null
   walkPass: number | null
   visit: number | null
@@ -184,16 +179,11 @@ interface LabelRow {
   color: string
 }
 
-// a lifted walk's pass along its own length, in bp from its first base, with
-// what figureSvg's bar names it
 interface PassRow {
   walk: string
   pass: number
   start: number
   end: number
-  // bp of the pass on nodes the walk steps more than once; of those, bp on
-  // nodes the walk read before, and bp of that read on the other strand than
-  // the walk first read the node; reversed where that is most of it
   repeatBp: number
   againBp: number
   reversedBp: number
@@ -202,7 +192,6 @@ interface PassRow {
   reversed: boolean
 }
 
-// a stretch of a lifted walk on a pass, which figureSvg's bar colours
 interface PassRunRow {
   walk: string
   pass: number
@@ -229,8 +218,6 @@ interface GraphKeyRow {
   rimPx: number | null
 }
 
-// a link's head, or a head along a lifted walk's lane at a node, pointing
-// back along it where `against`
 interface ArrowRow {
   panel: string
   edge: number | null

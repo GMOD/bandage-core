@@ -875,14 +875,12 @@ function pathSlotsOf(graph: Graph): ReadonlyMap<string, number[]> {
 
 const lanesCache = weakMemo<WalkLift, ReturnType<typeof liftLanes>>()
 const stepsCache = weakMemo<WalkLift, ReturnType<typeof walkSteps>>()
-// A lift's heads, placed once over its whole length so a view shows the same
-// heads wherever it is panned, and the lane strokes they were placed on
+// placed over the whole walk, so a pan never moves a head
 const walkWideCache = weakMemo<
   WalkLift,
   { heads: Arrowhead[]; strokes: Map<string, NodeStroke[]> }
 >()
 
-// A head's tip within the bounds grown by its length
 const headInBounds = (
   head: Arrowhead,
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
@@ -1043,7 +1041,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     threaded
       ? threadHalfWidthPx(thinned, !!liftedWalks[lane]?.walkPasses?.bundled)
       : laneWidth / 2
-  // the walk's visit a thread carries, and the walk's pass it is on
   const passMark = (lane: number, nodeId: string, thread: number) => {
     const visit = visitOf(lane, nodeId, thread)
     const pass = liftedWalks[lane]?.walkPasses?.visitPass.get(nodeId)?.[visit]

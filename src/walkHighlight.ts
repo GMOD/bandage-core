@@ -41,13 +41,9 @@ export interface WalkHighlight {
   // the same fraction at every visit, in the order the walk makes them
   passProgress: Map<string, number[]>
   passes: Map<string, number>
-  // whether the walk reads the node against the way it is drawn, at every
-  // visit
   backwards: Map<string, boolean[]>
   mostPasses: number
   route: readonly (readonly string[])[]
-  // each step of the route with the strand it reads its node on and the bp of
-  // the walk before it
   routeSteps: readonly (readonly RouteStep[])[]
   steps: number
   bp: number
@@ -72,7 +68,6 @@ export interface WalkHighlight {
 
 export interface LiftedWalk extends WalkHighlight {
   encoding: WalkEncoding
-  // the walk's passes, where its lane is coloured by them
   walkPasses?: LiftedPasses
   // the lane colour at each node the walk visits
   colors: Map<string, number>

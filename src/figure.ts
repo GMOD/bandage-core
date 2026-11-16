@@ -150,8 +150,6 @@ const swatchPx = (swatch: GraphKeySwatch | undefined) =>
       ? BAR_PX
       : SWATCH_PX
 
-// Heads along a lane, as the drawing gives them: inside a lane as wide as a
-// head, or on a halo along a thread
 function headsSwatchSvg(ink: number, haloed: boolean) {
   const width = haloed ? LANE_HEAD_MIN_PX : SWATCH_LANE_PX
   const length = width * LANE_HEAD_LENGTH

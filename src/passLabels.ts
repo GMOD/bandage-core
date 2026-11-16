@@ -4,15 +4,12 @@ import type { LabelCandidate } from './overlayLabels'
 import type { RenderBatch } from './renderer/types'
 import type { WalkLift } from './walkHighlight'
 
-// A walk's passes named on the graph: each beside a point of its thread, or a
-// bundle's count beside its band, placed through layoutLabels so a name never
-// lands on another label
 export interface PassLabelItem {
   walk: string
   // the pass, -1 for a bundle's count
   pass: number
   ink: number
-  // the point of the thread it names, in screen px
+  // screen px
   at: { x: number; y: number }
 }
 
@@ -31,9 +28,8 @@ const gap = (a: { x: number; y: number }, b: { x: number; y: number }) =>
 const median = (values: number[]) =>
   values.toSorted((a, b) => a - b)[values.length >> 1] ?? 0
 
-// Each label beside the middle of one stroke of its pass: the first furthest
-// from the middle of the drawing, each later one furthest from those taken,
-// so names of threads that run side by side land apart
+// each name beside the stroke of its pass furthest from the names placed
+// before it, the first furthest from the drawing's middle
 export function passLabelCandidates(
   batch: Pick<RenderBatch, 'nodeStrokes'>,
   lift: WalkLift | undefined,
@@ -124,7 +120,6 @@ export function passLabelCandidates(
   return candidates
 }
 
-// The line from a pass's name to the point of the thread it names
 export function passLeader(
   label: { x: number; y: number },
   at: { x: number; y: number },

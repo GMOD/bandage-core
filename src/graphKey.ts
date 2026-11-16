@@ -68,8 +68,7 @@ export type GraphKeySwatch =
   | { kind: 'halo'; ink: number }
   // a lane's threads side by side, one per pass through a node
   | { kind: 'threads'; ink: number }
-  // a lane with heads along it pointing the way its walk runs, wider than a
-  // thread on a halo where `haloed`
+  // heads along a lane
   | { kind: 'heads'; ink: number; haloed: boolean }
   // the reference strip's tab past its edge
   | { kind: 'overhang' }
@@ -363,8 +362,6 @@ export function graphKey(
       : []
   const domain = o.lift?.referenceDomain
   const walkReference = domain && { ...domain, name: reference }
-  // a walk coloured by pass keys each pass it draws in its colour, or the
-  // count its bundle draws in one
   const passEntries = (walk: LiftedWalk, lane: number) => {
     const drawn = walk.walkPasses
     const shown = o.marks.passes.get(lane)

@@ -60,7 +60,7 @@ export interface WalkEncoding {
   stretch?: readonly [number, number]
 }
 
-// A stretch of a walk stated as one pass, in bp from the walk's first base
+// bp from the walk's first base
 export interface PassSpan {
   start: number
   end: number
@@ -69,10 +69,8 @@ export interface PassSpan {
 export interface WalkLayer {
   walk: string
   color?: Partial<WalkEncoding>
-  // passes for a walk that steps no node twice in this graph, as a graph
-  // that folds its copies gives them; they never move passes the walk shows
+  // for a walk that steps no node twice here
   passes?: readonly PassSpan[]
-  // in place of `pass 1`, `pass 2`
   passNames?: readonly string[]
 }
 
@@ -107,7 +105,6 @@ export function resolveEncoding(
       : { field, scheme, darkest: TOGETHER_DARKEST }
 }
 
-// A lane coloured by pass takes its walk's one colour off its passes
 const flatField = (field: WalkField) => field === 'walk' || field === 'pass'
 
 export const TOGETHER_DARKEST = 0.55
@@ -279,8 +276,7 @@ export function encodingSwatchCss(encoding: WalkEncoding) {
     : `linear-gradient(to right, ${stops.map(s => `${s.color} ${s.offset * 100}%`).join(', ')})`
 }
 
-// Colours a pass may take, in the order passes take them: Okabe and Ito's,
-// then Tol's
+// Okabe and Ito's, then Tol's
 export const PASS_HUES = [
   '#D55E00',
   '#0072B2',
@@ -324,9 +320,7 @@ export const PASS_HUES = [
   '#004488',
 ]
 
-// How far apart in OKLab a pass's colour stands from every lifted walk's lane
-// colours, a ramp's at each of its stops, and from every pass colour taken
-// before it, its own walk's or an earlier walk's
+// OKLab distances from every lane colour and from every pass colour taken
 export const PASS_FROM_WALK = 0.17
 export const PASS_FROM_PASS = 0.18
 
@@ -339,9 +333,6 @@ export const oklabGap = (a: string, b: string) => {
 const nearestGap = (hue: string, colours: readonly string[]) =>
   colours.reduce((least, c) => Math.min(least, oklabGap(hue, c)), Infinity)
 
-// The colours of a walk's passes, `count` of them: each the first hue in
-// PASS_HUES that keeps both distances, or where none does the hue that breaks
-// them least
 export function passPalette(
   own: string,
   count: number,
