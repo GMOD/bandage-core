@@ -454,6 +454,16 @@ export interface ReferencePiece {
   x1: number
 }
 
+interface ReferenceEnd {
+  bp: number
+  x: number
+}
+
+export interface ReferenceProfile {
+  pieces: ReferencePiece[]
+  ends: ReferenceEnd[]
+}
+
 export function referenceProfile(
   graph: Graph,
   positions: Readonly<Record<string, readonly NodeSegment[]>>,
@@ -488,32 +498,21 @@ export function referenceProfile(
       }
     }
   }
-  return pieces.sort((p, q) => p.bp0 - q.bp0)
+  pieces.sort((p, q) => p.bp0 - q.bp0)
+  return {
+    pieces,
+    ends: pieces
+      .flatMap(p => [
+        { bp: p.bp0, x: p.x0 },
+        { bp: p.bp1, x: p.x1 },
+      ])
+      .sort((p, q) => p.bp - q.bp),
+  }
 }
 
 const xOn = (piece: ReferencePiece, bp: number) =>
   piece.x0 +
   ((piece.x1 - piece.x0) * (bp - piece.bp0)) / (piece.bp1 - piece.bp0)
-
-function pieceAcross(pieces: readonly ReferencePiece[], bp: number) {
-  let lo = 0
-  let hi = pieces.length
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if ((pieces[mid]?.bp0 ?? Infinity) < bp) {
-      lo = mid + 1
-    } else {
-      hi = mid
-    }
-  }
-  const piece = pieces[lo - 1]
-  return piece && piece.bp1 > bp ? piece : undefined
-}
-
-interface ReferenceEnd {
-  bp: number
-  x: number
-}
 
 function slidingExtreme(keep: (kept: number, x: number) => boolean) {
   const ends: ReferenceEnd[] = []
@@ -534,32 +533,58 @@ function slidingExtreme(keep: (kept: number, x: number) => boolean) {
   }
 }
 
-function widestStretch(
-  pieces: readonly ReferencePiece[],
+function pieceCursor(pieces: readonly ReferencePiece[]) {
+  let at = 0
+  return (bp: number) => {
+    while ((pieces[at]?.bp1 ?? Infinity) <= bp) {
+      at++
+    }
+    const piece = pieces[at]
+    return piece && piece.bp0 < bp ? xOn(piece, bp) : undefined
+  }
+}
+
+function windowStarts(
+  ends: readonly ReferenceEnd[],
   from: number,
   to: number,
   reach: number,
 ) {
-  const ends = pieces
-    .flatMap(p => [
-      { bp: p.bp0, x: p.x0 },
-      { bp: p.bp1, x: p.x1 },
-    ])
-    .sort((p, q) => p.bp - q.bp)
-  const starts = [
-    ...new Set(
-      [from, to]
-        .concat(
-          pieces.flatMap(p => [p.bp0, p.bp1, p.bp0 - reach, p.bp1 - reach]),
-        )
-        .filter(a => a >= from && a <= to),
-    ),
-  ].sort((p, q) => p - q)
+  const starts = [from]
+  let i = 0
+  let j = 0
+  while (i < ends.length || j < ends.length) {
+    const entering = (ends[i]?.bp ?? Infinity) - reach
+    const leaving = ends[j]?.bp ?? Infinity
+    const a = Math.min(entering, leaving)
+    if (entering <= leaving) {
+      i++
+    } else {
+      j++
+    }
+    if (a > (starts.at(-1) ?? from) && a < to) {
+      starts.push(a)
+    }
+  }
+  if (to > from) {
+    starts.push(to)
+  }
+  return starts
+}
+
+function widestStretch(
+  { pieces, ends }: ReferenceProfile,
+  from: number,
+  to: number,
+  reach: number,
+) {
   const high = slidingExtreme((kept, x) => kept <= x)
   const low = slidingExtreme((kept, x) => kept >= x)
+  const atStart = pieceCursor(pieces)
+  const atEnd = pieceCursor(pieces)
   let added = 0
   let widest = 0
-  for (const a of starts) {
+  for (const a of windowStarts(ends, from, to, reach)) {
     const b = a + reach
     for (let end = ends[added]; end && end.bp <= b; end = ends[++added]) {
       high.add(end)
@@ -567,14 +592,7 @@ function widestStretch(
     }
     let x0 = Infinity
     let x1 = -Infinity
-    for (const x of [
-      high.from(a),
-      low.from(a),
-      ...[a, b].map(bp => {
-        const piece = pieceAcross(pieces, bp)
-        return piece && xOn(piece, bp)
-      }),
-    ]) {
+    for (const x of [high.from(a), low.from(a), atStart(a), atEnd(b)]) {
       if (x !== undefined) {
         x0 = Math.min(x0, x)
         x1 = Math.max(x1, x)
@@ -586,7 +604,7 @@ function widestStretch(
 }
 
 export function cutScale(
-  pieces: readonly ReferencePiece[],
+  profile: ReferenceProfile,
   cut: { start: number; end: number },
   viewSpan: number,
   bounds: { h: number },
@@ -603,7 +621,7 @@ export function cutScale(
   const usableHeight = paneHeight - padTop - padBottom
   const reach = Math.min(viewSpan, cut.end - cut.start)
   const widest = widestStretch(
-    pieces,
+    profile,
     cut.start,
     Math.max(cut.start, cut.end - reach),
     reach,
@@ -619,7 +637,7 @@ export function cutScale(
 }
 
 export function followTransform(
-  pieces: readonly ReferencePiece[],
+  { pieces }: ReferenceProfile,
   window: { start: number; end: number },
   scale: number,
   bounds: { minY: number; h: number },

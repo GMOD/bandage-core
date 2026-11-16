@@ -24,6 +24,7 @@ export type {
   EngineSettings,
   LayoutEngine,
   ReferencePiece,
+  ReferenceProfile,
 } from './pipeline'
 export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
 export { createForceLayoutCache } from './layout/forceCache'

@@ -1,6 +1,6 @@
 import { cutScale, followTransform, referenceProfile } from './pipeline'
 
-import type { ReferencePiece } from './pipeline'
+import type { ReferenceProfile } from './pipeline'
 import type { Graph, GraphNode, NodeSegment } from './types'
 
 const node = (id: string, start: number, length: number, rank = 0) =>
@@ -58,28 +58,26 @@ function defined<T>(value: T | undefined) {
 }
 
 const scaleOf = (
-  pieces: readonly ReferencePiece[],
+  shown: ReferenceProfile,
   cut: { start: number; end: number },
   viewSpan: number,
   bounds = flat,
 ) =>
-  defined(
-    cutScale(pieces, cut, viewSpan, bounds, PANE.width, PANE.height, PADS),
-  )
+  defined(cutScale(shown, cut, viewSpan, bounds, PANE.width, PANE.height, PADS))
 
 const placed = (
   window: { start: number; end: number },
   scale: number,
-  pieces = profile,
+  shown = profile,
 ) =>
   defined(
-    followTransform(pieces, window, scale, flat, PANE.width, PANE.height, PADS),
+    followTransform(shown, window, scale, flat, PANE.width, PANE.height, PADS),
   )
 
 const xAtBp = (bp: number) => (bp - 1_000) / 10
 
 test('the profile is the reference drawn piece by piece in bp order, whichever strand a node reads', () => {
-  expect(profile).toEqual([
+  expect(profile.pieces).toEqual([
     { bp0: 1_000, bp1: 2_000, x0: 0, x1: 100 },
     { bp0: 2_000, bp1: 3_000, x0: 100, x1: 200 },
     { bp0: 3_000, bp1: 4_000, x0: 200, x1: 300 },
@@ -112,13 +110,13 @@ const windingProfile = referenceProfile(
 )
 
 function bruteWidest(
-  pieces: readonly ReferencePiece[],
+  shown: ReferenceProfile,
   from: number,
   to: number,
   reach: number,
 ) {
   const x = (bp: number) => {
-    const p = pieces.find(q => q.bp0 <= bp && bp <= q.bp1)
+    const p = shown.pieces.find(q => q.bp0 <= bp && bp <= q.bp1)
     return p ? p.x0 + ((p.x1 - p.x0) * (bp - p.bp0)) / (p.bp1 - p.bp0) : NaN
   }
   let widest = 0
@@ -144,6 +142,25 @@ test("a cut's scale is the widest stretch over every window it holds, not a samp
     expect(USABLE / scale).toBeGreaterThanOrEqual(
       bruteWidest(windingProfile, 0, 10_000 - reach, reach) - 1e-9,
     )
+  }
+})
+
+test("a cut's scale falls continuously as the view widens, so a zoom inside the cut magnifies as a camera does", () => {
+  const cut = { start: 0, end: 10_000 }
+  let before = scaleOf(windingProfile, cut, 2_000)
+  for (let span = 2_010; span <= 6_000; span += 10) {
+    const scale = scaleOf(windingProfile, cut, span)
+    expect(scale).toBeLessThanOrEqual(before)
+    expect(before / scale).toBeLessThan(1 + 0.01)
+    before = scale
+  }
+})
+
+test('the scale at any width is the widest stretch over every window that wide', () => {
+  for (const span of [2_500, 3_500, 5_000, 6_000]) {
+    expect(
+      USABLE / scaleOf(windingProfile, { start: 0, end: 10_000 }, span),
+    ).toBeCloseTo(bruteWidest(windingProfile, 0, 10_000 - span, span), 0)
   }
 })
 
@@ -178,7 +195,9 @@ test("a window's stretch is kept inside the pane where the least-squares place w
     let x0 = Infinity
     let x1 = -Infinity
     for (let bp = start; bp <= start + 4_000; bp += 5) {
-      const p = defined(windingProfile.find(q => q.bp0 <= bp && bp <= q.bp1))
+      const p = defined(
+        windingProfile.pieces.find(q => q.bp0 <= bp && bp <= q.bp1),
+      )
       const x = p.x0 + ((p.x1 - p.x0) * (bp - p.bp0)) / (p.bp1 - p.bp0)
       x0 = Math.min(x0, x)
       x1 = Math.max(x1, x)
@@ -215,6 +234,14 @@ test('no reference in the window, or no room, places nothing', () => {
     cutScale(profile, { start: 1_000, end: 4_000 }, 1_000, flat, 70, 300, PADS),
   ).toBeUndefined()
   expect(
-    cutScale([], { start: 1_000, end: 4_000 }, 1_000, flat, 1000, 300, PADS),
+    cutScale(
+      { pieces: [], ends: [] },
+      { start: 1_000, end: 4_000 },
+      1_000,
+      flat,
+      1000,
+      300,
+      PADS,
+    ),
   ).toBeUndefined()
 })

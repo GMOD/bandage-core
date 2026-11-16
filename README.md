@@ -141,16 +141,17 @@ reads them.
   holds one cut while its view pans across it, places the drawing with
   `cutScale` and `followTransform` rather than `fitTransform`.
   `referenceProfile` reads the reference as the layout drew it, piece by piece
-  in bp order. `cutScale` is the cut's one scale: the widest stretch of the
-  reference that any window of the view's width inside the cut takes in spans
-  the pane, capped so the whole cut is no taller than the pane. It reads only
-  the cut, its layout, the view's width and the pane, so every window the cut
-  holds is drawn at that scale. `followTransform` then only translates: the
-  reference in the window lies where the window puts its bp across the pane, as
-  nearly as a rigid drawing can in the least-squares sense over the bp the
-  window holds, moved no further than keeps the window's stretch inside the
-  pane. A pan is a pure slide, a window is drawn no wider than the pane, and one
-  narrower than the cut's widest is drawn narrower
+  in bp order. `cutScale` is the cut's scale at the view's width: the widest
+  stretch of the reference that any window that wide inside the cut takes in
+  spans the pane, capped so the whole cut is no taller than the pane. It reads
+  the cut, its layout, the view's width and the pane, never where the view is,
+  so at one width every window the cut holds is drawn at one scale, and a zoom
+  changes it smoothly. `followTransform` then only translates: the reference in
+  the window lies where the window puts its bp across the pane, as nearly as a
+  rigid drawing can in the least-squares sense over the bp the window holds,
+  moved no further than keeps the window's stretch inside the pane. A pan is a
+  pure slide, a zoom magnifies about the window's reference, and a window is
+  drawn no wider than the pane
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths
