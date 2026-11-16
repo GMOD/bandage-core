@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 
-import { cutScale, followTransform, referenceProfile } from './pipeline'
+import {
+  cutScale,
+  drawingBounds,
+  followTransform,
+  referenceProfile,
+  shownBounds,
+} from './pipeline'
 
 import type { ReferenceProfile } from './pipeline'
 import type { Graph, GraphNode, NodeSegment } from './types'
@@ -385,3 +391,76 @@ test.each([
     expect(steps).toBeGreaterThan(300)
   },
 )
+
+// a reference of four nodes along y 0, a loop 900 units tall off where the
+// cut's start runs through the second node, and a bump 40 units deep between
+// the third and fourth
+const hung: Graph = {
+  name: 'hung',
+  nodes: [
+    node('z+', 0, 1_000),
+    node('a+', 1_000, 1_000),
+    node('b+', 2_000, 1_000),
+    node('c+', 3_000, 1_000),
+    node('loop+', 0, 5_000, 1),
+    node('bump+', 0, 300, 1),
+  ],
+  edges: [
+    { from: 'z+', to: 'a+' },
+    { from: 'a+', to: 'b+' },
+    { from: 'b+', to: 'c+' },
+    { from: 'z+', to: 'loop+' },
+    { from: 'loop+', to: 'a+' },
+    { from: 'b+', to: 'bump+' },
+    { from: 'bump+', to: 'c+' },
+  ],
+}
+const hungLayout = {
+  nodePositions: {
+    'z+': [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ],
+    'a+': [
+      { x: 100, y: 0 },
+      { x: 200, y: 0 },
+    ],
+    'b+': [
+      { x: 200, y: 0 },
+      { x: 300, y: 0 },
+    ],
+    'c+': [
+      { x: 300, y: 0 },
+      { x: 400, y: 0 },
+    ],
+    'loop+': [
+      { x: 100, y: 0 },
+      { x: 60, y: -900 },
+      { x: 100, y: 0 },
+    ],
+    'bump+': [
+      { x: 300, y: 0 },
+      { x: 300, y: 40 },
+      { x: 300, y: 0 },
+    ],
+  },
+}
+
+test("a held cut's height is what its windows show, so a loop hanging from where the cut's edge runs through a reference node does not shrink the drawing, and one inside the cut still caps it", () => {
+  const cut = { start: 1_500, end: 4_000 }
+  const shown = defined(shownBounds(hung, hungLayout, cut))
+  expect(shown).toEqual({ minY: 0, h: 40 })
+  expect(drawingBounds(hungLayout)).toMatchObject({ minY: -900, h: 940 })
+  const hungProfile = referenceProfile(hung, hungLayout.nodePositions)
+  const usableHeight = PANE.height - PADS.padTop - PADS.padBottom
+  expect(scaleOf(hungProfile, cut, 1_000, shown)).toBeCloseTo(
+    usableHeight / 40,
+  )
+  expect(scaleOf(hungProfile, cut, 1_000, drawingBounds(hungLayout))).toBeCloseTo(
+    usableHeight / 940,
+  )
+  expect(shownBounds(hung, hungLayout, { start: 0, end: 4_000 })).toEqual({
+    minY: -900,
+    h: 940,
+  })
+})

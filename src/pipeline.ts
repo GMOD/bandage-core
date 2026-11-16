@@ -24,6 +24,7 @@ import { clearOfReference } from './layout/referenceClearance'
 import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
+import { buildNeighbors, nodeReferenceSpan } from './referenceSpan'
 import { MAX_BAND_PX } from './renderer/walkLanes'
 import { canonicalEdgeOrder, canonicalNodeOrder } from './util/canonicalOrder'
 import { ownStrand } from './util/geometry'
@@ -35,6 +36,7 @@ import type { LayoutScaling } from './layout/drawnScale'
 import type { FitSize } from './layout/fitAssumptions'
 import type { LayoutNode } from './layout/referenceSeeds'
 import type { LayoutEngineKind } from './layoutEngines'
+import type { ReferenceSpan } from './referenceSpan'
 import type { Graph, LayoutResult, NodeSegment } from './types'
 
 // The graph a view draws, from GFA text to layouts, with no host in it: the
@@ -601,6 +603,65 @@ function widestStretch(
     widest = Math.max(widest, x1 - x0)
   }
   return widest
+}
+
+// Where on the reference each node lies: its own bp on the reference, the
+// flanks an allele hangs between, and for a chain too long for the flank
+// search the span of the nearest node placed
+function locatedSpans(graph: Graph) {
+  const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
+  const neighbors = buildNeighbors(graph)
+  const spans = new Map<string, ReferenceSpan>()
+  for (const node of graph.nodes) {
+    const span = nodeReferenceSpan({ nodeId: node.id, nodeById, neighbors })
+    if (span) {
+      spans.set(node.id, span)
+    }
+  }
+  let frontier = [...spans.keys()]
+  while (frontier.length > 0) {
+    const next: string[] = []
+    for (const id of frontier) {
+      const span = spans.get(id)
+      for (const neighborId of neighbors.get(id) ?? []) {
+        if (span && !spans.has(neighborId)) {
+          spans.set(neighborId, span)
+          next.push(neighborId)
+        }
+      }
+    }
+    frontier = next
+  }
+  return spans
+}
+
+// The height a held cut is drawn in: of what some window inside the cut
+// shows, the reference over the cut and every node off it whose place on the
+// reference lies inside the cut, with the deletion routes. A node off the
+// reference hanging from where the cut's edge runs through a reference node
+// lies inside no window, and like a departure tail it may run past the pane.
+export function shownBounds(
+  graph: Graph,
+  layout: LayoutResult,
+  cut: { start: number; end: number },
+) {
+  const spans = locatedSpans(graph)
+  const tails = departureTails(graph)
+  let { minY, maxY } = layoutExtent(layout.deletionRoutes ?? {})
+  for (const node of graph.nodes) {
+    const span = spans.get(node.id)
+    const shown =
+      span !== undefined &&
+      !tails.has(node.id) &&
+      (isBackbone(node)
+        ? span.start < cut.end && span.end > cut.start
+        : span.start >= cut.start && span.end <= cut.end)
+    for (const p of shown ? (layout.nodePositions[node.id] ?? []) : []) {
+      minY = Math.min(minY, p.y)
+      maxY = Math.max(maxY, p.y)
+    }
+  }
+  return maxY >= minY ? { minY, h: maxY - minY } : undefined
 }
 
 export function cutScale(

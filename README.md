@@ -143,7 +143,11 @@ reads them.
   `referenceProfile` reads the reference as the layout drew it, piece by piece
   in bp order. `cutScale` is the cut's scale at the view's width: the widest
   stretch of the reference that any window that wide inside the cut takes in
-  spans the pane, capped so the whole cut is no taller than the pane. It reads
+  spans the pane, capped so what the windows inside the cut show is no taller
+  than the pane: `shownBounds`, the reference over the cut and what hangs from
+  it inside the cut, but not a loop off where the cut's edge runs through a
+  reference node, which no window shows whole and which may run past the
+  pane as a departure's tail does. It reads
   the cut, its layout, the view's width and the pane, never where the view is,
   so at one width every window the cut holds is drawn at one scale, and a zoom
   changes it smoothly. `followTransform` then only translates: the reference in

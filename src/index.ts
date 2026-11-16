@@ -17,6 +17,7 @@ export {
   layoutExtent,
   loadGraph,
   referenceProfile,
+  shownBounds,
 } from './pipeline'
 export type {
   Bounds,
