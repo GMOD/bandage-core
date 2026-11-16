@@ -846,6 +846,12 @@ test("the key's counts are the folded nodes and skip links, each once, however m
   expect([marks.foldedNodes.size, marks.foldedSkips.size]).toEqual([3, 2])
   const text = graphKey(SMALL, {}, { marks }).at(-1)?.entries[0]?.text
   expect(text).toBe('3 nodes and 2 skips too small to draw')
+  const skipsOnly = drawnMarks([
+    { ...panel, collapsed: foldOf([site([], [7])]) },
+  ])
+  expect(graphKey(SMALL, {}, { marks: skipsOnly }).at(-1)?.entries).toEqual([
+    { key: 'too-small', text: '1 skip too small to draw' },
+  ])
 })
 
 test('a walk coloured by pass keys each pass by its name, a bundle by its count, and heads by the way they point', () => {

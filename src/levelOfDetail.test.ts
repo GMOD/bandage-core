@@ -337,6 +337,59 @@ test('nothing on the reference is folded, nor a link turning the reference back 
   }
 })
 
+test('a piece leaving the reference against its strand attaches where that read of the node ends', () => {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    'S\tr2\tC',
+    `S\tr3\t${bases(1000)}`,
+    'S\ta1\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr1\t-\ta1\t+\t0M',
+    'L\ta1\t+\tr3\t+\t0M',
+    'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+    'W\talt\t1\tchr\t0\t*\t<r1>a1>r3',
+  ])
+  const positions = {
+    'r1-': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1001, 2001),
+    'a1+': at(1000, 1001, 20),
+  }
+  const [site] = build(graph, positions, 0.001).collapsed?.sites ?? []
+  expect(site).toMatchObject({ nodes: ['a1+'], start: 0, end: 1001, bp: 1002 })
+  expect(folded(build(graph, positions, 0.5))).toEqual([])
+})
+
+test('a piece with a node the layout did not place is not folded', () => {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    'S\tr2\tC',
+    `S\tr3\t${bases(1000)}`,
+    'S\ta1\tT',
+    'S\ta2\tT',
+    'S\ta3\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr1\t+\ta1\t+\t0M',
+    'L\ta1\t+\ta2\t+\t0M',
+    'L\ta2\t+\ta3\t+\t0M',
+    'L\ta3\t+\tr3\t+\t0M',
+    'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+    'W\talt\t1\tchr\t0\t*\t>r1>a1>a2>a3>r3',
+  ])
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1001, 2001),
+    'a1+': at(1000, 1001, 20),
+    'a3+': at(1001, 1002, 20),
+  }
+  expect(build(graph, positions, 0.01).collapsed?.sites).toEqual([])
+  const placed = { ...positions, 'a2+': at(1001, 1001.5, 20) }
+  expect(folded(build(graph, placed, 0.01))).toEqual(['a1+', 'a2+', 'a3+'])
+})
+
 test('a site no shown walk steps is drawn, an allele or a skip', () => {
   const allele = snp(1, 1, [])
   expect(folded(build(allele.graph, allele.positions, 0.01))).toEqual([])
