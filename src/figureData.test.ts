@@ -708,3 +708,42 @@ test('a gene on a folded allele is still pinned and listed over its node, with n
   expect(drawn.pins).toEqual(d.pins)
   expect(drawn.exons.node).toContain('a1+')
 })
+
+test('a link turning strand against the reference is marked turn on its rows, as the canvas paints it over the nodes, and no other link is', () => {
+  const graph = loadGraph(
+    [
+      `S\tA\t${'A'.repeat(10)}`,
+      `S\tB\t${'C'.repeat(10)}`,
+      `S\tC\t${'G'.repeat(10)}`,
+      'L\tA\t+\tB\t-\t0M',
+      'L\tB\t-\tC\t+\t0M',
+      'L\tA\t+\tC\t-\t0M',
+      'W\tR\t0\tchr\t0\t30\t>A<B>C',
+      'W\tT\t1\tchr\t0\t20\t>A<C',
+    ].join('\n'),
+    'turn',
+    { referencePath: 'R' },
+  )
+  const layout = {
+    nodePositions: Object.fromEntries(
+      graph.nodes.map((n, i) => [
+        n.id,
+        [
+          { x: 20 * i, y: 0 },
+          { x: 20 * i + 10, y: 0 },
+        ],
+      ]),
+    ),
+  }
+  const named = (id: string) => id.slice(0, -1)
+  const turning = graph.edges.findIndex(
+    e => [named(e.from), named(e.to)].sort().join() === 'A,C',
+  )
+  expect(turning).toBeGreaterThanOrEqual(0)
+  for (const walks of [undefined, [{ walk: 'R#0#chr' }]]) {
+    const d = figureData(graph, layout, { walks, smallSites: 'nodes' })
+    expect(d.edges.turn).toHaveLength(d.edges.edge.length)
+    const turned = new Set(d.edges.edge.filter((_, i) => d.edges.turn[i]))
+    expect([...turned]).toEqual([turning])
+  }
+})
