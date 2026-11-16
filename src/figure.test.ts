@@ -508,3 +508,51 @@ test('by default a figure folds its small sites, draws the allele, and says how 
   expect(strokes(folded)).toBeLessThan(strokes(drawn))
   expect(folded).not.toContain('<line x1="9" x2="9"')
 })
+
+// A 5 bp loop the cut did not load, a placeholder, between 10 kb flanks: at
+// a 1200 px figure it is well under SMALL_SITE_PX
+const SMALL_LOOP = [
+  `S\tr1\t${'A'.repeat(10_000)}`,
+  'S\tr2\tC',
+  `S\tr3\t${'A'.repeat(10_000)}`,
+  'S\tp1\t*\tLN:i:5\tnl:i:1',
+  'L\tr1\t+\tr2\t+\t0M',
+  'L\tr2\t+\tr3\t+\t0M',
+  'L\tr1\t+\tp1\t+\t0M',
+  'L\tp1\t+\tr3\t+\t0M',
+  'W\tR\t0\tchr\t0\t20001\t>r1>r2>r3',
+  'W\tA\t1\tchr\t0\t*\t>r1>p1>r3',
+].join('\n')
+const smallLoopLayout = {
+  nodePositions: {
+    'r1+': [
+      { x: 0, y: 0 },
+      { x: 10_000, y: 0 },
+    ],
+    'r2+': [
+      { x: 10_000, y: 0 },
+      { x: 10_001, y: 0 },
+    ],
+    'r3+': [
+      { x: 10_001, y: 0 },
+      { x: 20_001, y: 0 },
+    ],
+    'p1+': [
+      { x: 10_000, y: 200 },
+      { x: 10_001, y: 200 },
+    ],
+  },
+}
+
+test('a figure writes no length for a placeholder it folded, and writes it with small sites drawn as nodes', () => {
+  const loop = anchorGraph(convertGFAToGraph(parseGFA(SMALL_LOOP)), 'R')
+  expect(loop.nodes.find(n => n.id === 'p1+')?.placeholder).toBe(true)
+  const lengths = (svg: string) =>
+    [...svg.matchAll(/>(\d+ bp)<\/text>/g)].map(m => m[1])
+  expect(
+    lengths(figureSvg(loop, smallLoopLayout, { smallSites: 'nodes' })),
+  ).toEqual(['5 bp'])
+  const folded = figureSvg(loop, smallLoopLayout)
+  expect(folded).toContain('1 node')
+  expect(lengths(folded)).toEqual([])
+})

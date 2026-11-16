@@ -595,3 +595,48 @@ test('the sites table lists each folded site, its nodes and links each once and 
   expect(nodes.nodes.node).toContain('a1+')
   expect(nodes.meta.graphKey.key).not.toContain('too-small')
 })
+
+// A 5 bp loop the cut did not load, a placeholder, between 10 kb flanks: at
+// a 1200 px figure it is well under SMALL_SITE_PX
+const SMALL_LOOP = [
+  `S\tr1\t${'A'.repeat(10_000)}`,
+  'S\tr2\tC',
+  `S\tr3\t${'A'.repeat(10_000)}`,
+  'S\tp1\t*\tLN:i:5\tnl:i:1',
+  'L\tr1\t+\tr2\t+\t0M',
+  'L\tr2\t+\tr3\t+\t0M',
+  'L\tr1\t+\tp1\t+\t0M',
+  'L\tp1\t+\tr3\t+\t0M',
+  'W\tR\t0\tchr\t0\t20001\t>r1>r2>r3',
+  'W\tA\t1\tchr\t0\t*\t>r1>p1>r3',
+].join('\n')
+const smallLoopLayout = {
+  nodePositions: {
+    'r1+': [
+      { x: 0, y: 0 },
+      { x: 10_000, y: 0 },
+    ],
+    'r2+': [
+      { x: 10_000, y: 0 },
+      { x: 10_001, y: 0 },
+    ],
+    'r3+': [
+      { x: 10_001, y: 0 },
+      { x: 20_001, y: 0 },
+    ],
+    'p1+': [
+      { x: 10_000, y: 200 },
+      { x: 10_001, y: 200 },
+    ],
+  },
+}
+
+test('the labels table holds no length for a placeholder the figure folded, and holds it with small sites drawn as nodes', () => {
+  const loop = loadGraph(SMALL_LOOP, 'loop', { referencePath: 'R' })
+  const drawn = figureData(loop, smallLoopLayout, { smallSites: 'nodes' })
+  expect(drawn.labels.text).toEqual(['5 bp'])
+  expect(drawn.labels.item).toEqual(['p1+'])
+  const folded = figureData(loop, smallLoopLayout)
+  expect(listed(folded.sites?.nodes)).toEqual(['p1+'])
+  expect(folded.labels.text).toEqual([])
+})
