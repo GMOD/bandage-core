@@ -52,7 +52,7 @@ export const deletionKey = (reference?: string) =>
 
 // What a legend calls a skip drawn as one plain stroke, its span on screen
 // too short to hold the dashes
-export const SHORT_SKIP_KEY = 'a skip too short to dash'
+export const SHORT_SKIP_KEY = 'short skip'
 
 export interface DeletionEdge {
   // index into graph.edges, which is what the renderer keys its curve ranges by

@@ -268,7 +268,7 @@ test('a figure keys the dashed links it draws as skipped reference sequence, and
   expect(wide).not.toContain(SHORT_SKIP_KEY)
   const narrow = figureSvg(skipped, skippedLayout, { width: 120 })
   expect(narrow).toMatch(
-    /<line [^>]*stroke-width="1.5"\/><text[^>]*>a skip too short to dash</,
+    /<line [^>]*stroke-width="1.5"\/><text[^>]*>short skip</,
   )
   expect(narrow).not.toMatch(/skips .+? sequence/)
   const plain = figureSvg(graph, layout, { width: 600 })
