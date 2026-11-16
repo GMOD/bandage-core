@@ -238,7 +238,11 @@ export async function forceLayout(
   engine: LayoutEngine,
   fit?: FitSize,
 ) {
-  const graph = { ...given, nodes: canonicalNodeOrder(given.nodes) }
+  const graph = {
+    ...given,
+    nodes: canonicalNodeOrder(given.nodes),
+    departures: undefined,
+  }
   const sized = fitOrAssumed(fit)
   const spread = spreadFor(settings.bubbleSpread)
   const { shown: deletions, hidden: dropped } = deletionDrawing(
