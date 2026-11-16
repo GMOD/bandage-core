@@ -15,6 +15,7 @@ import { MAX_ZOOM } from './zoomLimits'
 
 import type { AnchoredNode } from './anchoredNodes'
 import type { NodeWidth } from './nodeWidths'
+import type { RenderBatch } from './renderer/types'
 import type { Graph, GraphNode, NodeSegment } from './types'
 import type { EdgeCurves } from './util/edgeCurves'
 import type { AxisScale, BezierCurve } from './util/geometry'
@@ -100,6 +101,19 @@ export interface Run {
 export interface Bridge {
   run: Run
   at: number
+}
+
+// The nodes a batch draws no stroke of their own for: those its fold leaves
+// out, and the reference nodes inside a folded site that, with walks lifted,
+// only the lanes crossing it draw
+export function nodesNotDrawn(
+  batch: Pick<RenderBatch, 'collapsed' | 'laneOnly'>,
+) {
+  const out = new Set(batch.collapsed?.nodes)
+  for (const id of batch.laneOnly?.nodes ?? []) {
+    out.add(id)
+  }
+  return out
 }
 
 export const NO_FOLD: Fold = {

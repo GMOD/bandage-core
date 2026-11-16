@@ -28,6 +28,7 @@ import { graphBackbone } from './reference'
 import { abgrHex } from './renderer/colorBits'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
+import { figureSvg } from './figure'
 import { walkLift } from './walkHighlight'
 
 import type { BubbleSpread } from './bubbleSpreads'
@@ -746,4 +747,62 @@ test('a link turning strand against the reference is marked turn on its rows, as
     const turned = new Set(d.edges.edge.filter((_, i) => d.edges.turn[i]))
     expect([...turned]).toEqual([turning])
   }
+})
+
+test('with walks lifted across a folded site, a gene over a reference node the lanes alone draw there is outlined nowhere, in the exons table or the figure', () => {
+  const graph = loadGraph(
+    [
+      `S\tr1\t${'A'.repeat(10_000)}`,
+      'S\tr2\tC',
+      `S\tr3\t${'A'.repeat(10_000)}`,
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr1\t+\tr3\t+\t0M',
+      'W\tR\t0\tchr\t0\t20001\t>r1>r2>r3',
+      'W\tA\t1\tchr\t0\t20000\t>r1>r3',
+    ].join('\n'),
+    'skip',
+    { referencePath: 'R' },
+  )
+  const at = (x0: number, x1: number, y = 0) => [
+    { x: x0, y },
+    { x: x1, y },
+  ]
+  const layout = {
+    nodePositions: {
+      'r1+': at(0, 10_000),
+      'r2+': at(10_000, 10_001, 400),
+      'r3+': at(10_001, 20_001),
+    },
+  }
+  const genes = [
+    {
+      name: 'ONR2',
+      refName: 'R#0#chr',
+      start: 9_990,
+      end: 10_011,
+      strand: 1,
+      exons: [{ start: 9_990, end: 10_011 }],
+    },
+  ]
+  const walks = [{ walk: 'R#0#chr' }, { walk: 'A#1#chr' }]
+  const d = figureData(graph, layout, { genes, walks })
+  expect(listed(d.sites?.laneNodes)).toEqual(['r2+'])
+  expect(d.nodes.node).not.toContain('r2+')
+  expect(d.pins.gene).toEqual(['ONR2'])
+  expect(new Set(d.exons.node)).toEqual(new Set(['r1+', 'r3+']))
+  const drawn = figureData(graph, layout, {
+    genes,
+    walks,
+    smallSites: 'nodes',
+  })
+  expect(new Set(drawn.exons.node)).toEqual(new Set(['r1+', 'r2+', 'r3+']))
+  const outlined = (smallSites: 'hidden' | 'nodes') =>
+    (
+      figureSvg(graph, layout, { genes, walks, smallSites }).match(
+        /<mask[\s\S]*?<\/mask>/,
+      )?.[0] ?? ''
+    ).match(/<path /g)?.length
+  expect(outlined('nodes')).toBe(2 * 3)
+  expect(outlined('hidden')).toBe(2 * 2)
 })

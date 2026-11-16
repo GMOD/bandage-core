@@ -11,7 +11,7 @@ import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAt, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
-import { NO_FOLD, SMALL_SITE_PX, foldedUnderBp } from './levelOfDetail'
+import { NO_FOLD, SMALL_SITE_PX, foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import { haplotypeCount, nodeFrequency, withFrequencies } from './nodeWidths'
 import { LABEL_PX } from './overlayLabels'
 import { passBars } from './passBar'
@@ -701,8 +701,14 @@ export function figureData(
     (o.smallSites ?? FIGURE_DEFAULTS.smallSites) === 'hidden'
       ? (batches[0]?.collapsed ?? NO_FOLD)
       : undefined
+  const notDrawn = new Set<string>()
+  for (const batch of batches) {
+    for (const id of nodesNotDrawn(batch)) {
+      notDrawn.add(id)
+    }
+  }
   for (const row of exonRows) {
-    if (!fold?.nodes.has(row.node)) {
+    if (!notDrawn.has(row.node)) {
       exons.push(row)
     }
   }

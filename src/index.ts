@@ -82,7 +82,7 @@ export { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 // handed to it has to be multiplied by
 export { getDpr } from './renderer/canvas'
 export type { Renderer } from './renderer/types'
-export { SMALL_SITE_PX } from './levelOfDetail'
+export { SMALL_SITE_PX, nodesNotDrawn } from './levelOfDetail'
 export type { Fold, Site, SmallSites } from './levelOfDetail'
 export { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 export type { NodeInk } from './util/hitDetection'

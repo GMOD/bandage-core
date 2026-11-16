@@ -25,6 +25,7 @@ import {
   walkStripFrame,
   walkStripLabelsTree,
 } from './layout/walkStrip'
+import { nodesNotDrawn } from './levelOfDetail'
 import { nodeInk } from './nodeWidths'
 import { LABEL_CHAR_PX, LABEL_PAD, LABEL_PX } from './overlayLabels'
 import { PASS_BAR_HEIGHT, passBarTree, passBars } from './passBar'
@@ -58,8 +59,9 @@ import type {
   WalkRowsWithCalls,
 } from './layout/walkRowDraw'
 import type { WalkRows } from './layout/walkRows'
-import type { Fold, SmallSites } from './levelOfDetail'
+import type { SmallSites } from './levelOfDetail'
 import type { NodeWidth } from './nodeWidths'
+import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
 import type { WalkLift } from './walkHighlight'
@@ -376,7 +378,7 @@ export function figureSvg(
     labels: LabelLayout,
     w: number,
     h: number,
-    collapsed: Fold | undefined,
+    batch: Pick<RenderBatch, 'collapsed' | 'laneOnly'>,
   ) {
     const out: string[] = []
     const drawnInk = nodeInk(
@@ -385,7 +387,7 @@ export function figureSvg(
       contigThickness,
       nodeWidth,
       0,
-      collapsed?.through,
+      batch.collapsed?.through,
     )
     const outlines = exonOutlineTree(
       exonStretches(
@@ -393,7 +395,7 @@ export function figureSvg(
         drawnInk.halfWidthPx,
         highlight,
         d => screenPath(d, t),
-        collapsed?.nodes,
+        nodesNotDrawn(batch),
       ),
       { id: `exons${masks++}`, width: w, height: h },
     )
@@ -531,7 +533,7 @@ export function figureSvg(
     renderer.updateTransform({ ...v.t, dpr: 1 })
     renderer.render([1, 1, 1, 1])
     return (
-      markup() + overlays(v.highlight, v.t, v.labels, w, h, v.batch.collapsed)
+      markup() + overlays(v.highlight, v.t, v.labels, w, h, v.batch)
     )
   }
 

@@ -235,6 +235,12 @@ reads them.
   (where it attaches to the reference, the nodes and links folded, and how many
   of the shown haplotypes step it) and states the mode and threshold in
   `meta.smallSites`; with `'nodes'` it adds neither
+- An exon is outlined only on a node the drawing strokes: `exonStretches` takes
+  `nodesNotDrawn(batch)`, the fold's nodes and, with walks lifted, the
+  reference nodes inside a folded site that only the lanes crossing it draw,
+  and leaves their stretches out, as `figureSvg` does and `figureData`'s
+  `exons` table does for any of its panels. The gene stays pinned and listed
+  over the node
 - In either state a lifted lane's stroke is never thinner than
   `MIN_LANE_STROKE_PX`, however far a walk's many passes thin its threads
 
