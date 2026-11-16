@@ -647,3 +647,42 @@ test('flat lanes of walks that never repeat share one normal at each node', () =
     }
   }
 })
+
+test('a walk that never repeats, lifted beside one that does, joins each link to its lane where the lane is shifted onto the smoothed walk', () => {
+  const gfa = `${ZIGZAG}\n${walk('a', chain(upTo(20)))}\n${walk('b', chain([...upTo(10), ...upTo(20)]))}`
+  const { highlight, strokes, links } = drawn(
+    gfa,
+    ['a#1#chr', 'b#1#chr'],
+    zigzag,
+  )
+  expect(highlight.walks[0]!.mostPasses).toBe(1)
+  const laneOf = (id: string) => strokes(id).find(s => s.walk === 0)!
+  const shifted = (id: string) => {
+    const lane = laneOf(id)
+    return lane.points.some((p, k) => {
+      const n = lane.normals![k]!
+      const own = zigzag[id]![k]!
+      return (
+        Math.hypot(
+          p.x - n.nx * lane.offsetX! - own.x,
+          p.y - n.ny * lane.offsetX! - own.y,
+        ) > 0.1
+      )
+    })
+  }
+  const graph = convertGFAToGraph(parseGFA(gfa))
+  const ids = upTo(8).map(i => `n${i + 6}+`)
+  expect(ids.some(shifted)).toBe(true)
+  for (let k = 1; k < ids.length; k++) {
+    const from = ids[k - 1]!
+    const to = ids[k]!
+    const edge = graph.edges.findIndex(e => e.from === from && e.to === to)
+    const lane = links(edge).find(c => c.walk === 0)!
+    const leaves = laneOf(from).points.at(-1)!
+    const enters = laneOf(to).points[0]!
+    expect(lane.curves[0]!.x0).toBeCloseTo(leaves.x, 6)
+    expect(lane.curves[0]!.y0).toBeCloseTo(leaves.y, 6)
+    expect(lane.curves.at(-1)!.x1).toBeCloseTo(enters.x, 6)
+    expect(lane.curves.at(-1)!.y1).toBeCloseTo(enters.y, 6)
+  }
+})
