@@ -314,7 +314,10 @@ function graphKeyTable(sections: GraphKeySection[]) {
           swatch?.kind === 'scale'
             ? swatch.stops.map(s => abgrHex(s.ink)).join(',')
             : '',
-        px: swatch?.kind === 'width' ? swatch.px : null,
+        px:
+          swatch?.kind === 'width' || swatch?.kind === 'tick'
+            ? swatch.px
+            : null,
         dashed: swatch?.kind === 'line' && swatch.dashed,
         rim: swatch?.kind === 'hollow' ? abgrHex(swatch.rim) : '',
         rimPx: swatch?.kind === 'hollow' ? swatch.rimPx : null,

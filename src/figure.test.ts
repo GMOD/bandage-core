@@ -495,3 +495,18 @@ test.each([
     ).toMatchFileSnapshot(file)
   },
 )
+
+test('a figure draws its small sites as ticks by default, keyed by their height', () => {
+  const on = figureSvg(sites, sitesLayout)
+  const off = figureSvg(sites, sitesLayout, { levelOfDetail: false })
+  expect(on).toMatch(
+    /<text y="13" font-weight="bold">Tick height<\/text>.*?<line x1="9" x2="9" y1="15" y2="3" stroke="#3c4148" stroke-width="1.5"\/><text x="23" y="13">3 walks<\/text>.*?<line x1="9" x2="9" y1="15" y2="12" stroke="#3c4148" stroke-width="1.5"\/><text x="23" y="13">1 walk<\/text>/,
+  )
+  expect(off).not.toContain('Tick height')
+  const ticks = (svg: string) =>
+    svg.match(
+      /<path d="(M[\d.]+ [\d.]+L[\d.]+ [\d.]+)+" fill="none" stroke="rgb\(60,65,72\)" stroke-width="1.5" stroke-linecap="butt"/g,
+    ) ?? []
+  expect(ticks(on)).toHaveLength(1)
+  expect(ticks(off)).toHaveLength(0)
+})

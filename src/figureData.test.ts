@@ -568,6 +568,13 @@ test('the ticks table gives each tick its place, height, count of the shown walk
   expect(d.ticks.offset.every(px => px > 0)).toBe(true)
   expect(d.nodes.node).not.toContain('a1+')
   expect(d.edges.edge).not.toContain(index('r3+', 'r5+'))
+  const keyRows = d.meta.graphKey.swatch.flatMap((swatch, i) =>
+    swatch === 'tick' ? [[d.meta.graphKey.text[i], d.meta.graphKey.px[i]]] : [],
+  )
+  expect(keyRows).toEqual([
+    ['3 walks', tickHeightPx(3, 3)],
+    ['1 walk', tickHeightPx(1, 3)],
+  ])
   const off = figureData(graph, layout, { levelOfDetail: false })
   expect(off.ticks.tick).toEqual([])
   expect(off.nodes.node).toContain('a1+')

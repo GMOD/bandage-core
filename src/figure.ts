@@ -192,6 +192,8 @@ function swatchSvg(swatch: GraphKeySwatch, id: string) {
       return `<rect x="4" y="4" width="10" height="10" rx="2" ${inkAttrs('fill', swatch.ink)}/>`
     case 'width':
       return `<rect y="${9 - swatch.px / 2}" width="${BAR_PX}" height="${swatch.px}" ${inkAttrs('fill', swatch.ink)}/>`
+    case 'tick':
+      return `<line x1="${SWATCH_PX / 2}" x2="${SWATCH_PX / 2}" y1="15" y2="${15 - swatch.px}" ${inkAttrs('stroke', swatch.ink)} stroke-width="${swatch.width}"/>`
     case 'hollow':
       return `<rect x="1" y="5" width="${SWATCH_PX - 2}" height="8" rx="4" ${inkAttrs('fill', swatch.ink)} ${inkAttrs('stroke', swatch.rim)} stroke-width="${swatch.rimPx}"/>`
     case 'line':
@@ -245,7 +247,7 @@ function headingSvg(text: string): KeyAt {
   })
 }
 
-const HEADED = new Set(['Node thickness', 'Link thickness'])
+const HEADED = new Set(['Node thickness', 'Link thickness', 'Tick height'])
 
 function graphKeySvg(sections: GraphKeySection[], idPrefix: string) {
   return sections.flatMap(({ group, entries }) => [

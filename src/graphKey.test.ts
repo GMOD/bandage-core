@@ -7,11 +7,13 @@ import { drawnMarks, graphKey, unlabelledText } from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
+import { TICK_MAX_PX, TICK_MIN_PX, TICK_WIDTH_PX } from './levelOfDetail'
 import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform } from './pipeline'
 import { graphBackbone } from './reference'
 import {
   REFERENCE_RAMP_ALT_COLOR,
+  TICK_COLOR,
   buildGeometry,
   computeReferenceRamp,
 } from './renderer/GeometryBuilder'
@@ -56,6 +58,7 @@ interface Scene {
   referenceRamp?: ReferenceRamp
   width?: number
   bounds?: BuildOptions['viewportBounds']
+  levelOfDetail?: boolean
 }
 
 // The drawing a host would paint at a `width` px fit: the batch the key's
@@ -82,6 +85,9 @@ function drawn(g: Graph, s: Scene = {}) {
     axis: axisScaleOf(fit.scale, pixelRows),
     referenceRamp: s.referenceRamp,
     ...(s.bounds ? { viewportBounds: s.bounds } : {}),
+    ...(s.levelOfDetail === undefined
+      ? {}
+      : { levelOfDetail: s.levelOfDetail }),
   })
   return { layout, batch }
 }
@@ -516,6 +522,11 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
     ...(skips.some(e => !dashed(e.span)) ? ['short-skip'] : []),
     ...(batch.nodeStrokes.some(n => n.placeholder) ? ['not-shown'] : []),
     ...(widths.size > 1 ? ['width-thickest', 'width-thinnest'] : []),
+    ...new Set(
+      (batch.ticks ?? []).flatMap(t =>
+        t.total > 1 ? [`tick-${t.total}`, 'tick-1'] : ['tick-1'],
+      ),
+    ),
   ])
   const keyed = new Set(
     sections.flatMap(section => section.entries.map(entry => entry.key)),
@@ -588,7 +599,66 @@ const INVERTED = load(
   'ref',
 )
 
+// a 1 bp SNP and a 1 bp deletion, each under a pixel at a 600 px fit of a
+// 2 kb reference, which draw as ticks
+const SMALL = load(
+  [
+    `S\tr1\t${'A'.repeat(1000)}`,
+    'S\tr2\tC',
+    `S\tr3\t${'A'.repeat(500)}`,
+    'S\tr4\tG',
+    `S\tr5\t${'A'.repeat(500)}`,
+    'S\ta1\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr3\t+\tr4\t+\t0M',
+    'L\tr4\t+\tr5\t+\t0M',
+    'L\tr1\t+\ta1\t+\t0M',
+    'L\ta1\t+\tr3\t+\t0M',
+    'L\tr3\t+\tr5\t+\t0M',
+    'W\tref\t0\tchr\t0\t2002\t>r1>r2>r3>r4>r5',
+    'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r5',
+    'W\tw\t2\tchr\t0\t*\t>r1>r2>r3>r5',
+  ].join('\n'),
+  'ref',
+)
+
+const smallSites = (): Scene => {
+  const at = (x0: number, x1: number, y = 0) => [
+    { x: x0, y },
+    { x: x1, y },
+  ]
+  return {
+    layout: {
+      nodePositions: {
+        'r1+': at(0, 1000),
+        'r2+': at(1000, 1001),
+        'r3+': at(1001, 1501),
+        'r4+': at(1501, 1502),
+        'r5+': at(1502, 2002),
+        'a1+': at(1000, 1001, 20),
+      },
+    },
+  }
+}
+
 const CUTS: [string, Graph, (g: Graph) => Scene][] = [
+  ['small sites drawn as ticks', SMALL, smallSites],
+  [
+    'small sites drawn as ticks under two lifted walks',
+    SMALL,
+    g => ({ ...smallSites(), lift: lifting(g, ['w#1#chr', 'w#2#chr']) }),
+  ],
+  [
+    'small sites with level of detail off',
+    SMALL,
+    () => ({ ...smallSites(), levelOfDetail: false }),
+  ],
+  [
+    'a skip too short on screen to arc, with level of detail off',
+    SKIPPED,
+    g => ({ ...unarced(g), levelOfDetail: false }),
+  ],
   [
     "a repeat's walk lifted alone and coloured by pass",
     REPEAT,
@@ -707,6 +777,36 @@ test('the census fails on a planted extra entry and on a planted missing one', (
   expect(census(planted, batch, s).extra).toEqual(['deletion'])
   const dropped = sections.filter(section => section.id !== 'skips')
   expect(census(dropped, batch, s).missing).toEqual(['short-skip'])
+})
+
+test('the key gains a tick height scale, from all shown walks to one, only where a tick is drawn', () => {
+  const ticked = drawn(SMALL, smallSites())
+  expect(ticked.batch.ticks?.map(t => t.count)).toEqual([1, 2])
+  const sections = graphKey(SMALL, ticked.layout, {
+    marks: drawnMarks([ticked.batch]),
+  })
+  const scale = sections.find(s => s.id === 'tick-height')!
+  expect(scale.group).toBe('Tick height')
+  expect(scale.entries.map(e => [e.text, e.swatch])).toEqual([
+    [
+      '3 walks',
+      { kind: 'tick', ink: TICK_COLOR, px: TICK_MAX_PX, width: TICK_WIDTH_PX },
+    ],
+    [
+      '1 walk',
+      { kind: 'tick', ink: TICK_COLOR, px: TICK_MIN_PX, width: TICK_WIDTH_PX },
+    ],
+  ])
+  const off = { ...smallSites(), levelOfDetail: false }
+  expect(keys(SMALL, off)).not.toContain('tick-1')
+  expect(keys(SMALL, { ...smallSites(), width: 60_000 })).not.toContain(
+    'tick-1',
+  )
+  const dropped = sections.filter(s => s.id !== 'tick-height')
+  expect(census(dropped, ticked.batch, smallSites()).missing).toEqual([
+    'tick-3',
+    'tick-1',
+  ])
 })
 
 test('a walk coloured by pass keys each pass by its name, a bundle by its count, and heads by the way they point', () => {
