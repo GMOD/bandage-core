@@ -219,6 +219,19 @@ test('drawn marks read dashed and short skips off the batch, leaving lanes to th
   ).toMatchObject({ dashedSkip: false, shortSkip: false })
 })
 
+test("a hollow node's thickness is not a thickness the nodes vary by", () => {
+  const stroke = (thickness: number, placeholder?: true) => ({
+    points: [],
+    thickness,
+    color: 0,
+    ...(placeholder ? { placeholder } : {}),
+  })
+  const widthsVary = (nodeStrokes: RenderBatch['nodeStrokes']) =>
+    drawnMarks([{ edgeCurves: [], nodeStrokes }]).widthsVary
+  expect(widthsVary([stroke(3), stroke(5)])).toBe(true)
+  expect(widthsVary([stroke(3), stroke(5, true), stroke(3)])).toBe(false)
+})
+
 test('nodes not shown are keyed only where a hollow one is drawn', () => {
   const hollow = withNodes(graph, name =>
     name === 'a1' ? { placeholder: true } : {},
