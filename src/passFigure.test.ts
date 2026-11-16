@@ -195,6 +195,7 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     nodeById: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
+    folded: undefined,
     ...overrides,
   }
 }

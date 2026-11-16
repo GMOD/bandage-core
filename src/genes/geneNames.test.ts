@@ -84,6 +84,7 @@ function chips(pins: GenePin[], liftedWalks?: string[]) {
     nodeById: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
+    folded: undefined,
   }
   return layoutLabels(source)
     .genes.map(g => g.text)
@@ -123,6 +124,7 @@ test('a gene only haplotypes carry is named once, on the copy the most walks ste
     nodeById: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
+    folded: undefined,
   })
   expect(layout.genes.map(g => g.text)).toEqual(['NBPF26'])
   // of the two five walks step, the one on the contig whose name sorts first

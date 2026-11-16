@@ -117,6 +117,7 @@ for (const backbone of [1000, 5000]) {
       nodeById: new Map(graph.nodes.map(n => [n.id, n])),
       alleleDeletions: [],
       positionsVersion: 0,
+      folded: undefined,
     } satisfies LabelLayoutSource
     test('the label pass writes node lengths', () => {
       expect(layoutLabels(labelSource).sizes.length).toBeGreaterThan(0)

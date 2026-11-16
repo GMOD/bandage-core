@@ -72,6 +72,8 @@ export interface LabelLayoutSource {
   positionsVersion: number
   // the names of lifted walks' passes: passLabelCandidates
   passLabels?: LabelCandidate<PassLabelItem>[]
+  // RenderBatch.collapsed's nodes, which carry no label
+  folded: ReadonlySet<string> | undefined
 }
 
 // where a small variant's tick stands, its foot just above its nodes
@@ -238,7 +240,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
           translateY,
           width,
           height,
-        })
+        }).filter(c => !m.folded?.has(c.id))
       : []
   const ink = m.contigThickness / 2
   const otherNodeUnder = otherNodeUnderBox(

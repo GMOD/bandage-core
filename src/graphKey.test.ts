@@ -328,6 +328,7 @@ function unlabelledOf(lengths: number[]) {
     nodeById: new Map(ids.map(id => [id, { placeholder: true }])),
     alleleDeletions: [],
     positionsVersion: 0,
+    folded: undefined,
   }).unlabelled
 }
 

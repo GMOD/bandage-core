@@ -685,6 +685,7 @@ export function figureData(
     nodeById,
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
+    folded: fold?.nodes,
     passLabels:
       facets || !batches[0]
         ? []

@@ -95,6 +95,7 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     nodeById: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
+    folded: undefined,
     ...overrides,
   }
 }
@@ -458,6 +459,20 @@ test('the stacked placeholder lengths that stand are the longest', () => {
     smallest: 1,
     largest: 100 - budget,
   })
+})
+
+test('a folded placeholder has no length and no leader, and the unlabelled count leaves it out', () => {
+  const budget = nodeLabelBudget(1200, 320)
+  const loops = shortLoops(Array.from({ length: 100 }, () => 1))
+  const folded = new Set(Array.from({ length: 60 }, (_, i) => `p${i}`))
+  const { sizes, unlabelled } = layoutLabels(source({ ...loops, folded }))
+  expect(sizes.length).toBe(budget)
+  expect(sizes.filter(l => folded.has(l.node))).toEqual([])
+  expect(unlabelled).toEqual({ count: 40 - budget, smallest: 1, largest: 1 })
+  const all = new Set(Array.from({ length: 100 }, (_, i) => `p${i}`))
+  const none = layoutLabels(source({ ...loops, folded: all }))
+  expect(none.sizes).toEqual([])
+  expect(none.unlabelled).toBeUndefined()
 })
 
 test('a row label holds its space against a gene pin', () => {

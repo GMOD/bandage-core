@@ -461,6 +461,7 @@ test("the labels table places the canvas's labels: a placeholder's length always
     nodeById: new Map(graph.nodes.map(n => [n.id, n])),
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
+    folded: new Set(listed(d.sites?.nodes)),
   })
   expect(d.labels.text).toEqual(placed.sizes.map(l => l.text))
   expect(d.labels.kind[0]).toBe('placeholder')
