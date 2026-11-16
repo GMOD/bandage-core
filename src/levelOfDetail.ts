@@ -1,4 +1,4 @@
-import { isBackbone } from './anchoredNodes'
+import { isBackbone, readsAsReference } from './anchoredNodes'
 import { departureTails } from './gfa/departures'
 import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
@@ -108,20 +108,17 @@ interface ReferenceSequence {
 const onReference = (node: GraphNode | undefined): node is AnchoredNode =>
   !!node && isBackbone(node) && !node.placeholder
 
-const forward = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
-  (strand ?? '+') === (node.stable.strand ?? '+')
-
 const leavesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
-  node.stable.start + (forward(node, strand) ? node.length : 0)
+  node.stable.start + (readsAsReference(node, strand) ? node.length : 0)
 
 const arrivesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
-  node.stable.start + (forward(node, strand) ? 0 : node.length)
+  node.stable.start + (readsAsReference(node, strand) ? 0 : node.length)
 
 const endTouched = (
   node: AnchoredNode,
   strand: '+' | '-' | undefined,
   leaving: boolean,
-) => (leaving === forward(node, strand) ? 'end' : 'start')
+) => (leaving === readsAsReference(node, strand) ? 'end' : 'start')
 
 function walksByNode(graph: Graph) {
   const haplotypes = haplotypeIndex(graph)

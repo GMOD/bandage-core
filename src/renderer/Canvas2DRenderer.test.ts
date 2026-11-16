@@ -364,6 +364,71 @@ describe('a link that skips the reference is painted over the nodes it skips', (
   })
 })
 
+describe('a link turning strand against the reference is painted over the nodes it joins', () => {
+  // the reference steps >A<B>C, so its own links join the same end of B as
+  // it reads B; the link from A's end into C's end reads C against it
+  const onReference = (id: string, start: number, strand: '+' | '-') => ({
+    id,
+    name: id.slice(0, -1),
+    length: 10,
+    depth: 1,
+    stable: { refName: 'chr', start, rank: 0, strand },
+  })
+  const anchored = [
+    onReference('A+', 0, '+'),
+    onReference('B+', 10, '-'),
+    onReference('C+', 20, '+'),
+  ]
+  const turning = buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 40, y: 0 },
+        { x: 30, y: 0 },
+      ],
+      'C+': [
+        { x: 60, y: 0 },
+        { x: 70, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes: anchored,
+      edges: [
+        { from: 'A+', to: 'B+', fromStrand: '+', toStrand: '-' },
+        { from: 'B+', to: 'C+', fromStrand: '-', toStrand: '+' },
+        { from: 'A+', to: 'C+', fromStrand: '+', toStrand: '-' },
+      ],
+    },
+    nodeById: new Map(anchored.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    stranded: true,
+  })
+  const turnOf = (edge: number) =>
+    turning.edgeCurves[turning.edgeCurveRuns.get(edge)!.start]!.turn
+
+  test('only the link reading one reference node as the reference does and the other against it is a turn', () => {
+    expect([0, 1, 2].map(turnOf)).toEqual([undefined, undefined, true])
+  })
+
+  test('it is painted after the nodes, the reference\'s own links before them', () => {
+    const { renderer, strokes } = makeRenderer()
+    renderer.uploadGeometry(turning)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+    const link = abgrToCssRgba(turning.edgeCurves[0]!.color)
+    const node = abgrToCssRgba(turning.nodeStrokes[0]!.color)
+    expect(strokes).toEqual([link, node, link])
+  })
+})
+
 test('a short skip is painted after a long one it crosses', () => {
   const four = [...nodes, { id: 'D+', name: 'D', length: 10, depth: 1 }]
   const batch = buildGeometry({

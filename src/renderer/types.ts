@@ -27,6 +27,9 @@ export interface EdgeCurveBatch {
   // a skip's span on screen as built, 0 where it falls back to a plain link;
   // skips paint longest first
   span?: number
+  // a stroke of a link between two reference nodes reading one as the
+  // reference does and the other against it
+  turn?: boolean
 }
 
 export interface LaneSlide {

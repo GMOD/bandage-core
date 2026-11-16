@@ -43,6 +43,15 @@ export function drawnAlongStable(node: AnchoredNode) {
   return ownStrand(node.id) === (node.stable.strand ?? '+')
 }
 
+// Whether a link reading the node's sequence on `strand` reads it as the
+// reference does
+export function readsAsReference(
+  node: AnchoredNode,
+  strand: '+' | '-' | undefined,
+) {
+  return (strand ?? '+') === (node.stable.strand ?? '+')
+}
+
 export function backboneNodes(graph: Graph) {
   return graph.nodes.filter(isBackbone)
 }

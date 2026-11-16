@@ -1,4 +1,8 @@
-import { drawnAlongStable, isBackbone } from '../anchoredNodes'
+import {
+  drawnAlongStable,
+  isBackbone,
+  readsAsReference,
+} from '../anchoredNodes'
 import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
 import { NO_FOLD, SMALL_SITE_PX, foldedSites } from '../levelOfDetail'
 import {
@@ -1521,6 +1525,28 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   // than its head.
   const showArrows = scale > (linearLayout ? 1 : MIN_ARROW_SCALE)
 
+  // a link between two reference nodes that reads one of them as the
+  // reference does and the other against it: a strand turn, whose only mark
+  // is the link
+  const turnsAgainstReference = ({
+    from,
+    to,
+    fromStrand,
+    toStrand,
+  }: GraphEdge) => {
+    const a = nodeById.get(from)
+    const b = nodeById.get(to)
+    return (
+      !!a &&
+      !!b &&
+      isBackbone(a) &&
+      isBackbone(b) &&
+      !a.placeholder &&
+      !b.placeholder &&
+      readsAsReference(a, fromStrand) !== readsAsReference(b, toStrand)
+    )
+  }
+
   for (let ei = 0; ei < graph.edges.length; ei++) {
     const edge = graph.edges[ei]!
     const fromSegments = nodePositions[edge.from]
@@ -1602,6 +1628,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
     const skipMark = deletions?.has(ei) ? { skip: true, span: arcPx } : {}
+    const turnMark = turnsAgainstReference(edge) ? { turn: true } : {}
     const dashesOf = (curves: BezierCurve[]) =>
       dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
@@ -1610,11 +1637,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       color: number,
     ) => {
       if (!dashed) {
-        edgeCurves.push({ curves, thickness, color, ...skipMark })
+        edgeCurves.push({ curves, thickness, color, ...skipMark, ...turnMark })
         return
       }
       for (const dash of dashesOf(curves)) {
-        edgeCurves.push({ curves: dash.curves, thickness, color, ...skipMark })
+        edgeCurves.push({
+          curves: dash.curves,
+          thickness,
+          color,
+          ...skipMark,
+          ...turnMark,
+        })
       }
     }
     const laneStroke = (
