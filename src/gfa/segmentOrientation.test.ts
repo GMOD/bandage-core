@@ -191,6 +191,20 @@ test('a backbone segment the reference steps backwards is drawn backwards', () =
   )
 })
 
+test('a backbone segment reads as the reference steps it, however many haplotypes step it the other way', () => {
+  const outvoted = [
+    BACKWARDS,
+    'W\tHG2\t1\tctg\t0\t3000\t>a>b>c',
+    'W\tHG3\t1\tctg\t0\t3000\t>a>b>c',
+    'W\tHG4\t1\tctg\t0\t3000\t>a>b>c',
+  ].join('\n')
+  const graph = convertGFAToGraph(parseGFA(outvoted))
+  expect(graph.nodes.map(n => n.id)).toEqual(['a-', 'b-', 'c-', 'x-'])
+  expect(graphFromTables(gfaTables(outvoted)!, 'cut')).toStrictEqual(
+    convertGFAToGraph(parseGFA(outvoted), 'cut'),
+  )
+})
+
 test("its links' arrowheads point the way the reference reads", () => {
   const graph = convertGFAToGraph(parseGFA(BACKWARDS))
   const along = (start: number) => [
