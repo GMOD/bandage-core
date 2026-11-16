@@ -6,6 +6,7 @@ import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
 import { layoutEngine } from '../layoutEngines'
 import { engineSettingsOf, forceLayout, loadGraph } from '../pipeline'
+import { coarsenTubeMap } from '../tubeMap/coarsen'
 import { ownStrand, strandSides } from '../util/geometry'
 import { readAlongReference } from './referenceReading'
 
@@ -236,6 +237,24 @@ test('the link that skips reference a run steps backwards is found under tags', 
     { bp: 1100, bypassed: ['3'] },
   ])
 })
+
+test.each(Object.entries(ANCHORINGS))(
+  "the tube map's fold reads a walk along a reference stepped backwards as no inversion, anchored by %s",
+  (_by, tagged) => {
+    const coarse = coarsenTubeMap(load(ALL_BACKWARDS, tagged), 50)!
+    expect([...coarse.cuts.values()]).not.toContain('inversion')
+    expect(
+      [...coarse.graph.pathVisits!].map(([segment, visits]) => [
+        segment,
+        ...visits.map(v => `${v.path}${v.strand}`),
+      ]),
+    ).toEqual([
+      ['0-1800', 'ref#0#chr+', 'hap#1#chr+'],
+      ['1800-2900', 'ref#0#chr+'],
+      ['2900-4500', 'ref#0#chr+', 'hap#1#chr+'],
+    ])
+  },
+)
 
 test('the stress engine is handed a backbone node the reference steps against its id as the reference reads it, and its line turned back', () => {
   const stable = { refName: 'chr', start: 0, rank: 0 }
