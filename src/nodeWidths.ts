@@ -56,10 +56,21 @@ export function haplotypeOf(path: GraphPath) {
     : `${path.sample}#${path.haplotype ?? 0}`
 }
 
-// How many haplotypes the graph's walks belong to, a contig split into several
-// records counted once
+// The haplotypes the graph's walks belong to, numbered as met, a contig split
+// into several records one haplotype
+export function haplotypeIndex(graph: Graph) {
+  const index = new Map<string, number>()
+  for (const path of graph.paths ?? []) {
+    const haplotype = haplotypeOf(path)
+    if (!index.has(haplotype)) {
+      index.set(haplotype, index.size)
+    }
+  }
+  return index
+}
+
 export function haplotypeCount(graph: Graph) {
-  return new Set((graph.paths ?? []).map(haplotypeOf)).size
+  return haplotypeIndex(graph).size
 }
 
 // The node's passes per haplotype: its AF tag, or its depth over the
