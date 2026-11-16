@@ -15,7 +15,6 @@ import {
   drawnNodeLength,
   isProportional,
   layoutScaling,
-  loopsOf,
 } from './layout/drawnScale'
 import { FIT_PADDING, fitOrAssumed, fitRoom } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
@@ -277,17 +276,7 @@ export async function forceLayout(
       smoothChain(line),
     ]),
   )
-  const inLoops = new Set(
-    isProportional(spread.law)
-      ? []
-      : loopsOf(runs)
-          .flat()
-          .flatMap(run => merged.runs.get(run.id) ?? []),
-  )
-  const bpOf = new Map(graph.nodes.map(n => [n.id, n.length]))
-  const positions = splitRuns(smoothed, merged.runs, id =>
-    inLoops.has(id) ? (bpOf.get(id) ?? 0) : (drawn.get(id) ?? 0),
-  )
+  const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
   const routedPositions = takeRoutes(
     graph.nodes.some(isBackbone)
       ? orientToReference(graph, positions)

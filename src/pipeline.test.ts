@@ -474,6 +474,43 @@ test('under compress the nodes of a run in a loop split its line by bp', async (
   ).toBeCloseTo(89_842 / 10_000, 0)
 })
 
+// looped's 100 kb run with a 1 bp node leading it, in the same run
+function ledByOneBp(): Graph {
+  const g = looped(true)
+  return {
+    ...g,
+    nodes: [
+      ...g.nodes,
+      {
+        id: 'tiny',
+        name: 'tiny',
+        length: 1,
+        depth: 1,
+        stable: { refName: 'chr1', start: 69_500, rank: 1 },
+      },
+    ],
+    edges: [
+      ...g.edges.filter(e => e.to !== 'own'),
+      { from: 'r99', to: 'tiny' },
+      { from: 'tiny', to: 'own' },
+    ],
+  }
+}
+
+test("under compress a 1 bp node in a run of a loop takes its drawn length's share of the run, not its bp share", async () => {
+  const g = ledByOneBp()
+  const { result } = await forceLayout(
+    g,
+    engineSettingsOf({ bubbleSpread: 'compress' }),
+    layoutEngine,
+  )
+  const drawn = (id: string) => arcLength(result.nodePositions[id])
+  const held = layoutScaling(g, spreadFor('compress')).nodes
+  const heldOf = (id: string) => held.find(n => n.id === id)!.length
+  const asked = heldOf('tiny') / heldOf('own')
+  expect(drawn('tiny') / drawn('own') / asked).toBeCloseTo(1, 2)
+})
+
 test('under compress a loop asks the engine for more length the more bp it holds, however many runs it is cut into', () => {
   const g = loops()
   const long = requestedOf(g, ['lead', 'long'])
