@@ -29,6 +29,10 @@ export interface WalkHighlight {
   passes: Map<string, number>
   mostPasses: number
   route: readonly (readonly string[])[]
+  // beside each step of the route: the strand it reads its node on, and the
+  // bp of the walk before it
+  routeStrands: readonly (readonly Strand[])[]
+  routeStarts: readonly (readonly number[])[]
   steps: number
   bp: number
   unloadedBp: number
@@ -258,11 +262,14 @@ function highlightOf(
   let mostPasses = 1
   let before = 0
   const steppedOn = new Set<GraphPath>(attached)
+  const routeStarts: number[][] = []
   let previous: GraphPath | undefined
   for (const piece of walked) {
     if (range) {
       before = Math.max(before, (piece.start ?? 0) - range.start)
     }
+    const starts: number[] = []
+    routeStarts.push(starts)
     const joins =
       previous !== undefined &&
       (steppedOn.has(previous) || steppedOn.has(piece)) &&
@@ -291,6 +298,7 @@ function highlightOf(
         }
       }
       const length = lengthOf(id)
+      starts.push(before)
       const at = span > 0 ? (before + length / 2) / span : 0
       if (!progress.has(id)) {
         progress.set(id, at)
@@ -360,6 +368,10 @@ function highlightOf(
     passes,
     mostPasses,
     route: walked.map(piece => piece.nodeIds),
+    routeStrands: walked.map(
+      piece => strandsOf.get(piece) ?? piece.nodeIds.map(ownStrand),
+    ),
+    routeStarts,
     steps: walked.reduce(
       (sum, piece) => sum + piece.nodeIds.filter(id => !unloaded(id)).length,
       0,

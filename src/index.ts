@@ -136,6 +136,13 @@ export {
 export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
 export {
+  MOST_PASS_THREADS,
+  passesOf,
+  statedPasses,
+  walkPassesOf,
+} from './walkPasses'
+export type { WalkPass, WalkPasses } from './walkPasses'
+export {
   EXON_INK,
   FADED_KEY_INK,
   RAMP_KEY_STOPS,
@@ -196,6 +203,7 @@ export {
   schemeCss,
 } from './walkEncoding'
 export type {
+  PassSpan,
   WalkEncoding,
   WalkField,
   WalkLayer,

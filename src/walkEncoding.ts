@@ -59,6 +59,12 @@ export interface WalkEncoding {
   stretch?: readonly [number, number]
 }
 
+// A stretch of a walk stated as one pass, in bp from the walk's first base
+export interface PassSpan {
+  start: number
+  end: number
+}
+
 export interface WalkLayer {
   walk: string
   color?: Partial<WalkEncoding>
