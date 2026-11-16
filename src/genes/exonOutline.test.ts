@@ -19,6 +19,8 @@ const pin = (exonsByNode: GenePin['exonsByNode']): GenePin => ({
   nodeIds: new Set(exonsByNode.map(e => e.nodeId)),
   at: { x: 0, y: 0 },
   covered: 1,
+  onReference: true,
+  walks: 1,
 })
 
 describe('exonStretches', () => {
@@ -27,7 +29,9 @@ describe('exonStretches', () => {
       [pin([{ nodeId: 'a+', d: 'M0,0L10,0', stretches: [] }])],
       () => 3,
     )
-    expect(stretches).toEqual([{ key: 'LPA-0-a+', d: 'M0,0L10,0', inner: 8 }])
+    expect(stretches).toEqual([
+      { key: 'LPA-chr6-0-a+', d: 'M0,0L10,0', inner: 8 },
+    ])
   })
 
   it('clears the lifted lanes where they are wider than the node', () => {

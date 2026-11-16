@@ -173,6 +173,8 @@ function pin(at: { x: number; y: number }): GenePin {
     nodeIds: new Set(['bb']),
     at,
     covered: 1,
+    onReference: true,
+    walks: 1,
   }
 }
 

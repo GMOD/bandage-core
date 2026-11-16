@@ -1,4 +1,5 @@
 import { EXON_RIM_PX } from './genes/exonOutline'
+import { namedGenePins } from './genes/geneNames'
 import {
   nodeLabelBudget,
   placeSizeLabels,
@@ -19,6 +20,7 @@ import {
 import { otherNodeUnderBox, segmentMeetsBox } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
+import type { NamedGenePin } from './genes/geneNames'
 import type { GenePin } from './genes/genePins'
 import type {
   GraphLabel,
@@ -55,6 +57,8 @@ export interface LabelLayoutSource {
   drawnRowLabels: { label: string; y: number }[]
   bubbleHalos: BubbleHalo[]
   genePins: GenePin[]
+  // the lifted walks' names, whose own copies of genes are named
+  liftedWalks?: readonly string[]
   poppedFrom?: { label: string }
   nodePositions?: Record<string, NodeSegment[]>
   // false where the drawing is not the canvas's nodes (the tube map), so a
@@ -80,7 +84,7 @@ export interface BubbleTick {
 export interface LabelLayout {
   bubbles: PlacedLabel<BubbleHalo>[]
   ticks: BubbleTick[]
-  genes: PlacedLabel<GenePin>[]
+  genes: PlacedLabel<NamedGenePin>[]
   passes: PlacedLabel<PassLabelItem>[]
   sizes: GraphLabel[]
   // the placeholders on the pane left without a length, which the key counts
@@ -113,9 +117,10 @@ function grown(box: Box, by: number) {
   }
 }
 
-// Each gene's name under its pin, or above it where the gene's node runs on
-// under the pin or the spots under it are taken, the longest gene first, with
-// how much of the gene the cut covers where it covers less than all. A name
+// The name of each gene namedGenePins names under its pin, or above it where
+// the gene's node runs on under the pin or the spots under it are taken, the
+// longest gene first, with how much of the gene the drawing holds where it
+// holds less than all. A name
 // over another node reads as that node's, and over an exon outline hides it,
 // so it moves: down or up a row, or sideways by up to half its width, its
 // leader still running to the pin; it may cover the gene's own stretch of
@@ -127,6 +132,7 @@ export function geneLabelCandidates(
   screen: (p: { x: number; y: number }) => { x: number; y: number },
   contigThickness: number,
   otherNodeUnder: (box: Box, own: (nodeId: string) => boolean) => boolean,
+  liftedWalks: readonly string[] = [],
 ) {
   const ink = contigThickness / 2
   const rim = ink + EXON_RIM_PX
@@ -139,17 +145,21 @@ export function geneLabelCandidates(
       ),
     ),
   )
-  return byExtent(pins, pin => pin.gene.end - pin.gene.start).map(pin => {
+  return byExtent(
+    namedGenePins(pins, liftedWalks),
+    ({ pin }) => pin.gene.end - pin.gene.start,
+  ).map(named => {
+    const { pin, name } = named
     const { x, y } = screen(pin.at)
     const note = geneCoverageNote(pin)
-    const text = note ? `${pin.gene.name} · ${note}` : pin.gene.name
+    const text = note ? `${name} · ${note}` : name
     return {
-      item: pin,
+      item: named,
       x,
       y: y + contigThickness + GENE_PIN_DROP_PX,
       flipY: y - contigThickness - GENE_PIN_DROP_PX + LABEL_PX,
       text,
-      fallback: note ? `${pin.gene.name} …` : undefined,
+      fallback: note ? `${name} …` : undefined,
       stack: GENE_STACK,
       slide: labelWidth(text) / 2,
       nearest: { x, y },
@@ -288,7 +298,13 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     .filter(t => t.x >= 0 && t.x <= width && t.y >= 0 && t.y <= height)
 
   const genes = placeLabels(
-    geneLabelCandidates(m.genePins, screen, m.contigThickness, otherNodeUnder),
+    geneLabelCandidates(
+      m.genePins,
+      screen,
+      m.contigThickness,
+      otherNodeUnder,
+      m.liftedWalks,
+    ),
     frame,
     take,
     reserved,

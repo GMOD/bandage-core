@@ -59,6 +59,8 @@ function pin(at: NodeSegment): GenePin {
     nodeIds: new Set(['bb']),
     at,
     covered: 1,
+    onReference: true,
+    walks: 1,
   }
 }
 

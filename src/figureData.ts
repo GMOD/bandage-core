@@ -3,6 +3,7 @@ import { figureScene } from './figureScene'
 import { FIGURE_DEFAULTS, figureFit } from './figureSettings'
 import { parseRegion } from './gbzCut'
 import { EXON_COLOR } from './genes/exonOutline'
+import { namedGenePins } from './genes/geneNames'
 import { genePins } from './genes/genePins'
 import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnMarks, graphKey } from './graphKey'
 import { labelledNodeLengths, sizeLeader } from './graphLabels'
@@ -146,6 +147,8 @@ interface ThreadKeyRow {
 
 interface PinRow {
   gene: string
+  // what the drawing names the gene, null where namedGenePins names it nowhere
+  label: string | null
   x: number
   y: number
   covered: number
@@ -403,7 +406,14 @@ export function figureData(
     })
   }
 
-  const pins = columns<PinRow>({ gene: [], x: [], y: [], covered: [], bp: [] })
+  const pins = columns<PinRow>({
+    gene: [],
+    label: [],
+    x: [],
+    y: [],
+    covered: [],
+    bp: [],
+  })
   const exons = columns<ExonRow>({
     gene: [],
     node: [],
@@ -415,10 +425,17 @@ export function figureData(
   const pinned = o.genes?.length
     ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
     : []
+  const names = new Map(
+    namedGenePins(
+      pinned,
+      lift?.walks.map(w => w.name),
+    ).map(({ pin, name }) => [pin, name]),
+  )
   for (const pin of pinned) {
     const gene = pin.gene.name
     pins.push({
       gene,
+      label: names.get(pin) ?? null,
       x: pin.at.x,
       y: pin.at.y,
       covered: pin.covered,
@@ -602,6 +619,7 @@ export function figureData(
     drawnRowLabels: layout.rowLabels ?? [],
     bubbleHalos: [],
     genePins: pinned,
+    liftedWalks: lift?.walks.map(w => w.name),
     nodePositions: layout.nodePositions,
     labelsNodeSizes: !lift,
     nodeLengths: labelledNodeLengths(
@@ -672,7 +690,12 @@ export function figureData(
       sizeLeader(label),
     )
   }
-  for (const { item: pin, x, y, text } of placed.genes) {
+  for (const {
+    item: { pin },
+    x,
+    y,
+    text,
+  } of placed.genes) {
     const at = {
       x: pin.at.x * axis.scaleX + fit.translateX,
       y: pin.at.y * axis.scaleY + fit.translateY,

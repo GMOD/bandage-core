@@ -41,7 +41,7 @@ export function exonStretches(
   }
   return pins.flatMap(pin =>
     pin.exonsByNode.map(({ nodeId, d }) => ({
-      key: `${pin.gene.name}-${pin.gene.start}-${nodeId}`,
+      key: `${pin.gene.name}-${pin.gene.refName}-${pin.gene.start}-${nodeId}`,
       d: pathOf(d),
       inner: inkPx(nodeId) + 2 * EXON_GAP_PX,
     })),

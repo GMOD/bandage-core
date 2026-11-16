@@ -4,6 +4,7 @@ import {
   isAnchored,
 } from '../anchoredNodes'
 import { polylineSlice } from '../layout/mergeRuns'
+import { pathOrigin } from '../pathAnchoring'
 import { svgPath } from '../util/geometry'
 
 import type { AnchoredNode } from '../anchoredNodes'
@@ -38,9 +39,14 @@ export interface GenePin {
   // where the name goes: the point at the gene's midpoint, or the nearest
   // point inside the gene where the midpoint is not in the cut
   at: NodeSegment
-  // how much of the gene's span the cut covers, so a label can say when a
-  // gene runs off the cut
+  // how much of the gene's span the drawing holds, so a label can say when a
+  // gene runs off it: on the reference, the drawn backbone's share; on a
+  // haplotype's own contig, the share inside its walk's stretch of that contig
   covered: number
+  // whether the gene lies on the reference's own sequence
+  onReference: boolean
+  // how many of the graph's walks step any node the gene lies over
+  walks: number
 }
 
 // The nodes on one refName in offset order, for finding the nodes a gene lies
@@ -49,6 +55,57 @@ export interface GenePin {
 interface RefNameNodes {
   nodes: AnchoredNode[]
   reach: number
+  reference: boolean
+}
+
+// Where each walk's records lie on its contig, from the first record's start
+// to the last one's end, by the contig's name
+function walkStretches(graph: Graph, contigs: ReadonlySet<string>) {
+  const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const stretches = new Map<string, { start: number; end: number }>()
+  for (const path of graph.paths ?? []) {
+    const origin = pathOrigin(path.name)
+    if (contigs.has(origin.name)) {
+      const start = path.start ?? origin.start
+      const end = path.nodeIds.reduce(
+        (sum, id) => sum + (lengths.get(id) ?? 0),
+        start,
+      )
+      const seen = stretches.get(origin.name)
+      stretches.set(
+        origin.name,
+        seen
+          ? { start: Math.min(seen.start, start), end: Math.max(seen.end, end) }
+          : { start, end },
+      )
+    }
+  }
+  return stretches
+}
+
+// How many walks step any node of each set, by the set
+function walksStepping(graph: Graph, nodeSets: readonly ReadonlySet<string>[]) {
+  const stepping = new Map(nodeSets.map(ids => [ids, new Set<string>()]))
+  const steppedBy = new Map<string, Set<string>[]>()
+  for (const [ids, walks] of stepping) {
+    for (const id of ids) {
+      const into = steppedBy.get(id)
+      if (into) {
+        into.push(walks)
+      } else {
+        steppedBy.set(id, [walks])
+      }
+    }
+  }
+  for (const path of graph.paths ?? []) {
+    const origin = pathOrigin(path.name).name
+    for (const id of path.nodeIds) {
+      for (const walks of steppedBy.get(id) ?? []) {
+        walks.add(origin)
+      }
+    }
+  }
+  return new Map([...stepping].map(([ids, walks]) => [ids, walks.size]))
 }
 
 function alongLine(
@@ -83,7 +140,13 @@ export function genePins(
       if (positions[node.id]?.length) {
         const entry =
           byRefName.get(refName) ??
-          byRefName.set(refName, { nodes: [], reach: 0 }).get(refName)!
+          byRefName
+            .set(refName, {
+              nodes: [],
+              reach: 0,
+              reference: node.stable.rank === 0,
+            })
+            .get(refName)!
         entry.nodes.push(node)
         entry.reach = Math.max(entry.reach, node.length)
       }
@@ -92,7 +155,7 @@ export function genePins(
   for (const { nodes } of byRefName.values()) {
     nodes.sort((a, b) => a.stable.start - b.stable.start)
   }
-  const pins: GenePin[] = []
+  const pins: Omit<GenePin, 'walks'>[] = []
   for (const gene of genes) {
     const onRefName = byRefName.get(gene.refName)
     if (!onRefName) {
@@ -105,7 +168,7 @@ export function genePins(
     let atDistance = Infinity
     let covered = 0
     const mid = (gene.start + gene.end) / 2
-    const { nodes, reach } = onRefName
+    const { nodes, reach, reference } = onRefName
     for (
       let i = firstNodeAtOrAfter(nodes, gene.start - reach);
       i < nodes.length && nodes[i]!.stable.start < gene.end;
@@ -168,8 +231,31 @@ export function genePins(
         nodeIds,
         at,
         covered: covered / (gene.end - gene.start),
+        onReference: reference,
       })
     }
   }
-  return pins
+  const walked = walkStretches(
+    graph,
+    new Set(pins.flatMap(p => (p.onReference ? [] : [p.gene.refName]))),
+  )
+  const walks = walksStepping(
+    graph,
+    pins.map(p => p.nodeIds),
+  )
+  return pins.map(pin => {
+    const stretch = walked.get(pin.gene.refName)
+    const { start, end } = pin.gene
+    return {
+      ...pin,
+      covered: stretch
+        ? Math.max(
+            0,
+            Math.min(end, stretch.end) - Math.max(start, stretch.start),
+          ) /
+          (end - start)
+        : pin.covered,
+      walks: walks.get(pin.nodeIds) ?? 0,
+    }
+  })
 }

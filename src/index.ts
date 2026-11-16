@@ -365,6 +365,8 @@ export type { UnlabelledPlaceholders } from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'
 export { genePins } from './genes/genePins'
+export { genesOverNode, hasGeneSymbol, namedGenePins } from './genes/geneNames'
+export type { NamedGenePin } from './genes/geneNames'
 export type { GeneModel, GenePin } from './genes/genePins'
 export {
   WELL_KNOWN_SAMPLES,

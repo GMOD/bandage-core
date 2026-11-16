@@ -386,7 +386,8 @@ export function figureSvg(
       x: p.x * t.scaleX + t.translateX,
       y: p.y * t.scaleY + t.translateY,
     })
-    for (const { item: pin, x, y, w: cw, text } of labels.genes) {
+    for (const { item, x, y, w: cw, text } of labels.genes) {
+      const { pin, name } = item
       const { x1, y1, x2, y2 } = geneLeader(
         { x, y },
         screen(pin.at),
@@ -394,7 +395,7 @@ export function figureSvg(
       )
       out.push(
         `<line x1="${x1}" x2="${x2}" y1="${y1}" y2="${y2}" stroke="${GENE_INK}" stroke-width="0.8" stroke-opacity="0.6"/>`,
-        chip(x, y, cw, pin.gene.name, text.slice(pin.gene.name.length)),
+        chip(x, y, cw, name, text.slice(name.length)),
       )
     }
     for (const { item, x, y, w: cw, text } of labels.passes) {
@@ -482,6 +483,7 @@ export function figureSvg(
           drawnRowLabels: rowLabels,
           bubbleHalos: [],
           genePins: pins,
+          liftedWalks: highlight?.walks.map(walk => walk.name),
           nodePositions: layout.nodePositions,
           labelsNodeSizes: !layout.tubeMap && !highlight,
           nodeLengths,
