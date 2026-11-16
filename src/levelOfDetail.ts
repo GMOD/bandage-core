@@ -219,6 +219,10 @@ function unitsOf(
         }
       }
       if (walks.size > 0) {
+        const attachments = [
+          leavesAt(fromNode, fromStrand),
+          arrivesAt(toNode, toStrand),
+        ]
         skips.push({
           nodes: [],
           edges: [edge],
@@ -226,16 +230,10 @@ function unitsOf(
             { edge, atEnd: false },
             { edge, atEnd: true },
           ],
-          attachments: [
-            leavesAt(fromNode, fromStrand),
-            arrivesAt(toNode, toStrand),
-          ],
+          attachments,
           refNames: new Set([fromNode.stable.refName, toNode.stable.refName]),
           walks: [...walks],
-          bp: (deletions.get(edge) ?? []).reduce(
-            (sum, id) => sum + (nodeById.get(id)?.length ?? 0),
-            0,
-          ),
+          bp: spread(attachments),
           skip: edge,
         })
       }
@@ -364,6 +362,7 @@ function foldOf(
       refName !== undefined &&
       unit.refNames.size === 1 &&
       pxPerBp > 0 &&
+      unit.bp > 0 &&
       unit.bp * pxPerBp < SMALL_SITE_PX &&
       feet.length === unit.feet.length &&
       unit.nodes.every(id => positions[id]?.length)

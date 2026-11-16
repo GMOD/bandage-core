@@ -153,6 +153,53 @@ describe('a site folds when its bp and the reference bp between its attachments 
   })
 })
 
+test('a skip is measured by how far apart on the reference its ends are, whatever of the skipped reference the cut holds', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(
+      [
+        `S\tr1\t${bases(1000)}\tSN:Z:chr\tSO:i:0\tSR:i:0`,
+        `S\tr3\t${bases(1000)}\tSN:Z:chr\tSO:i:51000\tSR:i:0`,
+        'L\tr1\t+\tr3\t+\t0M',
+        'W\th1\t1\tchr\t0\t*\t>r1>r3',
+      ].join('\n'),
+    ),
+  )
+  const positions = { 'r1+': at(0, 1000), 'r3+': at(1400, 2400) }
+  const link = edgeIndex(graph, 'r1+', 'r3+')
+  expect(drawingOf(graph).bypassed.has(link)).toBe(true)
+  for (const scale of [0.5, 5, 500]) {
+    const batch = build(graph, positions, scale)
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(batch.edgeCurveRuns.has(link)).toBe(true)
+  }
+  const far = build(graph, positions, 0.00005)
+  expect(far.collapsed?.sites).toMatchObject([{ edges: [link], bp: 50_000 }])
+})
+
+test('nothing of no bp folds, since no zoom would draw it again', () => {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    `S\tr2\t${bases(1000)}`,
+    'S\tx\t*',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr1\t+\tx\t+\t0M',
+    'L\tx\t+\tr2\t+\t0M',
+    'W\tref\t0\tchr\t0\t2000\t>r1>r2',
+    'W\talt\t1\tchr\t0\t*\t>r1>x>r2',
+  ])
+  expect(graph.nodes.find(n => n.id === 'x+')?.length).toBe(0)
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 2000),
+    'x+': at(1000, 1001, 20),
+  }
+  for (const scale of [0.0001, 1]) {
+    const batch = build(graph, positions, scale)
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(drawnNodes(batch).has('x+')).toBe(true)
+  }
+})
+
 // `count` 1 bp SNPs, each between 200 bp of reference, laid out two ways: a
 // straight line one unit a bp, and a winding line like a force layout's, its
 // short nodes floored to 15 units, its alleles off on either side at any angle
