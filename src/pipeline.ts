@@ -1,4 +1,4 @@
-import { isBackbone } from './anchoredNodes'
+import { isBackbone, overlapsWindow } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
@@ -26,6 +26,7 @@ import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
 import { MAX_BAND_PX } from './renderer/walkLanes'
 import { canonicalEdgeOrder, canonicalNodeOrder } from './util/canonicalOrder'
+import { ownStrand } from './util/geometry'
 import { MAX_ZOOM, MIN_ZOOM } from './zoomLimits'
 
 import type { BubbleSpread } from './bubbleSpreads'
@@ -444,6 +445,107 @@ export function fitTransform(
       padTop,
     ),
   }
+}
+
+function xsBetween(line: readonly NodeSegment[], lo: number, hi: number) {
+  const pieces = line.slice(1).map((b, i) => {
+    const a = line[i] ?? b
+    return { a, b, length: Math.hypot(b.x - a.x, b.y - a.y) }
+  })
+  const total = pieces.reduce((sum, piece) => sum + piece.length, 0)
+  const xs: number[] = []
+  let walked = 0
+  for (const { a, b, length } of pieces) {
+    const f0 = walked / total
+    const f1 = (walked + length) / total
+    if (length > 0 && f1 >= lo && f0 <= hi) {
+      const xAt = (f: number) =>
+        a.x + ((b.x - a.x) * (Math.min(f1, Math.max(f0, f)) - f0)) / (f1 - f0)
+      xs.push(xAt(lo), xAt(hi))
+    }
+    walked += length
+  }
+  return total > 0 ? xs : line.map(p => p.x)
+}
+
+export function referenceExtent(
+  graph: Graph,
+  positions: Readonly<Record<string, readonly NodeSegment[]>>,
+  start: number,
+  end: number,
+) {
+  let x0 = Infinity
+  let x1 = -Infinity
+  let from = Infinity
+  let to = -Infinity
+  for (const node of graph.nodes) {
+    const line = positions[node.id]
+    if (
+      isBackbone(node) &&
+      node.length > 0 &&
+      line?.length &&
+      overlapsWindow(node, { start, end })
+    ) {
+      const a = Math.max(start, node.stable.start)
+      const b = Math.min(end, node.stable.start + node.length)
+      const f0 = (a - node.stable.start) / node.length
+      const f1 = (b - node.stable.start) / node.length
+      const forwards = ownStrand(node.id) === (node.stable.strand ?? '+')
+      for (const x of xsBetween(
+        line,
+        forwards ? f0 : 1 - f1,
+        forwards ? f1 : 1 - f0,
+      )) {
+        x0 = Math.min(x0, x)
+        x1 = Math.max(x1, x)
+      }
+      from = Math.min(from, a)
+      to = Math.max(to, b)
+    }
+  }
+  return x1 > x0 ? { x0, x1, start: from, end: to } : undefined
+}
+
+export function followTransform(
+  extent: { x0: number; x1: number; start: number; end: number },
+  window: { start: number; end: number },
+  bounds: { minY: number; h: number },
+  paneWidth: number,
+  paneHeight: number,
+  {
+    padLeft = FIT_PADDING,
+    padTop = FIT_PADDING,
+    padRight = FIT_PADDING,
+    padBottom = FIT_PADDING,
+  } = {},
+) {
+  const usableWidth = paneWidth - padLeft - padRight
+  const usableHeight = paneHeight - padTop - padBottom
+  const span = window.end - window.start
+  const placed = (scale: number) => ({
+    scale,
+    translateX:
+      padLeft +
+      (usableWidth * ((extent.start + extent.end) / 2 - window.start)) / span -
+      (scale * (extent.x0 + extent.x1)) / 2,
+    translateY: fittedTranslateY(bounds, usableHeight, scale, padTop),
+  })
+  return usableWidth > 0 &&
+    usableHeight > 0 &&
+    span > 0 &&
+    extent.end > extent.start &&
+    extent.x1 > extent.x0
+    ? placed(
+        clampZoom(
+          Math.min(
+            (usableWidth * (extent.end - extent.start)) /
+              span /
+              (extent.x1 - extent.x0),
+            bounds.h > 0 ? usableHeight / bounds.h : Infinity,
+          ),
+        ),
+      )
+    : undefined
 }
 
 // Extent of the drawing in layout units, which the fit and the pane height

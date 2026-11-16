@@ -137,6 +137,16 @@ reads them.
   `fitBesideKey`, the pane less the key's column, and hands its width and height
   to `fitTransform` as well as `forceLayout`, so no node or gene pin lies under
   the key, whose column `layoutLabels` keeps every label out of
+- A host that cuts more graph than its window shows, as a linear view's track
+  holds one cut while its view pans across it, places the drawing with
+  `followTransform` rather than `fitTransform`. `referenceExtent` finds the
+  layout x the window's stretch of the reference is drawn over, and
+  `followTransform` lays that stretch across the pane, the whole drawing no
+  taller than the pane. Where the window runs past the drawn reference, the part
+  drawn keeps its share of the pane. The placement depends on the window alone
+  and moves the layout by a translation and a uniform scale only: a pan slides
+  the drawing, and also scales it where the pane's width sets the scale and the
+  stretch's drawn width changes along the pan
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths

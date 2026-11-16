@@ -11,9 +11,11 @@ export {
   drawingBounds,
   engineRequest,
   fitTransform,
+  followTransform,
   forceLayout,
   layoutExtent,
   loadGraph,
+  referenceExtent,
 } from './pipeline'
 export type {
   Bounds,
