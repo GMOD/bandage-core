@@ -1489,6 +1489,72 @@ describe('the drawing through a folded site', () => {
     expect(lane.at(-1)).toEqual({ x: 1002, y: 0 })
   })
 
+  describe('a lifted lane taking a folded skip runs along the run the layout bent, as a lane taking the reference does', () => {
+    // the lane's points on the links the walk takes, in the walk's order
+    const lanePoints = (
+      skipping: Graph,
+      laid: Record<string, NodeSegment[]>,
+      scale: number,
+      links: (readonly [string, string])[],
+    ) => {
+      const batch = build(skipping, laid, scale, {
+        highlight: walkLift(skipping, [{ walk: 'del#1#chr' }]),
+      })
+      return links
+        .flatMap(([from, to]) => lanesOf(batch, edgeIndex(skipping, from, to)))
+        .filter(lane => lane.walk === 0)
+        .flatMap(lane =>
+          lane.curves.flatMap(c => [
+            { x: c.x0, y: c.y0 },
+            { x: c.x1, y: c.y1 },
+          ]),
+        )
+    }
+
+    test("a skip between the drawn nodes at the run's ends", () => {
+      const { graph: skipping, positions: straight } = skip(1)
+      const laid = { ...straight, 'r2+': at(1000, 1001, 10) }
+      const lane = lanePoints(skipping, laid, 0.5, [['r1+', 'r3+']])
+      expect(lane.some(p => p.y === 10)).toBe(true)
+      expect(lane[0]).toEqual({ x: 1000, y: 0 })
+      expect(lane.at(-1)).toEqual({ x: 1001, y: 0 })
+    })
+
+    test('a skip into a node of the run', () => {
+      // the skip leaves r1 for r3, inside a1's site, which touches its own
+      const skipping = load([
+        `S\tr1\t${bases(1000)}`,
+        'S\tr2\tC',
+        'S\tr3\tC',
+        `S\tr4\t${bases(1000)}`,
+        'S\ta1\tT',
+        'L\tr1\t+\tr2\t+\t0M',
+        'L\tr2\t+\tr3\t+\t0M',
+        'L\tr3\t+\tr4\t+\t0M',
+        'L\tr1\t+\tr3\t+\t0M',
+        'L\tr2\t+\ta1\t+\t0M',
+        'L\ta1\t+\tr4\t+\t0M',
+        'W\tref\t0\tchr\t0\t2002\t>r1>r2>r3>r4',
+        'W\tdel\t1\tchr\t0\t*\t>r1>r3>r4',
+        'W\talt\t1\tchr\t0\t*\t>r1>r2>a1>r4',
+      ])
+      const laid = {
+        'r1+': at(0, 1000),
+        'r2+': at(1000, 1001, 40),
+        'r3+': at(1001, 1002),
+        'r4+': at(1002, 2002),
+        'a1+': at(1001, 1002, 20),
+      }
+      const lane = lanePoints(skipping, laid, 0.1, [
+        ['r1+', 'r3+'],
+        ['r3+', 'r4+'],
+      ])
+      expect(lane.some(p => p.y === 40)).toBe(true)
+      expect(lane[0]).toEqual({ x: 1000, y: 0 })
+      expect(lane.at(-1)).toEqual({ x: 1002, y: 0 })
+    })
+  })
+
   test('a reference node inside a folded site no lifted walk crosses is drawn, at the even stroke', () => {
     const { graph: snpGraph, positions: snpAt } = snp(1, 1, [
       'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',

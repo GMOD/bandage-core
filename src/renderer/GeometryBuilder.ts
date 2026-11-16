@@ -1638,7 +1638,28 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : undefined
   }
   const singleLane = liftedWalks.length === 1 && !threaded
-  // the link the walk takes from `a` to `b`, where the run holds `inside`
+  // where a lane ending at a node, as `end` gives it, meets a run's path at
+  // the point of it nearest `at`
+  const meetingAt = (
+    path: Point[],
+    along: number[],
+    at: Point,
+    end: { normal: Normal; offset: number; shift: { dx: number; dy: number } },
+  ): RunMeeting => {
+    const s = nearestAlong(path, along, at, yToX)
+    const n = normalAlong(path, along, s, yToX)
+    const facing = end.normal.nx * n.nx + end.normal.ny * n.ny < 0 ? -1 : 1
+    const shift = threaded ? end.shift : NO_SHIFT
+    return {
+      s,
+      offset: singleLane ? 0 : facing * end.offset * worldPerScreenPx,
+      dx: singleLane ? 0 : shift.dx,
+      dy: singleLane ? 0 : shift.dy,
+    }
+  }
+  // the link the walk takes from `a` to `b`, where the run holds `inside`:
+  // a folded link, or one into a folded node, meets the run where the node
+  // outside it attaches
   const meetingRun = (
     lane: number,
     a: RouteStep,
@@ -1663,7 +1684,11 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           ? { x: last.x1, y: last.y1 }
           : { x: first.x0, y: first.y0 }
         : undefined
-    const at = collapse.nodes.has(inside.id) ? outsideEnd : insideEnd
+    const at =
+      ei !== undefined &&
+      (collapse.nodes.has(inside.id) || collapse.edges.has(ei))
+        ? outsideEnd
+        : insideEnd
     const [pass, toPass] =
       (sides && threadPairs(lane, sides.edge.from, sides.edge.to)[0]) ??
       FIRST_THREADS[0]
@@ -1686,22 +1711,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             lane,
             toPass,
           ))
-    if (ei !== undefined && at && end) {
-      const s = nearestAlong(passage.path, passage.along, at, yToX)
-      const n = normalAlong(passage.path, passage.along, s, yToX)
-      const facing = end.normal.nx * n.nx + end.normal.ny * n.ny < 0 ? -1 : 1
-      const shift = threaded ? end.shift : NO_SHIFT
-      return {
-        ei,
-        meeting: {
-          s,
-          offset: singleLane ? 0 : facing * end.offset * worldPerScreenPx,
-          dx: singleLane ? 0 : shift.dx,
-          dy: singleLane ? 0 : shift.dy,
-        },
-      }
-    }
-    return undefined
+    return ei !== undefined && at && end
+      ? { ei, meeting: meetingAt(passage.path, passage.along, at, end) }
+      : undefined
   }
   const passageAt = new Map<
     string,
@@ -2206,6 +2218,39 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
                   y: p.y + shift.dy + (sideways.ny * by) / yToX,
                 }
           const first = baseCurves[0]!
+          const fromPoint = slid(
+            { x: first.x0, y: first.y0 },
+            threaded ? from.shift : NO_SHIFT,
+            from.normal,
+            single ? 0 : from.offset * worldPerScreenPx,
+          )
+          const toPoint = slid(
+            { x: last.x1, y: last.y1 },
+            threaded ? to.shift : NO_SHIFT,
+            to.normal,
+            single ? 0 : to.offset * worldPerScreenPx,
+          )
+          // a folded link between two drawn nodes, a skip, runs along the
+          // run its site is in, as any lane crossing that run does
+          const skipped =
+            !fromRun && !toRun && collapsed ? siteAt.get(ei) : undefined
+          const skipRun = skipped && collapse.runOf.get(skipped)
+          const skipPath = skipRun && runPathOf(skipRun)
+          const skipPassage = skipPath && {
+            ...skipPath,
+            into: meetingAt(
+              skipPath.path,
+              skipPath.along,
+              { x: first.x0, y: first.y0 },
+              from,
+            ),
+            out: meetingAt(
+              skipPath.path,
+              skipPath.along,
+              { x: last.x1, y: last.y1 },
+              to,
+            ),
+          }
           const curves =
             fromRun || toRun
               ? polylineCurves([
@@ -2215,38 +2260,34 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
                         passageMiddle(fromRun.passage),
                         fromRun.passage[fromRun.side]?.s ?? 0,
                       )
-                    : [
-                        slid(
-                          { x: first.x0, y: first.y0 },
-                          threaded ? from.shift : NO_SHIFT,
-                          from.normal,
-                          single ? 0 : from.offset * worldPerScreenPx,
-                        ),
-                      ]),
+                    : [fromPoint]),
                   ...(toRun
                     ? passageLane(
                         toRun.passage,
                         toRun.passage[toRun.side]?.s ?? 0,
                         passageMiddle(toRun.passage),
                       )
-                    : [
-                        slid(
-                          { x: last.x1, y: last.y1 },
-                          threaded ? to.shift : NO_SHIFT,
-                          to.normal,
-                          single ? 0 : to.offset * worldPerScreenPx,
-                        ),
-                      ]),
+                    : [toPoint]),
                 ])
-              : single
-                ? laneCurves
-                : slideCurves(
-                    laneCurves,
-                    fromShift.dx + start.normal.nx * offsetX,
-                    fromShift.dy + (start.normal.ny * offsetX) / yToX,
-                    toShift.dx + end.normal.nx * endOffsetX,
-                    toShift.dy + (end.normal.ny * endOffsetX) / yToX,
-                  )
+              : skipPassage
+                ? polylineCurves([
+                    fromPoint,
+                    ...passageLane(
+                      skipPassage,
+                      skipPassage.into.s,
+                      skipPassage.out.s,
+                    ),
+                    toPoint,
+                  ])
+                : single
+                  ? laneCurves
+                  : slideCurves(
+                      laneCurves,
+                      fromShift.dx + start.normal.nx * offsetX,
+                      fromShift.dy + (start.normal.ny * offsetX) / yToX,
+                      toShift.dx + end.normal.nx * endOffsetX,
+                      toShift.dy + (end.normal.ny * endOffsetX) / yToX,
+                    )
           if (inView(curves)) {
             laneStroke(
               curves,
