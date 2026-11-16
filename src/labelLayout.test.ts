@@ -783,3 +783,26 @@ test('bubble names on one spot stack, and a long one falls back to its kind', ()
   )
   expect(tight.bubbles.map(b => b.text)).toEqual(['0 bp–22 kb superbubble'])
 })
+
+test('row labels past what an argument list holds lay out, the topmost row setting where bubble names go', () => {
+  const rows = Array.from({ length: 200_000 }, (_, i) => ({
+    label: `row ${i}`,
+    y: 1000 + i,
+  }))
+  const layout = layoutLabels(
+    source({
+      drawnRowLabels: rows,
+      bubbleHalos: [halo({ x: 300, y: 5000 })],
+      canvasHeight: 2000,
+    }),
+  )
+  expect(layout.bubbles.map(b => b.y)).toEqual(
+    layoutLabels(
+      source({
+        drawnRowLabels: [rows[0]!],
+        bubbleHalos: [halo({ x: 300, y: 5000 })],
+        canvasHeight: 2000,
+      }),
+    ).bubbles.map(b => b.y),
+  )
+})

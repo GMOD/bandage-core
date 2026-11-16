@@ -259,7 +259,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   // reference line.
   const onRows = m.drawnRowLabels.length > 0
   const rowsTop = onRows
-    ? Math.min(...m.drawnRowLabels.map(r => r.y))
+    ? m.drawnRowLabels.reduce((least, r) => Math.min(least, r.y), Infinity)
     : Infinity
   const halo = m.contigThickness * HALO_FACTOR
   const above = (h: BubbleHalo, gap: number) => {

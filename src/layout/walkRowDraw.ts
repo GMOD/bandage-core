@@ -1,4 +1,4 @@
-import { el } from '../el'
+import { el, elOf } from '../el'
 import {
   FROM_ELSEWHERE_TEXT,
   GAP_CAUSE_TEXT,
@@ -1124,14 +1124,14 @@ export function walkRowsKeyTree(
   })
   return {
     width: at,
-    tree: el(
+    tree: elOf(
       'g',
       {
         transform: `translate(${x} ${y})`,
         'font-family': 'Helvetica, Arial, sans-serif',
         'font-size': 11,
       },
-      ...parts,
+      parts,
     ),
   }
 }
@@ -1275,9 +1275,7 @@ export function coalesceRuns(runs: WalkRun[], pxPerBp: number, marked = false) {
 }
 
 function geneTree(box: GeneBox, y: number, barPx: number) {
-  return el(
-    'g',
-    { class: 'row-gene', 'data-testid': 'graph-walk-gene' },
+  return elOf('g', { class: 'row-gene', 'data-testid': 'graph-walk-gene' }, [
     el('title', {}, box.name),
     ...box.exons.map(e =>
       el('rect', {
@@ -1322,7 +1320,7 @@ function geneTree(box: GeneBox, y: number, barPx: number) {
         },
         box.name,
       ),
-  )
+  ])
 }
 
 // Walk rows over a pane: each row's runs, unit separators, its genes, the
@@ -1371,7 +1369,7 @@ export function walkRowsTree(
     const inkGradient =
       inkStops &&
       inkStops.length > 1 &&
-      el(
+      elOf(
         'linearGradient',
         {
           id: inkId,
@@ -1381,7 +1379,7 @@ export function walkRowsTree(
           y1: 0,
           y2: 0,
         },
-        ...inkStops.map(s =>
+        inkStops.map(s =>
           el('stop', { offset: s.offset, 'stop-color': s.color }),
         ),
       )
@@ -1415,10 +1413,10 @@ export function walkRowsTree(
       })
       return 'stops' in paint
         ? [
-            el(
+            elOf(
               'linearGradient',
               { id },
-              ...paint.stops.map((color, k) =>
+              paint.stops.map((color, k) =>
                 el('stop', {
                   offset: k / (paint.stops.length - 1),
                   'stop-color': color,

@@ -122,8 +122,11 @@ export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
       continue
     }
     const first = top ?? members[0]!
-    const start = top?.start ?? Math.min(...members.map(r => r.start))
-    const end = top?.end ?? Math.max(...members.map(r => r.end))
+    const start =
+      top?.start ??
+      members.reduce((least, r) => Math.min(least, r.start), Infinity)
+    const end =
+      top?.end ?? members.reduce((most, r) => Math.max(most, r.end), -Infinity)
     const a = first.attrs
     const spans = (type: string) =>
       members

@@ -20,7 +20,10 @@ import type { WalkRows } from './walkRows'
 export const READOUT_ROOM = 1.3
 
 export function longestBar(walks: WalkRows) {
-  return Math.max(barEnd(walks.reference), ...walks.rows.map(barEnd))
+  return walks.rows.reduce(
+    (most, row) => Math.max(most, barEnd(row)),
+    barEnd(walks.reference),
+  )
 }
 
 // How far the bars reach, so the fit and the pane height include them. The

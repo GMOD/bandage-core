@@ -245,9 +245,18 @@ function highlightOf(
   const unloaded = (id: string) => byId.get(id)?.placeholder === true
   // from the first piece's start to the furthest piece's end, gaps included
   const extentOf = (ps: GraphPath[]) => {
-    const start = Math.min(...ps.map(p => p.start ?? Infinity))
+    const start = ps.reduce(
+      (least, p) => Math.min(least, p.start ?? Infinity),
+      Infinity,
+    )
     return Number.isFinite(start)
-      ? { start, end: Math.max(...ps.map(p => (p.start ?? 0) + bpOf(p))) }
+      ? {
+          start,
+          end: ps.reduce(
+            (most, p) => Math.max(most, (p.start ?? 0) + bpOf(p)),
+            -Infinity,
+          ),
+        }
       : undefined
   }
   if (walked.length === 0) {

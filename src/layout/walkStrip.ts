@@ -1,4 +1,4 @@
-import { el } from '../el'
+import { el, elOf } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 import { partitionPoint } from '../util/partitionPoint'
@@ -197,7 +197,10 @@ export function walkStripFrame(
   const maxHeight = o.maxHeight ?? WALK_STRIP_CEILING_PX
   const labelPx =
     o.labelPx ??
-    Math.max(...[bars.reference, ...bars.rows].map(r => r.label.length)) *
+    bars.rows.reduce(
+      (most, r) => Math.max(most, r.label.length),
+      bars.reference.label.length,
+    ) *
       LABEL_CHAR_PX +
       16
   const count = bars.rows.length + 1
@@ -252,10 +255,10 @@ export function walkMarksTree(
   )
   const X = (offset: number) =>
     (bars.origin + offset) * frame.scaleX + frame.translateX
-  return el(
+  return elOf(
     'g',
     { 'data-testid': 'graph-walk-marks' },
-    ...marks.flatMap(m => {
+    marks.flatMap(m => {
       const i = index.get(m.row)
       if (i === undefined) {
         return []
@@ -280,10 +283,10 @@ export function walkStripLabelsTree(
   frame: StripFrame,
   bold: ReadonlySet<string> = new Set(),
 ) {
-  return el(
+  return elOf(
     'g',
     { 'font-family': 'sans-serif', 'font-size': LABEL_FONT_PX, fill: '#333' },
-    ...(frame.labelled ? [bars.reference, ...bars.rows] : []).map((row, i) =>
+    (frame.labelled ? [bars.reference, ...bars.rows] : []).map((row, i) =>
       el(
         'text',
         {

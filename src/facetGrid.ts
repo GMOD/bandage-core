@@ -180,7 +180,10 @@ export function facetCells(
     [...new Set(places.flatMap(p => (p ? [p.sample] : [])))],
     sort,
   )
-  const columns = Math.max(1, ...places.map(p => (p ? p.column + 1 : 1)))
+  const columns = places.reduce(
+    (most, p) => Math.max(most, p ? p.column + 1 : 1),
+    1,
+  )
   const cells = places.map(p =>
     p ? rows.indexOf(p.sample) * columns + p.column : -1,
   )

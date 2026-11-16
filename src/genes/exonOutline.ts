@@ -1,4 +1,4 @@
-import { el } from '../el'
+import { el, elOf } from '../el'
 
 import type { El } from '../el'
 import type { GenePin } from './genePins'
@@ -81,11 +81,12 @@ export function exonOutlineTree(
         width: o.width,
         height: o.height,
       },
-      el(
+      elOf(
         'g',
         { transform: o.transform },
-        ...stretches.map(s => stroke(s, '#fff', s.inner + 2 * EXON_LINE_PX)),
-        ...stretches.map(s => stroke(s, '#000', s.inner)),
+        stretches
+          .map(s => stroke(s, '#fff', s.inner + 2 * EXON_LINE_PX))
+          .concat(stretches.map(s => stroke(s, '#000', s.inner))),
       ),
     ),
     el('rect', {

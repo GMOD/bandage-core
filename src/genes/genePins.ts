@@ -122,7 +122,9 @@ export function genePins(
         stretches.push(stretch)
       }
       if (nodeParts.length > 0) {
-        parts.push(...nodeParts)
+        for (const part of nodeParts) {
+          parts.push(part)
+        }
         exonsByNode.push({ nodeId: node.id, d: nodeParts.join(''), stretches })
       }
       const pinBp = Math.min(Math.max(mid, nodeStart), nodeEnd)

@@ -550,7 +550,9 @@ export function figureSvg(
       }
     })
     const { grid, key } = laidOut
-    parts.push(...key.markup)
+    for (const line of key.markup) {
+      parts.push(line)
+    }
     panels.forEach((panel, i) => {
       const cell = place.cells[i]!
       const x = (cell % grid.columns) * (grid.width + FACET_GAP_PX)
@@ -585,8 +587,10 @@ export function figureSvg(
       }
     })
     const { v, key, h } = laidOut
+    for (const line of key.markup) {
+      parts.push(line)
+    }
     parts.push(
-      ...key.markup,
       `<svg y="${header}" width="${width}" height="${h}">${drawing(v, width, h)}</svg>`,
     )
     height = header + h
