@@ -475,6 +475,66 @@ test('a folded placeholder has no length and no leader, and the unlabelled count
   expect(none.unlabelled).toBeUndefined()
 })
 
+test('a folded node under a label moves it no more than no node there would', () => {
+  const nodes = placeholders([75_000, 75_000])
+  const loops = {
+    nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+    nodeById: new Map(nodes.map(n => [n.id, n])),
+  }
+  const spot = [
+    { x: 300, y: 200 },
+    { x: 324, y: 200 },
+  ]
+  const [, alone] = layoutLabels(
+    source({ ...loops, nodePositions: { p0: spot, p1: spot } }),
+  ).sizes
+  expect(alone?.leader).toBeDefined()
+  const under = {
+    p0: spot,
+    p1: spot,
+    a1: [
+      { x: alone!.x - 4, y: alone!.y },
+      { x: alone!.x + 4, y: alone!.y },
+    ],
+  }
+  const [, drawn] = layoutLabels(
+    source({ ...loops, nodePositions: under }),
+  ).sizes
+  expect(drawn?.y).not.toBe(alone?.y)
+  const [, folded] = layoutLabels(
+    source({ ...loops, nodePositions: under, folded: new Set(['a1']) }),
+  ).sizes
+  expect(folded).toEqual(alone)
+
+  const at = { x: 300, y: 100 }
+  const bb = [
+    { x: 100, y: 100 },
+    { x: 500, y: 100 },
+  ]
+  const [gene] = layoutLabels(
+    source({ genePins: [pin(at)], nodePositions: { bb } }),
+  ).genes
+  const onGene = {
+    bb,
+    a1: [
+      { x: gene!.x - 4, y: gene!.y - 4 },
+      { x: gene!.x + 4, y: gene!.y - 4 },
+    ],
+  }
+  const [moved] = layoutLabels(
+    source({ genePins: [pin(at)], nodePositions: onGene }),
+  ).genes
+  expect([moved?.x, moved?.y]).not.toEqual([gene?.x, gene?.y])
+  const [kept] = layoutLabels(
+    source({
+      genePins: [pin(at)],
+      nodePositions: onGene,
+      folded: new Set(['a1']),
+    }),
+  ).genes
+  expect([kept?.x, kept?.y]).toEqual([gene?.x, gene?.y])
+})
+
 test('a row label holds its space against a gene pin', () => {
   const at = { x: 20, y: 200 }
   const without = layoutLabels(source({ genePins: [pin(at)] }))

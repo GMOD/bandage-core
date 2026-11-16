@@ -243,11 +243,13 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
         }).filter(c => !m.folded?.has(c.id))
       : []
   const ink = m.contigThickness / 2
-  const otherNodeUnder = otherNodeUnderBox(
+  const anyNodeUnder = otherNodeUnderBox(
     m.nodePositions ?? {},
     { scaleX, scaleY, translateX, translateY },
     m.positionsVersion,
   )
+  const otherNodeUnder = (box: Box, own: (nodeId: string) => boolean) =>
+    anyNodeUnder(box, under => own(under) || !!m.folded?.has(under))
   const budget = nodeLabelBudget(width, height)
   const placeholderSizes = placeSizeLabels(
     sizeCandidates.filter(c => c.kept),
