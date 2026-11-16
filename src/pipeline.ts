@@ -24,7 +24,7 @@ import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
 import { MAX_BAND_PX } from './renderer/walkLanes'
-import { canonicalEdgeOrder } from './util/edgeOrder'
+import { canonicalEdgeOrder, canonicalNodeOrder } from './util/canonicalOrder'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { GraphTables } from './gfa/graphTables'
@@ -158,9 +158,14 @@ export function engineRequest(
 ): EngineRequest {
   const anchored = graph.nodes.some(isBackbone)
   const s = engineSettingsOf(settings)
+  const canonical = {
+    ...graph,
+    nodes: canonicalNodeOrder(graph.nodes),
+    edges: canonicalEdgeOrder(graph.edges),
+  }
   // the seeds lay the backbone out at the spaced link length too
   const spaced = {
-    ...scaling,
+    nodes: canonicalNodeOrder(scaling.nodes),
     opts: {
       ...scaling.opts,
       edgeLength: scaling.opts.edgeLength * s.spacing,
@@ -170,12 +175,12 @@ export function engineRequest(
     graph: {
       nodes: anchored
         ? seededNodes(
-            graph,
+            canonical,
             spaced,
             s.engine === 'fmmm' ? FMMM_SEED_STRETCH : 1,
           )
         : spaced.nodes,
-      edges: canonicalEdgeOrder(graph.edges),
+      edges: canonical.edges,
     },
     options: {
       quality: s.quality,
