@@ -7,6 +7,7 @@ import { drawnMarks, graphKey, tooSmallText, unlabelledText } from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
+import { SMALL_SITE_PX } from './levelOfDetail'
 import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform } from './pipeline'
 import { graphBackbone } from './reference'
@@ -15,6 +16,7 @@ import {
   buildGeometry,
   computeReferenceRamp,
 } from './renderer/GeometryBuilder'
+import { drawFoldsAs } from './renderer/foldForms'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { axisScaleOf } from './viewport'
@@ -793,14 +795,25 @@ test('the key says how many nodes and skips are too small to draw, in one line w
     '3 nodes and 2 skips too small to draw',
     '1,234 nodes too small to draw',
   ])
+  expect(tooSmallText(38, 4, 19)).toBe(
+    '38 nodes and 4 skips under 19 bp not drawn',
+  )
+  expect(tooSmallText(1, 0, 1)).toBe('1 node under 1 bp not drawn')
+  expect(tooSmallText(0, 2, 1250)).toBe('2 skips under 1,250 bp not drawn')
+  drawFoldsAs({ keyLine: 'draw' })
+  expect(tooSmallText(38, 4, 19)).toBe('38 nodes and 4 skips too small to draw')
+  drawFoldsAs({ keyLine: 'bp' })
   const { layout, batch } = drawn(SMALL, smallSites())
   expect(batch.collapsed?.sites.map(s => s.nodes)).toEqual([['a1+'], []])
+  for (const { bp } of batch.collapsed?.sites ?? []) {
+    expect(bp).toBeLessThan(12)
+  }
   const sections = graphKey(SMALL, layout, { marks: drawnMarks([batch]) })
   const last = sections.at(-1)
   expect(last).toEqual({
     id: 'too-small',
     entries: [
-      { key: 'too-small', text: '1 node and 1 skip too small to draw' },
+      { key: 'too-small', text: '1 node and 1 skip under 12 bp not drawn' },
     ],
   })
   expect(keys(SMALL, { ...smallSites(), smallSites: 'nodes' })).not.toContain(
@@ -847,13 +860,21 @@ test("the key's counts are the folded nodes and skip links, each once, however m
   const marks = drawnMarks([panel, panel])
   expect([marks.foldedNodes.size, marks.foldedSkips.size]).toEqual([3, 2])
   const text = graphKey(SMALL, {}, { marks }).at(-1)?.entries[0]?.text
-  expect(text).toBe('3 nodes and 2 skips too small to draw')
+  expect(text).toBe('3 nodes and 2 skips under 3 bp not drawn')
   const skipsOnly = drawnMarks([
     { ...panel, collapsed: foldOf([site([], [7])]) },
   ])
   expect(graphKey(SMALL, {}, { marks: skipsOnly }).at(-1)?.entries).toEqual([
-    { key: 'too-small', text: '1 skip too small to draw' },
+    { key: 'too-small', text: '1 skip under 3 bp not drawn' },
   ])
+  const at18 = drawnMarks([
+    { ...panel, collapsed: { ...fold, pxPerBp: SMALL_SITE_PX / 18.13 } },
+    { ...panel, collapsed: { ...fold, pxPerBp: SMALL_SITE_PX / 7 } },
+  ])
+  expect(at18.foldedUnderBp).toBe(19)
+  expect(graphKey(SMALL, {}, { marks: at18 }).at(-1)?.entries[0]?.text).toBe(
+    '3 nodes and 2 skips under 19 bp not drawn',
+  )
 })
 
 test('a walk coloured by pass keys each pass by its name, a bundle by its count, and heads by the way they point', () => {

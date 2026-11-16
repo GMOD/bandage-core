@@ -499,9 +499,9 @@ test.each([
 test('by default a figure folds its small sites, draws the allele, and says how many it folded in a last key line', () => {
   const folded = figureSvg(sites, sitesLayout)
   const drawn = figureSvg(sites, sitesLayout, { smallSites: 'nodes' })
-  const line = '<text y="13">2 nodes and 1 skip too small to draw</text>'
+  const line = '<text y="13">2 nodes and 1 skip under 8 bp not drawn</text>'
   expect(folded).toContain(line)
-  expect(drawn).not.toContain('too small to draw')
+  expect(drawn).not.toContain('not drawn')
   const key = folded.slice(0, folded.indexOf(line))
   expect(key).not.toMatch(/Tick/)
   const strokes = (svg: string) => svg.match(/<path /g)?.length ?? 0

@@ -12,12 +12,16 @@
 //   'C': every lifted walk crossing the site runs one straight lane between
 //        its attachments, whichever route it takes, and the reference nodes
 //        inside it are drawn only by those lanes
+// keyLine
+//   'bp': the key counts what folded under the bp it folds at
+//   'draw': it counts what folded as too small to draw
 export interface FoldForms {
   reference: 'A' | 'B'
   lane: 'A' | 'B' | 'C'
+  keyLine: 'bp' | 'draw'
 }
 
-let forms: FoldForms = { reference: 'B', lane: 'B' }
+let forms: FoldForms = { reference: 'B', lane: 'B', keyLine: 'bp' }
 
 export const foldForms = () => forms
 

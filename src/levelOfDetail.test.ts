@@ -929,15 +929,15 @@ test('the heads along a lift follow the fold on one graph, layout and lift', () 
 
 describe('the forms a drawing meets a folded site in', () => {
   afterEach(() => {
-    drawFoldsAs({ reference: 'B', lane: 'B' })
+    drawFoldsAs({ reference: 'B', lane: 'B', keyLine: 'bp' })
   })
   const lanesOf = (batch: ReturnType<typeof build>, edge: number) => {
     const run = batch.edgeCurveRuns.get(edge)
     return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
   }
 
-  test('both are as before unless asked', () => {
-    expect(foldForms()).toEqual({ reference: 'B', lane: 'B' })
+  test('the reference and lanes are drawn as before unless asked, and the key states the bp a site folds under', () => {
+    expect(foldForms()).toEqual({ reference: 'B', lane: 'B', keyLine: 'bp' })
   })
 
   test("reference 'A' strokes the reference's own links meeting a folded site at its nodes' thickness and colour, 'B' as any link", () => {

@@ -584,7 +584,7 @@ test('the sites table lists each folded site, its nodes and links each once and 
   expect(d.meta.smallSites?.bp).toBeCloseTo(SMALL_SITE_PX / d.meta.scaleX)
   const keyRow = d.meta.graphKey.key.indexOf('too-small')
   expect(d.meta.graphKey.text[keyRow]).toBe(
-    '1 node and 1 skip too small to draw',
+    '1 node and 1 skip under 6 bp not drawn',
   )
   expect(d.meta.graphKey.swatch[keyRow]).toBe('')
   const nodes = figureData(graph, layout, { smallSites: 'nodes' })

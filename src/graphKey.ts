@@ -5,6 +5,7 @@ import { busiestEdge, edgeWidthFactor } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp } from './graphLabels'
+import { SMALL_SITE_PX } from './levelOfDetail'
 import { depthKey, frequencyKey } from './nodeWidths'
 import { referenceLabel } from './reference'
 import {
@@ -26,6 +27,7 @@ import {
   skipDashes,
 } from './renderer/GeometryBuilder'
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
+import { foldForms } from './renderer/foldForms'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
 import { encodingStops } from './walkEncoding'
@@ -137,9 +139,16 @@ export function drawnMarks(
     headsHaloed: false,
     foldedNodes: new Set<string>(),
     foldedSkips: new Set<number>(),
+    foldedUnderBp: 0,
   }
   let width: number | undefined
   for (const { edgeCurves, nodeStrokes, arrows = [], collapsed } of batches) {
+    if (collapsed?.sites.length && collapsed.pxPerBp > 0) {
+      marks.foldedUnderBp = Math.max(
+        marks.foldedUnderBp,
+        Math.ceil(SMALL_SITE_PX / collapsed.pxPerBp),
+      )
+    }
     for (const { nodes, edges } of collapsed?.sites ?? []) {
       for (const id of nodes) {
         marks.foldedNodes.add(id)
@@ -272,12 +281,14 @@ export function unlabelledText(unlabelled?: UnlabelledPlaceholders) {
         : `${n} unlabelled, ${formatBp(unlabelled.largest)} or less each`
 }
 
-export function tooSmallText(nodes: number, skips: number) {
+export function tooSmallText(nodes: number, skips: number, underBp = 0) {
   const parts = [
     ...(nodes > 0 ? [counted(nodes, 'node', 'nodes')] : []),
     ...(skips > 0 ? [counted(skips, 'skip', 'skips')] : []),
   ]
-  return `${parts.join(' and ')} too small to draw`
+  return underBp > 0 && foldForms().keyLine === 'bp'
+    ? `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`
+    : `${parts.join(' and ')} too small to draw`
 }
 
 const roundDepth = (depth: number) =>
@@ -616,6 +627,7 @@ export function graphKey(
                 text: tooSmallText(
                   o.marks.foldedNodes.size,
                   o.marks.foldedSkips.size,
+                  o.marks.foldedUnderBp,
                 ),
               },
             ]
