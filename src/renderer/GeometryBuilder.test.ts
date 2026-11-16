@@ -984,16 +984,16 @@ describe('arrowhead placement', () => {
   // the 1-5 bp skips at the amylase locus, at 240 kb across the pane, drew
   // as loops along the backbone; dropping them left pggb chrY's 88,829 bp
   // skip at 9.3 Mb, which seven haplotypes carry, drawn nowhere
-  test('a skip under a pixel on screen is drawn as the plain link it is', () => {
+  test('a skip under a pixel on screen is drawn as the plain link it is, over the nodes', () => {
     const link = skipAt(0.05)
     expect(link.strokes).toHaveLength(1)
     expect(link.strokes[0]!.skip).toBeUndefined()
-    const fallback = {
+    const overNodes = {
       ...link,
       strokes: [{ ...link.strokes[0]!, skip: true, span: 0 }],
     }
-    expect(skipAt(0.05, [])).toEqual(fallback)
-    expect(skipAt(0.05, ['M+'])).toEqual(fallback)
+    expect(skipAt(0.05, [])).toEqual(overNodes)
+    expect(skipAt(0.05, ['M+'])).toEqual(overNodes)
   })
 
   // a head is 10 px on a plain link, so it waits for 30 px of link

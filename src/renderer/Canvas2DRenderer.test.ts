@@ -418,19 +418,60 @@ test('a short skip is painted after a long one it crosses', () => {
   expect(lineWidths.slice(-2)).toEqual([widthOf(4), widthOf(3)])
 })
 
-test('a skip too short on screen to arc paints with the plain links, under the nodes', () => {
-  const { renderer, strokes } = makeRenderer()
-  const batch = skipBatch(0.005)
+test('a skip drawn as its plain link is painted after a dashed skip it crosses', () => {
+  const four = [...nodes, { id: 'D+', name: 'D', length: 10, depth: 1 }]
+  const batch = buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 10.1, y: 0 },
+        { x: 10.3, y: 0 },
+      ],
+      'C+': [
+        { x: 10.5, y: 0 },
+        { x: 20, y: 0 },
+      ],
+      'D+': [
+        { x: 100, y: 0 },
+        { x: 110, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes: four,
+      edges: [
+        { from: 'A+', to: 'B+' },
+        { from: 'B+', to: 'C+' },
+        { from: 'C+', to: 'D+' },
+        { from: 'A+', to: 'C+' },
+        { from: 'A+', to: 'D+' },
+      ],
+    },
+    nodeById: new Map(four.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    deletions: new Map([
+      [3, ['B+']],
+      [4, ['B+', 'C+']],
+    ]),
+  })
+  const strokeOf = (edge: number) =>
+    batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
+  const { renderer, lineWidths } = makeRenderer()
   renderer.uploadGeometry(batch)
   renderer.updateTransform(TRANSFORM)
   renderer.render([1, 1, 1, 1])
 
-  const { link, node } = paintsOf(batch)
-  expect(batch.edgeCurves[batch.edgeCurveRuns.get(2)!.start]).toMatchObject({
-    skip: true,
-    span: 0,
-  })
-  expect(strokes).toEqual([link, node])
+  expect(strokeOf(3)).toMatchObject({ skip: true, span: 0 })
+  expect(strokeOf(4).span).toBeGreaterThan(0)
+  expect(strokeOf(3).thickness).not.toBe(strokeOf(4).thickness)
+  expect(lineWidths.at(-1)).toBe(strokeOf(3).thickness * 2)
 })
 
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it

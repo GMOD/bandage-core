@@ -22,8 +22,7 @@ import type {
 // ms as batched strokes (agent-docs/GRAPH_SCALE_AND_LOD.md). Highlighted things
 // are drawn last, in their own paths, so they sit on top of what they brighten.
 // A link that skips reference sequence is drawn over the nodes it skips, since
-// the dashes are the only mark a deletion has; a plain link lies under them,
-// and so does a skip too short on screen to arc, drawn as its plain link.
+// the dashes are the only mark a deletion has; a plain link lies under them.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
@@ -152,7 +151,7 @@ export class Canvas2DRenderer implements Renderer {
       color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
       weight: e.thickness,
       last: inRun(edgeRun, i),
-      skip: arcsOverNodes(e),
+      skip: e.skip === true,
     })
     const skipOrder = longestSkipsFirst(batch.edgeCurves)
     const nodes = widestFirst(
@@ -441,13 +440,9 @@ function paintRuns<T>(
   return [...runs, ...deferred]
 }
 
-function arcsOverNodes(e: EdgeCurveBatch) {
-  return e.skip === true && e.span !== 0
-}
-
 function longestSkipsFirst(edgeCurves: EdgeCurveBatch[]) {
   return edgeCurves
-    .flatMap((e, i) => (arcsOverNodes(e) ? [i] : []))
+    .flatMap((e, i) => (e.skip ? [i] : []))
     .toSorted((a, b) => (edgeCurves[b]!.span ?? 0) - (edgeCurves[a]!.span ?? 0))
 }
 
