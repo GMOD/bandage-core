@@ -3,7 +3,7 @@ import { contrastRatio, mixAbgr, packAbgr } from './colorBits'
 import type { Arrowhead } from './types'
 
 export const LANE_HEADS_KEY = 'the way the walk runs'
-export const BACKWARDS_KEY = 'walk runs backwards along the node'
+export const LANE_HEADS_AGAINST_KEY = 'walk runs backwards along the node'
 
 export const LANE_HEAD_MIN_PX = 6
 export const LANE_HEAD_SPACING_PX = 40

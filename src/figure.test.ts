@@ -8,7 +8,7 @@ import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'
 import { graphBackbone } from './reference'
-import { BACKWARDS_KEY } from './renderer/laneHeads'
+import { LANE_HEADS_AGAINST_KEY } from './renderer/laneHeads'
 import { version } from './version'
 
 const GFA = `S\tv1\tAAAA
@@ -66,7 +66,7 @@ test('a key too wide for the figure wraps onto more lines above the drawing', ()
   const keys = [
     ...header.matchAll(/<g transform="translate\(([\d.]+) ([\d.]+)\)"/g),
   ].map(m => ({ x: Number(m[1]), y: Number(m[2]) }))
-  expect(header).toContain(BACKWARDS_KEY)
+  expect(header).toContain(LANE_HEADS_AGAINST_KEY)
   expect(keys).toHaveLength(walks.length + 1)
   expect(new Set(keys.map(k => k.y)).size).toBeGreaterThan(1)
   expect(Math.max(...keys.map(k => k.x))).toBeLessThan(200)

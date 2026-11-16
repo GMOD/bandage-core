@@ -16,7 +16,7 @@ import {
   computeReferenceRamp,
 } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
-import { BACKWARDS_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
+import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { axisScaleOf } from './viewport'
 import { walkLift } from './walkHighlight'
 
@@ -720,7 +720,7 @@ test('a walk coloured by pass keys each pass by its name, a bundle by its count,
     lift: lifting(INVERTED, ['ref#0#chr', 'inv#1#chr']),
   })
   expect(backwards.texts).toEqual(
-    expect.arrayContaining([['lane-heads', BACKWARDS_KEY]]),
+    expect.arrayContaining([['lane-heads', LANE_HEADS_AGAINST_KEY]]),
   )
   const s = { lift: byPass(REPEAT, ['dup#1#chr']) }
   const dropped = lone.sections.map(section => ({

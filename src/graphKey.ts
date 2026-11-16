@@ -26,7 +26,7 @@ import {
   skipDashes,
 } from './renderer/GeometryBuilder'
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
-import { BACKWARDS_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
+import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
 import { encodingStops } from './walkEncoding'
 import { fadedKey } from './walkHighlight'
@@ -405,7 +405,7 @@ export function graphKey(
       ? [
           entry(
             'lane-heads',
-            o.marks.headsAlong ? LANE_HEADS_KEY : BACKWARDS_KEY,
+            o.marks.headsAlong ? LANE_HEADS_KEY : LANE_HEADS_AGAINST_KEY,
             { kind: 'heads', ink: THREAD_INK, haloed: o.marks.headsHaloed },
           ),
         ]

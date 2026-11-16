@@ -149,7 +149,7 @@ export type { PassBar } from './passBar'
 export { passLabelCandidates, passLeader } from './passLabels'
 export type { PassLabelItem } from './passLabels'
 export {
-  BACKWARDS_KEY,
+  LANE_HEADS_AGAINST_KEY,
   LANE_HEADS_KEY,
   LANE_HEAD_MIN_PX,
   LANE_HEAD_SPACING_PX,
