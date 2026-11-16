@@ -9,6 +9,8 @@ import {
   walkRowInks,
 } from './figureData'
 import { EXON_COLOR } from './genes/exonOutline'
+import { genesOverNode } from './genes/geneNames'
+import { genePins } from './genes/genePins'
 import { labelledNodeLengths } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { liftedRowInks, rowInkAt } from './layout/rowInks'
@@ -648,4 +650,60 @@ test('the labels table holds no length for a placeholder the figure folded, and 
   const folded = figureData(loop, smallLoopLayout)
   expect(listed(folded.sites?.nodes)).toEqual(['p1+'])
   expect(folded.labels.text).toEqual([])
+})
+
+test('a gene on a folded allele is still pinned and listed over its node, with no exon outlined where its node is not drawn', () => {
+  const graph = loadGraph(
+    [
+      `S\tr1\t${'A'.repeat(10_000)}`,
+      'S\tr2\tC',
+      `S\tr3\t${'A'.repeat(10_000)}`,
+      'S\ta1\tT',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr1\t+\ta1\t+\t0M',
+      'L\ta1\t+\tr3\t+\t0M',
+      'W\tR\t0\tchr\t0\t20001\t>r1>r2>r3',
+      'W\tA\t1\tchr\t0\t20001\t>r1>a1>r3',
+    ].join('\n'),
+    'allele',
+    { referencePath: 'R' },
+  )
+  const at = (x0: number, x1: number, y = 0) => [
+    { x: x0, y },
+    { x: x1, y },
+  ]
+  const layout = {
+    nodePositions: {
+      'r1+': at(0, 10_000),
+      'r2+': at(10_000, 10_001),
+      'r3+': at(10_001, 20_001),
+      'a1+': at(10_000, 10_001, 200),
+    },
+  }
+  const genes = [
+    {
+      name: 'ONA1',
+      refName: 'A#1#chr',
+      start: 10_000,
+      end: 10_001,
+      strand: 1,
+      exons: [{ start: 10_000, end: 10_001 }],
+    },
+  ]
+  const walks = [{ walk: 'A#1#chr' }]
+  const d = figureData(graph, layout, { genes, walks })
+  expect(listed(d.sites?.nodes)).toContain('a1+')
+  expect(d.nodes.node).not.toContain('a1+')
+  expect(d.pins.gene).toEqual(['ONA1'])
+  expect(d.exons.node).not.toContain('a1+')
+  const pins = genePins(graph, genes, layout.nodePositions, false)
+  expect(genesOverNode(pins, 'a1+')).toEqual(['ONA1 · A#1'])
+  const drawn = figureData(graph, layout, {
+    genes,
+    walks,
+    smallSites: 'nodes',
+  })
+  expect(drawn.pins).toEqual(d.pins)
+  expect(drawn.exons.node).toContain('a1+')
 })

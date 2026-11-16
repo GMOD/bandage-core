@@ -32,6 +32,7 @@ export function exonStretches(
   halfWidthPx: (nodeId: string) => number,
   lift?: { nodeIds: ReadonlySet<string>; walks: readonly unknown[] },
   pathOf: (d: string) => string = d => d,
+  folded?: ReadonlySet<string>,
 ): ExonStretch[] {
   const inkPx = (nodeId: string) => {
     const own = halfWidthPx(nodeId) * 2
@@ -40,11 +41,17 @@ export function exonStretches(
       : own
   }
   return pins.flatMap(pin =>
-    pin.exonsByNode.map(({ nodeId, d }) => ({
-      key: `${pin.gene.name}-${pin.gene.refName}-${pin.gene.start}-${nodeId}`,
-      d: pathOf(d),
-      inner: inkPx(nodeId) + 2 * EXON_GAP_PX,
-    })),
+    pin.exonsByNode.flatMap(({ nodeId, d }) =>
+      folded?.has(nodeId)
+        ? []
+        : [
+            {
+              key: `${pin.gene.name}-${pin.gene.refName}-${pin.gene.start}-${nodeId}`,
+              d: pathOf(d),
+              inner: inkPx(nodeId) + 2 * EXON_GAP_PX,
+            },
+          ],
+    ),
   )
 }
 

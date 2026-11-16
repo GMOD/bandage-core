@@ -58,7 +58,7 @@ import type {
   WalkRowsWithCalls,
 } from './layout/walkRowDraw'
 import type { WalkRows } from './layout/walkRows'
-import type { SmallSites } from './levelOfDetail'
+import type { Fold, SmallSites } from './levelOfDetail'
 import type { NodeWidth } from './nodeWidths'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
@@ -350,7 +350,6 @@ export function figureSvg(
     o.genes?.length && !layout.tubeMap && !rows
       ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
       : []
-  const ink = nodeInk(graph, nodeById, contigThickness, nodeWidth)
   const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)
   const nodeLengths = labelledNodeLengths(
     graph.nodes,
@@ -377,10 +376,25 @@ export function figureSvg(
     labels: LabelLayout,
     w: number,
     h: number,
+    collapsed: Fold | undefined,
   ) {
     const out: string[] = []
+    const drawnInk = nodeInk(
+      graph,
+      nodeById,
+      contigThickness,
+      nodeWidth,
+      0,
+      collapsed?.through,
+    )
     const outlines = exonOutlineTree(
-      exonStretches(pins, ink.halfWidthPx, highlight, d => screenPath(d, t)),
+      exonStretches(
+        pins,
+        drawnInk.halfWidthPx,
+        highlight,
+        d => screenPath(d, t),
+        collapsed?.nodes,
+      ),
       { id: `exons${masks++}`, width: w, height: h },
     )
     if (outlines) {
@@ -516,7 +530,9 @@ export function figureSvg(
     renderer.uploadGeometry(v.batch)
     renderer.updateTransform({ ...v.t, dpr: 1 })
     renderer.render([1, 1, 1, 1])
-    return markup() + overlays(v.highlight, v.t, v.labels, w, h)
+    return (
+      markup() + overlays(v.highlight, v.t, v.labels, w, h, v.batch.collapsed)
+    )
   }
 
   // The graph's key and the walk rows' entries for the drawing `views` hold,

@@ -560,3 +560,48 @@ test('a figure writes no length for a placeholder it folded, and writes it with 
   expect(folded).toContain('1 node')
   expect(lengths(folded)).toEqual([])
 })
+
+test('a figure outlines no exon on a node it folded, and outlines it with small sites drawn as nodes', () => {
+  const allele = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        [
+          `S\tr1\t${'A'.repeat(10_000)}`,
+          'S\tr2\tC',
+          `S\tr3\t${'A'.repeat(10_000)}`,
+          'S\ta1\tT',
+          'L\tr1\t+\tr2\t+\t0M',
+          'L\tr2\t+\tr3\t+\t0M',
+          'L\tr1\t+\ta1\t+\t0M',
+          'L\ta1\t+\tr3\t+\t0M',
+          'W\tR\t0\tchr\t0\t20001\t>r1>r2>r3',
+          'W\tA\t1\tchr\t0\t20001\t>r1>a1>r3',
+        ].join('\n'),
+      ),
+    ),
+    'R',
+  )
+  const laid = {
+    nodePositions: {
+      'r1+': at(0, 10_000),
+      'r2+': at(10_000, 10_001),
+      'r3+': at(10_001, 20_001),
+      'a1+': at(10_000, 10_001, 200),
+    },
+  }
+  const onAllele = [
+    {
+      name: 'ONA1',
+      refName: 'A#1#chr',
+      start: 10_000,
+      end: 10_001,
+      strand: 1,
+      exons: [{ start: 10_000, end: 10_001 }],
+    },
+  ]
+  const masks = (svg: string) => svg.match(/<mask /g)?.length ?? 0
+  expect(
+    masks(figureSvg(allele, laid, { genes: onAllele, smallSites: 'nodes' })),
+  ).toBe(1)
+  expect(masks(figureSvg(allele, laid, { genes: onAllele }))).toBe(0)
+})

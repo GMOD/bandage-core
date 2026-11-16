@@ -505,6 +505,7 @@ export function figureData(
     y: [],
   })
   let stretch = 0
+  const exonRows: ExonRow[] = []
   const pinned = o.genes?.length
     ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
     : []
@@ -528,7 +529,7 @@ export function figureData(
       for (const points of stretches) {
         stretch++
         for (const { x, y } of points) {
-          exons.push({ gene, node: nodeId, stretch, x, y })
+          exonRows.push({ gene, node: nodeId, stretch, x, y })
         }
       }
     }
@@ -695,6 +696,11 @@ export function figureData(
     (o.smallSites ?? FIGURE_DEFAULTS.smallSites) === 'hidden'
       ? (batches[0]?.collapsed ?? NO_FOLD)
       : undefined
+  for (const row of exonRows) {
+    if (!fold?.nodes.has(row.node)) {
+      exons.push(row)
+    }
+  }
 
   const placed = layoutLabels({
     paneWidth: width,
