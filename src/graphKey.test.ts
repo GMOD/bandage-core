@@ -145,6 +145,20 @@ test('the faded entry names other haplotypes only where a faded node is drawn an
   expect(faded(loose, [REF, ALT])).toBe('nodes and links not on these walks')
 })
 
+test('a lift leaving out only a node the layout does not place keys no faded node', () => {
+  const loose = load(`${GFA}\nS\tx1\tA`, 'GRCh38')
+  const lift = lifting(loose, [REF, ALT])
+  expect(keys(loose, { lift })).toContain('faded')
+  const layout = layoutModeByValue('ordered').run(loose, undefined)!
+  const unplaced = {
+    ...layout,
+    nodePositions: Object.fromEntries(
+      Object.entries(layout.nodePositions).filter(([id]) => id !== 'x1+'),
+    ),
+  }
+  expect(keys(loose, { lift, layout: unplaced })).not.toContain('faded')
+})
+
 test('a lift fading links and no node keys the links alone, never other haplotypes', () => {
   const linked = load(`${GFA}\nL\tv2\t+\ta1\t+\t0M`, 'GRCh38')
   const key = entries(linked, { lift: lifting(linked, [REF, ALT]) })
