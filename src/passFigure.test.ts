@@ -17,6 +17,7 @@ import {
   LANE_HEAD_HALO_PX,
   laneHeadInk,
 } from './renderer/laneHeads'
+import { axisScaleOf } from './viewport'
 import { walkLift } from './walkHighlight'
 
 import type { El } from './el'
@@ -285,6 +286,28 @@ test("the key's heads swatch draws a head of the size, ink and halo the threads'
   expect(right!.y - left!.y).toBeCloseTo(-2 * halfWidth, 0)
   expect(tip!.x - notch!.x).toBeCloseTo(length * 0.75, 0)
   expect(halo![1]).toBe(head[1])
+})
+
+test("figureData's arrows table marks the heads the canvas strokes a white halo under, and only those", () => {
+  const walk = '>f1>a>b>c>d>a>b>c>d>a>b>c>d>f2'
+  const { graph, layout, tables } = data(walk)
+  const { arrows } = tables
+  expect(arrows.halo).toHaveLength(arrows.x.length)
+  const scene = figureScene(graph, layout, { width: 600, height: 300, walks: byPass })
+  const pixelRows = layout.pixelRows ?? false
+  const fit = fitTransform(scene.bounds, 600, 300, pixelRows)!
+  const batch = scene.geometry(scene.lift, axisScaleOf(fit.scale, pixelRows))
+  const haloed = batch.arrows
+    .filter(a => a.halo)
+    .map(a => `${a.x.toFixed(3)} ${a.y.toFixed(3)}`)
+  expect(haloed.length).toBeGreaterThan(0)
+  expect(
+    arrows.x.flatMap((x, i) =>
+      arrows.halo[i] ? [`${x.toFixed(3)} ${arrows.y[i]!.toFixed(3)}`] : [],
+    ),
+  ).toEqual(haloed)
+  const plain = data(walk, [{ walk: 'ref#0#chr' }, { walk: HAP }]).tables
+  expect(plain.arrows.halo.some(Boolean)).toBe(false)
 })
 
 const BAR: PassBar = {

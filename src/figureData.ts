@@ -260,6 +260,8 @@ interface ArrowRow {
   halfWidth: number
   color: string
   alpha: number
+  // a head the canvas strokes a white halo under, LANE_HEAD_HALO_PX each side
+  halo: boolean
 }
 
 function columns<T extends object>(out: Columns<T>) {
@@ -596,6 +598,7 @@ export function figureData(
     halfWidth: [],
     color: [],
     alpha: [],
+    halo: [],
   })
 
   const batches: RenderBatch[] = []
@@ -692,6 +695,7 @@ export function figureData(
           halfWidth: a.halfWidth,
           color: abgrHex(a.color),
           alpha: alphaOf(a.color),
+          halo: a.halo === true,
         })
       }
     })
