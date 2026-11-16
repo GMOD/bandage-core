@@ -427,12 +427,11 @@ function through(
     const reference = references.get(refName)
     if (reference) {
       const inside = spansInside(reference.spans, start, end)
-      const held = new Set(inside.map(span => span.id))
       const run = {
         ends: [
           ...(reference.endingAt.get(start) ?? []),
           ...(reference.startingAt.get(end) ?? []),
-        ].filter(id => !held.has(id)),
+        ],
       }
       for (const span of inside) {
         nodes.set(span.id, run)

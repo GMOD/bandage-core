@@ -1024,6 +1024,57 @@ describe('the drawing through a folded site', () => {
     }
   })
 
+  test('with walks lifted, a link between two reference nodes of touching sites is stated as drawn only by the lanes', () => {
+    const highlight = walkLift(graph, [{ walk: 'w#3#chr' }])
+    const batch = build(graph, positions, 0.1, { highlight })
+    expect(folded(batch)).toEqual(['a1+', 'b1+', 'c1+'])
+    expect(batch.laneOnly?.nodes).toEqual(new Set(['r2+', 'r3+']))
+    expect(batch.laneOnly?.edges).toEqual(
+      new Set([edgeIndex(graph, 'r2+', 'r3+')]),
+    )
+  })
+
+  test('a run of folded sites keeps to one reference sequence', () => {
+    const tagged = convertGFAToGraph(
+      parseGFA(
+        [
+          `S\tr1\t${bases(1000)}\tSN:Z:chrA\tSO:i:0\tSR:i:0`,
+          'S\tr2\tC\tSN:Z:chrA\tSO:i:1000\tSR:i:0',
+          `S\tr3\t${bases(1000)}\tSN:Z:chrA\tSO:i:1001\tSR:i:0`,
+          `S\ts1\t${bases(1000)}\tSN:Z:chrB\tSO:i:0\tSR:i:0`,
+          'S\ts2\tC\tSN:Z:chrB\tSO:i:1000\tSR:i:0',
+          `S\ts3\t${bases(1000)}\tSN:Z:chrB\tSO:i:1001\tSR:i:0`,
+          'S\ta1\tT',
+          'S\tb1\tT',
+          'L\tr1\t+\tr2\t+\t0M',
+          'L\tr2\t+\tr3\t+\t0M',
+          'L\ts1\t+\ts2\t+\t0M',
+          'L\ts2\t+\ts3\t+\t0M',
+          'L\tr1\t+\ta1\t+\t0M',
+          'L\ta1\t+\tr3\t+\t0M',
+          'L\ts1\t+\tb1\t+\t0M',
+          'L\tb1\t+\ts3\t+\t0M',
+          'W\th1\t1\tchrA\t0\t*\t>r1>a1>r3',
+          'W\th1\t1\tchrB\t0\t*\t>s1>b1>s3',
+        ].join('\n'),
+      ),
+    )
+    const laid = {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1001),
+      'r3+': at(1001, 2001),
+      's1+': at(0, 1000, 100),
+      's2+': at(1000, 1001, 100),
+      's3+': at(1001, 2001, 100),
+      'a1+': at(1000, 1001, 20),
+      'b1+': at(1000, 1001, 120),
+    }
+    const fold = build(tagged, laid, 0.1).collapsed
+    expect(new Set(fold?.nodes)).toEqual(new Set(['a1+', 'b1+']))
+    expect(fold?.through.get('r2+')?.ends).toEqual(['r1+', 'r3+'])
+    expect(fold?.through.get('s2+')?.ends).toEqual(['s1+', 's3+'])
+  })
+
   test('zoomed in past the fold every reference node and link is drawn at its own thickness', () => {
     const drawn = build(graph, positions, 50, { ...depth, smallSites: 'nodes' })
     const batch = build(graph, positions, 50, depth)
