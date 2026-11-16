@@ -34,8 +34,6 @@ test('a gene pinned on a 0 bp node lands on it', () => {
   expect(pin!.at).toEqual({ x: 50, y: 0 })
 })
 
-// the reference steps `b` backwards and a stranded layout draws it as its id
-// reads it, so the reference's first 10 bp of it are the line's last
 test('an exon on a node the reference steps against its id lands at the end the reference reads it from', () => {
   const graph: Graph = {
     name: 'g',

@@ -45,9 +45,6 @@ export interface StableCoordinate {
   refName: string
   start: number
   rank: number
-  // How the walk this coordinate lies on steps the segment at `start`. Absent
-  // on a tagged segment whose SN names no walk of the file, as minigraph's
-  // rGFA, where a segment is by construction forward on that sequence.
   strand?: '+' | '-'
 }
 

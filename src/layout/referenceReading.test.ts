@@ -23,8 +23,6 @@ interface Case {
 const stepsOf = (walk: string) =>
   [...walk.matchAll(/[<>]([^<>]+)/g)].map(m => m[1]!)
 
-// The case as GFA: `tagged` states each reference segment's place as a walk
-// file cut does, SN/SO/SR:0 at the offset the reference walk reaches it
 function gfa(c: Case, tagged: boolean) {
   const starts = new Map<string, number>()
   let at = 0
@@ -45,7 +43,6 @@ function gfa(c: Case, tagged: boolean) {
   ].join('\n')
 }
 
-// the reference steps the long segment 2 backwards between two short ones
 const ONE_BACKWARDS: Case = {
   segments: { 1: 300, 2: 9000, 3: 300, x: 500 },
   links: ['1 + 2 -', '2 - 3 +', '1 + x +', 'x + 3 +'],
@@ -53,8 +50,6 @@ const ONE_BACKWARDS: Case = {
   haplotype: '>1>x>3',
 }
 
-// the reference steps 4, 3 and 2 backwards, and the haplotype's link from 4
-// to 2 skips 3
 const RUN_BACKWARDS: Case = {
   segments: { 1: 800, 2: 700, 3: 1100, 4: 800, 5: 1000, 6: 900 },
   links: ['1 + 4 -', '4 - 3 -', '3 - 2 -', '2 - 5 +', '5 + 6 +', '4 - 2 -'],
@@ -62,8 +57,6 @@ const RUN_BACKWARDS: Case = {
   haplotype: '>1<4<2>5>6',
 }
 
-// every link reads its segments forwards and the reference steps them all
-// backwards, as pggb's can; the haplotype's link from 4 to 2 skips 3
 const ALL_BACKWARDS: Case = {
   segments: { 1: 900, 2: 700, 3: 1100, 4: 800, 5: 1000 },
   links: ['1 + 2 +', '2 + 3 +', '3 + 4 +', '4 + 5 +', '2 + 4 +'],

@@ -42,9 +42,6 @@ const RGFA = readFileSync('test_data/ecoli_rgfa_slice.gfa', 'utf8')
 const untagged = (text: string) =>
   text.replaceAll(/\tS[NOR]:[Zi]:[^\t\n]*/g, '')
 
-// chr steps b5 to b1 backwards and then b6 and b7 forwards, as pggb's can
-// where every link reads its segments forwards. The other walk's link from b4
-// to b2 skips b3, and i is its insertion between b6 and b7.
 const BACKWARDS = [
   'S\tb1\t*\tLN:i:900\tSN:Z:ref#0#chr\tSO:i:3600\tSR:i:0',
   'S\tb2\t*\tLN:i:700\tSN:Z:ref#0#chr\tSO:i:2900\tSR:i:0',

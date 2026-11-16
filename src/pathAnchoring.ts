@@ -140,9 +140,6 @@ function anchorNode(
   }
 }
 
-// A tagged segment's SN and SO say where it lies on a walk and not which way
-// that walk steps it there, which the walk itself says where the file holds
-// it, as a walk file cut holds its reference: the pass at SO, else the first
 function statedStrand(node: AnchoredNode, visits: PathVisits, p: number) {
   const slot = visits.slot(node.name)
   const first = slot >= 0 && p >= 0 ? visits.firstBy(slot, p) : -1

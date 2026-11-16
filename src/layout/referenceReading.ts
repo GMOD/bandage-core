@@ -8,11 +8,6 @@ type Lines = Record<string, NodeSegment[]>
 
 const flip = { '+': '-', '-': '+' } as const
 
-// The stress engine lays a seeded backbone node left to right from the start
-// of the reading its id names. Path anchoring keeps the id the reader gave a
-// segment and states the reference's reading beside it, so a node the
-// reference steps against its id is handed over under the id of the
-// reference's reading, and its line comes back turned end for end.
 function readingsAgainstIds(request: EngineRequest) {
   return new Map<string, string>(
     request.graph.nodes.flatMap(node =>

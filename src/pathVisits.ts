@@ -74,7 +74,6 @@ export class PathVisits {
     return -1
   }
 
-  // the visit of `slot` by path `p` that starts at `start`, -1 for none
   startingAt(slot: number, p: number, start: number) {
     let found = -1
     for (

@@ -51,9 +51,6 @@ interface RefNameNodes {
   reach: number
 }
 
-// A stretch of a node's stable sequence, in bp from the node's start there,
-// as fractions of its drawn line. A stranded layout draws the node as its id
-// reads it, which is end to start where the sequence steps it the other way.
 function alongLine(
   node: AnchoredNode,
   from: number,
@@ -74,7 +71,6 @@ export function genePins(
   graph: Graph,
   genes: GeneModel[],
   positions: Record<string, NodeSegment[]>,
-  // LayoutResult.stranded
   stranded = false,
 ): GenePin[] {
   // Per refName and sorted once, so a gene reads the few nodes it lies over.

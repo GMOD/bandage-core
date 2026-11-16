@@ -35,11 +35,9 @@ export interface ForceLayoutCache {
     settings: EngineSettings,
     fit?: FitSize,
   ): LayoutResult | undefined
-  // Re-anchoring builds a new Graph, and the force layout of it is the same
-  // drawing: anchoring rewrites each node's stable name and samples and
-  // touches neither the ids, the lengths, the depths nor the edges, which are
-  // all the engine reads. So the layouts follow the graph they were computed
-  // for rather than being thrown away with it.
+  // Re-anchoring builds a new Graph with the same ids, lengths and edges. The
+  // layouts follow it: a layout is filed under engineKey, which carries the
+  // reference path that the rest of what the engine reads comes from.
   inherit(from: Graph, to: Graph): void
 }
 

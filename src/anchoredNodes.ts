@@ -39,8 +39,6 @@ export function isOffReference(node: GraphNode): node is AnchoredNode {
   )
 }
 
-// Whether a node's drawn line, which reads it as its id does, runs the way its
-// stable sequence steps it; a coordinate stating no strand is forward on it
 export function drawnAlongStable(node: AnchoredNode) {
   return ownStrand(node.id) === (node.stable.strand ?? '+')
 }
