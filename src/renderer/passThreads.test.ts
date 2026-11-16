@@ -19,6 +19,7 @@ import {
 
 import type { NodeSegment } from '../types'
 import type { WalkLayer } from '../walkEncoding'
+import type { BuildOptions } from './GeometryBuilder'
 import type { Arrowhead, EdgeCurveBatch, NodeStroke } from './types'
 
 // the reference's nodes carry its stable coordinates, so each is drawn the
@@ -355,5 +356,58 @@ test('heads on short nodes keep their distance along the thread', () => {
     expect(heads[i]!.x - heads[i - 1]!.x).toBeGreaterThanOrEqual(
       LANE_HEAD_SPACING_PX - 1e-9,
     )
+  }
+})
+
+const CHAIN = 20
+const CHAIN_IDS = Array.from({ length: CHAIN }, (_, i) => `n${i}`)
+const CHAIN_UNIT = CHAIN_IDS.map(id => `>${id}`).join('')
+
+// short nodes closer than LANE_HEAD_SPACING_PX, so a head on one keeps the
+// next node's head off
+function chain(viewportBounds?: BuildOptions['viewportBounds']) {
+  const graph = convertGFAToGraph(
+    parseGFA(
+      [
+        ...CHAIN_IDS.map(id => `S\t${id}\t${'A'.repeat(30)}`),
+        ...linksOf(CHAIN_UNIT.repeat(2)),
+        `W\thap\t1\tctg\t0\t*\t${CHAIN_UNIT.repeat(2)}`,
+      ].join('\n'),
+    ),
+  )
+  const positions = Object.fromEntries(
+    CHAIN_IDS.map((id, i) => [`${id}+`, line(i * 35, i * 35 + 30)]),
+  )
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: positions,
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 8,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: walkLift(graph, [byPass()]),
+    ...(viewportBounds ? { viewportBounds } : {}),
+  })
+  return batch.arrows.filter(a => a.walk !== undefined)
+}
+
+const headKey = (h: Arrowhead) =>
+  `${h.node} ${h.pass} ${h.x.toFixed(3)} ${h.y.toFixed(3)} ${h.angle.toFixed(3)}`
+
+test("a view panned in 10 px steps draws exactly the unbounded build's heads that fall inside it", () => {
+  const whole = chain()
+  expect(whole.length).toBeGreaterThan(CHAIN / 4)
+  for (let x = -200; x <= CHAIN * 35; x += 10) {
+    const bounds = { minX: x, maxX: x + 200, minY: -40, maxY: 40 }
+    const inside = whole.filter(
+      h =>
+        h.x >= bounds.minX - h.length &&
+        h.x <= bounds.maxX + h.length &&
+        h.y >= bounds.minY - h.length &&
+        h.y <= bounds.maxY + h.length,
+    )
+    expect(chain(bounds).map(headKey)).toEqual(inside.map(headKey))
   }
 })

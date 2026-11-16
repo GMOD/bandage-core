@@ -875,6 +875,29 @@ function pathSlotsOf(graph: Graph): ReadonlyMap<string, number[]> {
 
 const lanesCache = weakMemo<WalkLift, ReturnType<typeof liftLanes>>()
 const stepsCache = weakMemo<WalkLift, ReturnType<typeof walkSteps>>()
+// A lift's heads, placed once over its whole length so a view shows the same
+// heads wherever it is panned, and the lane strokes they were placed on
+const walkWideCache = weakMemo<
+  WalkLift,
+  { heads: Arrowhead[]; strokes: Map<string, NodeStroke[]> }
+>()
+
+// A head's tip within the bounds grown by its length
+const headInBounds = (
+  head: Arrowhead,
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  scale: number,
+  yToX: number,
+) => {
+  const dx = head.length / scale
+  const dy = dx / yToX
+  return (
+    head.x >= bounds.minX - dx &&
+    head.x <= bounds.maxX + dx &&
+    head.y >= bounds.minY - dy &&
+    head.y <= bounds.maxY + dy
+  )
+}
 
 const linksCache = new WeakMap<Graph, Map<string, Set<string>>>()
 
@@ -1029,37 +1052,30 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       ...(pass === undefined ? {} : { walkPass: pass }),
     }
   }
-  const placeHeads = laneHeadPlacer(scale, yToX)
-  // a lane's stroke carries heads where every visit it draws reads the node
-  // one way, against the way it is drawn or, coloured by pass, either way
   const headsOn = (
-    points: NodeSegment[],
-    halfWidth: number,
-    color: number,
+    place: ReturnType<typeof laneHeadPlacer>,
+    stroke: NodeStroke,
     lane: number,
     thread: number,
     nodeId: string,
   ) => {
     const walk = liftedWalks[lane]
-    const threadCount = threads?.[lane]?.nodeThreads.get(nodeId)?.length ?? 1
     const turns = walk?.backwards.get(nodeId) ?? []
     const drawn = threaded ? [turns[visitOf(lane, nodeId, thread)]] : turns
     const against = drawn.every(turned => turned === true)
     const along = drawn.every(turned => turned !== true)
-    if (against || (along && walk?.encoding.field === 'pass')) {
-      for (const head of placeHeads({
-        points,
-        halfWidth,
-        color,
-        walk: lane,
-        thread,
-        threads: threadCount,
-        node: nodeId,
-        against,
-      })) {
-        arrows.push(head)
-      }
-    }
+    return against || (along && walk?.encoding.field === 'pass')
+      ? place({
+          points: stroke.points,
+          halfWidth: stroke.thickness,
+          color: stroke.color,
+          walk: lane,
+          thread,
+          threads: threads?.[lane]?.nodeThreads.get(nodeId)?.length ?? 1,
+          node: nodeId,
+          against,
+        })
+      : []
   }
   const plainNormals = new Map<string, Normal[]>()
   const visitNormals = new WeakMap<VisitFrame['normals'], Normal[]>()
@@ -1188,6 +1204,142 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
     return points
   }
+
+  const offsetLane = (
+    nodeId: string,
+    segments: NodeSegment[],
+    laneWidth: number,
+    lane: number,
+    thread: number,
+  ) => {
+    const frame =
+      lines?.frames.get(nodeId)?.[lane]?.[visitOf(lane, nodeId, thread)]
+    const normals = laneNormalsOf(nodeId, segments, frame)
+    const offsets = frame?.offsets?.map(o => o * thinned * worldPerScreenPx)
+    const offsetX = offsets
+      ? (offsets[Math.floor(offsets.length / 2)] ?? 0)
+      : threadOffsetAt(frame, 0, laneOffset(nodeId, laneWidth, lane, thread)) *
+        worldPerScreenPx
+    return {
+      points: offsetPolyline(
+        lanePointsOf(segments, frame),
+        normals,
+        offsets ?? offsetX,
+        yToX,
+      ),
+      normals,
+      offsetX,
+      ...(offsets && { offsets }),
+    }
+  }
+  const nodeLaneStroke = (
+    nodeId: string,
+    segments: NodeSegment[],
+    laneWidth: number,
+    lane: number,
+    thread: number,
+    color: number,
+  ): NodeStroke => ({
+    ...(liftedWalks.length === 1 && !threaded
+      ? { points: segments }
+      : offsetLane(nodeId, segments, laneWidth, lane, thread)),
+    thickness: laneHalfWidth(laneWidth, lane),
+    color: threadColor(lane, nodeId, thread) ?? color,
+    walk: lane,
+    pass: thread,
+    ...passMark(lane, nodeId, thread),
+  })
+  const laneStrokesOf = (
+    nodeId: string,
+    segments: NodeSegment[],
+    width: number,
+  ) => {
+    const laneWidth = walkLaneWidthPx(width, liftedWalks.length)
+    const strokes: { stroke: NodeStroke; lane: number; thread: number }[] = []
+    liftedWalks.forEach((walk, lane) => {
+      const color = walk.colors.get(nodeId)
+      if (color !== undefined) {
+        for (const thread of threads?.[lane]?.nodeThreads.get(nodeId) ??
+          ONE_PASS) {
+          strokes.push({
+            lane,
+            thread,
+            stroke: nodeLaneStroke(
+              nodeId,
+              segments,
+              laneWidth,
+              lane,
+              thread,
+              color,
+            ),
+          })
+        }
+      }
+    })
+    return strokes
+  }
+  const headsMayShow = (nodeId: string) =>
+    liftedWalks.some(
+      walk =>
+        walk.encoding.field === 'pass' ||
+        !!walk.backwards.get(nodeId)?.includes(true),
+    )
+  const lanedAt = (node: GraphNode, nodeId: string, segments: NodeSegment[]) =>
+    segments.length >= 2 &&
+    !node.placeholder &&
+    !!highlight?.nodeIds.has(nodeId) &&
+    !nodePathSlots.get(nodeId)?.length
+  const walkWide = highlight?.walks.length
+    ? walkWideCache(
+        highlight,
+        [
+          nodePositions,
+          version,
+          axis.scaleX,
+          axis.scaleY,
+          graph,
+          nodeById,
+          contigThickness,
+          nodeWidth,
+          drawPaths,
+        ],
+        () => {
+          const place = laneHeadPlacer(scale, yToX)
+          const heads: Arrowhead[] = []
+          const strokes = new Map<string, NodeStroke[]>()
+          for (const [nodeId, segments] of Object.entries(nodePositions)) {
+            const node = nodeById.get(nodeId)
+            if (
+              node &&
+              headsMayShow(nodeId) &&
+              lanedAt(node, nodeId, segments)
+            ) {
+              const laned = laneStrokesOf(
+                nodeId,
+                segments,
+                nodeWidthPx(node, contigThickness, nodeWidth, widthScale),
+              )
+              strokes.set(
+                nodeId,
+                laned.map(({ stroke }) => stroke),
+              )
+              for (const { stroke, lane, thread } of laned) {
+                for (const head of headsOn(
+                  place,
+                  stroke,
+                  lane,
+                  thread,
+                  nodeId,
+                )) {
+                  heads.push(head)
+                }
+              }
+            }
+          }
+          return { heads, strokes }
+        },
+      )
+    : undefined
 
   // An arrowhead at every joint of a few hundred short nodes is a serration
   // along the whole drawing, so heads wait for a zoom where a node is longer
@@ -1535,59 +1687,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         })
       }
     } else if (drawable && lanes) {
-      const laneWidth = walkLaneWidthPx(width, lanes.length)
-      const frames = lines?.frames.get(nodeId)
-      for (let lane = 0; lane < lanes.length; lane++) {
-        const laneColor = lanes[lane]!.colors.get(nodeId)
-        if (laneColor === undefined) {
-          continue
-        }
-        const onThreads = threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS
-        const thickness = laneHalfWidth(laneWidth, lane)
-        for (const pass of onThreads) {
-          const passColor = threadColor(lane, nodeId, pass) ?? laneColor
-          const mark = passMark(lane, nodeId, pass)
-          if (lanes.length === 1 && !threaded) {
-            nodeStrokes.push({
-              points: segments,
-              thickness,
-              color: passColor,
-              walk: lane,
-              pass,
-              ...mark,
-            })
-            headsOn(segments, thickness, passColor, lane, pass, nodeId)
-            continue
-          }
-          const frame = frames?.[lane]?.[visitOf(lane, nodeId, pass)]
-          const normals = laneNormalsOf(nodeId, segments, frame)
-          const points = lanePointsOf(segments, frame)
-          const plain = laneOffset(nodeId, laneWidth, lane, pass)
-          const offsets = frame?.offsets?.map(
-            o => o * thinned * worldPerScreenPx,
-          )
-          const offsetX = offsets
-            ? offsets[Math.floor(offsets.length / 2)]!
-            : threadOffsetAt(frame, 0, plain) * worldPerScreenPx
-          const lanePoints = offsetPolyline(
-            points,
-            normals,
-            offsets ?? offsetX,
-            yToX,
-          )
-          nodeStrokes.push({
-            points: lanePoints,
-            thickness,
-            color: passColor,
-            walk: lane,
-            pass,
-            ...mark,
-            normals,
-            offsetX,
-            ...(offsets && { offsets }),
-          })
-          headsOn(lanePoints, thickness, passColor, lane, pass, nodeId)
-        }
+      for (const laned of walkWide?.strokes.get(nodeId) ??
+        laneStrokesOf(nodeId, segments, width).map(({ stroke }) => stroke)) {
+        nodeStrokes.push(laned)
       }
     } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
       const normals = pointNormalsOf(segments, yToX)
@@ -1608,6 +1710,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const count = nodeStrokes.length - start
     if (count > 0) {
       nodeStrokeRuns.set(nodeId, { start, count })
+    }
+  }
+
+  for (const head of walkWide?.heads ?? []) {
+    if (!viewportBounds || headInBounds(head, viewportBounds, scale, yToX)) {
+      arrows.push(head)
     }
   }
 

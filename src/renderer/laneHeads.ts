@@ -43,35 +43,40 @@ interface Spot {
   y: number
 }
 
-const cellOf = (v: number) => Math.floor(v / LANE_HEAD_SPACING_PX)
+const NO_SPOTS: readonly Spot[] = []
 
-// Heads placed so far, by thread and by lane, in screen px on a grid of cells
-// LANE_HEAD_SPACING_PX wide
-function spacing() {
-  const cells = new Map<string, Spot[]>()
+// Points on a grid of square cells `size` px wide, to find any nearer a point
+// than a reach of at most `size` by the cells around it
+function grid(size: number) {
+  const columns = new Map<number, Map<number, Spot[]>>()
   return {
-    clear(key: string, at: Spot, reach: number) {
-      const cx = cellOf(at.x)
-      const cy = cellOf(at.y)
-      const span = Math.ceil(reach / LANE_HEAD_SPACING_PX)
-      for (let i = cx - span; i <= cx + span; i++) {
-        for (let j = cy - span; j <= cy + span; j++) {
-          for (const p of cells.get(`${key}\t${i}\t${j}`) ?? []) {
-            if (Math.hypot(p.x - at.x, p.y - at.y) < reach) {
-              return false
-            }
-          }
+    clear(at: Spot, reach: number) {
+      const cx = Math.floor(at.x / size)
+      const cy = Math.floor(at.y / size)
+      let clear = true
+      for (let i = cx - 1; i <= cx + 1 && clear; i++) {
+        const column = columns.get(i)
+        for (let j = cy - 1; j <= cy + 1 && clear; j++) {
+          clear = (column?.get(j) ?? NO_SPOTS).every(
+            p => Math.hypot(p.x - at.x, p.y - at.y) >= reach,
+          )
         }
       }
-      return true
+      return clear
     },
-    add(key: string, at: Spot) {
-      const cell = `${key}\t${cellOf(at.x)}\t${cellOf(at.y)}`
-      const held = cells.get(cell)
+    add(at: Spot) {
+      const cx = Math.floor(at.x / size)
+      const cy = Math.floor(at.y / size)
+      let column = columns.get(cx)
+      if (!column) {
+        column = new Map()
+        columns.set(cx, column)
+      }
+      const held = column.get(cy)
       if (held) {
         held.push(at)
       } else {
-        cells.set(cell, [at])
+        column.set(cy, [at])
       }
     },
   }
@@ -94,68 +99,88 @@ export interface LaneHeadStroke {
 // `scale` and `yToX` take layout units to screen px, as the geometry builder
 // states them
 export function laneHeadPlacer(scale: number, yToX: number) {
-  const byThread = spacing()
-  const byLane = spacing()
+  const lanes = new Map<number, ReturnType<typeof grid>>()
+  const threadGrids = new Map<number, Map<number, ReturnType<typeof grid>>>()
+  const laneGrid = (walk: number) => {
+    let held = lanes.get(walk)
+    if (!held) {
+      held = grid(LANE_HEAD_SPACING_PX)
+      lanes.set(walk, held)
+    }
+    return held
+  }
+  const threadGrid = (walk: number, thread: number) => {
+    let byThread = threadGrids.get(walk)
+    if (!byThread) {
+      byThread = new Map()
+      threadGrids.set(walk, byThread)
+    }
+    let held = byThread.get(thread)
+    if (!held) {
+      held = grid(LANE_HEAD_SPACING_PX * LANE_HEAD_TURNS)
+      byThread.set(thread, held)
+    }
+    return held
+  }
   return (stroke: LaneHeadStroke) => {
     const { points, halfWidth, color, walk, thread, threads, node, against } =
       stroke
     const turn =
       LANE_HEAD_SPACING_PX * Math.min(Math.max(1, threads), LANE_HEAD_TURNS)
-    const screen = points.map(p => ({ x: p.x * scale, y: p.y * scale * yToX }))
-    const arc = [0]
-    for (let i = 1; i < screen.length; i++) {
-      arc.push(
-        arc[i - 1]! +
-          Math.hypot(
-            screen[i]!.x - screen[i - 1]!.x,
-            screen[i]!.y - screen[i - 1]!.y,
-          ),
-      )
+    const legs: { a: Spot; b: Spot; from: number; to: number; run: number }[] =
+      []
+    let total = 0
+    let previous: Spot | undefined
+    for (const p of points) {
+      const b = { x: p.x * scale, y: p.y * scale * yToX }
+      if (previous) {
+        const run = Math.hypot(b.x - previous.x, b.y - previous.y)
+        legs.push({ a: previous, b, from: total, to: total + run, run })
+        total += run
+      }
+      previous = b
     }
-    const total = arc.at(-1) ?? 0
     const count =
-      screen.length > 1 && total > 0
-        ? Math.max(1, Math.floor(total / LANE_HEAD_SPACING_PX))
-        : 0
+      total > 0 ? Math.max(1, Math.floor(total / LANE_HEAD_SPACING_PX)) : 0
     const width = Math.max(2 * halfWidth, LANE_HEAD_MIN_PX)
     const ink = laneHeadInk(color, 2 * halfWidth >= LANE_HEAD_MIN_PX)
+    const ownThread = threadGrid(walk, thread)
+    const ownLane = laneGrid(walk)
     const heads: Arrowhead[] = []
-    let segment = 1
+    let index = 0
     for (let k = 0; k < count; k++) {
       const along = ((k + 0.5) * total) / count
-      while (segment < screen.length - 1 && arc[segment]! < along) {
-        segment++
+      while (index < legs.length - 1 && (legs[index]?.to ?? along) < along) {
+        index++
       }
-      const a = screen[segment - 1]!
-      const b = screen[segment]!
-      const run = arc[segment]! - arc[segment - 1]!
-      const f = run > 0 ? (along - arc[segment - 1]!) / run : 0
-      const at = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
-      const threadKey = `${walk}\t${thread}`
-      const laneKey = `${walk}`
-      if (
-        run > 0 &&
-        byThread.clear(threadKey, at, turn) &&
-        byLane.clear(laneKey, at, LANE_HEAD_SPACING_PX)
-      ) {
-        byThread.add(threadKey, at)
-        byLane.add(laneKey, at)
-        const sign = against ? -1 : 1
-        const ux = (sign * (b.x - a.x)) / run
-        const uy = (sign * (b.y - a.y)) / run
-        const length = width * LANE_HEAD_LENGTH
-        heads.push({
-          x: (at.x + (ux * length) / 2) / scale,
-          y: (at.y + (uy * length) / 2) / (scale * yToX),
-          angle: Math.atan2(uy, ux),
-          length,
-          halfWidth: width / 2,
-          color: ink,
-          walk,
-          pass: thread,
-          node,
-          against,
-        })
+      const leg = legs[index]
+      if (leg && leg.run > 0) {
+        const { a, b, run } = leg
+        const f = (along - leg.from) / run
+        const at = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
+        if (
+          ownThread.clear(at, turn) &&
+          ownLane.clear(at, LANE_HEAD_SPACING_PX)
+        ) {
+          ownThread.add(at)
+          ownLane.add(at)
+          const sign = against ? -1 : 1
+          const ux = (sign * (b.x - a.x)) / run
+          const uy = (sign * (b.y - a.y)) / run
+          const length = width * LANE_HEAD_LENGTH
+          heads.push({
+            x: (at.x + (ux * length) / 2) / scale,
+            y: (at.y + (uy * length) / 2) / (scale * yToX),
+            angle: Math.atan2(uy, ux),
+            length,
+            halfWidth: width / 2,
+            color: ink,
+            walk,
+            pass: thread,
+            node,
+            against,
+          })
+        }
       }
     }
     return heads
