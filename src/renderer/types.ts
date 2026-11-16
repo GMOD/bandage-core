@@ -57,7 +57,8 @@ export interface NodeStroke {
 
 // One head per edge: its tip at (x, y) in layout units and its screen angle,
 // with the size in css px applied after the transform, so a head is the same
-// size at every zoom.
+// size at every zoom. A head on a lifted walk's lane names its walk and node,
+// and whether the walk reads the node against the way it is drawn.
 export interface Arrowhead {
   x: number
   y: number
@@ -65,6 +66,10 @@ export interface Arrowhead {
   length: number
   halfWidth: number
   color: number
+  walk?: number
+  pass?: number
+  node?: string
+  against?: boolean
 }
 
 // A contiguous run of one batch array.

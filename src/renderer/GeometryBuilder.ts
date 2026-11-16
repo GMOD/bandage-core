@@ -26,6 +26,7 @@ import {
 import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
+import { laneHeadPlacer } from './laneHeads'
 import {
   THREAD_PITCH_PX,
   bandScale,
@@ -1028,6 +1029,38 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       ...(pass === undefined ? {} : { walkPass: pass }),
     }
   }
+  const placeHeads = laneHeadPlacer(scale, yToX)
+  // a lane's stroke carries heads where every visit it draws reads the node
+  // one way, against the way it is drawn or, coloured by pass, either way
+  const headsOn = (
+    points: NodeSegment[],
+    halfWidth: number,
+    color: number,
+    lane: number,
+    thread: number,
+    nodeId: string,
+  ) => {
+    const walk = liftedWalks[lane]
+    const threadCount = threads?.[lane]?.nodeThreads.get(nodeId)?.length ?? 1
+    const turns = walk?.backwards.get(nodeId) ?? []
+    const drawn = threaded ? [turns[visitOf(lane, nodeId, thread)]] : turns
+    const against = drawn.every(turned => turned === true)
+    const along = drawn.every(turned => turned !== true)
+    if (against || (along && walk?.encoding.field === 'pass')) {
+      for (const head of placeHeads({
+        points,
+        halfWidth,
+        color,
+        walk: lane,
+        thread,
+        threads: threadCount,
+        node: nodeId,
+        against,
+      })) {
+        arrows.push(head)
+      }
+    }
+  }
   const plainNormals = new Map<string, Normal[]>()
   const visitNormals = new WeakMap<VisitFrame['normals'], Normal[]>()
   const visitOf = (lane: number, nodeId: string, thread: number) =>
@@ -1523,6 +1556,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               pass,
               ...mark,
             })
+            headsOn(segments, thickness, passColor, lane, pass, nodeId)
             continue
           }
           const frame = frames?.[lane]?.[visitOf(lane, nodeId, pass)]
@@ -1535,8 +1569,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           const offsetX = offsets
             ? offsets[Math.floor(offsets.length / 2)]!
             : threadOffsetAt(frame, 0, plain) * worldPerScreenPx
+          const lanePoints = offsetPolyline(
+            points,
+            normals,
+            offsets ?? offsetX,
+            yToX,
+          )
           nodeStrokes.push({
-            points: offsetPolyline(points, normals, offsets ?? offsetX, yToX),
+            points: lanePoints,
             thickness,
             color: passColor,
             walk: lane,
@@ -1546,6 +1586,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             offsetX,
             ...(offsets && { offsets }),
           })
+          headsOn(lanePoints, thickness, passColor, lane, pass, nodeId)
         }
       }
     } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {

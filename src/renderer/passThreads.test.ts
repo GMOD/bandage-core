@@ -5,6 +5,11 @@ import { walkLift } from '../walkHighlight'
 import { MOST_PASS_THREADS } from '../walkPasses'
 import { buildGeometry } from './GeometryBuilder'
 import {
+  LANE_HEAD_MIN_PX,
+  LANE_HEAD_SPACING_PX,
+  laneHeadPlacer,
+} from './laneHeads'
+import {
   MIN_THREAD_PITCH_PX,
   THREAD_PITCH_PX,
   THREAD_PX,
@@ -14,7 +19,7 @@ import {
 
 import type { NodeSegment } from '../types'
 import type { WalkLayer } from '../walkEncoding'
-import type { EdgeCurveBatch, NodeStroke } from './types'
+import type { Arrowhead, EdgeCurveBatch, NodeStroke } from './types'
 
 // the reference's nodes carry its stable coordinates, so each is drawn the
 // way the reference reads it
@@ -120,7 +125,8 @@ function drawn(
     const run = batch.nodeStrokeRuns.get(id)
     return run ? batch.nodeStrokes.slice(run.start, run.start + run.count) : []
   }
-  return { graph, highlight, batch, strokes }
+  const laneHeads = batch.arrows.filter(a => a.walk !== undefined)
+  return { graph, highlight, batch, strokes, laneHeads, scale }
 }
 
 const byPass = (walk = HAP): WalkLayer => ({ walk, color: { field: 'pass' } })
@@ -264,4 +270,90 @@ test('threads thinned under MIN_THREAD_PITCH_PX apart fuse into one band where t
   expect(fused).toHaveLength(1)
   const pitch = fused[0]! * 2
   expect(pitch).toBeGreaterThan((THREAD_PITCH_PX * 48) / (40 * 3.5))
+})
+
+const pointsAlongX = (heads: Arrowhead[]) => heads.map(h => Math.cos(h.angle))
+
+test('a lane that reads nodes against the way they are drawn carries heads pointing back along them, and the reference none', () => {
+  const { laneHeads, highlight } = drawn('>f1<d<c<b<a>f2', [
+    { walk: REF },
+    { walk: HAP },
+  ])
+  const hap = highlight.walks.findIndex(w => w.name === HAP)
+  expect(laneHeads.length).toBeGreaterThan(0)
+  expect(new Set(laneHeads.map(h => h.walk))).toEqual(new Set([hap]))
+  expect(new Set(laneHeads.map(h => h.node))).toEqual(
+    new Set(['a+', 'b+', 'c+', 'd+']),
+  )
+  for (const along of pointsAlongX(laneHeads)) {
+    expect(along).toBeCloseTo(-1)
+  }
+  expect(laneHeads.every(h => h.against)).toBe(true)
+})
+
+test('a lane coloured by pass carries heads along it both ways it runs, at least LANE_HEAD_MIN_PX wide and LANE_HEAD_SPACING_PX apart along the lane', () => {
+  const { laneHeads, scale } = drawn('>f1<d<c<b<a>f2', [
+    { walk: REF },
+    byPass(),
+  ])
+  const forward = laneHeads.filter(h => !h.against)
+  const back = laneHeads.filter(h => h.against)
+  expect(new Set(forward.map(h => h.node))).toEqual(new Set(['f1+', 'f2+']))
+  expect(back.length).toBeGreaterThan(0)
+  for (const along of pointsAlongX(forward)) {
+    expect(along).toBeCloseTo(1)
+  }
+  for (const head of laneHeads) {
+    expect(head.halfWidth * 2).toBeGreaterThanOrEqual(LANE_HEAD_MIN_PX)
+  }
+  const closest = laneHeads.reduce(
+    (least, a, i) =>
+      laneHeads
+        .slice(i + 1)
+        .filter(b => b.walk === a.walk)
+        .reduce((most, b) => Math.min(most, gap(a, b) * scale), least),
+    Infinity,
+  )
+  expect(closest).toBeGreaterThanOrEqual(LANE_HEAD_SPACING_PX - 1e-9)
+})
+
+test('every thread of a lane coloured by pass carries heads, and the threads side by side keep their heads apart', () => {
+  const { laneHeads, strokes } = drawn(
+    `>f1${UNIT.repeat(3)}>f2`,
+    [byPass()],
+    STRAIGHT,
+    6,
+  )
+  const slots = new Set(strokes('a+').map(s => s.pass))
+  expect(new Set(laneHeads.map(h => h.pass))).toEqual(slots)
+  for (const [i, a] of laneHeads.entries()) {
+    for (const b of laneHeads.slice(i + 1)) {
+      expect(gap(a, b) * 6).toBeGreaterThanOrEqual(LANE_HEAD_SPACING_PX - 1e-9)
+    }
+  }
+})
+
+test('heads on short nodes keep their distance along the thread', () => {
+  const place = laneHeadPlacer(1, 1)
+  const heads = Array.from({ length: 100 }, (_, i) =>
+    place({
+      points: [
+        { x: i * 4, y: 0 },
+        { x: i * 4 + 3, y: 0 },
+      ],
+      halfWidth: 1,
+      color: 0,
+      walk: 0,
+      thread: 0,
+      threads: 1,
+      node: `n${i}`,
+      against: false,
+    }),
+  ).flat()
+  expect(heads.length).toBeGreaterThan(4)
+  for (let i = 1; i < heads.length; i++) {
+    expect(heads[i]!.x - heads[i - 1]!.x).toBeGreaterThanOrEqual(
+      LANE_HEAD_SPACING_PX - 1e-9,
+    )
+  }
 })

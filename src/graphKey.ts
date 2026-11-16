@@ -26,6 +26,7 @@ import {
   skipDashes,
 } from './renderer/GeometryBuilder'
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
+import { BACKWARDS_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
 import { encodingStops } from './walkEncoding'
 import { fadedKey } from './walkHighlight'
@@ -67,6 +68,8 @@ export type GraphKeySwatch =
   | { kind: 'halo'; ink: number }
   // a lane's threads side by side, one per pass through a node
   | { kind: 'threads'; ink: number }
+  // a lane with heads along it pointing the way its walk runs
+  | { kind: 'heads'; ink: number }
   // the reference strip's tab past its edge
   | { kind: 'overhang' }
 
@@ -110,10 +113,12 @@ export interface GraphKeySection {
 // the dashes; a node hollow for the bp a cut did not load; a node or link in
 // no lifted walk's lane, which under a lift is faded; a node in the
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
-// node; nodes of more than one thickness; each lifted walk's passes, by lane.
-// A lifted walk's lane on a skip is its walk's, keyed by the walk.
+// node; nodes of more than one thickness; each lifted walk's passes, by lane;
+// heads along a lane, pointing back along a node or either way. A lifted
+// walk's lane on a skip is its walk's, keyed by the walk.
 export function drawnMarks(
-  batches: readonly Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'>[],
+  batches: readonly (Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'> &
+    Partial<Pick<RenderBatch, 'arrows'>>)[],
 ) {
   const marks = {
     dashedSkip: false,
@@ -125,9 +130,11 @@ export function drawnMarks(
     threads: false,
     widthsVary: false,
     passes: new Map<number, Set<number>>(),
+    headsAgainst: false,
+    headsAlong: false,
   }
   let width: number | undefined
-  for (const { edgeCurves, nodeStrokes } of batches) {
+  for (const { edgeCurves, nodeStrokes, arrows = [] } of batches) {
     for (const { skip, span = 0, walk } of edgeCurves) {
       if (walk === undefined) {
         if (!skip) {
@@ -167,6 +174,12 @@ export function drawnMarks(
           drawn.add(walkPass)
           marks.passes.set(walk, drawn)
         }
+      }
+    }
+    for (const { walk, against } of arrows) {
+      if (walk !== undefined) {
+        marks.headsAgainst ||= !!against
+        marks.headsAlong ||= !against
       }
     }
   }
@@ -387,6 +400,15 @@ export function graphKey(
             kind: 'threads',
             ink: THREAD_INK,
           }),
+        ]
+      : []),
+    ...(lifted && (o.marks.headsAlong || o.marks.headsAgainst)
+      ? [
+          entry(
+            'lane-heads',
+            o.marks.headsAlong ? LANE_HEADS_KEY : BACKWARDS_KEY,
+            { kind: 'heads', ink: THREAD_INK },
+          ),
         ]
       : []),
   ]

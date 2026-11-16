@@ -178,6 +178,8 @@ function swatchSvg(swatch: GraphKeySwatch, id: string) {
         .join('')
     case 'overhang':
       return `<path d="M0,9 L8,4 L8,14 Z M18,9 L10,4 L10,14 Z" fill="${abgrHex(EDGE_DELETION_COLOR)}"/>`
+    case 'heads':
+      return `<rect y="6" width="${SWATCH_PX}" height="6" rx="2" ${inkAttrs('fill', swatch.ink)}/><path d="M3,5 L9,9 L3,13 Z M10,5 L16,9 L10,13 Z" fill="#fff" stroke="${abgrHex(swatch.ink)}" stroke-width="0.8"/>`
   }
 }
 

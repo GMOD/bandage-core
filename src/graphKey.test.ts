@@ -16,6 +16,7 @@ import {
   computeReferenceRamp,
 } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
+import { BACKWARDS_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { axisScaleOf } from './viewport'
 import { walkLift } from './walkHighlight'
 
@@ -486,6 +487,7 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
           : []
       }),
     ),
+    ...(batch.arrows.some(a => a.walk !== undefined) ? ['lane-heads'] : []),
     ...(!s.lift && batch.edgeCurves.some(e => e.walk === undefined && !e.skip)
       ? ['link']
       : []),
@@ -548,6 +550,23 @@ const MANY = load(
   'ref',
 )
 
+// v2 drawn as the reference reads it, which its stable coordinate says, and
+// read the other way by inv
+const INVERTED = load(
+  [
+    'S\tv1\tAAAA\tSN:Z:ref#0#chr\tSO:i:0\tSR:i:0',
+    'S\tv2\tCC\tSN:Z:ref#0#chr\tSO:i:4\tSR:i:0',
+    'S\tv3\tGGG\tSN:Z:ref#0#chr\tSO:i:6\tSR:i:0',
+    'L\tv1\t+\tv2\t+\t0M',
+    'L\tv2\t+\tv3\t+\t0M',
+    'L\tv1\t+\tv2\t-\t0M',
+    'L\tv2\t-\tv3\t+\t0M',
+    'W\tref\t0\tchr\t0\t9\t>v1>v2>v3',
+    'W\tinv\t1\tchr\t0\t9\t>v1<v2>v3',
+  ].join('\n'),
+  'ref',
+)
+
 const CUTS: [string, Graph, (g: Graph) => Scene][] = [
   [
     "a repeat's walk lifted alone and coloured by pass",
@@ -563,6 +582,16 @@ const CUTS: [string, Graph, (g: Graph) => Scene][] = [
     'a walk of more passes than take a colour each',
     MANY,
     g => ({ lift: byPass(g, ['many#1#chr']) }),
+  ],
+  [
+    'a walk reading a node backwards beside the reference',
+    INVERTED,
+    g => ({ lift: lifting(g, ['ref#0#chr', 'inv#1#chr']) }),
+  ],
+  [
+    'a walk reading a node backwards, coloured by pass',
+    INVERTED,
+    g => ({ lift: byPass(g, ['ref#0#chr', 'inv#1#chr']) }),
   ],
   [
     'a repeat whose passes its walks state, both lifted',
@@ -677,6 +706,7 @@ test('a walk coloured by pass keys each pass by its name, a bundle by its count,
     expect.arrayContaining([
       ['pass-dup#1#chr-0', 'pass 1'],
       ['pass-dup#1#chr-1', 'pass 2'],
+      ['lane-heads', LANE_HEADS_KEY],
     ]),
   )
   const many = keyed(MANY, { lift: byPass(MANY, ['many#1#chr']) })
@@ -684,6 +714,12 @@ test('a walk coloured by pass keys each pass by its name, a bundle by its count,
     expect.arrayContaining([['passes-many#1#chr', '9 passes']]),
   )
   expect(many.texts.filter(([key]) => key?.startsWith('pass-'))).toEqual([])
+  const backwards = keyed(INVERTED, {
+    lift: lifting(INVERTED, ['ref#0#chr', 'inv#1#chr']),
+  })
+  expect(backwards.texts).toEqual(
+    expect.arrayContaining([['lane-heads', BACKWARDS_KEY]]),
+  )
   const s = { lift: byPass(REPEAT, ['dup#1#chr']) }
   const dropped = lone.sections.map(section => ({
     ...section,

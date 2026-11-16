@@ -145,6 +145,13 @@ export {
 } from './walkPasses'
 export type { LiftedPasses, WalkPass, WalkPasses } from './walkPasses'
 export {
+  BACKWARDS_KEY,
+  LANE_HEADS_KEY,
+  LANE_HEAD_MIN_PX,
+  LANE_HEAD_SPACING_PX,
+  LANE_HEAD_TURNS,
+} from './renderer/laneHeads'
+export {
   MIN_THREAD_PITCH_PX,
   threadsFuse,
   threadsPasses,

@@ -187,9 +187,14 @@ interface GraphKeyRow {
   rimPx: number | null
 }
 
+// a link's head, or a head along a lifted walk's lane at a node, pointing
+// back along it where `against`
 interface ArrowRow {
   panel: string
-  edge: number
+  edge: number | null
+  walk: number | null
+  node: string | null
+  against: boolean
   x: number
   y: number
   angle: number
@@ -443,6 +448,9 @@ export function figureData(
   const arrows = columns<ArrowRow>({
     panel: [],
     edge: [],
+    walk: [],
+    node: [],
+    against: [],
     x: [],
     y: [],
     angle: [],
@@ -519,12 +527,21 @@ export function figureData(
         })
       }
     }
+    const edgeOf = new Map<number, number>()
     for (const [edge, run] of batch.arrowRuns) {
       for (let i = run.start; i < run.start + run.count; i++) {
-        const a = batch.arrows[i]!
+        edgeOf.set(i, edge)
+      }
+    }
+    batch.arrows.forEach((a, i) => {
+      const edge = edgeOf.get(i)
+      if (edge !== undefined || a.walk !== undefined) {
         arrows.push({
           panel,
-          edge,
+          edge: edge ?? null,
+          walk: keyRowOf(a.walk),
+          node: a.node ?? null,
+          against: !!a.against,
           x: a.x,
           y: a.y,
           angle: a.angle,
@@ -534,7 +551,7 @@ export function figureData(
           alpha: alphaOf(a.color),
         })
       }
-    }
+    })
   }
 
   const placed = layoutLabels({

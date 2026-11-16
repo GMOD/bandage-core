@@ -29,6 +29,9 @@ export interface WalkHighlight {
   // the same fraction at every visit, in the order the walk makes them
   passProgress: Map<string, number[]>
   passes: Map<string, number>
+  // whether the walk reads the node against the way it is drawn, at every
+  // visit
+  backwards: Map<string, boolean[]>
   mostPasses: number
   route: readonly (readonly string[])[]
   // beside each step of the route: the strand it reads its node on, and the
@@ -262,6 +265,7 @@ function highlightOf(
   const edgeIndexes = new Set<number>()
   const progress = new Map<string, number>()
   const passProgress = new Map<string, number[]>()
+  const backwards = new Map<string, boolean[]>()
   const passes = new Map<string, number>()
   let mostPasses = 1
   let before = 0
@@ -308,10 +312,13 @@ function highlightOf(
         progress.set(id, at)
       }
       const seen = passProgress.get(id)
+      const turned = (strands?.[i] ?? ownStrand(id)) !== ownStrand(id)
       if (seen) {
         seen.push(at)
+        backwards.get(id)?.push(turned)
       } else {
         passProgress.set(id, [at])
+        backwards.set(id, [turned])
       }
       before += length
     })
@@ -370,6 +377,7 @@ function highlightOf(
     progress,
     passProgress,
     passes,
+    backwards,
     mostPasses,
     route: walked.map(piece => piece.nodeIds),
     routeStrands: walked.map(
