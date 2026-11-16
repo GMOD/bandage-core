@@ -1,5 +1,9 @@
+import { fmmmLayout } from '@jbrowse/graph-fmmm-layout'
+
 import { isBackbone } from '../anchoredNodes'
 import { deletionEdges } from '../deletionEdges'
+import { figureSvg } from '../figure'
+import { figureData } from '../figureData'
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { gfaTables } from '../gfa/gfaTables'
@@ -11,6 +15,7 @@ import { ownStrand, strandSides } from '../util/geometry'
 import { readAlongReference } from './referenceReading'
 
 import type { LayoutEngineKind } from '../layoutEngines'
+import type { EngineRequest } from '../pipeline'
 import type { Graph, NodeSegment } from '../types'
 
 interface Case {
@@ -142,6 +147,37 @@ test('a segment its walk passes twice states the strand of the pass at its SO', 
   }
 })
 
+test('a tagged segment states the strand its own walk steps it on where another walk reaches it at the same offset on the other strand', () => {
+  const shared = [
+    'S\ta\t*\tLN:i:100\tSN:Z:ref#0#chr\tSO:i:0\tSR:i:0',
+    'S\tb\t*\tLN:i:50\tSN:Z:ref#0#chr\tSO:i:100\tSR:i:0',
+    'S\tx\t*\tLN:i:100',
+    'L\ta\t+\tb\t+\t0M',
+    'L\tx\t+\tb\t-\t0M',
+    'W\thap\t1\tchr\t0\t150\t>x<b',
+    'W\tref\t0\tchr\t0\t150\t>a>b',
+  ].join('\n')
+  const fromText = convertGFAToGraph(parseGFA(shared), 'cut')
+  expect(strandsOf(fromText)).toEqual({ a: '+', b: '+', x: undefined })
+  expect(graphFromTables(gfaTables(shared)!, 'cut')).toStrictEqual(fromText)
+})
+
+test('a tagged segment off the reference states the strand the walk its SN names steps it on', () => {
+  const insertion = [
+    'S\ta\t*\tLN:i:1000\tSN:Z:ref#0#chr\tSO:i:0\tSR:i:0',
+    'S\tb\t*\tLN:i:1000\tSN:Z:ref#0#chr\tSO:i:1000\tSR:i:0',
+    'S\ti\t*\tLN:i:400\tSN:Z:hap#1#chr\tSO:i:1000\tSR:i:1',
+    'L\ta\t+\tb\t+\t0M',
+    'L\ta\t+\ti\t-\t0M',
+    'L\ti\t-\tb\t+\t0M',
+    'W\tref\t0\tchr\t0\t2000\t>a>b',
+    'W\thap\t1\tchr\t0\t2400\t>a<i>b',
+  ].join('\n')
+  const fromText = convertGFAToGraph(parseGFA(insertion), 'cut')
+  expect(strandsOf(fromText)).toEqual({ a: '+', b: '+', i: '-' })
+  expect(graphFromTables(gfaTables(insertion)!, 'cut')).toStrictEqual(fromText)
+})
+
 test('a tagged segment whose SN names no walk of the file states no strand', () => {
   const rgfa = [
     'S\ta\t*\tLN:i:1000\tSN:Z:chr\tSO:i:0\tSR:i:0',
@@ -248,6 +284,91 @@ test.each(Object.entries(ANCHORINGS))(
     ])
   },
 )
+
+const FIRST_EXON = [
+  {
+    name: 'G',
+    refName: 'ref#0#chr',
+    start: 0,
+    end: 100,
+    strand: 1,
+    exons: [{ start: 0, end: 100 }],
+  },
+]
+
+async function backwardsByPaths() {
+  const graph = load(ALL_BACKWARDS, false)
+  const { result } = await forceLayout(
+    graph,
+    engineSettingsOf({ engine: 'stress' }),
+    layoutEngine,
+    { width: 1000, height: 700 },
+  )
+  return { graph, layout: result }
+}
+
+test("figureData places an exon at the end of its node the reference reads it from, on a path-anchored node drawn against the reference's reading", async () => {
+  const { graph, layout } = await backwardsByPaths()
+  const d = figureData(graph, layout, { genes: FIRST_EXON })
+  const line = d.nodes.x.filter((_x, i) => d.nodes.node[i] === '5+')
+  expect(new Set(d.exons.node)).toEqual(new Set(['5+']))
+  for (const x of d.exons.x) {
+    expect(Math.abs(x - line.at(-1)!)).toBeLessThan(Math.abs(x - line[0]!))
+  }
+})
+
+test("figureSvg outlines an exon at the end of its node the reference reads it from, on a path-anchored node drawn against the reference's reading", async () => {
+  const { graph, layout } = await backwardsByPaths()
+  const svg = figureSvg(graph, layout, { width: 600, genes: FIRST_EXON })
+  const xsOf = (within: string) =>
+    [...within.matchAll(/<path d="([^"]+)"/g)].flatMap(path =>
+      [...path[1]!.matchAll(/[ML](-?[\d.]+)[ ,]/g)].map(point => +point[1]!),
+    )
+  const exon = xsOf(
+    svg.slice(svg.indexOf('<mask id="exons0"'), svg.indexOf('</mask>')),
+  )
+  const ink = xsOf(svg)
+  const left = Math.min(...ink)
+  expect(exon.length).toBeGreaterThan(0)
+  expect(Math.max(...exon)).toBeLessThan(left + (Math.max(...ink) - left) / 10)
+})
+
+test('FMMM is handed a request as it is given and its lines come back as it laid them', async () => {
+  const requests: EngineRequest[] = []
+  await forceLayout(
+    load(ALL_BACKWARDS, false),
+    engineSettingsOf({ engine: 'fmmm' }),
+    request => {
+      requests.push(request)
+      return layoutEngine(request)
+    },
+    { width: 1000, height: 700 },
+  )
+  const [request] = requests
+  expect(readAlongReference(request!).request).not.toEqual(request)
+  expect((await layoutEngine(request!)).result).toEqual(
+    await fmmmLayout(request!),
+  )
+})
+
+test('a backbone node whose id names no strand is handed to the stress engine as it is', () => {
+  const request = {
+    graph: {
+      nodes: [
+        {
+          id: 'n',
+          name: 'n',
+          length: 100,
+          depth: 1,
+          stable: { refName: 'chr', start: 0, rank: 0, strand: '-' as const },
+        },
+      ],
+      edges: [],
+    },
+    options: {},
+  }
+  expect(readAlongReference(request).request).toBe(request)
+})
 
 test('the stress engine is handed a backbone node the reference steps against its id as the reference reads it, and its line turned back', () => {
   const stable = { refName: 'chr', start: 0, rank: 0 }
