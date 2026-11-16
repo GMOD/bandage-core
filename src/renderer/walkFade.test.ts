@@ -308,3 +308,20 @@ test("a lifted walk's link ends on the line of a node drawn without lanes", () =
     batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves.at(-1)!
   expect(Math.hypot(last.x1 - 20, last.y1)).toBeLessThan(1)
 })
+
+test("a lifted walk's link ends on the point of a node drawn as one point", () => {
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: { ...positions, 'v2+': [{ x: 20, y: 0 }] },
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 20,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: lift('ref#0#chr', 'alt#1#chr'),
+  })
+  const last =
+    batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves.at(-1)!
+  expect(Math.hypot(last.x1 - 20, last.y1)).toBeLessThan(1)
+})
