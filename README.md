@@ -184,8 +184,13 @@ it is on, so the trips round the repeat can be followed one by one.
   solid line over each of a pass's stretches, a dotted hairline joining them and
   the pass's name over its longest
 - Heads along a lane point the way its walk runs: wherever a lane reads a node
-  against the way the node is drawn, and along every thread of a lane coloured
-  by pass. The canvas renderer draws them, so every host shows them
+  against the way the node is drawn, whatever the lane's colouring, and along
+  every thread of a lane coloured by pass. They are placed once over the whole
+  walk, so a pan shows the same heads. A head inside its lane is black or white,
+  whichever contrasts more with the lane; a head wider than its lane, as on a
+  thread, stands on a white halo in its lane's colour darkened just enough to
+  keep WCAG's 3:1 contrast with white. The canvas renderer draws them, so every
+  host shows them
 - A graph that keeps each copy of a repeat as its own nodes gives a walk nothing
   to step twice, so it shows no passes. Minigraph-Cactus folds little, but not
   nothing: on the hosted amylase cut HG00128#1 steps thousands of nodes twice. A
