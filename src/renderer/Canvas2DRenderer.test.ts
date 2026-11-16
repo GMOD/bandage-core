@@ -1,3 +1,7 @@
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { anchorGraph } from '../pathAnchoring'
+import { walkLift } from '../walkHighlight'
 import { Canvas2DRenderer, arrowheadOutline } from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
 import { abgrToCssRgba } from './colorBits'
@@ -427,6 +431,62 @@ describe('a link turning strand against the reference is painted over the nodes 
     const node = abgrToCssRgba(turning.nodeStrokes[0]!.color)
     expect(strokes).toEqual([link, node, link])
   })
+})
+
+test("a lifted walk's lane on a link turning strand against the reference is a turn, which the renderer paints over the nodes", () => {
+  // the reference steps >r1>r2>r3, the lifted walk >r1<r2>r3
+  const graph = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        [
+          'S\tr1\tAAAAAAAAAA',
+          'S\tr2\tCCCCCCCCCC',
+          'S\tr3\tGGGGGGGGGG',
+          'L\tr1\t+\tr2\t+\t0M',
+          'L\tr2\t+\tr3\t+\t0M',
+          'L\tr1\t+\tr2\t-\t0M',
+          'L\tr2\t-\tr3\t+\t0M',
+          'W\tref\t0\tchr\t0\t30\t>r1>r2>r3',
+          'W\talt\t1\tchr\t0\t*\t>r1<r2>r3',
+        ].join('\n'),
+      ),
+    ),
+    'ref',
+  )
+  const batch = buildGeometry({
+    nodePositions: {
+      'r1+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'r2+': [
+        { x: 40, y: 0 },
+        { x: 50, y: 0 },
+      ],
+      'r3+': [
+        { x: 80, y: 0 },
+        { x: 90, y: 0 },
+      ],
+    },
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    stranded: true,
+    highlight: walkLift(graph, [{ walk: 'alt#1#chr' }]),
+  })
+  const turning = graph.edges.flatMap((e, i) =>
+    e.fromStrand !== e.toStrand ? [i] : [],
+  )
+  const lanes = turning.flatMap(edge => {
+    const run = batch.edgeCurveRuns.get(edge)
+    return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
+  })
+  expect(lanes.length).toBe(2)
+  expect(lanes.every(lane => lane.walk === 0 && lane.turn)).toBe(true)
 })
 
 test('a short skip is painted after a long one it crosses', () => {

@@ -2096,6 +2096,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         endNormal,
         endOffsetX,
         ...skipMark,
+        ...turnMark,
       })
     }
     const arrowOn = (curves: BezierCurve[]) => {
