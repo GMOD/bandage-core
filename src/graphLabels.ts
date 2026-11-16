@@ -1,5 +1,6 @@
 import { polylinePointAt } from './layout/mergeRuns'
 import { labelWidth, occupancy } from './overlayLabels'
+import { compareIds } from './util/canonicalOrder'
 import { polylinePx } from './util/geometry'
 import { weakMemo } from './util/weakMemo'
 
@@ -160,8 +161,6 @@ export function formatBp(bp: number) {
 // Node label candidates in the order they are considered, placeholders first
 // and the biggest allele first among each, two of one length by node id in
 // numeric order, which depends on the sequence lengths and ids alone.
-const byId = new Intl.Collator('en', { numeric: true }).compare
-
 const nodeOrderCache = weakMemo<
   Record<string, NodeSegment[]>,
   { id: string; segments: NodeSegment[]; kept: boolean }[]
@@ -182,7 +181,8 @@ function labelOrder(
       }))
       .sort((a, b) =>
         a.kept === b.kept
-          ? nodeLengths.get(b.id)! - nodeLengths.get(a.id)! || byId(a.id, b.id)
+          ? nodeLengths.get(b.id)! - nodeLengths.get(a.id)! ||
+            compareIds(a.id, b.id)
           : a.kept
             ? -1
             : 1,

@@ -42,13 +42,22 @@ function compareChunkLists(x: readonly Chunk[], y: readonly Chunk[]) {
   return order || x.length - y.length
 }
 
+interface ChunkedId {
+  id: string
+  chunks: readonly Chunk[]
+}
+
+const compareChunked = (a: ChunkedId, b: ChunkedId) =>
+  compareChunkLists(a.chunks, b.chunks) || byKey(a.id, b.id)
+
 // Numbers in an id compare as numbers, 9+ before 10+ and s2 before s10, and
 // the plain spelling settles the ids that leaves tied, 007 before 7
+export const compareIds = (a: string, b: string) =>
+  compareChunked({ id: a, chunks: chunksOf(a) }, { id: b, chunks: chunksOf(b) })
+
 export function canonicalNodeOrder<N extends GraphNode>(nodes: readonly N[]) {
   return nodes
-    .map(n => ({ n, chunks: chunksOf(n.id) }))
-    .sort(
-      (a, b) => compareChunkLists(a.chunks, b.chunks) || byKey(a.n.id, b.n.id),
-    )
+    .map(n => ({ n, id: n.id, chunks: chunksOf(n.id) }))
+    .sort(compareChunked)
     .map(({ n }) => n)
 }

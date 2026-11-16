@@ -1,4 +1,11 @@
-import { canonicalEdgeOrder, canonicalNodeOrder } from './canonicalOrder'
+import { readFileSync, readdirSync } from 'node:fs'
+
+import { loadGraph } from '../pipeline'
+import {
+  canonicalEdgeOrder,
+  canonicalNodeOrder,
+  compareIds,
+} from './canonicalOrder'
 
 import type { GraphEdge, GraphNode } from '../types'
 
@@ -86,3 +93,20 @@ test('links go by their spelling, the same whatever order they came in', () => {
     ).toEqual(['1>2+', '1>2-', '10>1+', '2>3+'])
   }
 })
+
+const fixtureGraphs = readdirSync('test_data', { recursive: true })
+  .map(String)
+  .filter(file => file.endsWith('.gfa'))
+  .toSorted()
+
+test.each(fixtureGraphs)(
+  'the ids of %s fall in the order the en numeric collator the label pass used gave them',
+  file => {
+    const ids = loadGraph(
+      readFileSync(`test_data/${file}`, 'utf8'),
+      file,
+    ).nodes.map(n => n.id)
+    const collator = new Intl.Collator('en', { numeric: true })
+    expect(ids.toSorted(compareIds)).toEqual(ids.toSorted(collator.compare))
+  },
+)
