@@ -10,18 +10,20 @@ export {
   clampZoom,
   drawingBounds,
   engineRequest,
+  cutScale,
   fitTransform,
   followTransform,
   forceLayout,
   layoutExtent,
   loadGraph,
-  referenceExtent,
+  referenceProfile,
 } from './pipeline'
 export type {
   Bounds,
   EngineRequest,
   EngineSettings,
   LayoutEngine,
+  ReferencePiece,
 } from './pipeline'
 export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
 export { createForceLayoutCache } from './layout/forceCache'

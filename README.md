@@ -139,14 +139,17 @@ reads them.
   the key, whose column `layoutLabels` keeps every label out of
 - A host that cuts more graph than its window shows, as a linear view's track
   holds one cut while its view pans across it, places the drawing with
-  `followTransform` rather than `fitTransform`. `referenceExtent` finds the
-  layout x the window's stretch of the reference is drawn over, and
-  `followTransform` lays that stretch across the pane, the whole drawing no
-  taller than the pane. Where the window runs past the drawn reference, the part
-  drawn keeps its share of the pane. The placement depends on the window alone
-  and moves the layout by a translation and a uniform scale only: a pan slides
-  the drawing, and also scales it where the pane's width sets the scale and the
-  stretch's drawn width changes along the pan
+  `cutScale` and `followTransform` rather than `fitTransform`.
+  `referenceProfile` reads the reference as the layout drew it, piece by piece
+  in bp order. `cutScale` is the cut's one scale: the widest stretch of the
+  reference that any window of the view's width inside the cut takes in spans
+  the pane, capped so the whole cut is no taller than the pane. It reads only
+  the cut, its layout, the view's width and the pane, so every window the cut
+  holds is drawn at that scale. `followTransform` then only translates: the
+  reference in the window lies where the window puts its bp across the pane, as
+  nearly as a rigid drawing can, in the least-squares sense over the bp the
+  window holds. A pan is a pure slide, a window is drawn no wider than the pane,
+  and one narrower than the cut's widest is drawn narrower
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths

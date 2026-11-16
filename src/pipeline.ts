@@ -1,4 +1,4 @@
-import { isBackbone, overlapsWindow } from './anchoredNodes'
+import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
@@ -447,68 +447,181 @@ export function fitTransform(
   }
 }
 
-function xsBetween(line: readonly NodeSegment[], lo: number, hi: number) {
-  const pieces = line.slice(1).map((b, i) => {
-    const a = line[i] ?? b
-    return { a, b, length: Math.hypot(b.x - a.x, b.y - a.y) }
-  })
-  const total = pieces.reduce((sum, piece) => sum + piece.length, 0)
-  const xs: number[] = []
-  let walked = 0
-  for (const { a, b, length } of pieces) {
-    const f0 = walked / total
-    const f1 = (walked + length) / total
-    if (length > 0 && f1 >= lo && f0 <= hi) {
-      const xAt = (f: number) =>
-        a.x + ((b.x - a.x) * (Math.min(f1, Math.max(f0, f)) - f0)) / (f1 - f0)
-      xs.push(xAt(lo), xAt(hi))
-    }
-    walked += length
-  }
-  return total > 0 ? xs : line.map(p => p.x)
+export interface ReferencePiece {
+  bp0: number
+  bp1: number
+  x0: number
+  x1: number
 }
 
-export function referenceExtent(
+export function referenceProfile(
   graph: Graph,
   positions: Readonly<Record<string, readonly NodeSegment[]>>,
-  start: number,
-  end: number,
 ) {
-  let x0 = Infinity
-  let x1 = -Infinity
-  let from = Infinity
-  let to = -Infinity
+  const pieces: ReferencePiece[] = []
   for (const node of graph.nodes) {
     const line = positions[node.id]
-    if (
-      isBackbone(node) &&
-      node.length > 0 &&
-      line?.length &&
-      overlapsWindow(node, { start, end })
-    ) {
-      const a = Math.max(start, node.stable.start)
-      const b = Math.min(end, node.stable.start + node.length)
-      const f0 = (a - node.stable.start) / node.length
-      const f1 = (b - node.stable.start) / node.length
+    if (isBackbone(node) && node.length > 0 && line?.length) {
       const forwards = ownStrand(node.id) === (node.stable.strand ?? '+')
-      for (const x of xsBetween(
-        line,
-        forwards ? f0 : 1 - f1,
-        forwards ? f1 : 1 - f0,
-      )) {
+      const bpAt = (f: number) =>
+        node.stable.start + node.length * (forwards ? f : 1 - f)
+      const steps =
+        line.length > 1
+          ? line.slice(1).map((b, i) => {
+              const a = line[i] ?? b
+              return { a, b, length: Math.hypot(b.x - a.x, b.y - a.y) }
+            })
+          : line.map(p => ({ a: p, b: p, length: 0 }))
+      const total = steps.reduce((sum, step) => sum + step.length, 0)
+      let walked = 0
+      for (const { a, b, length } of steps) {
+        const f0 = total > 0 ? walked / total : 0
+        walked += length
+        const f1 = total > 0 ? walked / total : 1
+        if (f1 > f0) {
+          pieces.push(
+            forwards
+              ? { bp0: bpAt(f0), bp1: bpAt(f1), x0: a.x, x1: b.x }
+              : { bp0: bpAt(f1), bp1: bpAt(f0), x0: b.x, x1: a.x },
+          )
+        }
+      }
+    }
+  }
+  return pieces.sort((p, q) => p.bp0 - q.bp0)
+}
+
+const xOn = (piece: ReferencePiece, bp: number) =>
+  piece.x0 +
+  ((piece.x1 - piece.x0) * (bp - piece.bp0)) / (piece.bp1 - piece.bp0)
+
+function pieceAcross(pieces: readonly ReferencePiece[], bp: number) {
+  let lo = 0
+  let hi = pieces.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if ((pieces[mid]?.bp0 ?? Infinity) < bp) {
+      lo = mid + 1
+    } else {
+      hi = mid
+    }
+  }
+  const piece = pieces[lo - 1]
+  return piece && piece.bp1 > bp ? piece : undefined
+}
+
+interface ReferenceEnd {
+  bp: number
+  x: number
+}
+
+function slidingExtreme(keep: (kept: number, x: number) => boolean) {
+  const ends: ReferenceEnd[] = []
+  let from = 0
+  return {
+    add(end: ReferenceEnd) {
+      while (ends.length > from && keep(ends.at(-1)?.x ?? end.x, end.x)) {
+        ends.pop()
+      }
+      ends.push(end)
+    },
+    from(bp: number) {
+      while ((ends[from]?.bp ?? Infinity) < bp) {
+        from++
+      }
+      return ends[from]?.x
+    },
+  }
+}
+
+function widestStretch(
+  pieces: readonly ReferencePiece[],
+  from: number,
+  to: number,
+  reach: number,
+) {
+  const ends = pieces
+    .flatMap(p => [
+      { bp: p.bp0, x: p.x0 },
+      { bp: p.bp1, x: p.x1 },
+    ])
+    .sort((p, q) => p.bp - q.bp)
+  const starts = [
+    ...new Set(
+      [from, to]
+        .concat(
+          pieces.flatMap(p => [p.bp0, p.bp1, p.bp0 - reach, p.bp1 - reach]),
+        )
+        .filter(a => a >= from && a <= to),
+    ),
+  ].sort((p, q) => p - q)
+  const high = slidingExtreme((kept, x) => kept <= x)
+  const low = slidingExtreme((kept, x) => kept >= x)
+  let added = 0
+  let widest = 0
+  for (const a of starts) {
+    const b = a + reach
+    for (let end = ends[added]; end && end.bp <= b; end = ends[++added]) {
+      high.add(end)
+      low.add(end)
+    }
+    let x0 = Infinity
+    let x1 = -Infinity
+    for (const x of [
+      high.from(a),
+      low.from(a),
+      ...[a, b].map(bp => {
+        const piece = pieceAcross(pieces, bp)
+        return piece && xOn(piece, bp)
+      }),
+    ]) {
+      if (x !== undefined) {
         x0 = Math.min(x0, x)
         x1 = Math.max(x1, x)
       }
-      from = Math.min(from, a)
-      to = Math.max(to, b)
     }
+    widest = Math.max(widest, x1 - x0)
   }
-  return x1 > x0 ? { x0, x1, start: from, end: to } : undefined
+  return widest
+}
+
+export function cutScale(
+  pieces: readonly ReferencePiece[],
+  cut: { start: number; end: number },
+  viewSpan: number,
+  bounds: { h: number },
+  paneWidth: number,
+  paneHeight: number,
+  {
+    padLeft = FIT_PADDING,
+    padTop = FIT_PADDING,
+    padRight = FIT_PADDING,
+    padBottom = FIT_PADDING,
+  } = {},
+) {
+  const usableWidth = paneWidth - padLeft - padRight
+  const usableHeight = paneHeight - padTop - padBottom
+  const reach = Math.min(viewSpan, cut.end - cut.start)
+  const widest = widestStretch(
+    pieces,
+    cut.start,
+    Math.max(cut.start, cut.end - reach),
+    reach,
+  )
+  return usableWidth > 0 && usableHeight > 0 && widest > 0
+    ? clampZoom(
+        Math.min(
+          usableWidth / widest,
+          bounds.h > 0 ? usableHeight / bounds.h : Infinity,
+        ),
+      )
+    : undefined
 }
 
 export function followTransform(
-  extent: { x0: number; x1: number; start: number; end: number },
+  pieces: readonly ReferencePiece[],
   window: { start: number; end: number },
+  scale: number,
   bounds: { minY: number; h: number },
   paneWidth: number,
   paneHeight: number,
@@ -522,29 +635,25 @@ export function followTransform(
   const usableWidth = paneWidth - padLeft - padRight
   const usableHeight = paneHeight - padTop - padBottom
   const span = window.end - window.start
-  const placed = (scale: number) => ({
-    scale,
-    translateX:
-      padLeft +
-      (usableWidth * ((extent.start + extent.end) / 2 - window.start)) / span -
-      (scale * (extent.x0 + extent.x1)) / 2,
-    translateY: fittedTranslateY(bounds, usableHeight, scale, padTop),
-  })
-  return usableWidth > 0 &&
-    usableHeight > 0 &&
-    span > 0 &&
-    extent.end > extent.start &&
-    extent.x1 > extent.x0
-    ? placed(
-        clampZoom(
-          Math.min(
-            (usableWidth * (extent.end - extent.start)) /
-              span /
-              (extent.x1 - extent.x0),
-            bounds.h > 0 ? usableHeight / bounds.h : Infinity,
-          ),
-        ),
-      )
+  const ruler = (bp: number) =>
+    padLeft + (usableWidth * (bp - window.start)) / span
+  let covered = 0
+  let offset = 0
+  for (const piece of pieces) {
+    const lo = Math.max(window.start, piece.bp0)
+    const hi = Math.min(window.end, piece.bp1)
+    if (hi > lo) {
+      const mid = (lo + hi) / 2
+      covered += hi - lo
+      offset += (hi - lo) * (ruler(mid) - scale * xOn(piece, mid))
+    }
+  }
+  return usableWidth > 0 && usableHeight > 0 && span > 0 && covered > 0
+    ? {
+        scale,
+        translateX: offset / covered,
+        translateY: fittedTranslateY(bounds, usableHeight, scale, padTop),
+      }
     : undefined
 }
 

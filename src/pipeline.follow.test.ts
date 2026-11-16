@@ -1,6 +1,7 @@
-import { followTransform, referenceExtent } from './pipeline'
+import { cutScale, followTransform, referenceProfile } from './pipeline'
 
-import type { Graph, GraphNode } from './types'
+import type { ReferencePiece } from './pipeline'
+import type { Graph, GraphNode, NodeSegment } from './types'
 
 const node = (id: string, start: number, length: number, rank = 0) =>
   ({
@@ -43,7 +44,11 @@ const positions = {
 }
 const PANE = { width: 1000, height: 300 }
 const PADS = { padLeft: 40, padTop: 60, padRight: 40, padBottom: 40 }
-const bounds = { minY: 0, h: 50 }
+const USABLE = PANE.width - PADS.padLeft - PADS.padRight
+const CENTRE = PADS.padLeft + USABLE / 2
+const tall = { minY: 0, h: 50 }
+const flat = { minY: 0, h: 1 }
+const profile = referenceProfile(graph, positions)
 
 function defined<T>(value: T | undefined) {
   if (value === undefined) {
@@ -52,89 +57,142 @@ function defined<T>(value: T | undefined) {
   return value
 }
 
-function placed(start: number, end: number, drawing = bounds) {
-  const extent = referenceExtent(graph, positions, start, end)
-  return extent
-    ? followTransform(
-        extent,
-        { start, end },
-        drawing,
-        PANE.width,
-        PANE.height,
-        PADS,
-      )
-    : undefined
+const scaleOf = (
+  pieces: readonly ReferencePiece[],
+  cut: { start: number; end: number },
+  viewSpan: number,
+  bounds = flat,
+) =>
+  defined(
+    cutScale(pieces, cut, viewSpan, bounds, PANE.width, PANE.height, PADS),
+  )
+
+const placed = (
+  window: { start: number; end: number },
+  scale: number,
+  pieces = profile,
+) =>
+  defined(
+    followTransform(pieces, window, scale, flat, PANE.width, PANE.height, PADS),
+  )
+
+const xAtBp = (bp: number) => (bp - 1_000) / 10
+
+test('the profile is the reference drawn piece by piece in bp order, whichever strand a node reads', () => {
+  expect(profile).toEqual([
+    { bp0: 1_000, bp1: 2_000, x0: 0, x1: 100 },
+    { bp0: 2_000, bp1: 3_000, x0: 100, x1: 200 },
+    { bp0: 3_000, bp1: 4_000, x0: 200, x1: 300 },
+  ])
+})
+
+test("a cut's scale lays its widest view-width stretch of the reference across the pane, the whole cut no taller than it", () => {
+  const cut = { start: 1_000, end: 4_000 }
+  expect(scaleOf(profile, cut, 1_000)).toBeCloseTo(USABLE / 100)
+  expect(scaleOf(profile, cut, 2_000)).toBeCloseTo(USABLE / 200)
+  expect(scaleOf(profile, cut, 1_000, tall)).toBeCloseTo(200 / 50)
+  expect(scaleOf(profile, { start: 1_000, end: 1_500 }, 1_000)).toBeCloseTo(
+    USABLE / 50,
+  )
+})
+
+// a reference that doubles back and swings out: the widest stretch is where
+// the window takes in both turns
+const winding: NodeSegment[] = [
+  { x: 0, y: 0 },
+  { x: 60, y: 0 },
+  { x: 20, y: 30 },
+  { x: 140, y: 0 },
+  { x: 90, y: 10 },
+  { x: 260, y: 0 },
+]
+const windingProfile = referenceProfile(
+  { name: 'winding', nodes: [node('w+', 0, 10_000)], edges: [] },
+  { 'w+': winding },
+)
+
+function bruteWidest(
+  pieces: readonly ReferencePiece[],
+  from: number,
+  to: number,
+  reach: number,
+) {
+  const x = (bp: number) => {
+    const p = pieces.find(q => q.bp0 <= bp && bp <= q.bp1)
+    return p ? p.x0 + ((p.x1 - p.x0) * (bp - p.bp0)) / (p.bp1 - p.bp0) : NaN
+  }
+  let widest = 0
+  for (let a = from; a <= to; a += 5) {
+    let lo = Infinity
+    let hi = -Infinity
+    for (let bp = a; bp <= a + reach; bp += 5) {
+      lo = Math.min(lo, x(bp))
+      hi = Math.max(hi, x(bp))
+    }
+    widest = Math.max(widest, hi - lo)
+  }
+  return widest
 }
 
-test('the reference between two bp spans the layout x it is drawn over, whichever strand a node reads', () => {
-  expect(referenceExtent(graph, positions, 1_500, 3_500)).toEqual({
-    x0: 50,
-    x1: 250,
-    start: 1_500,
-    end: 3_500,
-  })
-  expect(referenceExtent(graph, positions, 2_200, 2_600)).toEqual({
-    x0: 120,
-    x1: 160,
-    start: 2_200,
-    end: 2_600,
-  })
-  expect(referenceExtent(graph, positions, 9_000, 9_500)).toBeUndefined()
-})
-
-test('a bend inside a node counts the corners the stretch passes', () => {
-  const bent = {
-    ...positions,
-    'a+': [
-      { x: 0, y: 0 },
-      { x: 150, y: 0 },
-      { x: 100, y: 50 },
-    ],
+test("a cut's scale is the widest stretch over every window it holds, not a sample of them", () => {
+  for (const reach of [1_500, 3_000, 4_500]) {
+    const scale = scaleOf(windingProfile, { start: 0, end: 10_000 }, reach)
+    expect(USABLE / scale).toBeCloseTo(
+      bruteWidest(windingProfile, 0, 10_000 - reach, reach),
+      0,
+    )
+    expect(USABLE / scale).toBeGreaterThanOrEqual(
+      bruteWidest(windingProfile, 0, 10_000 - reach, reach) - 1e-9,
+    )
   }
-  const extent = referenceExtent(graph, bent, 1_000, 1_900)
-  expect(extent?.x0).toBe(0)
-  expect(extent?.x1).toBe(150)
 })
 
-test("a window's stretch of the reference runs across the pane, and a pan slides it", () => {
-  const t = defined(placed(2_000, 3_000))
-  expect(t.scale).toBeCloseTo(4)
-  expect(100 * t.scale + t.translateX).toBeCloseTo(300)
-  expect(200 * t.scale + t.translateX).toBeCloseTo(700)
-  const panned = defined(placed(2_100, 3_100))
-  expect(panned.scale).toBeCloseTo(t.scale)
-  expect(panned.translateX).toBeCloseTo(t.translateX - 10 * t.scale)
-  expect(panned.translateY).toBeCloseTo(t.translateY)
-  expect(placed(2_000, 3_000)).toEqual(t)
+test('between snaps a pan only translates the drawing, with the reference at the window centre at the pane centre', () => {
+  const scale = scaleOf(profile, { start: 1_000, end: 4_000 }, 1_000)
+  const t = placed({ start: 2_000, end: 3_000 }, scale)
+  expect(t.scale).toBe(scale)
+  expect(xAtBp(2_500) * scale + t.translateX).toBeCloseTo(CENTRE)
+  const panned = placed({ start: 2_130, end: 3_130 }, scale)
+  expect(panned.scale).toBe(scale)
+  expect(panned.translateY).toBe(t.translateY)
+  expect(panned.translateX).toBeCloseTo(t.translateX - 13 * scale)
+  expect(placed({ start: 2_000, end: 3_000 }, scale)).toEqual(t)
 })
 
-test('a drawing taller than the pane at that scale is fitted to its height instead', () => {
-  const t = defined(placed(2_000, 2_100, { minY: 0, h: 400 }))
-  expect(t.scale).toBeCloseTo(0.5)
-  expect(105 * t.scale + t.translateX).toBeCloseTo(500)
+test('a window narrower than the widest is drawn narrower than the pane, and none wider', () => {
+  const scale = scaleOf(profile, { start: 1_000, end: 4_000 }, 1_000)
+  for (const start of [1_000, 1_400, 2_000, 2_600, 3_000]) {
+    const t = placed({ start, end: start + 700 }, scale)
+    const left = xAtBp(start) * scale + t.translateX
+    const right = xAtBp(start + 700) * scale + t.translateX
+    expect(right - left).toBeCloseTo(0.7 * USABLE)
+    expect((left + right) / 2).toBeCloseTo(CENTRE)
+  }
 })
 
-test('a window running past the drawn reference keeps the drawn part at its share of the pane', () => {
-  const flat = { minY: 0, h: 1 }
-  const t = defined(placed(3_500, 5_500, flat))
-  expect(t.scale).toBeCloseTo(4.6)
-  expect(250 * t.scale + t.translateX).toBeCloseTo(40)
-  expect(300 * t.scale + t.translateX).toBeCloseTo(270)
-  const whole = defined(placed(3_000, 4_000, flat))
-  expect(300 * whole.scale + whole.translateX).toBeCloseTo(960)
+test('a window running past the drawn reference keeps the part drawn under its own stretch of the pane', () => {
+  const scale = scaleOf(profile, { start: 1_000, end: 4_000 }, 2_000)
+  const t = placed({ start: 3_500, end: 5_500 }, scale)
+  const middle = PADS.padLeft + (USABLE * (3_750 - 3_500)) / 2_000
+  expect(xAtBp(3_750) * scale + t.translateX).toBeCloseTo(middle)
 })
 
 test('no reference in the window, or no room, places nothing', () => {
-  expect(placed(9_000, 9_500)).toBeUndefined()
-  const extent = defined(referenceExtent(graph, positions, 2_000, 3_000))
   expect(
     followTransform(
-      extent,
-      { start: 2_000, end: 3_000 },
-      bounds,
-      70,
-      300,
+      profile,
+      { start: 9_000, end: 9_500 },
+      1,
+      flat,
+      PANE.width,
+      PANE.height,
       PADS,
     ),
+  ).toBeUndefined()
+  expect(
+    cutScale(profile, { start: 1_000, end: 4_000 }, 1_000, flat, 70, 300, PADS),
+  ).toBeUndefined()
+  expect(
+    cutScale([], { start: 1_000, end: 4_000 }, 1_000, flat, 1000, 300, PADS),
   ).toBeUndefined()
 })
