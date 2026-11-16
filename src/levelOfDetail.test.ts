@@ -872,34 +872,41 @@ test('with walks lifted, no lane is drawn on a link inside a folded piece', () =
 test("with walks lifted, each lane across a folded site leaves it as far to the side as it came in, by the reference's lanes there", () => {
   const { graph, positions } = snp(1, 1, [
     'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
-    'W\talt\t2\tchr\t0\t*\t>r1>a1>r3',
+    'W\tw\t2\tchr\t0\t*\t>r1>r2>r3',
+    'W\tw\t3\tchr\t0\t*\t>r1>r2>r3',
+    'W\tw\t4\tchr\t0\t*\t>r1>r2>r3',
   ])
-  const upright = {
-    ...positions,
-    'a1+': [
-      { x: 1000.5, y: 20 },
-      { x: 1000.5, y: 21 },
-    ],
-  }
   const highlight = walkLift(graph, [
     { walk: 'alt#1#chr' },
-    { walk: 'alt#2#chr' },
+    { walk: 'w#2#chr' },
   ])
-  const batch = build(graph, upright, 0.5, { highlight })
-  expect(folded(batch)).toEqual(['a1+'])
-  const lanesOn = (from: string, to: string) => {
-    const run = batch.edgeCurveRuns.get(edgeIndex(graph, from, to))
-    return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
-  }
-  const into = lanesOn('r1+', 'a1+')
-  const out = lanesOn('a1+', 'r3+')
-  expect(into.map(c => c.walk)).toEqual([0, 1])
-  expect(out.map(c => c.walk)).toEqual([0, 1])
-  const ends = into.map(c => c.curves.at(-1)!)
-  expect(ends[0]!.y1).not.toBeCloseTo(ends[1]!.y1, 3)
-  out.forEach((lane, i) => {
-    expect(lane.curves[0]!.y0).toBeCloseTo(ends[i]!.y1, 1)
+  const batch = build(graph, positions, 0.5, {
+    highlight,
+    nodeWidth: 'depth',
+    contigThickness: 24,
   })
+  expect(folded(batch)).toEqual(['a1+'])
+  const laneOn = (from: string, to: string) => {
+    const run = batch.edgeCurveRuns.get(edgeIndex(graph, from, to))
+    return run
+      ? batch.edgeCurves
+          .slice(run.start, run.start + run.count)
+          .find(c => c.walk === 0)
+      : undefined
+  }
+  const into = laneOn('r1+', 'a1+')?.curves
+  const out = laneOn('a1+', 'r3+')?.curves
+  const onReference = batch.nodeStrokes
+    .slice(
+      batch.nodeStrokeRuns.get('r1+')!.start,
+      batch.nodeStrokeRuns.get('r1+')!.start +
+        batch.nodeStrokeRuns.get('r1+')!.count,
+    )
+    .find(s => s.walk === 0)!.points
+  const side = onReference.at(-1)!.y
+  expect(side).not.toBeCloseTo(0, 1)
+  expect(into?.at(-1)?.y1).toBeCloseTo(side, 1)
+  expect(out?.[0]?.y0).toBeCloseTo(side, 1)
 })
 
 test('the heads along a lift follow the fold on one graph, layout and lift', () => {
