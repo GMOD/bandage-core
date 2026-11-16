@@ -2,6 +2,7 @@ import { COMPRESSED_KEY } from './bubbleSpreads'
 import { SHORT_SKIP_KEY } from './deletionEdges'
 import { FACET_TITLE_PX } from './facetGrid'
 import { figureSvg } from './figure'
+import { figureData } from './figureData'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { walkRows } from './layout/walkRows'
@@ -393,4 +394,31 @@ test("a figure stacks a placeholder's length whose loop another's covers, with a
   expect(svg).toMatch(
     /<line [^>]*stroke="#18181c" stroke-width="0.8" stroke-opacity="0.6"\/>/,
   )
+})
+
+test("a lifted walk's own copy of a gene is named with its haplotype, and a gene with no symbol beside one that has is named nowhere", () => {
+  const gene = (name: string, refName: string, start: number, end: number) => ({
+    name,
+    refName,
+    start,
+    end,
+    strand: 1,
+    exons: [{ start, end }],
+  })
+  const drawn = [
+    gene('REFG', 'ref#0#chr', 0, 9),
+    gene('LOC100130417', 'ref#0#chr', 2, 5),
+    gene('OWNG', 'alt#1#chr', 4, 10),
+  ]
+  const lifted = { genes: drawn, walks: [{ walk: 'alt#1#chr' }] }
+  const svg = figureSvg(graph, layout, { width: 600, ...lifted })
+  expect(svg).toContain('>OWNG · alt#1</tspan>')
+  expect(svg).toContain('>REFG</tspan>')
+  expect(svg).not.toContain('>LOC100130417</tspan>')
+  const d = figureData(graph, layout, lifted)
+  expect(d.pins.gene).toEqual(['REFG', 'LOC100130417', 'OWNG'])
+  expect(d.pins.label).toEqual(['REFG', null, 'OWNG · alt#1'])
+  expect(
+    d.labels.text.filter((_, i) => d.labels.kind[i] === 'gene').sort(),
+  ).toEqual(['OWNG · alt#1', 'REFG'])
 })

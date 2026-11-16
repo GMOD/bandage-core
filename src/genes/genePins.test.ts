@@ -172,6 +172,7 @@ test("a haplotype's gene is held only where its walk's records lie, not between 
     along(['h1', 'h2'], 0),
   )
   expect(pin!.covered * 49_900).toBeCloseTo(849)
+  expect(pin!.walks).toBe(1)
 })
 
 // tubeMap/coarsen builds a route as a rank 1 node on the reference's refName

@@ -1,6 +1,6 @@
 import { layoutLabels } from '../labelLayout'
 import { exonStretches } from './exonOutline'
-import { genesOverNode, hasGeneSymbol } from './geneNames'
+import { genesOverNode, hasGeneSymbol, namedGenePins } from './geneNames'
 import { genePins } from './genePins'
 
 import type { LabelLayoutSource } from '../labelLayout'
@@ -130,6 +130,28 @@ test('a gene only haplotypes carry is named once, on the copy the most walks ste
   expect(chips(offReference, [contigOf('HG01109#1')])).toEqual([
     'NBPF26 · HG00099#1',
   ])
+})
+
+test("a copy's hover names its haplotype", () => {
+  const copy = copies[0]!
+  expect(genesOverNode([copy], copy.exonsByNode[0]!.nodeId)).toEqual([
+    'CFH · HG00097#1',
+  ])
+})
+
+test('of two copies on one contig the walks step alike, the earlier is named, in either order', () => {
+  const at = (start: number) => {
+    const pin = pinOf('NBPF26', contigOf('HG00133#1'), { x: 0, y: 0 })
+    return { ...pin, gene: { ...pin.gene, start, end: start + 10_000 } }
+  }
+  const earlier = at(5000)
+  const later = at(90_000)
+  for (const pins of [
+    [earlier, later],
+    [later, earlier],
+  ]) {
+    expect(namedGenePins(pins).map(n => n.pin)).toEqual([earlier])
+  }
 })
 
 test('a gene with no symbol is named nowhere, and keeps its outline and its hover', () => {
