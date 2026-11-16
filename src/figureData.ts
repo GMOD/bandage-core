@@ -191,8 +191,12 @@ interface PassRow {
   pass: number
   start: number
   end: number
-  // bp of the pass on nodes the walk steps more than once
+  // bp of the pass on nodes the walk steps more than once; of those, bp on
+  // nodes the walk read before, and bp of that read on the other strand than
+  // the walk first read the node; reversed where that is most of it
   repeatBp: number
+  againBp: number
+  reversedBp: number
   text: string
   color: string
   reversed: boolean
@@ -734,6 +738,8 @@ export function figureData(
     start: [],
     end: [],
     repeatBp: [],
+    againBp: [],
+    reversedBp: [],
     text: [],
     color: [],
     reversed: [],

@@ -157,8 +157,15 @@ it is on, so the trips round the repeat can be followed one by one.
   starts at the first node the walk steps again later, and a new pass starts
   wherever the walk comes back to a node it already stepped during the current
   pass. Only steps on nodes the walk steps more than once take a pass's colour;
-  the rest of the haplotype keeps its own lane colour. A pass that reads what it
-  steps again on the other strand is marked `reversed`
+  the rest of the haplotype keeps its own lane colour
+- Each pass carries `repeatBp`, its bp on nodes the walk steps more than once;
+  `againBp`, the part of that on nodes the walk read earlier; `reversedBp`, the
+  part of `againBp` read on the other strand from the walk's own first read of
+  each node; and `reversed`, true where `reversedBp` is more than half of
+  `againBp`. These are data only. The frame is each node's first read by this
+  walk, not the reference's strand or the way the node is drawn, so two passes
+  both `reversed` can run opposite ways on the page. The drawing says which way
+  a thread runs by the heads along it, not by a word
 - Up to six passes get a thread, a colour and a name each, `pass 1` and on, or
   the layer's `passNames`. Past six they share one colour and one count; where
   the band is too thin to keep the threads apart they fuse into one band
@@ -183,7 +190,8 @@ it is on, so the trips round the repeat can be followed one by one.
 - In `figureData`, a lifted walk's node and link rows carry `pass`, the thread's
   slot across its band; `visit`, which of the walk's visits to the node the
   thread draws; and `walkPass`, the walk's pass that visit is on. The `passes`
-  and `passRuns` tables hold the bar, and `labels` rows of kind `pass` the names
+  table holds each pass with its bp above, `passRuns` the bar's stretches, and
+  `labels` rows of kind `pass` the names
 
 ## Figures
 

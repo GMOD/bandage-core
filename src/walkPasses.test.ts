@@ -254,13 +254,17 @@ test('a walk lifted alone and coloured by pass threads, each visit in its pass c
   expect(threadsPasses(walkLift(graph, [{ walk: HAP }])!.walks)).toBe(false)
 })
 
-test('passes take the names a layer gives them, and a reversed pass says so', () => {
+test('passes take the names a layer gives them, and a reversed pass is marked in data, not in its name', () => {
   const graph = graphOf('>f1>a>b>c>d>x<d<c<b<a>f2')
   const lift = walkLift(graph, [
     { walk: HAP, color: { field: 'pass' }, passNames: ['copy A'] },
   ])!
-  expect(lift.walks[0]!.walkPasses!.labels).toEqual([
-    'copy A',
-    'pass 2, reversed',
-  ])
+  const drawn = lift.walks[0]!.walkPasses!
+  expect(drawn.labels).toEqual(['copy A', 'pass 2'])
+  expect(drawn.passes.map(p => [p.reversed, p.againBp, p.reversedBp])).toEqual(
+    [
+      [false, 0, 0],
+      [true, 16, 16],
+    ],
+  )
 })

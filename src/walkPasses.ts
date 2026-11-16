@@ -191,9 +191,6 @@ export interface LiftedPasses extends WalkPasses {
   ownInk: number
 }
 
-export const passText = (name: string, pass: Pick<WalkPass, 'reversed'>) =>
-  pass.reversed ? `${name}, reversed` : name
-
 export function liftedPasses(
   found: WalkPasses,
   ownInk: number,
@@ -207,7 +204,7 @@ export function liftedPasses(
     ...found,
     labels: bundled
       ? [`${passes.length} passes`]
-      : passes.map((pass, i) => passText(names[i] ?? `pass ${i + 1}`, pass)),
+      : passes.map((_, i) => names[i] ?? `pass ${i + 1}`),
     inks,
     ownInk,
   }

@@ -21,6 +21,8 @@ export interface PassBar {
     start: number
     end: number
     repeatBp: number
+    againBp: number
+    reversedBp: number
     text: string
     ink: number
     reversed: boolean
@@ -46,6 +48,8 @@ export function passBars(lift: WalkLift | undefined) {
               start: pass.start,
               end: pass.end,
               repeatBp: pass.repeatBp,
+              againBp: pass.againBp,
+              reversedBp: pass.reversedBp,
               text: drawn.bundled ? `${i + 1}` : drawn.labels[i]!,
               ink: passInk(drawn, i),
               reversed: pass.reversed,

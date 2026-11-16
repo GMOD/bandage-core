@@ -292,6 +292,8 @@ const BAR: PassBar = {
       start: 0,
       end: 100,
       repeatBp: 100,
+      againBp: 0,
+      reversedBp: 0,
       reversed: false,
       text: 'pass 1',
       ink: hexAbgr('#d55e00'),
@@ -301,6 +303,8 @@ const BAR: PassBar = {
       start: 100,
       end: 1000,
       repeatBp: 120,
+      againBp: 120,
+      reversedBp: 0,
       reversed: false,
       text: 'pass 2',
       ink: hexAbgr('#0072b2'),
@@ -358,4 +362,12 @@ test("figureData's passes say how much of each pass is sequence the walk steps a
   const { tables } = data('>f1>a>b>c>d>a>b>p>c>d>a>b>c>d>f2')
   expect(tables.passes.repeatBp).toEqual([16, 16, 16])
   expect(tables.passes.end[1]! - tables.passes.start[1]!).toBe(416)
+})
+
+test("figureData's passes say how much of each pass reads again what the walk read before, and how much of that on the other strand, with no word for it in the name", () => {
+  const { tables } = data('>f1>a>b>c>d<d<c<b<a>f2')
+  expect(tables.passes.text).toEqual(['pass 1', 'pass 2'])
+  expect(tables.passes.againBp).toEqual([0, 16])
+  expect(tables.passes.reversedBp).toEqual([0, 16])
+  expect(tables.passes.reversed).toEqual([false, true])
 })
