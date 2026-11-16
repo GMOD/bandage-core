@@ -1,3 +1,4 @@
+import { figureFit } from '../figureSettings'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
 import { engineSettingsOf, forceLayout } from '../pipeline'
 import { ASSUMED_FIT, fitRoom } from './fitAssumptions'
@@ -278,4 +279,16 @@ test('a pane whose height binds the fit widens the clearance in layout units by 
   expect(pushed(280) / pushed(800)).toBeCloseTo(
     (1200 - 80) / 3000 / ((280 - 80) / 1500),
   )
+})
+
+test("a figure that states no size is laid out for its own 1200 by 800 pane, which where the drawing's height binds is no 280 px track's", () => {
+  const { nodes, positions } = backbone(30)
+  const a = allele(0, 1050)
+  const graph: Graph = { name: 'g', nodes: [...nodes, a], edges: [] }
+  const laid = { ...positions, [a.id]: flat(1050, 1051, 0.3) }
+  const tall = { minX: 0, maxX: 3000, minY: 0, maxY: 1500 }
+  const pushed = (fit: { width: number; height: number }) =>
+    clearOfReference(graph, laid, tall, fit)[a.id]![0]!.y
+  expect(pushed(figureFit({}))).toBe(pushed({ width: 1200, height: 800 }))
+  expect(pushed(figureFit({}))).not.toBe(pushed({ width: 1200, height: 280 }))
 })
