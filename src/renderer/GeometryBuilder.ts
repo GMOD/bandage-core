@@ -27,6 +27,7 @@ import {
 import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
+import { foldForms } from './foldForms'
 import { laneHeadPlacer } from './laneHeads'
 import {
   MIN_LANE_STROKE_PX,
@@ -43,7 +44,7 @@ import {
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
-import type { SmallSites } from '../levelOfDetail'
+import type { Site, SmallSites } from '../levelOfDetail'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from '../util/geometry'
@@ -996,6 +997,30 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           hiddenEdges,
         )
       : NO_FOLD
+  const forms = foldForms()
+  const siteAt = new Map<number, Site>()
+  for (const site of collapse.sites) {
+    for (const edge of site.edges) {
+      siteAt.set(edge, site)
+    }
+  }
+  const crossed = new Set<Site>()
+  if (forms.lane === 'C' && highlight?.walks.length) {
+    graph.edges.forEach(({ from, to }, ei) => {
+      const site =
+        siteAt.get(ei) ?? collapse.within.get(from) ?? collapse.within.get(to)
+      if (site && highlight.walks.some(walk => walk.edgeIndexes.has(ei))) {
+        crossed.add(site)
+      }
+    })
+  }
+  const crossedAt = (nodeId: string) => {
+    const site = collapse.within.get(nodeId)
+    return !!site && crossed.has(site)
+  }
+  const laneSiteOf = (nodeId: string) =>
+    collapse.siteOf.get(nodeId) ??
+    (crossedAt(nodeId) ? collapse.within.get(nodeId) : undefined)
 
   const nodeStrokes: NodeStroke[] = []
   const nodeStrokeRuns = new Map<string, Run>()
@@ -1011,6 +1036,15 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     for (let i = 0; i < graph.nodes.length; i++) {
       nodeIndexMap.set(graph.nodes[i]!.id, i)
     }
+  }
+  const nodeInk = (node: GraphNode) => {
+    const own = getNodeColor(
+      node,
+      nodeIndexMap.get(node.id) ?? 0,
+      colorScheme,
+      colorRange,
+    )
+    return node.moved ? fadeAbgr(own, MOVED_ALPHA) : own
   }
 
   const pathCount = graph.paths?.length ?? 0
@@ -1345,6 +1379,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           nodeWidth,
           drawPaths,
           collapse,
+          forms,
         ],
         () => {
           const place = laneHeadPlacer(scale, yToX)
@@ -1355,6 +1390,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             if (
               node &&
               !collapse.nodes.has(nodeId) &&
+              !crossedAt(nodeId) &&
               headsMayShow(nodeId) &&
               lanedAt(node, nodeId, segments)
             ) {
@@ -1542,11 +1578,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     const collapsed = collapse.edges.has(ei)
-    const fromSite = collapse.siteOf.get(edge.from)
-    const toSite = collapse.siteOf.get(edge.to)
+    const fromSite = laneSiteOf(edge.from)
+    const toSite = laneSiteOf(edge.to)
+    const across = collapsed || !!fromSite || !!toSite
+    const bridge = forms.reference === 'A' && collapse.bridges.has(ei)
     if (
       (laneWalks && !lanesMayShow(baseCurves, edge.from)) ||
-      (collapsed && (!laneWalks || (fromSite && toSite)))
+      (collapsed && (!laneWalks || forms.lane === 'A')) ||
+      (laneWalks && fromSite && toSite)
     ) {
       continue
     }
@@ -1567,7 +1606,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const single = laneWalks.length === 1 && !threaded
       const fromFrames = lines?.frames.get(edge.from)
       const toFrames = lines?.frames.get(edge.to)
-      const laneCurves = collapsed
+      const laneCurves = across
         ? straightened(baseCurves, fromSite, toSite)
         : baseCurves
       for (let lane = 0; lane < laneWalks.length; lane++) {
@@ -1625,11 +1664,24 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           }
         }
       }
-      if (edgeCurves.length > edgeCurveStart && !collapsed) {
+      if (edgeCurves.length > edgeCurveStart && !across) {
         arrowOn(baseCurves)
       }
     } else if (!ribbons) {
-      if (inView(baseCurves)) {
+      if (inView(baseCurves) && bridge) {
+        const fromNode = nodeById.get(edge.from)
+        stroke(
+          baseCurves,
+          (fromNode
+            ? nodeWidthPx(fromNode, contigThickness, nodeWidth, widthScale)
+            : contigThickness) / 2,
+          highlight && !onWalk
+            ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
+            : fromNode
+              ? nodeInk(fromNode)
+              : edgeColor,
+        )
+      } else if (inView(baseCurves)) {
         stroke(baseCurves, edgeThickness, edgeColor)
         arrowOn(baseCurves)
       }
@@ -1681,7 +1733,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
 
   for (const [nodeId, segments] of Object.entries(nodePositions)) {
     const node = nodeById.get(nodeId)
-    if (!node || collapse.nodes.has(nodeId)) {
+    if (!node || collapse.nodes.has(nodeId) || crossedAt(nodeId)) {
       continue
     }
 
@@ -1692,19 +1744,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const faded = highlight !== undefined && !highlight.nodeIds.has(nodeId)
     // Under lifted walks the lanes carry every colour, so the rest fades in
     // grey rather than in a scheme no lane is drawn in
-    const own = faded
-      ? LIFT_BACKDROP_COLOR
-      : getNodeColor(
-          node,
-          nodeIndexMap.get(nodeId) ?? 0,
-          colorScheme,
-          colorRange,
-        )
     const color = faded
-      ? fadeAbgr(own, FADED_ALPHA)
-      : node.moved
-        ? fadeAbgr(own, MOVED_ALPHA)
-        : own
+      ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
+      : nodeInk(node)
     const width = nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
     const nodeThickness = width / 2
 

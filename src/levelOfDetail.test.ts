@@ -6,6 +6,7 @@ import { SMALL_SITE_PX, foldedSites } from './levelOfDetail'
 import { haplotypeCount } from './nodeWidths'
 import { anchorGraph } from './pathAnchoring'
 import { buildGeometry } from './renderer/GeometryBuilder'
+import { drawFoldsAs, foldForms } from './renderer/foldForms'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { baseEdgeCurves } from './util/edgeCurves'
 import { findHoveredEdge, findHoveredNode } from './util/hitDetection'
@@ -924,6 +925,147 @@ test('the heads along a lift follow the fold on one graph, layout and lift', () 
   const batch = build(graph, wide, 10, { highlight, nodeById })
   expect(folded(batch)).toEqual(['a1+'])
   expect(batch.arrows.filter(a => a.node === 'a1+')).toEqual([])
+})
+
+describe('the forms a drawing meets a folded site in', () => {
+  afterEach(() => {
+    drawFoldsAs({ reference: 'B', lane: 'B' })
+  })
+  const lanesOf = (batch: ReturnType<typeof build>, edge: number) => {
+    const run = batch.edgeCurveRuns.get(edge)
+    return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
+  }
+
+  test('both are as before unless asked', () => {
+    expect(foldForms()).toEqual({ reference: 'B', lane: 'B' })
+  })
+
+  test("reference 'A' strokes the reference's own links meeting a folded site at its nodes' thickness and colour, 'B' as any link", () => {
+    const { graph, positions } = snp(1, 1)
+    const meeting = [
+      edgeIndex(graph, 'r1+', 'r2+'),
+      edgeIndex(graph, 'r2+', 'r3+'),
+    ]
+    const plain = build(graph, positions, 0.5)
+    expect(folded(plain)).toEqual(['a1+'])
+    expect(plain.collapsed?.bridges).toEqual(new Set(meeting))
+    const reference = plain.nodeStrokes[plain.nodeStrokeRuns.get('r1+')!.start]!
+    for (const edge of meeting) {
+      expect(lanesOf(plain, edge)[0]?.thickness).toBeLessThan(
+        reference.thickness,
+      )
+    }
+    drawFoldsAs({ reference: 'A' })
+    const bridged = build(graph, positions, 0.5)
+    for (const edge of meeting) {
+      expect(lanesOf(bridged, edge)).toMatchObject([
+        { thickness: reference.thickness, color: reference.color },
+      ])
+    }
+    const near = build(graph, positions, 5)
+    expect(near.collapsed?.bridges).toEqual(new Set())
+    expect(lanesOf(near, meeting[0]!)[0]?.thickness).toBeLessThan(
+      reference.thickness,
+    )
+  })
+
+  test("reference 'A' strokes a skip from a folded site's attachment as a skip", () => {
+    const graph = load([
+      `S\tr1\t${bases(1000)}`,
+      'S\tr2\tC',
+      `S\tr3\t${bases(1000)}`,
+      `S\tr4\t${bases(1000)}`,
+      'S\ta1\tT',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr3\t+\tr4\t+\t0M',
+      'L\tr1\t+\ta1\t+\t0M',
+      'L\ta1\t+\tr3\t+\t0M',
+      'L\tr1\t+\tr4\t+\t0M',
+      'W\tref\t0\tchr\t0\t3001\t>r1>r2>r3>r4',
+      'W\talt\t1\tchr\t0\t*\t>r1>a1>r3>r4',
+      'W\tdel\t1\tchr\t0\t*\t>r1>r4',
+    ])
+    const positions = {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1001),
+      'r3+': at(1001, 2001),
+      'r4+': at(2001, 3001),
+      'a1+': at(1000, 1001, 20),
+    }
+    const skipEdge = edgeIndex(graph, 'r1+', 'r4+')
+    const before = lanesOf(build(graph, positions, 0.5), skipEdge)
+    drawFoldsAs({ reference: 'A' })
+    const batch = build(graph, positions, 0.5)
+    expect(folded(batch)).toEqual(['a1+'])
+    expect(batch.collapsed?.bridges).toEqual(
+      new Set([edgeIndex(graph, 'r1+', 'r2+'), edgeIndex(graph, 'r2+', 'r3+')]),
+    )
+    expect(before.length).toBeGreaterThan(0)
+    expect(lanesOf(batch, skipEdge)).toEqual(before)
+  })
+
+  test("lane 'A' paints no lane on a folded link, so a lane stops at the site's attachments", () => {
+    const { graph, positions } = snp(1, 1)
+    const highlight = walkLift(graph, [{ walk: 'alt#1#chr' }])
+    const into = edgeIndex(graph, 'r1+', 'a1+')
+    const out = edgeIndex(graph, 'a1+', 'r3+')
+    const across = build(graph, positions, 0.5, { highlight })
+    expect(lanesOf(across, into)).toHaveLength(1)
+    expect(lanesOf(across, out)).toHaveLength(1)
+    drawFoldsAs({ lane: 'A' })
+    const stopped = build(graph, positions, 0.5, { highlight })
+    expect(folded(stopped)).toEqual(['a1+'])
+    expect(stopped.edgeCurveRuns.has(into)).toBe(false)
+    expect(stopped.edgeCurveRuns.has(out)).toBe(false)
+    expect(stopped.nodeStrokeRuns.has('r1+')).toBe(true)
+    expect(stopped.nodeStrokeRuns.has('r2+')).toBe(true)
+    expect(stopped.nodeStrokeRuns.has('r3+')).toBe(true)
+  })
+
+  test("lane 'C' runs every lifted walk crossing a folded site straight between its attachments whichever route it takes, and draws the reference inside it only by those lanes", () => {
+    const { graph, positions } = snp(1, 1)
+    const highlight = walkLift(graph, [
+      { walk: 'ref#0#chr' },
+      { walk: 'alt#1#chr' },
+    ])
+    const crossing = build(graph, positions, 0.5, { highlight })
+    expect(crossing.nodeStrokeRuns.has('r2+')).toBe(true)
+    drawFoldsAs({ lane: 'C' })
+    const batch = build(graph, positions, 0.5, { highlight })
+    const [site] = batch.collapsed?.sites ?? []
+    expect(batch.collapsed?.within).toEqual(new Map([['r2+', site]]))
+    expect(batch.nodeStrokeRuns.has('r2+')).toBe(false)
+    expect(batch.arrows.filter(a => a.node === 'r2+')).toEqual([])
+    const into = [
+      ...lanesOf(batch, edgeIndex(graph, 'r1+', 'r2+')),
+      ...lanesOf(batch, edgeIndex(graph, 'r1+', 'a1+')),
+    ]
+    const out = [
+      ...lanesOf(batch, edgeIndex(graph, 'r2+', 'r3+')),
+      ...lanesOf(batch, edgeIndex(graph, 'a1+', 'r3+')),
+    ]
+    expect(new Set(into.map(l => l.walk))).toEqual(new Set([0, 1]))
+    expect(new Set(out.map(l => l.walk))).toEqual(new Set([0, 1]))
+    for (const lane of into) {
+      expect(lane.curves.at(-1)?.x1).toBeCloseTo(site!.x, 6)
+    }
+    for (const lane of out) {
+      expect(lane.curves[0]?.x0).toBeCloseTo(site!.x, 6)
+    }
+  })
+
+  test("lane 'C' draws a reference node inside a folded site no lifted walk crosses", () => {
+    const { graph, positions } = snp(1, 1, [
+      'W\talt\t1\tchr\t0\t*\t>r1>a1>r3',
+      'W\tpart\t1\tchr\t0\t1000\t>r1',
+    ])
+    drawFoldsAs({ lane: 'C' })
+    const highlight = walkLift(graph, [{ walk: 'part#1#chr' }])
+    const batch = build(graph, positions, 0.5, { highlight })
+    expect(folded(batch)).toEqual(['a1+'])
+    expect(batch.nodeStrokeRuns.has('r2+')).toBe(true)
+  })
 })
 
 test('with small sites drawn as nodes, nothing is folded and every node and link draws', () => {

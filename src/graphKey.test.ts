@@ -832,6 +832,8 @@ const foldOf = (sites: Site[]): Fold => ({
   edges: new Set(sites.flatMap(s => s.edges)),
   siteOf: new Map(),
   pxPerBp: 1,
+  bridges: new Set(),
+  within: new Map(),
 })
 
 test("the key's counts are the folded nodes and skip links, each once, however many sites or panels hold them", () => {

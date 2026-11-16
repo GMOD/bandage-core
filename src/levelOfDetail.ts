@@ -2,6 +2,7 @@ import { isBackbone } from './anchoredNodes'
 import { departureTails } from './gfa/departures'
 import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
+import { partitionPoint } from './util/partitionPoint'
 import { weakMemo } from './util/weakMemo'
 
 import type { AnchoredNode } from './anchoredNodes'
@@ -53,6 +54,11 @@ export interface Fold {
   edges: ReadonlySet<number>
   siteOf: ReadonlyMap<string, Site>
   pxPerBp: number
+  // the reference's own links, joining two of its nodes where they abut,
+  // that meet a folded site's attachment
+  bridges: ReadonlySet<number>
+  // the reference nodes lying between a folded site's attachments
+  within: ReadonlyMap<string, Site>
 }
 
 export const NO_FOLD: Fold = {
@@ -61,6 +67,19 @@ export const NO_FOLD: Fold = {
   edges: new Set(),
   siteOf: new Map(),
   pxPerBp: 0,
+  bridges: new Set(),
+  within: new Map(),
+}
+
+interface ReferenceLink {
+  edge: number
+  at: string
+}
+
+interface ReferenceSpan {
+  id: string
+  start: number
+  end: number
 }
 
 const onReference = (node: GraphNode | undefined): node is AnchoredNode =>
@@ -179,6 +198,7 @@ function unitsOf(
     }
   }
   const skips: Unit[] = []
+  const referenceLinks: ReferenceLink[] = []
   graph.edges.forEach(({ from, to, fromStrand, toStrand, pathIds }, edge) => {
     const inside = off(from) ? from : off(to) ? to : undefined
     const outsideId = off(from) ? to : from
@@ -206,6 +226,16 @@ function unitsOf(
           component.tied = true
         }
       }
+    } else if (
+      onReference(fromNode) &&
+      onReference(toNode) &&
+      fromNode.stable.refName === toNode.stable.refName &&
+      leavesAt(fromNode, fromStrand) === arrivesAt(toNode, toStrand)
+    ) {
+      referenceLinks.push({
+        edge,
+        at: placeOn(fromNode.stable.refName, leavesAt(fromNode, fromStrand)),
+      })
     } else if (
       deletions?.has(edge) &&
       !hiddenEdges?.has(edge) &&
@@ -263,6 +293,16 @@ function unitsOf(
     }
   }
   const backbone = graph.nodes.filter(onReference)
+  const spans = new Map<string, ReferenceSpan[]>()
+  for (const node of backbone) {
+    const { refName, start } = node.stable
+    const held = spans.get(refName) ?? []
+    held.push({ id: node.id, start, end: start + node.length })
+    spans.set(refName, held)
+  }
+  for (const held of spans.values()) {
+    held.sort((a, b) => a.start - b.start)
+  }
   const keyOf = (unit: Unit) => unit.nodes[0] ?? `#${unit.skip}`
   const sorted = units
     .map(unit => ({ unit, start: least(unit.attachments), key: keyOf(unit) }))
@@ -281,7 +321,29 @@ function unitsOf(
     total,
     backbone: backbone.map(n => n.id),
     backboneBp: backbone.reduce((sum, n) => sum + n.length, 0),
+    referenceLinks,
+    spans,
   }
+}
+
+const placeOn = (refName: string, at: number) => `${refName}:${at}`
+
+function within(sites: readonly Site[], spans: Map<string, ReferenceSpan[]>) {
+  const inside = new Map<string, Site>()
+  for (const site of sites) {
+    const held = spans.get(site.refName) ?? []
+    for (
+      let i = partitionPoint(held.length, k => held[k]!.start < site.start);
+      i < held.length && held[i]!.start < site.end;
+      i++
+    ) {
+      const span = held[i]!
+      if (span.end <= site.end && span.end > span.start) {
+        inside.set(span.id, site)
+      }
+    }
+  }
+  return inside
 }
 
 const least = (values: readonly number[]) =>
@@ -345,16 +407,16 @@ function foldOf(
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
 ): Fold {
-  const { units, total, backbone, backboneBp } = unitsCache(
-    graph,
-    [deletions, hiddenEdges],
-    () => unitsOf(graph, deletions, hiddenEdges),
-  )
+  const { units, total, backbone, backboneBp, referenceLinks, spans } =
+    unitsCache(graph, [deletions, hiddenEdges], () =>
+      unitsOf(graph, deletions, hiddenEdges),
+    )
   const pxPerBp = referencePxPerBp(backbone, backboneBp, positions, axis)
   const nodes = new Set<string>()
   const edges = new Set<number>()
   const siteOf = new Map<string, Site>()
   const sites: Site[] = []
+  const attached = new Set<string>()
   for (const unit of units) {
     const feet = unit.feet.flatMap(foot => {
       const point = footPoint(curves, foot)
@@ -382,6 +444,9 @@ function foldOf(
         total,
       }
       sites.push(site)
+      for (const at of unit.attachments) {
+        attached.add(placeOn(refName, at))
+      }
       for (const id of unit.nodes) {
         nodes.add(id)
         siteOf.set(id, site)
@@ -391,7 +456,17 @@ function foldOf(
       }
     }
   }
-  return { sites, nodes, edges, siteOf, pxPerBp }
+  return {
+    sites,
+    nodes,
+    edges,
+    siteOf,
+    pxPerBp,
+    bridges: new Set(
+      referenceLinks.filter(l => attached.has(l.at)).map(l => l.edge),
+    ),
+    within: within(sites, spans),
+  }
 }
 
 const foldCache = weakMemo<EdgeCurves, Fold>()
