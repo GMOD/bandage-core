@@ -4,10 +4,12 @@ import { isBackbone } from '../anchoredNodes'
 import { deletionEdges } from '../deletionEdges'
 import { figureSvg } from '../figure'
 import { figureData } from '../figureData'
+import { foldVariants } from '../foldVariants'
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
+import { writeRgfa } from '../gfa/writeRgfa'
 import { layoutEngine } from '../layoutEngines'
 import { engineSettingsOf, forceLayout, loadGraph } from '../pipeline'
 import { coarsenTubeMap } from '../tubeMap/coarsen'
@@ -284,6 +286,55 @@ test.each(Object.entries(ANCHORINGS))(
     ])
   },
 )
+
+test('a tagged graph with walks, its walks set aside, folds as the same graph anchored by its paths does', () => {
+  const tagged = [
+    'S\t1\t*\tLN:i:8000\tSN:Z:ref#0#chr\tSO:i:0\tSR:i:0',
+    'S\t4\t*\tLN:i:8000\tSN:Z:ref#0#chr\tSO:i:8000\tSR:i:0',
+    'S\t3\t*\tLN:i:11000\tSN:Z:ref#0#chr\tSO:i:16000\tSR:i:0',
+    'S\t2\t*\tLN:i:7000\tSN:Z:ref#0#chr\tSO:i:27000\tSR:i:0',
+    'S\t5\t*\tLN:i:10000\tSN:Z:ref#0#chr\tSO:i:34000\tSR:i:0',
+    'S\t6\t*\tLN:i:9000\tSN:Z:ref#0#chr\tSO:i:44000\tSR:i:0',
+    'S\ts\t*\tLN:i:40\tSN:Z:hap1#1#chr\tSO:i:16000\tSR:i:1',
+    'L\t1\t+\t4\t-\t0M',
+    'L\t4\t-\t3\t-\t0M',
+    'L\t3\t-\t2\t-\t0M',
+    'L\t2\t-\t5\t+\t0M',
+    'L\t5\t+\t6\t+\t0M',
+    'L\t4\t-\t2\t-\t0M',
+    'L\t4\t-\ts\t+\t0M',
+    'L\ts\t+\t3\t-\t0M',
+    'W\tref\t0\tchr\t0\t53000\t>1<4<3<2>5>6',
+    'W\thap0\t1\tchr\t0\t42000\t>1<4<2>5>6',
+    'W\thap1\t1\tchr\t0\t53040\t>1<4>s<3<2>5>6',
+  ].join('\n')
+  const folded = (text: string) =>
+    writeRgfa(
+      foldVariants(
+        {
+          ...loadGraph(text, 'cut', { referencePath: 'ref#0#chr' }),
+          paths: undefined,
+        },
+        5000,
+      ),
+    )
+  expect(folded(tagged).split('\n')).toEqual([
+    'H\tVN:Z:1.0',
+    'S\t1\t*\tLN:i:16000\tSN:Z:ref#0#chr\tSO:i:0\tSR:i:0',
+    'S\t3\t*\tLN:i:11000\tSN:Z:ref#0#chr\tSO:i:16000\tSR:i:0',
+    'S\t2\t*\tLN:i:26000\tSN:Z:ref#0#chr\tSO:i:27000\tSR:i:0',
+    'L\t1\t+\t3\t+\t0M',
+    'L\t3\t+\t2\t+\t0M',
+    'L\t1\t+\t2\t+\t0M',
+    '',
+  ])
+  expect(
+    folded(tagged.replaceAll(/\tS[NOR]:[Zi]:[^\t\n]*/g, '')).replaceAll(
+      /\tSM:Z:[^\t\n]*/g,
+      '',
+    ),
+  ).toBe(folded(tagged))
+})
 
 const FIRST_EXON = [
   {
