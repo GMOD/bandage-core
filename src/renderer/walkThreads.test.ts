@@ -4,6 +4,7 @@ import { walkLift } from '../walkHighlight'
 import { buildGeometry } from './GeometryBuilder'
 import {
   MAX_BAND_PX,
+  MIN_LANE_STROKE_PX,
   PASSES_KEY,
   liftLanes,
   passesKey,
@@ -166,7 +167,7 @@ const bandAt = (strokes: { offsetX?: number; thickness: number }[]) =>
   Math.max(...strokes.map(s => s.offsetX! + s.thickness)) -
   Math.min(...strokes.map(s => s.offsetX! - s.thickness))
 
-test('a band of threads never grows wider than MAX_BAND_PX, and its key says when it thins', () => {
+test('a band of threads never grows wider than MAX_BAND_PX, but for the floor under its outer threads, and its key says when it thins', () => {
   const names = Array.from({ length: 19 }, (_, i) => `d${i}`)
   const lines = names.map((name, i) =>
     walk(name, i % 3 ? '>v1>v2>v3' : '>v1>v2>v1>v2>v1>v2>v3'),
@@ -175,7 +176,9 @@ test('a band of threads never grows wider than MAX_BAND_PX, and its key says whe
     'ref#0#chr',
     ...names.map(n => `${n}#1#chr`),
   ])
-  expect(bandAt(crowd.strokes('v1+'))).toBeLessThanOrEqual(MAX_BAND_PX + 1e-9)
+  expect(bandAt(crowd.strokes('v1+'))).toBeLessThanOrEqual(
+    MAX_BAND_PX + MIN_LANE_STROKE_PX,
+  )
   expect(bandAt(crowd.strokes('v1+'))).toBeGreaterThan(MAX_BAND_PX - 1)
   expect(passesKey(crowd.highlight.walks)).toBe(`${PASSES_KEY}, thinned to fit`)
 

@@ -30,6 +30,8 @@ import {
 } from './laneHeads'
 import { svgCanvas } from './svgCanvas'
 import {
+  MAX_BAND_PX,
+  MIN_LANE_STROKE_PX,
   MIN_THREAD_PITCH_PX,
   THREAD_PITCH_PX,
   THREAD_PX,
@@ -292,6 +294,21 @@ test('threads thinned under MIN_THREAD_PITCH_PX apart fuse into one band where t
   expect(fused).toHaveLength(1)
   const pitch = fused[0]! * 2
   expect(pitch).toBeGreaterThan((THREAD_PITCH_PX * 48) / (40 * 3.5))
+})
+
+test('a lifted lane on a node or a link is never thinner than MIN_LANE_STROKE_PX, however many passes thin its threads', () => {
+  const passes = 400
+  const { batch } = drawn(`>f1${UNIT.repeat(passes)}>f2`, [byPass()])
+  const thinned = MAX_BAND_PX / (passes * THREAD_PITCH_PX)
+  expect(threadHalfWidthPx(thinned, true) * 2).toBeLessThan(MIN_LANE_STROKE_PX)
+  const lanes = [...batch.nodeStrokes, ...batch.edgeCurves].filter(
+    s => s.walk !== undefined,
+  )
+  expect(batch.nodeStrokes.some(s => s.walk !== undefined)).toBe(true)
+  expect(batch.edgeCurves.some(s => s.walk !== undefined)).toBe(true)
+  expect(
+    lanes.reduce((least, s) => Math.min(least, s.thickness * 2), Infinity),
+  ).toBe(MIN_LANE_STROKE_PX)
 })
 
 const pointsAlongX = (heads: Arrowhead[]) => heads.map(h => Math.cos(h.angle))

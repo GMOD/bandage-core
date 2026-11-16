@@ -11,6 +11,7 @@ export const LANE_SMOOTHING_PX = 12
 export const THREAD_REACH_PX = 64
 export const THREAD_TAPER_PX = 24
 export const MAX_BAND_PX = 48
+export const MIN_LANE_STROKE_PX = 1
 export const PASSES_KEY = 'a thread per pass through a node'
 
 export const threadsPasses = (

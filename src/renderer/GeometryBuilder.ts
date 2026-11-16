@@ -28,6 +28,7 @@ import { weakMemo } from '../util/weakMemo'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { laneHeadPlacer } from './laneHeads'
 import {
+  MIN_LANE_STROKE_PX,
   THREAD_PITCH_PX,
   bandScale,
   bandWidthPx,
@@ -1038,9 +1039,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     return eased === undefined ? fallback : eased * thinned
   }
   const laneHalfWidth = (laneWidth: number, lane: number) =>
-    threaded
-      ? threadHalfWidthPx(thinned, !!liftedWalks[lane]?.walkPasses?.bundled)
-      : laneWidth / 2
+    Math.max(
+      MIN_LANE_STROKE_PX / 2,
+      threaded
+        ? threadHalfWidthPx(thinned, !!liftedWalks[lane]?.walkPasses?.bundled)
+        : laneWidth / 2,
+    )
   const passMark = (lane: number, nodeId: string, thread: number) => {
     const visit = visitOf(lane, nodeId, thread)
     const pass = liftedWalks[lane]?.walkPasses?.visitPass.get(nodeId)?.[visit]
