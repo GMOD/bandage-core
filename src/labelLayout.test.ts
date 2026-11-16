@@ -354,6 +354,29 @@ test("a stacked placeholder length keeps off other nodes' ink where it can", () 
   expect(sizes[1]!.leader).toBeDefined()
 })
 
+test('a stacked placeholder length keeps half the contig thickness clear of another node', () => {
+  const nodes = placeholders([75_000, 75_000])
+  const spot = [
+    { x: 300, y: 200 },
+    { x: 324, y: 200 },
+  ]
+  const twoPxBelowTheBox = [
+    { x: 250, y: 226 },
+    { x: 380, y: 226 },
+  ]
+  const stackedAt = (contigThickness: number) =>
+    layoutLabels(
+      source({
+        contigThickness,
+        nodePositions: { p0: spot, p1: spot, bb: twoPxBelowTheBox },
+        nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+        nodeById: new Map(nodes.map(n => [n.id, n])),
+      }),
+    ).sizes[1]!.y
+  expect(stackedAt(2)).toBe(216)
+  expect(stackedAt(6)).toBe(184)
+})
+
 // The amylase locus under FMMM drew three 75 kb loops crossing beside one
 // another, and the third lost its length
 test('three loops crossing in one place each keep their length, none over another', () => {
