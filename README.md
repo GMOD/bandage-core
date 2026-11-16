@@ -133,6 +133,10 @@ reads them.
   it, are sized in px at that fit. The layout is the same for the same fit, and
   a host that states none gets one sized for the default figure's width and a
   JBrowse track's default height
+- A host whose key stands down the pane's right edge takes that size from
+  `fitBesideKey`, the pane less the key's column, and hands its width and height
+  to `fitTransform` as well as `forceLayout`, so no node or gene pin lies under
+  the key, whose column `layoutLabels` keeps every label out of
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths

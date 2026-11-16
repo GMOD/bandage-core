@@ -321,7 +321,12 @@ export {
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
-export { keyColumnBox, keyColumnPx, keyHeightPx } from './keyColumn'
+export {
+  fitBesideKey,
+  keyColumnBox,
+  keyColumnPx,
+  keyHeightPx,
+} from './keyColumn'
 export type { KeyFrame } from './keyColumn'
 export {
   LABEL_DEFAULTS,
