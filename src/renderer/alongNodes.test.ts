@@ -18,7 +18,7 @@ describe('linksAlongNodes', () => {
     expect([
       ...linksAlongNodes(
         [row(0, 10), row(10, 20), row(20, 30)],
-        [{ edge: 0, a: { x: 10, y: 0 }, b: { x: 20, y: 0 } }],
+        [{ id: 0, a: { x: 10, y: 0 }, b: { x: 20, y: 0 } }],
       ),
     ]).toEqual([0])
   })
@@ -26,8 +26,8 @@ describe('linksAlongNodes', () => {
   test('a link whose ends lie under 3 px apart, or apart with no node between, is not', () => {
     const lines = [row(0, 10), row(12, 22), row(40, 50)]
     const links = [
-      { edge: 0, a: { x: 10, y: 0 }, b: { x: 12, y: 0 } },
-      { edge: 1, a: { x: 22, y: 0 }, b: { x: 40, y: 0 } },
+      { id: 0, a: { x: 10, y: 0 }, b: { x: 12, y: 0 } },
+      { id: 1, a: { x: 22, y: 0 }, b: { x: 40, y: 0 } },
     ]
     expect([...linksAlongNodes(lines, links)]).toEqual([])
   })
@@ -40,8 +40,8 @@ describe('linksAlongNodes', () => {
       ],
     ]
     const links = [
-      { edge: 0, a: { x: 10, y: 10 }, b: { x: 900_000, y: 900_000 } },
-      { edge: 1, a: { x: 11.5, y: 8.5 }, b: { x: 900_001.5, y: 899_998.5 } },
+      { id: 0, a: { x: 10, y: 10 }, b: { x: 900_000, y: 900_000 } },
+      { id: 1, a: { x: 11.5, y: 8.5 }, b: { x: 900_001.5, y: 899_998.5 } },
     ]
     expect([...linksAlongNodes(lines, links)]).toEqual([0])
   })
@@ -49,8 +49,8 @@ describe('linksAlongNodes', () => {
   test('a link running 1 px beside a node is along it, 2 px beside it is not', () => {
     const lines = [row(0, 30)]
     const links = [
-      { edge: 0, a: { x: 5, y: 1 }, b: { x: 25, y: 1 } },
-      { edge: 1, a: { x: 5, y: 2 }, b: { x: 25, y: 2 } },
+      { id: 0, a: { x: 5, y: 1 }, b: { x: 25, y: 1 } },
+      { id: 1, a: { x: 5, y: 2 }, b: { x: 25, y: 2 } },
     ]
     expect([...linksAlongNodes(lines, links)]).toEqual([0])
   })
@@ -76,6 +76,7 @@ const graph = anchorGraph(
         'L\tZ\t+\tD\t+\t0M',
         'W\tref\t0\tchr\t0\t20\t>A>D',
         'W\talt\t1\tchr\t0\t*\t>A>X>Z>D',
+        'W\tins\t1\tchr\t0\t*\t>A>X>Y>Z>D',
       ].join('\n'),
     ),
   ),
@@ -144,4 +145,22 @@ test("a lifted walk's lane on a link along nodes is marked along too", () => {
   const lanes = strokesOf(batchOf(true), 'XZ')
   expect(lanes.length).toBeGreaterThan(0)
   expect(lanes.every(lane => lane.walk === 0 && lane.along === true)).toBe(true)
+})
+
+test("a lane is judged where it is drawn: lifted beside the other walk's lane on the node it skips, it is not along it", () => {
+  const batch = buildGeometry({
+    nodePositions,
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: { scaleX: 1, scaleY: 1 },
+    stranded: true,
+    highlight: walkLift(graph, [{ walk: 'alt#1#chr' }, { walk: 'ins#1#chr' }]),
+  })
+  const lanes = strokesOf(batch, 'XZ')
+  expect(lanes.map(lane => lane.walk)).toEqual([0])
+  expect(lanes[0]!.along).toBeUndefined()
 })

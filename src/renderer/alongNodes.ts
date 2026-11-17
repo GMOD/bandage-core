@@ -18,7 +18,7 @@ interface Point {
 }
 
 export interface LinkEnds {
-  edge: number
+  id: number
   a: Point
   b: Point
 }
@@ -110,7 +110,7 @@ export function linksAlongNodes(
       .get(cellAt(p.x, p.y))
       ?.some(([a, b]) => distanceToSegment(p, a, b) <= ALONG_NODE_PX) ?? false
   const along = new Set<number>()
-  for (const { edge, a, b } of links) {
+  for (const { id, a, b } of links) {
     const length = Math.hypot(b.x - a.x, b.y - a.y)
     if (length >= SMALL_SITE_PX && (!bounds || meets(a, b, bounds, 0))) {
       const inner = length - 2 * END_INSET_PX
@@ -132,7 +132,7 @@ export function linksAlongNodes(
         }
       }
       if (on >= half) {
-        along.add(edge)
+        along.add(id)
       }
     }
   }

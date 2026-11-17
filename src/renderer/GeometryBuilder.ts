@@ -2076,40 +2076,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       })
     }
   }
-  const onScreen = (p: { x: number; y: number }) => ({
-    x: p.x * scale,
-    y: p.y * scale * yToX,
-  })
-  const alongNodes = linksAlongNodes(
-    Object.entries(nodePositions).flatMap(([id, line]) =>
-      nodeById.has(id) &&
-      line.length >= 2 &&
-      !collapse.nodes.has(id) &&
-      !crossedAt(id)
-        ? [line.map(onScreen)]
-        : [],
-    ),
-    graph.edges.flatMap((edge, ei) => {
-      const curves = sharedCurves.get(ei)
-      const last = curves?.at(-1)
-      return curves?.[0] && last && edge.from !== edge.to
-        ? [
-            {
-              edge: ei,
-              a: onScreen({ x: curves[0].x0, y: curves[0].y0 }),
-              b: onScreen({ x: last.x1, y: last.y1 }),
-            },
-          ]
-        : []
-    }),
-    viewportBounds && {
-      minX: viewportBounds.minX * scale,
-      minY: viewportBounds.minY * scale * yToX,
-      maxX: viewportBounds.maxX * scale,
-      maxY: viewportBounds.maxY * scale * yToX,
-    },
-  )
-
   for (let ei = 0; ei < graph.edges.length; ei++) {
     const edge = graph.edges[ei]!
     const fromSegments = nodePositions[edge.from]
@@ -2191,11 +2157,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
     const skipMark = deletions?.has(ei) ? { skip: true, span: arcPx } : {}
-    const overMark = turnsAgainstReference(edge)
-      ? { turn: true }
-      : alongNodes.has(ei) && !isDeletion
-        ? { along: true }
-        : {}
+    const overMark = turnsAgainstReference(edge) ? { turn: true } : {}
     const dashesOf = (curves: BezierCurve[]) =>
       dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
@@ -2642,6 +2604,35 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         arrows.push(tab)
       }
     }
+  }
+
+  const onScreen = (p: { x: number; y: number }) => ({
+    x: p.x * scale,
+    y: p.y * scale * yToX,
+  })
+  const alongNodes = linksAlongNodes(
+    nodeStrokes.map(stroke => stroke.points.map(onScreen)),
+    edgeCurves.flatMap((stroke, k) => {
+      const last = stroke.curves.at(-1)
+      return stroke.curves[0] && last && !stroke.skip && !stroke.turn
+        ? [
+            {
+              id: k,
+              a: onScreen({ x: stroke.curves[0].x0, y: stroke.curves[0].y0 }),
+              b: onScreen({ x: last.x1, y: last.y1 }),
+            },
+          ]
+        : []
+    }),
+    viewportBounds && {
+      minX: viewportBounds.minX * scale,
+      minY: viewportBounds.minY * scale * yToX,
+      maxX: viewportBounds.maxX * scale,
+      maxY: viewportBounds.maxY * scale * yToX,
+    },
+  )
+  for (const k of alongNodes) {
+    edgeCurves[k] = { ...edgeCurves[k]!, along: true }
   }
 
   return {
