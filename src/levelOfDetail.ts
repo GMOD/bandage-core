@@ -849,7 +849,7 @@ function foldOf(
 const foldCache = weakMemo<EdgeCurves, Fold>()
 
 // A bp every folded site is under: the largest folded site's bp and one more
-export const foldedUnderBp = (fold: Fold) =>
+export const foldedUnderBp = (fold: Pick<Fold, 'sites'>) =>
   fold.sites.reduce((bp, site) => Math.max(bp, site.bp + 1), 0)
 
 // The sites too small to draw at this scale: a pure function of the graph,

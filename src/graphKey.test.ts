@@ -1026,6 +1026,37 @@ test("the key's counts are the folded nodes and skip links, each once, however m
   )
 })
 
+// L6-amy zoomed in said "233 nodes under 4 bp not drawn" with none of them
+// on the pane
+test('the not-drawn line counts the sites folded where the view lies, under the largest of them', () => {
+  const at = (x: number, nodes: string[], edges: number[], bp: number) => ({
+    ...site(nodes, edges, bp),
+    x,
+  })
+  const panel = {
+    edgeCurves: [],
+    nodeStrokes: [],
+    collapsed: foldOf([
+      at(0, ['a1'], [1], 2),
+      at(0, [], [7], 5),
+      at(100, ['a2', 'a3'], [2, 3], 30),
+      at(100, [], [8], 40),
+    ]),
+  }
+  const line = (view?: Bounds) =>
+    graphKey(SMALL, {}, { marks: drawnMarks([panel], view) })
+      .find(section => section.id === 'too-small')
+      ?.entries[0]?.text
+  expect(line()).toBe('3 nodes and 2 skips under 41 bp not drawn')
+  expect(line({ minX: -1, maxX: 1, minY: -1, maxY: 1 })).toBe(
+    '1 node and 1 skip under 6 bp not drawn',
+  )
+  expect(line({ minX: 99, maxX: 101, minY: -1, maxY: 1 })).toBe(
+    '2 nodes and 1 skip under 41 bp not drawn',
+  )
+  expect(line({ minX: 40, maxX: 60, minY: -1, maxY: 1 })).toBeUndefined()
+})
+
 test('a walk coloured by pass keys each pass by its name, a bundle by its count, and heads by the way they point', () => {
   const keyed = (g: Graph, s: Scene) => {
     const { layout, batch } = drawn(g, s)

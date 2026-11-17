@@ -123,11 +123,11 @@ export interface GraphKeySection {
 // heads along a lane, pointing back along a node or either way; the nodes and
 // skips folded as too small to draw. A lifted walk's lane on a skip is its
 // walk's, keyed by the walk. Where a pane shows part of the drawing, `view`,
-// in layout units, a mark counts only where a stroke of it meets the view,
-// and `nodes` holds the nodes a stroke of their own draws there, which the
-// key's node thicknesses and exons are read off; the folded counts are the
-// whole drawing's. Whether the nodes vary in thickness is the whole
-// drawing's too, as the batch states it for nodes a viewport culled, so a
+// in layout units, a mark counts only where a stroke of it meets the view, a
+// folded site only where its place lies in it, and `nodes` holds the nodes a
+// stroke of their own draws there, which the key's node thicknesses and
+// exons are read off. Whether the nodes vary in thickness is the whole
+// drawing's, as the batch states it for nodes a viewport culled too, so a
 // view of one thickness still keys what it shows.
 export function drawnMarks(
   batches: readonly (Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'> &
@@ -193,13 +193,12 @@ export function drawnMarks(
       }
     }
     marks.widthsVary ||= !!batch.nodeThicknessesVary
-    if (collapsed) {
-      marks.foldedUnderBp = Math.max(
-        marks.foldedUnderBp,
-        foldedUnderBp(collapsed),
-      )
-    }
-    for (const { nodes, edges } of collapsed?.sites ?? []) {
+    const sites = (collapsed?.sites ?? []).filter(site => inView([site]))
+    marks.foldedUnderBp = Math.max(
+      marks.foldedUnderBp,
+      foldedUnderBp({ sites }),
+    )
+    for (const { nodes, edges } of sites) {
       for (const id of nodes) {
         marks.foldedNodes.add(id)
       }
