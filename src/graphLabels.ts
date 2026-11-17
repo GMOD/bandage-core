@@ -383,42 +383,31 @@ export interface WalkLoop {
   least: number
 }
 
-interface Stretch {
-  nodes: string[]
-  bp: number
-}
-
 const loopsCache = weakMemo<GraphNode[], WalkLoop[]>()
 
 // The nodes each drawn walk steps on between two steps on the reference,
 // where every one is loaded, each run of nodes once however many walks take
-// it. Runs between the same two reference nodes that share half the bp of
-// the shorter are one loop as drawn, the longest's nodes with the least of
-// their lengths. The longest first.
+// it. A run sharing half the bp of a longer one is that loop as drawn, which
+// writes the least of their lengths with its own. The longest first.
 export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
   return loopsCache(graph.nodes, [graph.paths], () => {
     const byId = new Map(graph.nodes.map(node => [node.id, node]))
     const seen = new Set<string>()
-    const bySite = new Map<string, Stretch[]>()
+    const runs: { nodes: string[]; bp: number }[] = []
     for (const path of graph.paths ?? []) {
       let nodes: string[] = []
       let bp = 0
       let loaded = true
-      let from: string | undefined
+      let met = false
       for (const id of path.nodeIds) {
         const node = byId.get(id)
         if (node && isBackbone(node)) {
           const key = nodes.join(' ')
-          if (
-            from !== undefined &&
-            loaded &&
-            nodes.length > 0 &&
-            !seen.has(key)
-          ) {
+          if (met && loaded && nodes.length > 0 && !seen.has(key)) {
             seen.add(key)
-            pushTo(bySite, `${from}>${id}`, { nodes, bp })
+            runs.push({ nodes, bp })
           }
-          from = id
+          met = true
           nodes = []
           bp = 0
           loaded = true
@@ -429,35 +418,36 @@ export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
         }
       }
     }
-    const loops: WalkLoop[] = []
-    for (const stretches of bySite.values()) {
-      const groups: { lead: Stretch; held: Set<string>; least: number }[] = []
-      for (const stretch of stretches.toSorted((a, b) => b.bp - a.bp)) {
-        const own = new Set(stretch.nodes)
-        const shared = (held: Set<string>) => {
-          let bp = 0
-          for (const id of own) {
-            bp += held.has(id) ? (byId.get(id)?.length ?? 0) : 0
-          }
-          return bp
-        }
-        const group = groups.find(g => 2 * shared(g.held) >= stretch.bp)
-        if (group) {
-          group.least = Math.min(group.least, stretch.bp)
-        } else {
-          groups.push({ lead: stretch, held: own, least: stretch.bp })
-        }
-      }
-      for (const { lead, least } of groups) {
-        loops.push({ nodes: lead.nodes, bp: lead.bp, least })
-      }
-    }
-    return loops.sort(
+    runs.sort(
       (a, b) =>
         b.bp - a.bp ||
         compareIds(a.nodes[0] ?? '', b.nodes[0] ?? '') ||
         b.nodes.length - a.nodes.length,
     )
+    const loops: WalkLoop[] = []
+    const loopsHolding = new Map<string, number[]>()
+    for (const run of runs) {
+      const shared = new Map<number, number>()
+      for (const id of new Set(run.nodes)) {
+        for (const at of loopsHolding.get(id) ?? []) {
+          shared.set(at, (shared.get(at) ?? 0) + (byId.get(id)?.length ?? 0))
+        }
+      }
+      let joined: number | undefined
+      for (const [at, bp] of shared) {
+        joined ??= 2 * bp >= loops[at]!.bp ? at : undefined
+      }
+      const loop = joined === undefined ? undefined : loops[joined]
+      if (loop) {
+        loop.least = Math.min(loop.least, run.bp)
+      } else {
+        for (const id of new Set(run.nodes)) {
+          pushTo(loopsHolding, id, loops.length)
+        }
+        loops.push({ ...run, least: run.bp })
+      }
+    }
+    return loops
   })
 }
 

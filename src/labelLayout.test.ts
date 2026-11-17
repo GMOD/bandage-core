@@ -725,6 +725,42 @@ test('loops walks take between the same two reference nodes over mostly the same
   expect(sizes.map(l => [l.node, l.text])).toEqual([['b', '127\u2013148 kb']])
 })
 
+test('loops leaving the reference at other nodes over mostly the same nodes write one span, and a loop sharing less than half a longer one writes its own', () => {
+  const graph = loopGraph([
+    offReference('a', 30_000),
+    offReference('b', 88_000),
+    offReference('c', 30_000),
+  ])
+  const r0 = onReference('r0', -1000, 1000)
+  const both = {
+    nodes: [r0, ...graph.nodes, offReference('c2', 9000)],
+    paths: [
+      { name: 'GRCh38', nodeIds: ['r0', 'r1', 'r2'] },
+      { name: 'HG00350#1', nodeIds: ['r0', 'r1', 'a', 'b', 'c', 'r2'] },
+      { name: 'HG002#2', nodeIds: ['r0', 'a', 'b', 'c2', 'r2'] },
+      { name: 'HG003#1', nodeIds: ['r1', 'a', 'r2'] },
+    ],
+  }
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: {
+        ...loopPositions,
+        r0: [
+          { x: 0, y: 380 },
+          { x: 0, y: 300 },
+        ],
+        c2: loopPositions.c,
+      },
+      nodeById: new Map(both.nodes.map(n => [n.id, n])),
+      graph: both,
+    }),
+  )
+  expect(sizes.map(l => [l.node, l.text])).toEqual([
+    ['b', '127\u2013148 kb'],
+    ['a', '30 kb'],
+  ])
+})
+
 test('loops between the same two reference nodes over other nodes each write their own length', () => {
   const graph = loopGraph([
     offReference('a', 30_000),
