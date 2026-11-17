@@ -4,7 +4,7 @@ import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
 import { Canvas2DRenderer, arrowheadOutline } from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
-import { abgrToCssRgba, packAbgr } from './colorBits'
+import { FADED_ALPHA, abgrToCssRgba, packAbgr } from './colorBits'
 import { recordingCanvas } from './recordingCanvas'
 import { svgCanvas } from './svgCanvas'
 
@@ -726,7 +726,7 @@ test('faded strokes paint opaque in one layer under the rest, laid down once', (
   })
   renderer.render([1, 1, 1, 0])
   const svg = markup()
-  const layer = /<g opacity="0.18">(.*?)<\/g>/.exec(svg)
+  const layer = new RegExp(`<g opacity="${FADED_ALPHA}">(.*?)</g>`).exec(svg)
   expect(layer?.[1]?.match(/stroke="rgb\(160,160,160\)"/g)).toHaveLength(2)
   expect(layer?.[1]).not.toContain('stroke-opacity')
   expect(svg.indexOf('</g>')).toBeLessThan(svg.indexOf('rgb(0,0,255)'))

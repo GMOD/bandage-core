@@ -69,7 +69,7 @@ test('a lifted walk keeps its nodes and fades the rest', () => {
     shown(batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!)
   expect(alphaOf(lifted, 'a1+')).toBe(alphaOf(plain, 'a1+'))
   expect(alphaOf(lifted, 'v1+')).toBe(alphaOf(plain, 'v1+'))
-  expect(alphaOf(lifted, 'v2+')).toBeLessThan(alphaOf(plain, 'v2+') / 4)
+  expect(alphaOf(lifted, 'v2+')).toBeLessThan(alphaOf(plain, 'v2+') / 3)
 })
 
 test("a lifted walk's links carry its lane colour, the others fade", () => {
@@ -80,7 +80,7 @@ test("a lifted walk's links carry its lane colour, the others fade", () => {
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
   expect(strokeOf(lifted, 2).color).toBe(one.walks[0]!.colors.get('v1+'))
   expect(strokeOf(lifted, 0).thickness).toBe(strokeOf(plain, 0).thickness)
-  expect(shown(strokeOf(lifted, 0))).toBeLessThan(shown(strokeOf(plain, 0)) / 4)
+  expect(shown(strokeOf(lifted, 0))).toBeLessThan(shown(strokeOf(plain, 0)) / 2)
 })
 
 test('two lifted walks each keep a lane, missing where a walk does not go', () => {
@@ -118,7 +118,7 @@ test('a node painted in path stripes fades off the lifted walk too', () => {
   expect(alphasOf(plain, 'v1+')).toHaveLength(2)
   expect(alphasOf(lifted, 'v1+')).toEqual(alphasOf(plain, 'v1+'))
   for (const [i, alpha] of alphasOf(lifted, 'v2+').entries()) {
-    expect(alpha).toBeLessThan(alphasOf(plain, 'v2+')[i]! / 4)
+    expect(alpha).toBeLessThan(alphasOf(plain, 'v2+')[i]! / 3)
   }
 })
 
@@ -138,12 +138,12 @@ test('a focus with no walks keeps its nodes and links as drawn, the rest fades',
   }
   expect(strokesOf(focused, 'a1+')).toEqual(strokesOf(plain, 'a1+'))
   expect(shown(strokesOf(focused, 'v2+')[0]!)).toBeLessThan(
-    shown(strokesOf(plain, 'v2+')[0]!) / 4,
+    shown(strokesOf(plain, 'v2+')[0]!) / 3,
   )
   const edgeOf = (batch: typeof plain, edge: number) =>
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
   expect(edgeOf(focused, 2)).toEqual(edgeOf(plain, 2))
-  expect(shown(edgeOf(focused, 0))).toBeLessThan(shown(edgeOf(plain, 0)) / 4)
+  expect(shown(edgeOf(focused, 0))).toBeLessThan(shown(edgeOf(plain, 0)) / 2)
   const ribbons = build(focus, true)
   const plainRibbons = build(undefined, true)
   expect(edgeOf(ribbons, 2).color).toBe(edgeOf(plainRibbons, 2).color)

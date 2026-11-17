@@ -37,7 +37,7 @@ export function normalizedRgbToCssRgba(
 }
 
 // how strongly what is off the lifted walks shows
-export const FADED_ALPHA = 0.18
+export const FADED_ALPHA = 0.3
 
 // The same colour at a fraction of its alpha, so a faded node reads as the
 // same ink through it on any background.
