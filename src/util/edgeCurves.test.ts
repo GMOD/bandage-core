@@ -567,3 +567,59 @@ describe('skips at one site', () => {
     expect(heightPx(curves.get(0)!)).toBeGreaterThan(30)
   })
 })
+
+describe('a dashed skip whose route runs along the reference it skips', () => {
+  const backbone: GraphNode[] = [0, 1, 2].map(i => ({
+    id: `n${i}+`,
+    name: `n${i}`,
+    length: 10,
+    depth: 1,
+    stable: { refName: 'chr1', start: i * 10, rank: 0 },
+  }))
+  const positions = Object.fromEntries(
+    backbone.map((n, i) => [
+      n.id,
+      [
+        { x: i * 10, y: 0 },
+        { x: i * 10 + 10, y: 0 },
+      ],
+    ]),
+  )
+  const skipAlong = (scale: number, route: NodeSegment[]) => {
+    const curves = baseEdgeCurves(
+      positions,
+      { name: 'skip', nodes: backbone, edges: [{ from: 'n0+', to: 'n2+' }] },
+      { scaleX: scale, scaleY: scale },
+      new Map([[0, ['n1+']]]),
+      0,
+      { 0: route },
+    ).get(0)!
+    let farthest = 0
+    for (const c of curves) {
+      for (let k = 0; k <= 32; k++) {
+        farthest = Math.max(
+          farthest,
+          Math.abs(curvePointAt(c, k / 32).y) * scale,
+        )
+      }
+    }
+    return farthest
+  }
+  const along = [
+    { x: 12, y: 0.5 },
+    { x: 18, y: 0.5 },
+  ]
+
+  test('arches clear of the stroke of the nodes it skips', () => {
+    expect(skipAlong(4, along)).toBeGreaterThan(12)
+  })
+
+  test('a route laid off the reference keeps its course', () => {
+    expect(skipAlong(4, [{ x: 15, y: -10 }])).toBeGreaterThan(35)
+    expect(skipAlong(4, [{ x: 15, y: -10 }])).toBeLessThan(45)
+  })
+
+  test('a skip too short on screen for its dashes keeps its route', () => {
+    expect(skipAlong(2, along)).toBeLessThan(2)
+  })
+})

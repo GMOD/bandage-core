@@ -175,6 +175,13 @@ reads them.
   that length, so a long chain of short nodes never beats out a rhythm that
   reads as a skip's dashes. A link at a node with more links, a skip, and a link
   turning strand against the reference keep their heads
+- A force layout runs each skip through a route node and the skip follows it.
+  Where most of a dashed skip's route lies within `ALONG_STRETCH_PX` of the
+  stretch of reference it skips, from its first foot through the skipped nodes
+  as laid to its last, its dashes would lie over the very nodes it skips, so it
+  is drawn instead as an arch between its feet whose apex clears that stretch,
+  on the side away from where the skipped nodes lean off its chord. A skip too
+  short on screen for its dashes keeps its route
 - `walkLift` lifts a walk out of the drawing, `facetLifts` and `facetGrid` draw
   one panel per walk, and `walkKey` describes each walk in words
 - `graphBackbone`, `backboneAssembly` and `assemblyWalk` find which assembly a

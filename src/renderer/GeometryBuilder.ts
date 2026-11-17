@@ -24,7 +24,12 @@ import {
   rampHueAt,
 } from '../referenceRampCss'
 import { referenceMidpoints } from '../referenceSpan'
-import { baseEdgeCurves, spanPx } from '../util/edgeCurves'
+import {
+  DELETION_DASH_PX,
+  baseEdgeCurves,
+  skipDashes,
+  spanPx,
+} from '../util/edgeCurves'
 import {
   dashSpans,
   ownStrand,
@@ -102,17 +107,6 @@ const MOVED_ALPHA = 0.45
 export const LIFT_BACKDROP_CSS = abgrToCssRgba(
   fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA),
 )
-// Dash period in screen px, so a dashed arc looks the same at any zoom. Dashes
-// are geometry rather than a stroke style, because only one of the two backends
-// has one; see dashCurves.
-const DELETION_DASH_PX = 11
-// dashSpans draws a dash, a gap and a dash at the fewest
-const MIN_DASHED_SKIP_PX = 3 * DELETION_DASH_PX
-
-// Whether a skip whose span on screen is `span` px holds its dashes, or draws
-// as one plain stroke
-export const skipDashes = (span: number) => span >= MIN_DASHED_SKIP_PX
-
 // A node drawn under `drawPaths` is split into one lengthwise stripe per path in
 // the graph, in the legend's own order, and a path that does not visit the node
 // leaves its slot empty. The slot is what makes carriage readable: an absence

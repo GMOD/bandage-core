@@ -21,6 +21,17 @@ export class EdgeCurves extends Map<number, BezierCurve[]> {
 
 const MIN_ARC_SPAN_PX = 1
 
+// Dash period in screen px, so a dashed arc looks the same at any zoom. Dashes
+// are geometry rather than a stroke style, because only one of the two backends
+// has one; see dashCurves.
+export const DELETION_DASH_PX = 11
+// dashSpans draws a dash, a gap and a dash at the fewest
+const MIN_DASHED_SKIP_PX = 3 * DELETION_DASH_PX
+
+// Whether a skip whose span on screen is `span` px holds its dashes, or draws
+// as one plain stroke
+export const skipDashes = (span: number) => span >= MIN_DASHED_SKIP_PX
+
 // How much higher each skip nesting another rises than the highest it nests:
 // a dashed skip's width at the default connector, 4.4 px, rounded up
 export const SKIP_LEVEL_PX = 5
@@ -29,6 +40,90 @@ const RISE_SAMPLES = 64
 // the side, as farthestPx signs it along the reference, the stress engine
 // arches a deletion's route to: over the backbone
 const ROUTES_ARCH_ABOVE = -1
+
+// A skip's route lies on the reference it skips where most of it runs within
+// this many px of that stretch's laid line: the half width of the thickest
+// node at the defaults and a dashed skip's own
+const ALONG_STRETCH_PX = 12
+const ALONG_SAMPLES = 16
+// such a skip is drawn as an arch whose apex clears that stretch by a level
+const ALONG_ARCH_PX = ALONG_STRETCH_PX + SKIP_LEVEL_PX
+
+function pointToSegmentPx(
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+) {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lengthSquared = dx * dx + dy * dy
+  const t =
+    lengthSquared > 0
+      ? Math.max(
+          0,
+          Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared),
+        )
+      : 0
+  return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy)
+}
+
+// Whether most of a skip's course lies on the stretch of reference it skips,
+// from its first foot through the skipped nodes as laid to its last, as drawn
+// on screen
+export function runsAlong(
+  curves: BezierCurve[],
+  bypassed: readonly string[],
+  nodePositions: Record<string, NodeSegment[]>,
+  axis: AxisScale,
+) {
+  const screen = (p: { x: number; y: number }) => ({
+    x: p.x * axis.scaleX,
+    y: p.y * axis.scaleY,
+  })
+  const first = curves[0]!
+  const last = curves.at(-1)!
+  const stretch = [
+    screen({ x: first.x0, y: first.y0 }),
+    ...bypassed.flatMap(id => (nodePositions[id] ?? []).map(screen)),
+    screen({ x: last.x1, y: last.y1 }),
+  ]
+  let near = 0
+  let all = 0
+  for (const c of curves) {
+    for (let k = 0; k <= ALONG_SAMPLES; k++) {
+      const p = screen(curvePointAt(c, k / ALONG_SAMPLES))
+      let onStretch = false
+      for (let i = 1; i < stretch.length && !onStretch; i++) {
+        onStretch =
+          pointToSegmentPx(p, stretch[i - 1]!, stretch[i]!) <= ALONG_STRETCH_PX
+      }
+      all++
+      near += onStretch ? 1 : 0
+    }
+  }
+  return near * 2 > all
+}
+
+// The side, as farthestPx signs it, away from where the skipped nodes lean off
+// the skip's chord, or the route's own side where they lie along it
+function archSide(
+  curves: BezierCurve[],
+  bypassed: readonly string[],
+  nodePositions: Record<string, NodeSegment[]>,
+  axis: AxisScale,
+) {
+  const { ax, ay, ux, uy } = screenChord(curves, axis)
+  let lean = 0
+  for (const id of bypassed) {
+    for (const p of nodePositions[id] ?? []) {
+      const off = (p.y * axis.scaleY - ay) * ux - (p.x * axis.scaleX - ax) * uy
+      lean = Math.abs(off) > Math.abs(lean) ? off : lean
+    }
+  }
+  return Math.abs(lean) >= 1
+    ? -Math.sign(lean)
+    : Math.sign(farthestPx(curves, axis, REACH_SAMPLES)) || ROUTES_ARCH_ABOVE
+}
 
 export function spanPx(curves: BezierCurve[], axis: AxisScale) {
   const first = curves[0]!
@@ -62,16 +157,23 @@ export function baseEdgeCurves(
       for (let ei = 0; ei < graph.edges.length; ei++) {
         const edge = graph.edges[ei]!
         const bypassed = deletions?.get(ei)
-        const arc = bypassed
-          ? edgeCurvesOf(
-              nodePositions,
-              edge,
-              axis,
-              bypassed,
-              routes?.[ei],
-              stranded,
-            )
+        const route = routes?.[ei]
+        const routed = bypassed
+          ? edgeCurvesOf(nodePositions, edge, axis, bypassed, route, stranded)
           : undefined
+        const arc =
+          bypassed &&
+          route &&
+          routed &&
+          skipDashes(spanPx(routed, axis)) &&
+          runsAlong(routed, bypassed, nodePositions, axis)
+            ? archOf(
+                routed,
+                axis,
+                ALONG_ARCH_PX *
+                  archSide(routed, bypassed, nodePositions, axis),
+              )
+            : routed
         const drawsArc =
           arc !== undefined && spanPx(arc, axis) >= MIN_ARC_SPAN_PX
         const edgeCurves = drawsArc

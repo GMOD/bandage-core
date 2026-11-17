@@ -24,11 +24,11 @@ import {
   REFERENCE_RAMP_ALT_COLOR,
   packHsl,
   rampFraction,
-  skipDashes,
 } from './renderer/GeometryBuilder'
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
+import { skipDashes } from './util/edgeCurves'
 import { curvePointAt } from './util/geometry'
 import { segmentMeetsBox } from './util/hitDetection'
 import { encodingStops } from './walkEncoding'
