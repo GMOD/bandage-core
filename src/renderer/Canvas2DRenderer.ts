@@ -25,8 +25,8 @@ import type {
 // A link that skips reference sequence is drawn over the nodes it skips, since
 // the dashes are the only mark a deletion has, and so is a link turning strand
 // against the reference, whose ends lie under the nodes it joins wherever the
-// layout puts them together, and a link whose ends the layout lays apart along
-// nodes; a plain link lies under them.
+// layout puts them together, and a link the nodes would hide, its ends laid
+// apart along them (linksAlongNodes); every other plain link lies under them.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D

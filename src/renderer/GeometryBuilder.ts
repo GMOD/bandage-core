@@ -1723,7 +1723,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     string,
     { passage: RunPassage; side: 'into' | 'out' }
   >()
-  // the thread a walk's visit to a node runs on, by the visit's number
   const threadOfVisit = (lane: number, id: string, visit: number) =>
     Math.max(0, threads?.[lane]?.threadPasses.get(id)?.indexOf(visit - 1) ?? 0)
   liftedWalks.forEach((walk, lane) => {
@@ -2157,7 +2156,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
     const skipMark = deletions?.has(ei) ? { skip: true, span: arcPx } : {}
-    const overMark = turnsAgainstReference(edge) ? { turn: true } : {}
+    const turnMark = turnsAgainstReference(edge) ? { turn: true } : {}
     const dashesOf = (curves: BezierCurve[]) =>
       dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
@@ -2166,7 +2165,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       color: number,
     ) => {
       if (!dashed) {
-        edgeCurves.push({ curves, thickness, color, ...skipMark, ...overMark })
+        edgeCurves.push({ curves, thickness, color, ...skipMark, ...turnMark })
         return
       }
       for (const dash of dashesOf(curves)) {
@@ -2175,7 +2174,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           thickness,
           color,
           ...skipMark,
-          ...overMark,
+          ...turnMark,
         })
       }
     }
@@ -2203,7 +2202,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         endNormal,
         endOffsetX,
         ...skipMark,
-        ...overMark,
+        ...turnMark,
       })
     }
     const arrowOn = (curves: BezierCurve[]) => {

@@ -121,8 +121,8 @@ interface EdgeRow {
   // a link reading one reference node as the reference does and the other
   // against it, which the canvas paints over the nodes, as a skip
   turn: boolean
-  // a plain link whose ends lie apart along drawn nodes, which the canvas
-  // paints over them, as a skip
+  // a plain link the nodes would hide, its ends laid apart along them, which
+  // the canvas paints over them, as a skip
   along: boolean
   walk: number | null
   // at the node the link leaves
