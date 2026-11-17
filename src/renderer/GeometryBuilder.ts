@@ -2611,7 +2611,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     y: p.y * scale * yToX,
   })
   const alongNodes = linksAlongNodes(
-    nodeStrokes.map(stroke => stroke.points.map(onScreen)),
+    nodeStrokes.map(stroke => ({
+      points: stroke.points.map(onScreen),
+      halfWidth: stroke.thickness,
+    })),
     edgeCurves.flatMap((stroke, k) => {
       const last = stroke.curves.at(-1)
       return stroke.curves[0] && last && !stroke.skip && !stroke.turn

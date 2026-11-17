@@ -13,18 +13,23 @@ const row = (x0: number, x1: number, y = 0) => [
   { x: x1, y },
 ]
 
+const node = (points: { x: number; y: number }[], halfWidth = 3) => ({
+  points,
+  halfWidth,
+})
+
 describe('linksAlongNodes', () => {
   test('a link whose ends lie 3 px or more apart along a node is along it', () => {
     expect([
       ...linksAlongNodes(
-        [row(0, 10), row(10, 20), row(20, 30)],
+        [node(row(0, 10)), node(row(10, 20)), node(row(20, 30))],
         [{ id: 0, a: { x: 10, y: 0 }, b: { x: 20, y: 0 } }],
       ),
     ]).toEqual([0])
   })
 
   test('a link whose ends lie under 3 px apart, or apart with no node between, is not', () => {
-    const lines = [row(0, 10), row(12, 22), row(40, 50)]
+    const lines = [node(row(0, 10)), node(row(12, 22)), node(row(40, 50))]
     const links = [
       { id: 0, a: { x: 10, y: 0 }, b: { x: 12, y: 0 } },
       { id: 1, a: { x: 22, y: 0 }, b: { x: 40, y: 0 } },
@@ -34,10 +39,10 @@ describe('linksAlongNodes', () => {
 
   test('zoomed far in, a link along a slanting node its whole length is along it, one 2 px beside it is not', () => {
     const lines = [
-      [
+      node([
         { x: 0, y: 0 },
         { x: 1_000_000, y: 1_000_000 },
-      ],
+      ]),
     ]
     const links = [
       { id: 0, a: { x: 10, y: 10 }, b: { x: 900_000, y: 900_000 } },
@@ -47,12 +52,18 @@ describe('linksAlongNodes', () => {
   })
 
   test('a link running 1 px beside a node is along it, 2 px beside it is not', () => {
-    const lines = [row(0, 30)]
+    const lines = [node(row(0, 30))]
     const links = [
       { id: 0, a: { x: 5, y: 1 }, b: { x: 25, y: 1 } },
       { id: 1, a: { x: 5, y: 2 }, b: { x: 25, y: 2 } },
     ]
     expect([...linksAlongNodes(lines, links)]).toEqual([0])
+  })
+
+  test('a link along a node too thin to cover it, which leaves it showing, is not along it', () => {
+    const lines = [node(row(0, 30), 0.4)]
+    const links = [{ id: 0, a: { x: 5, y: 0.8 }, b: { x: 25, y: 0.8 } }]
+    expect([...linksAlongNodes(lines, links)]).toEqual([])
   })
 })
 

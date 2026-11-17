@@ -1,9 +1,12 @@
 import { SMALL_SITE_PX } from '../levelOfDetail'
 
-// Plain links paint under the nodes, so one whose ends the layout lays
-// SMALL_SITE_PX or more apart with node lines along half the line between
-// them or more is covered by them unless painted over them, as a skip is.
+// Plain links paint under the nodes. One whose ends the layout lays
+// SMALL_SITE_PX or more apart, with node lines along half the line between
+// them or more, and whose line the nodes' ink leaves under LEAST_SHOWN_PX or
+// under half its length clear, is hidden by them unless painted over them,
+// as a skip is.
 export const ALONG_NODE_PX = 1
+export const LEAST_SHOWN_PX = 2
 const END_INSET_PX = 0.75
 const SAMPLE_STEP_PX = 0.5
 const MOST_SAMPLES = 64
@@ -15,6 +18,11 @@ const CELL_OFFSET = 2 ** 25
 interface Point {
   x: number
   y: number
+}
+
+export interface NodeLine {
+  points: Point[]
+  halfWidth: number
 }
 
 export interface LinkEnds {
@@ -30,7 +38,13 @@ export interface Bounds {
   maxY: number
 }
 
-function distanceToSegment(p: Point, a: Point, b: Point) {
+interface Segment {
+  a: Point
+  b: Point
+  halfWidth: number
+}
+
+function distanceToSegment(p: Point, { a, b }: Segment) {
   const dx = b.x - a.x
   const dy = b.y - a.y
   const len2 = dx * dx + dy * dy
@@ -52,7 +66,7 @@ const meets = (a: Point, b: Point, bounds: Bounds, margin: number) =>
 // and a long link is sampled at MOST_SAMPLES points, so a drawing zoomed far
 // in costs about what it costs at the fit
 export function linksAlongNodes(
-  lines: Point[][],
+  lines: NodeLine[],
   links: LinkEnds[],
   bounds?: Bounds,
 ) {
@@ -62,8 +76,10 @@ export function linksAlongNodes(
     maxX: -Infinity,
     maxY: -Infinity,
   }
+  let widest = ALONG_NODE_PX
   for (const line of lines) {
-    for (const p of line) {
+    widest = Math.max(widest, line.halfWidth)
+    for (const p of line.points) {
       span.minX = Math.min(span.minX, p.x)
       span.minY = Math.min(span.minY, p.y)
       span.maxX = Math.max(span.maxX, p.x)
@@ -71,15 +87,15 @@ export function linksAlongNodes(
     }
   }
   const across = Math.max(span.maxX - span.minX, span.maxY - span.minY, 0)
-  const cellPx = Math.max(CELL_PX, across / MOST_CELLS_ACROSS)
-  const stepPx = cellPx / 2
-  const reachPx = ALONG_NODE_PX + stepPx / 2
+  const cellPx = Math.max(CELL_PX, 4 * widest, across / MOST_CELLS_ACROSS)
+  const stepPx = cellPx / 4
+  const reachPx = widest + stepPx / 2
   const cellAt = (x: number, y: number) =>
     (Math.floor(x / cellPx) + CELL_OFFSET) * CELL_SPAN +
     Math.floor(y / cellPx) +
     CELL_OFFSET
-  const cells = new Map<number, [Point, Point][]>()
-  const hold = (cell: number, segment: [Point, Point]) => {
+  const cells = new Map<number, Segment[]>()
+  const hold = (cell: number, segment: Segment) => {
     const held = cells.get(cell)
     if (!held) {
       cells.set(cell, [segment])
@@ -87,12 +103,12 @@ export function linksAlongNodes(
       held.push(segment)
     }
   }
-  for (const line of lines) {
-    for (let i = 0; i < line.length; i++) {
-      const a = line[Math.max(0, i - 1)]!
-      const b = line[i]!
+  for (const { points, halfWidth } of lines) {
+    for (let i = 0; i < points.length; i++) {
+      const a = points[Math.max(0, i - 1)]!
+      const b = points[i]!
       if (!bounds || meets(a, b, bounds, reachPx)) {
-        const segment: [Point, Point] = [a, b]
+        const segment = { a, b, halfWidth }
         const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / stepPx)
         for (let k = 0; k <= steps; k++) {
           const x = a.x + ((b.x - a.x) * k) / Math.max(1, steps)
@@ -105,10 +121,6 @@ export function linksAlongNodes(
       }
     }
   }
-  const onNode = (p: Point) =>
-    cells
-      .get(cellAt(p.x, p.y))
-      ?.some(([a, b]) => distanceToSegment(p, a, b) <= ALONG_NODE_PX) ?? false
   const along = new Set<number>()
   for (const { id, a, b } of links) {
     const length = Math.hypot(b.x - a.x, b.y - a.y)
@@ -120,18 +132,19 @@ export function linksAlongNodes(
       )
       const spacing =
         samples < MOST_SAMPLES ? SAMPLE_STEP_PX : inner / (MOST_SAMPLES - 1)
-      const half = Math.ceil(samples / 2)
       let on = 0
-      let off = 0
-      for (let k = 0; k < samples && on < half && off <= samples - half; k++) {
+      let clear = 0
+      for (let k = 0; k < samples; k++) {
         const u = (END_INSET_PX + k * spacing) / length
-        if (onNode({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u })) {
-          on++
-        } else {
-          off++
-        }
+        const p = { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }
+        const near = cells.get(cellAt(p.x, p.y)) ?? []
+        on += near.some(s => distanceToSegment(p, s) <= ALONG_NODE_PX) ? 1 : 0
+        clear += near.some(s => distanceToSegment(p, s) <= s.halfWidth) ? 0 : 1
       }
-      if (on >= half) {
+      if (
+        2 * on >= samples &&
+        clear * spacing < Math.max(LEAST_SHOWN_PX, length / 2)
+      ) {
         along.add(id)
       }
     }
