@@ -106,7 +106,7 @@ function amountOf(bp: number) {
 
 // How much of a gene the drawing holds, when that is not all of it, each
 // amount in its own unit and a unit they share said once: `35 of 132.8 kb`,
-// `8.3 kb of 1.4 Mb`. None where the two read the same. On the reference that
+// `8.2 kb of 1.4 Mb`. None where the two read the same. On the reference that
 // is the drawn backbone's share, on a haplotype's own contig its walk
 // records' share
 export function geneCoverageNote(pin: GenePin) {
