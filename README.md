@@ -98,20 +98,21 @@ reads them.
   sequence, an exon nor an allele off the reference. A host's key draws it as
   `NOT_LOADED_CSS` around `NOT_LOADED_FILL_CSS` and names it `NOT_LOADED_TEXT`,
   as `figureSvg`'s key does. Its length is written on its loop, or stacked off
-  the loop with a leader, longest first, while fewer stacked lengths stand than
-  the pane rations node labels, and only where its box lies whole on the pane.
-  Placeholders drawn too short to hold their length are specks, and specks
-  nearer one another than a label is tall take one length between them, the
-  longest's; `layoutLabels` returns the placeholders left without one as
-  `unlabelled`, and a host hands that to `graphKey`, which writes
-  `N unlabelled, X or less each` under the entry. In the tube map, where loading
-  turns one box into its nodes, it is a box with a dashed outline and no tint,
-  captioned `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts
-  placeholders, which graph-walks' `nodeLimit` does not, and its refusal says
-  how many there are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`,
-  which only bandage-core reads back: another tool ignores the tag and takes the
-  line for a real segment off the reference. A GFA meant for another tool must
-  be written from a cut with every piece loaded
+  the loop's middle with a leader, longest first, while fewer stacked lengths
+  stand than the pane rations node labels, and only where its box lies whole on
+  the pane. Placeholders whose middles lie nearer one another than a label is
+  tall take one length between them, the longest's, whether or not their loops
+  could hold it, and two lengths of one text stand at least a line apart;
+  `layoutLabels` returns the placeholders left without one as `unlabelled`, and
+  a host hands that to `graphKey`, which writes `N unlabelled, X or less each`
+  under the entry. In the tube map, where loading turns one box into its nodes,
+  it is a box with a dashed outline and no tint, captioned
+  `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts placeholders,
+  which graph-walks' `nodeLimit` does not, and its refusal says how many there
+  are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`, which only
+  bandage-core reads back: another tool ignores the tag and takes the line for a
+  real segment off the reference. A GFA meant for another tool must be written
+  from a cut with every piece loaded
 - `GraphTables` mirrors graph-walks 7's, and `typecheck/graphWalks.ts` holds the
   two equal. `departures` is required, so tables from a reader that states none
   fail to compile; a source with none, such as GFA text or a gbz-base cut,
