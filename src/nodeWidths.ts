@@ -132,22 +132,27 @@ function depthWidthFactor(depth: number, mean: number) {
   return Math.min(MAX_FACTOR, Math.max(MIN_FACTOR, Math.sqrt(depth / mean)))
 }
 
-// The ends of the depth scale, thickest first, each as wide as a node of that
-// depth draws; none where every node has one depth
-export function depthKey(graph: Graph, contigThickness: number) {
+// The ends of the depth scale among the `shown` nodes, or every node, thickest
+// first, each as wide as a node of that depth draws against the whole graph's
+// mean; one where they share a depth, none where there are none
+export function depthKey(
+  graph: Graph,
+  contigThickness: number,
+  shown?: ReadonlySet<string>,
+) {
   let min = Infinity
   let max = -Infinity
-  for (const { depth } of graph.nodes) {
-    min = Math.min(min, depth)
-    max = Math.max(max, depth)
+  for (const { id, depth } of graph.nodes) {
+    if (!shown || shown.has(id)) {
+      min = Math.min(min, depth)
+      max = Math.max(max, depth)
+    }
   }
   const mean = meanDepth(graph)
-  return min < max
-    ? [max, min].map(depth => ({
-        depth,
-        widthPx: contigThickness * depthWidthFactor(depth, mean),
-      }))
-    : []
+  return (min < max ? [max, min] : min === max ? [max] : []).map(depth => ({
+    depth,
+    widthPx: contigThickness * depthWidthFactor(depth, mean),
+  }))
 }
 
 // How wide a node is drawn, in screen px. One function for the geometry and

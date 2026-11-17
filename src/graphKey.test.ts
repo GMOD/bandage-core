@@ -6,6 +6,7 @@ import { convertGFAToGraph } from './gfa/gfaConverter'
 import { drawnMarks, graphKey, tooSmallText, unlabelledText } from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
 import { layoutLabels } from './labelLayout'
+import { polylinePointAt } from './layout/mergeRuns'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform } from './pipeline'
@@ -22,6 +23,7 @@ import { walkLift } from './walkHighlight'
 
 import type { GraphKeyOptions, GraphKeySection } from './graphKey'
 import type { Fold, Site, SmallSites } from './levelOfDetail'
+import type { Bounds } from './pipeline'
 import type { BuildOptions, ReferenceRamp } from './renderer/GeometryBuilder'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
@@ -376,11 +378,12 @@ test('nodes not shown keep their line for the count, blank, for a host that plac
 })
 
 test('the outline is keyed as exons, or as genes where every gene is one exon', () => {
+  const v1 = graph.nodes.find(n => n.name === 'v1')!.id
   const pin = (exons: { start: number; end: number }[]) => ({
     gene: { name: 'G', refName: 'chr6', start: 0, end: 9, strand: 1, exons },
     exons: 'M0,0',
-    exonsByNode: [{ nodeId: 'v1', d: 'M0,0', stretches: [] }],
-    nodeIds: new Set(['v1']),
+    exonsByNode: [{ nodeId: v1, d: 'M0,0', stretches: [] }],
+    nodeIds: new Set([v1]),
     at: { x: 0, y: 0 },
     covered: 1,
     anchored: 1,
@@ -399,6 +402,67 @@ test('the outline is keyed as exons, or as genes where every gene is one exon', 
       { genePins: [pin([{ start: 0, end: 9 }])], genesFrom: 'genes.gff3' },
     ),
   ).toContain('gene, from genes.gff3')
+})
+
+// the box round a node's middle, in layout units
+function middleOf(layout: LayoutResult, id: string) {
+  const line = layout.nodePositions[id]!
+  const { x, y } = polylinePointAt(line, 0.5)
+  return { minX: x - 0.01, minY: y - 0.01, maxX: x + 0.01, maxY: y + 0.01 }
+}
+
+// rand-chr8-3, rand-chr17-3, rand-chr3-3 and Y-rand-2 in the linear view cut
+// past their windows, and the key listed an exon whose only outlines lay on
+// the cut beyond the pane
+test('an exon is keyed only where its outline meets the view the pane shows', () => {
+  const { layout, batch } = drawn(graph)
+  const id = graph.nodes.find(n => n.name === 'v1')!.id
+  const line = layout.nodePositions[id]!
+  const pin = {
+    gene: {
+      name: 'G',
+      refName: 'chr6',
+      start: 0,
+      end: 9,
+      strand: 1,
+      exons: [{ start: 1, end: 3 }],
+    },
+    exons: 'M0,0',
+    exonsByNode: [{ nodeId: id, d: 'M0,0', stretches: [line] }],
+    nodeIds: new Set([id]),
+    at: line[0]!,
+    covered: 1,
+    anchored: 1,
+    body: [],
+    onReference: true,
+    walks: 1,
+  }
+  const keyed = (view?: Bounds) =>
+    graphKey(graph, layout, {
+      marks: drawnMarks([batch], view),
+      genePins: [pin],
+    })
+      .flatMap(section => section.entries)
+      .map(entry => entry.text)
+  const other = graph.nodes.find(n => n.name === 'v3')!.id
+  expect(keyed()).toContain('exon')
+  expect(keyed(middleOf(layout, id))).toContain('exon')
+  expect(keyed(middleOf(layout, other))).not.toContain('exon')
+})
+
+// Y-rand-10's pane showed the reference's nodes, walked by GRCh38 alone,
+// drawn as one walk is; the six haplotypes' walks stepped only four nodes
+// at the cut's left end, off the pane, and the key said "7 walks | 1 walk"
+test('the node thicknesses keyed are the thickest and thinnest the view shows', () => {
+  const { layout, batch } = drawn(graph)
+  const idOf = (name: string) => graph.nodes.find(n => n.name === name)!.id
+  const thicknesses = (view?: Bounds) =>
+    graphKey(graph, layout, { marks: drawnMarks([batch], view) })
+      .find(section => section.id === 'node-width')
+      ?.entries.map(entry => entry.text)
+  expect(thicknesses()).toEqual(['2 walks', '1 walk'])
+  expect(thicknesses(middleOf(layout, idOf('a1')))).toEqual(['1 walk'])
+  expect(thicknesses(middleOf(layout, idOf('v1')))).toEqual(['2 walks'])
 })
 
 test("the thickness keys give the scale's two ends, links only where they widen by walks", () => {

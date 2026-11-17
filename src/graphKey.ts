@@ -5,7 +5,7 @@ import { busiestEdge, edgeWidthFactor } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp } from './graphLabels'
-import { foldedUnderBp } from './levelOfDetail'
+import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import { depthKey, frequencyKey } from './nodeWidths'
 import { referenceLabel } from './reference'
 import {
@@ -29,6 +29,8 @@ import {
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
+import { curvePointAt } from './util/geometry'
+import { segmentMeetsBox } from './util/hitDetection'
 import { encodingStops } from './walkEncoding'
 import { fadedKey } from './walkHighlight'
 import { rangeText, walkKey } from './walkKey'
@@ -37,9 +39,11 @@ import type { EdgeWidth } from './edgeWidths'
 import type { GenePin } from './genes/genePins'
 import type { UnlabelledPlaceholders } from './graphLabels'
 import type { NodeWidth } from './nodeWidths'
+import type { Bounds } from './pipeline'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
+import type { BezierCurve } from './util/geometry'
 import type { LiftedWalk, WalkLift } from './walkHighlight'
 
 // The graph's key as data: what each mark the drawing holds means, in the
@@ -118,10 +122,18 @@ export interface GraphKeySection {
 // node; nodes of more than one thickness; each lifted walk's passes, by lane;
 // heads along a lane, pointing back along a node or either way; the nodes and
 // skips folded as too small to draw. A lifted walk's lane on a skip is its
-// walk's, keyed by the walk.
+// walk's, keyed by the walk. Where a pane shows part of the drawing, `view`,
+// in layout units, a mark counts only where a stroke of it meets the view,
+// and `nodes` holds the nodes a stroke of their own draws there, which the
+// key's node thicknesses and exons are read off; the folded counts are the
+// whole drawing's. Whether the nodes vary in thickness is the whole
+// drawing's too, so a view of one thickness still keys what it shows.
 export function drawnMarks(
   batches: readonly (Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'> &
-    Partial<Pick<RenderBatch, 'arrows' | 'collapsed'>>)[],
+    Partial<
+      Pick<RenderBatch, 'arrows' | 'collapsed' | 'nodeStrokeRuns' | 'laneOnly'>
+    >)[],
+  view?: Bounds,
 ) {
   const marks = {
     dashedSkip: false,
@@ -139,9 +151,47 @@ export function drawnMarks(
     foldedNodes: new Set<string>(),
     foldedSkips: new Set<number>(),
     foldedUnderBp: 0,
+    nodes: undefined as Set<string> | undefined,
+    view,
   }
+  const inView = (points: readonly { x: number; y: number }[]) =>
+    !view || lineMeetsView(points, view)
+  const curveInView = ({ curves }: { curves: readonly BezierCurve[] }) =>
+    !view ||
+    curves.some(curve =>
+      lineMeetsView(
+        CURVE_SAMPLES.map(t => curvePointAt(curve, t)),
+        view,
+      ),
+    )
   let width: number | undefined
-  for (const { edgeCurves, nodeStrokes, arrows = [], collapsed } of batches) {
+  for (const batch of batches) {
+    const { nodeStrokeRuns, nodeStrokes } = batch
+    if (nodeStrokeRuns) {
+      const notDrawn = nodesNotDrawn(batch)
+      const nodes = (marks.nodes ??= new Set())
+      for (const [id, { start, count }] of nodeStrokeRuns) {
+        let drawn = false
+        for (let i = start; i < start + count && !drawn; i++) {
+          const stroke = nodeStrokes[i]!
+          drawn = !stroke.placeholder && inView(stroke.points)
+        }
+        if (drawn && !notDrawn.has(id)) {
+          nodes.add(id)
+        }
+      }
+    }
+  }
+  for (const batch of batches) {
+    const { nodeStrokes, collapsed } = batch
+    const arrows = (batch.arrows ?? []).filter(a => inView([a]))
+    const edgeCurves = batch.edgeCurves.filter(curveInView)
+    for (const { placeholder, thickness } of nodeStrokes) {
+      if (!placeholder) {
+        marks.widthsVary ||= width !== undefined && width !== thickness
+        width = thickness
+      }
+    }
     if (collapsed) {
       marks.foldedUnderBp = Math.max(
         marks.foldedUnderBp,
@@ -167,19 +217,12 @@ export function drawnMarks(
         }
       }
     }
-    for (const {
-      placeholder,
-      walk,
-      pass = 0,
-      color,
-      thickness,
-    } of nodeStrokes) {
+    const shownStrokes = nodeStrokes.filter(stroke => inView(stroke.points))
+    for (const { placeholder, walk, pass = 0, color } of shownStrokes) {
       if (placeholder) {
         marks.placeholder = true
       } else {
         marks.plainNode ||= walk === undefined
-        marks.widthsVary ||= width !== undefined && width !== thickness
-        width = thickness
       }
       if (color === REFERENCE_RAMP_ALT_COLOR) {
         marks.offReference = true
@@ -188,7 +231,7 @@ export function drawnMarks(
         marks.threads = true
       }
     }
-    for (const strokes of [edgeCurves, nodeStrokes]) {
+    for (const strokes of [edgeCurves, shownStrokes]) {
       for (const { walk, walkPass = -1 } of strokes) {
         if (walk !== undefined && walkPass >= 0) {
           const drawn = marks.passes.get(walk) ?? new Set<number>()
@@ -209,6 +252,19 @@ export function drawnMarks(
 }
 
 export type DrawnMarks = ReturnType<typeof drawnMarks>
+
+const CURVE_SAMPLES = Array.from({ length: 9 }, (_, i) => i / 8)
+
+// Whether a line, or a lone point, meets the view
+function lineMeetsView(
+  points: readonly { x: number; y: number }[],
+  view: Bounds,
+) {
+  const box = { x0: view.minX, x1: view.maxX, y0: view.minY, y1: view.maxY }
+  return points.length === 1
+    ? segmentMeetsBox(points[0]!, points[0]!, box)
+    : points.some((b, i) => i > 0 && segmentMeetsBox(points[i - 1]!, b, box))
+}
 
 export interface GraphKeyOptions {
   // the window the graph was cut for, which names the reference
@@ -450,7 +506,7 @@ export function graphKey(
   const widthEntry = (key: string, text: string, px: number, ink: number) =>
     entry(key, text, { kind: 'width', ink, px })
   const walkCount = graph.paths?.length ?? 0
-  const depths = depthKey(graph, thickness)
+  const depths = depthKey(graph, thickness, o.marks.nodes)
   // a walk looping through a repeat passes its nodes more than once, and
   // each pass counts
   const passes = (depths[0]?.depth ?? 0) > walkCount
@@ -519,7 +575,14 @@ export function graphKey(
       : []),
   ]
 
-  const marked = (o.genePins ?? []).filter(pin => pin.exonsByNode.length > 0)
+  const { nodes: shown, view } = o.marks
+  const marked = (o.genePins ?? []).filter(pin =>
+    pin.exonsByNode.some(
+      ({ nodeId, stretches }) =>
+        (!shown || shown.has(nodeId)) &&
+        (!view || stretches.some(stretch => lineMeetsView(stretch, view))),
+    ),
+  )
   const wholeGenes = marked.every(({ gene: g }) =>
     g.exons.every(e => e.start <= g.start && e.end >= g.end),
   )

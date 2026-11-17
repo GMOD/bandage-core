@@ -134,5 +134,11 @@ test('the depth key shows the thickest and thinnest nodes at the widths they dra
     { depth: 9, widthPx: drawnPx('r+') },
     { depth: 1, widthPx: drawnPx('p+') },
   ])
-  expect(depthKey(graphOf([nodes[0]!], []), 6)).toEqual([])
+  expect(depthKey(graphOf([nodes[0]!], []), 6)).toEqual([
+    { depth: 9, widthPx: 6 },
+  ])
+  expect(depthKey(graph, 6, new Set(['p+']))).toEqual([
+    { depth: 1, widthPx: drawnPx('p+') },
+  ])
+  expect(depthKey(graph, 6, new Set())).toEqual([])
 })
