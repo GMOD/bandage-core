@@ -1,6 +1,7 @@
 import { isBackbone } from './anchoredNodes'
 import { departureAt, gapParts } from './gfa/departures'
 import { linkKey } from './gfa/linkKey'
+import { onOtherWalks } from './otherWalks'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
@@ -88,36 +89,25 @@ export interface WalkLift {
   names: Set<string>
 }
 
-// What a lift's faded key says of the nodes it fades, or nothing where it
-// fades none: that they are other haplotypes' sequence when every one lies on
-// a walk the lift leaves out. Links don't decide it, since a cut keeps the
-// source graph's links between the nodes it keeps even where it drops the
-// walks that take them.
+// What a lift's faded key says of what it draws in grey, or nothing where it
+// draws none: the nodes it fades, and under a lifted walk's lanes the nodes
+// other walks share with it at their own width. That is other haplotypes when
+// every faded node lies on a walk the lift leaves out, or no walk where some lie
+// on no walk at all. Links don't decide it,
+// since a cut keeps the source graph's links between the nodes it keeps even
+// where it drops the walks that take them.
 export function fadedKey(graph: Graph, lift: WalkLift, walks: string) {
-  const lifted = new Set([...lift.names].map(n => pathOrigin(n).name))
-  const other = (name: string) => !lifted.has(pathOrigin(name).name)
-  const onOthers = new Set<string>()
-  for (const path of graph.paths ?? []) {
-    if (other(path.name)) {
-      for (const id of path.nodeIds) {
-        onOthers.add(id)
-      }
-    }
-  }
-  for (const gap of graph.gaps ?? []) {
-    if (other(gap.name)) {
-      for (const segment of gap.segments) {
-        for (const id of segment.nodes) {
-          onOthers.add(id)
-        }
-      }
-    }
-  }
-  const nodes = graph.nodes.filter(n => !lift.nodeIds.has(n.id))
-  return nodes.length > 0
-    ? nodes.every(n => onOthers.has(n.id))
-      ? 'only in other haplotypes'
-      : `nodes and links not on ${walks}`
+  const onOthers = onOtherWalks(graph, lift.names)
+  const faded = graph.nodes.filter(n => !lift.nodeIds.has(n.id))
+  const shared =
+    lift.walks.length > 0 &&
+    graph.nodes.some(n => lift.nodeIds.has(n.id) && onOthers.has(n.id))
+  return faded.length > 0 || shared
+    ? faded.every(n => onOthers.has(n.id))
+      ? 'other haplotypes'
+      : onOthers.size > 0
+        ? 'other haplotypes, or no walk'
+        : `nodes and links not on ${walks}`
     : undefined
 }
 

@@ -46,10 +46,10 @@ test('lifted walks are keyed above the drawing, one short entry each', () => {
   expect(svg).toMatch(/<tspan font-weight="bold">ref[^<]*<\/tspan>/)
 })
 
-test('the faded key calls the faded nodes other haplotypes only when a path visits each one', () => {
+test('the faded key calls the faded nodes other haplotypes, or no walk where a path visits none of some', () => {
   const ref = [{ walk: 'ref#0#chr' }]
   expect(figureSvg(graph, layout, { width: 600, walks: ref })).toContain(
-    'only in other haplotypes',
+    'other haplotypes',
   )
   const loose = anchorGraph(
     convertGFAToGraph(parseGFA(`${GFA}\nS\tx1\tA\nL\tv3\t+\tx1\t+\t0M`)),
@@ -57,7 +57,7 @@ test('the faded key calls the faded nodes other haplotypes only when a path visi
   )
   const looseLayout = layoutModeByValue('ordered').run(loose, undefined)!
   expect(figureSvg(loose, looseLayout, { width: 600, walks: ref })).toContain(
-    'nodes and links not on ref',
+    'other haplotypes, or no walk',
   )
 })
 

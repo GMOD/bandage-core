@@ -12,6 +12,7 @@ import {
   walkLaneWidthPx,
   widthNorm,
 } from '../nodeWidths'
+import { onOtherWalks } from '../otherWalks'
 import {
   PATH_LIGHTNESS,
   PATH_SATURATION,
@@ -2456,6 +2457,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
+  const sharedWithOthers = highlight?.walks.length
+    ? onOtherWalks(graph, highlight.names)
+    : undefined
   let thinnestStroke = Infinity
   let thickestStroke = -Infinity
   for (const [nodeId, laidOut] of Object.entries(nodePositions)) {
@@ -2495,18 +2499,20 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       !drawable || (node.placeholder && !faded)
         ? []
         : lanes
-          ? liftedWalks.flatMap((walk, lane) =>
-              walk.colors.get(nodeId) === undefined ||
-              (threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS).length ===
-                0
-                ? []
-                : [
-                    laneHalfWidth(
-                      walkLaneWidthPx(width, liftedWalks.length),
-                      lane,
-                    ),
-                  ],
-            )
+          ? sharedWithOthers?.has(nodeId)
+            ? [nodeThickness]
+            : liftedWalks.flatMap((walk, lane) =>
+                walk.colors.get(nodeId) === undefined ||
+                (threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS)
+                  .length === 0
+                  ? []
+                  : [
+                      laneHalfWidth(
+                        walkLaneWidthPx(width, liftedWalks.length),
+                        lane,
+                      ),
+                    ],
+              )
           : [striped ? slotWidth / 2 : nodeThickness]
     for (const thickness of thicknesses) {
       thinnestStroke = Math.min(thinnestStroke, thickness)
@@ -2543,6 +2549,16 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       for (const laned of walkWide?.strokes.get(nodeId) ??
         laneStrokesOf(nodeId, segments, width).map(({ stroke }) => stroke)) {
         nodeStrokes.push(laned)
+      }
+      // where walks the lift leaves out go through the node too, the node at
+      // its own width under its lanes says how many
+      if (sharedWithOthers?.has(nodeId)) {
+        nodeStrokes.push({
+          points: segments,
+          thickness: nodeThickness,
+          color: LIFT_BACKDROP_COLOR,
+          faded: true,
+        })
       }
     } else if (drawable && striped) {
       const normals = pointNormalsOf(segments, yToX)

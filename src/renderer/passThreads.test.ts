@@ -144,9 +144,14 @@ function drawn(
     drawPaths: false,
     highlight,
   })
+  // a node's lanes, without the grey underlay of walks not lifted
   const strokes = (id: string) => {
     const run = batch.nodeStrokeRuns.get(id)
-    return run ? batch.nodeStrokes.slice(run.start, run.start + run.count) : []
+    return run
+      ? batch.nodeStrokes
+          .slice(run.start, run.start + run.count)
+          .filter(s => !s.faded)
+      : []
   }
   const laneHeads = batch.arrows.filter(a => a.walk !== undefined)
   return { graph, highlight, batch, strokes, laneHeads, scale }

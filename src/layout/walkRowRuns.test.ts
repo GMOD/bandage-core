@@ -697,7 +697,7 @@ test('a walk with no fragment lifts from its stated departures, and another walk
       },
       'GRCh38',
     ),
-  ).toBe('only in other haplotypes')
+  ).toBe('other haplotypes')
 })
 
 test('a complete row with no flanks keeps its bar to its fragments, whatever its stated ends', () => {

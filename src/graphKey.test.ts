@@ -3,7 +3,13 @@ import { SHORT_SKIP_KEY, deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import { drawnMarks, graphKey, tooSmallText, unlabelledText } from './graphKey'
+import {
+  drawnMarks,
+  graphKey,
+  lanesOverUnderlays,
+  tooSmallText,
+  unlabelledText,
+} from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
 import { keyColumnBox } from './keyColumn'
 import { layoutLabels } from './labelLayout'
@@ -150,10 +156,10 @@ test('no ramp is keyed while walks are lifted, each lifted walk is', () => {
 test('the faded entry names other haplotypes only where a faded node is drawn and every one is on a walk left out', () => {
   const faded = (g: Graph, walks: string[]) =>
     entries(g, { lift: lifting(g, walks) }).find(e => e.key === 'faded')?.text
-  expect(faded(graph, [REF])).toBe('only in other haplotypes')
+  expect(faded(graph, [REF])).toBe('other haplotypes')
   expect(faded(graph, [REF, ALT])).toBeUndefined()
   const loose = load(`${GFA}\nS\tx1\tA\nL\tv3\t+\tx1\t+\t0M`, 'GRCh38')
-  expect(faded(loose, [REF])).toBe(`nodes and links not on ${REF}`)
+  expect(faded(loose, [REF])).toBe('other haplotypes, or no walk')
   expect(faded(loose, [REF, ALT])).toBe('nodes and links not on these walks')
 })
 
@@ -171,7 +177,7 @@ test('a lift leaving out only a node the layout does not place keys no faded nod
   expect(keys(loose, { lift, layout: unplaced })).not.toContain('faded')
 })
 
-test('a lift fading links and no node keys the links alone, never other haplotypes', () => {
+test('a lift fading links and no node keys the links alone, and other haplotypes once they share its nodes', () => {
   const linked = load(`${GFA}\nL\tv2\t+\ta1\t+\t0M`, 'GRCh38')
   const key = entries(linked, { lift: lifting(linked, [REF, ALT]) })
   expect(key.map(e => e.key)).not.toContain('faded')
@@ -191,9 +197,10 @@ test('a lift fading links and no node keys the links alone, never other haplotyp
     ].join('\n'),
     'GRCh38',
   )
-  expect(
-    texts(skipping, { lift: lifting(skipping, ['B#1#ctg']) }),
-  ).not.toContain('only in other haplotypes')
+  // GRCh38 shares 1 and 3 with B, so they draw grey under B's lane
+  expect(texts(skipping, { lift: lifting(skipping, ['B#1#ctg']) })).toContain(
+    'other haplotypes',
+  )
 })
 
 const SKIPPED = load(
@@ -608,15 +615,24 @@ const UNLOADED = load(
 // Three dashes at the 11 px period, as GeometryBuilder dashes a skip
 const DASHED_SPAN_PX = 33
 
+// The thicknesses a node's thickness key reads: a node with an underlay of
+// the walks not lifted is as thick as the underlay
+function thicknessesKeyed(batch: RenderBatch) {
+  const lanes = lanesOverUnderlays(batch)
+  return new Set(
+    batch.nodeStrokes.flatMap((n, i) =>
+      n.placeholder || lanes.has(i) ? [] : [n.thickness],
+    ),
+  )
+}
+
 // The census: each key entry of a drawn mark's class against the marks of
 // that class in the batch, which it classes by the strokes' own fields
 function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
   const plain = batch.nodeStrokes.filter(
     n => n.walk === undefined && !n.placeholder,
   )
-  const widths = new Set(
-    batch.nodeStrokes.filter(n => !n.placeholder).map(n => n.thickness),
-  )
+  const widths = thicknessesKeyed(batch)
   const lanes = new Set(batch.nodeStrokes.flatMap(n => n.walk ?? []))
   const skips = batch.edgeCurves.filter(e => e.skip && e.walk === undefined)
   const dashed = (span = 0) => span >= DASHED_SPAN_PX
@@ -896,9 +912,7 @@ test.each(CUTS)(
   (_, g, scene) => {
     const s = scene(g)
     const { layout, batch } = drawn(g, s)
-    const thicknesses = new Set(
-      batch.nodeStrokes.filter(n => !n.placeholder).map(n => n.thickness),
-    )
+    const thicknesses = thicknessesKeyed(batch)
     expect(batch.nodeThicknessesVary).toBe(thicknesses.size > 1)
     const [id] = Object.keys(layout.nodePositions)
     const { batch: culled } = drawn(g, {

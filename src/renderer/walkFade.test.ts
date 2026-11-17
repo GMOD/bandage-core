@@ -325,3 +325,18 @@ test("a lifted walk's link ends on the point of a node drawn as one point", () =
     batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves.at(-1)!
   expect(Math.hypot(last.x1 - 20, last.y1)).toBeLessThan(1)
 })
+
+test('a lifted node other walks share draws grey at its own width under its lanes, and only then', () => {
+  const strokesOf = (batch: ReturnType<typeof build>, id: string) => {
+    const { start, count } = batch.nodeStrokeRuns.get(id)!
+    return batch.nodeStrokes.slice(start, start + count)
+  }
+  const plain = build()
+  const alone = build(lift('alt#1#chr'))
+  const underlay = strokesOf(alone, 'v1+').filter(s => s.faded)
+  expect(underlay).toHaveLength(1)
+  expect(underlay[0]!.thickness).toBe(strokesOf(plain, 'v1+')[0]!.thickness)
+  expect(strokesOf(alone, 'a1+').some(s => s.faded)).toBe(false)
+  const both = build(lift('ref#0#chr', 'alt#1#chr'))
+  expect(both.nodeStrokes.some(s => s.faded)).toBe(false)
+})

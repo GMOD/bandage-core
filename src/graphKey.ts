@@ -114,6 +114,26 @@ export interface GraphKeySection {
   entries: GraphKeyEntry[]
 }
 
+// The lane strokes of nodes drawn with an underlay of the walks not lifted:
+// such a node is as thick as its underlay, which is what its thickness keys
+export function lanesOverUnderlays(
+  batch: Pick<RenderBatch, 'nodeStrokes'> &
+    Partial<Pick<RenderBatch, 'nodeStrokeRuns'>>,
+) {
+  const lanes = new Set<number>()
+  for (const { start, count } of batch.nodeStrokeRuns?.values() ?? []) {
+    const run = batch.nodeStrokes.slice(start, start + count)
+    if (run.some(s => s.faded) && run.some(s => s.walk !== undefined)) {
+      for (const [k, s] of run.entries()) {
+        if (s.walk !== undefined) {
+          lanes.add(start + k)
+        }
+      }
+    }
+  }
+  return lanes
+}
+
 // The classes of mark a drawing's batches hold, which the key names: a skip
 // dashed, or one plain stroke where its span on screen is too short to hold
 // the dashes; a node hollow for the bp a cut did not load; a node or link in
@@ -186,8 +206,9 @@ export function drawnMarks(
     }
     const arrows = (batch.arrows ?? []).filter(a => inView([a]))
     const edgeCurves = batch.edgeCurves.filter(curveInView)
-    for (const { placeholder, thickness } of nodeStrokes) {
-      if (!placeholder) {
+    const underLanes = lanesOverUnderlays(batch)
+    for (const [i, { placeholder, thickness }] of nodeStrokes.entries()) {
+      if (!placeholder && !underLanes.has(i)) {
         marks.widthsVary ||= width !== undefined && width !== thickness
         width = thickness
       }
