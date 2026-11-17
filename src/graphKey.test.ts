@@ -17,6 +17,7 @@ import {
   buildGeometry,
   computeReferenceRamp,
 } from './renderer/GeometryBuilder'
+import { FADED_ALPHA, fadeAbgr } from './renderer/colorBits'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { axisScaleOf, keyedView } from './viewport'
@@ -236,7 +237,7 @@ test('under a lift each skip row shows the ink its skips are stroked in', () => 
     const stroked = new Set(
       batch.edgeCurves
         .filter(e => e.skip && e.walk === undefined)
-        .map(e => e.color),
+        .map(e => (e.faded ? fadeAbgr(e.color, FADED_ALPHA) : e.color)),
     )
     expect(skipRows).toHaveLength(1)
     expect(stroked.size).toBe(1)

@@ -35,7 +35,7 @@ import {
   NOT_LOADED_FILL_COLOR,
   REFERENCE_RAMP_ALT_COLOR,
 } from './renderer/GeometryBuilder'
-import { abgrAlpha, abgrHex } from './renderer/colorBits'
+import { FADED_ALPHA, abgrAlpha, abgrHex } from './renderer/colorBits'
 import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
@@ -91,6 +91,7 @@ interface NodeRow {
   y: number
   color: string
   alpha: number
+  faded: boolean
   width: number
   walk: number | null
   // pass is a slot across the band, not a visit; walkPass -1 for none
@@ -116,6 +117,7 @@ interface EdgeRow {
   y1: number
   color: string
   alpha: number
+  faded: boolean
   width: number
   deletion: boolean
   // a link reading one reference node as the reference does and the other
@@ -268,6 +270,7 @@ interface ArrowRow {
   halfWidth: number
   color: string
   alpha: number
+  faded: boolean
   // a head the canvas strokes a white halo under, LANE_HEAD_HALO_PX each side
   halo: boolean
   // a tab past `node`'s free end, drawn without the notch: the graph runs on
@@ -286,7 +289,10 @@ function columns<T extends object>(out: Columns<T>) {
   }
 }
 
-const alphaOf = (c: number) => abgrAlpha(c) / 255
+// a faded row's alpha is the one it shows with, alone, and `faded` says it is
+// laid down as one layer with the rest
+const alphaOf = (c: number, faded?: true) =>
+  (abgrAlpha(c) / 255) * (faded ? FADED_ALPHA : 1)
 
 // a name's baseline lies about this many of its px under its middle; a
 // length's label is placed by its middle already, in 10 px text
@@ -559,6 +565,7 @@ export function figureData(
     y: [],
     color: [],
     alpha: [],
+    faded: [],
     width: [],
     walk: [],
     pass: [],
@@ -582,6 +589,7 @@ export function figureData(
     y1: [],
     color: [],
     alpha: [],
+    faded: [],
     width: [],
     deletion: [],
     turn: [],
@@ -610,6 +618,7 @@ export function figureData(
     halfWidth: [],
     color: [],
     alpha: [],
+    faded: [],
     halo: [],
     runsOn: [],
   })
@@ -636,7 +645,8 @@ export function figureData(
             x: p.x,
             y: p.y,
             color: abgrHex(s.color),
-            alpha: alphaOf(s.color),
+            alpha: alphaOf(s.color, s.faded),
+            faded: s.faded === true,
             width: s.thickness * 2,
             walk: keyRowOf(s.walk),
             pass: s.pass ?? null,
@@ -670,7 +680,8 @@ export function figureData(
             curve: i,
             ...c,
             color: abgrHex(b.color),
-            alpha: alphaOf(b.color),
+            alpha: alphaOf(b.color, b.faded),
+            faded: b.faded === true,
             width: b.thickness * 2,
             deletion: drawnDeletions.bypassed.has(edge),
             turn: b.turn === true,
@@ -708,7 +719,8 @@ export function figureData(
           length: a.length,
           halfWidth: a.halfWidth,
           color: abgrHex(a.color),
-          alpha: alphaOf(a.color),
+          alpha: alphaOf(a.color, a.faded),
+          faded: a.faded === true,
           halo: a.halo === true,
           runsOn: a.runsOn === true,
         })

@@ -336,9 +336,8 @@ export interface GraphKeyOptions {
   unlabelled?: UnlabelledPlaceholders | 'reserved'
 }
 
-// LIFT_BACKDROP_COLOR reads paler alone than faded strokes do where they
-// overlap, so the key samples it darker
-export const FADED_KEY_INK = fadeAbgr(LIFT_BACKDROP_COLOR, 0.45)
+// faded strokes paint as one layer, so the key's ink is exactly theirs
+export const FADED_KEY_INK = fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
 // what a tab past a node's free end says (renderer/runsOn.ts)
 export const RUNS_ON_KEY = 'graph runs on past what is drawn'
 export const EXON_INK = hexAbgr(EXON_COLOR)

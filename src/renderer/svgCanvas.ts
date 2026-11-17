@@ -131,6 +131,12 @@ export function svgCanvas(width: number, height: number) {
         out.push(`<path d="${d}" ${paintAttrs('fill', ctx.fillStyle)}/>`)
       }
     },
+    beginOpacityGroup(opacity: number) {
+      out.push(`<g opacity="${alpha(opacity)}">`)
+    },
+    endOpacityGroup() {
+      out.push('</g>')
+    },
     // the renderer only ever clears the whole canvas
     clearRect() {
       out.length = 0

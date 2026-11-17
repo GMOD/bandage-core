@@ -1,5 +1,6 @@
 import { getDpr, syncCanvasSize } from './canvas'
 import {
+  FADED_ALPHA,
   abgrToCssRgba,
   brightenAbgr,
   normalizedRgbToCssRgba,
@@ -27,9 +28,11 @@ import type {
 // against the reference, whose ends lie under the nodes it joins wherever the
 // layout puts them together, and a link the nodes would hide, its ends laid
 // apart along them (linksAlongNodes); every other plain link lies under them.
+// What is off the lifted walks is painted that same way into one layer of its
+// own, under everything else, and laid down once at FADED_ALPHA.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
-  readonly ctx: CanvasRenderingContext2D
+  ctx: CanvasRenderingContext2D
   private transform: TransformUniform | null = null
   private batch: RenderBatch | null = null
   private nodeHighlights: ReadonlyMap<string, number> = new Map()
@@ -120,10 +123,21 @@ export class Canvas2DRenderer implements Renderer {
     if (!batch) {
       return
     }
+    const groups = this.paintedGroups(batch)
+    this.inFadedLayer(fadedOf(groups), layer => {
+      this.paintGroups(layer, [], t)
+    })
+    this.paintGroups(plainOf(groups), groups.halos, t)
+  }
+
+  private paintGroups(
+    { links, nodes, skips, liftedNodes, arrows }: PaintedLayer,
+    halos: Arrowhead[],
+    t: TransformUniform,
+  ) {
+    const ctx = this.ctx
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    const { links, nodes, skips, liftedNodes, halos, arrows } =
-      this.paintedGroups(batch)
     for (const { color, items } of links) {
       this.strokeCurves(items, color, t)
     }
@@ -142,6 +156,36 @@ export class Canvas2DRenderer implements Renderer {
     }
   }
 
+  // Paints `layer` opaque and lays it down at FADED_ALPHA in one step: through
+  // the context's own opacity group where it has one (svgCanvas), otherwise
+  // through a scratch canvas the size of this one
+  private inFadedLayer<T extends PaintedLayer>(
+    layer: T,
+    paint: (layer: T) => void,
+  ) {
+    const ctx = this.ctx
+    if (isEmptyLayer(layer)) {
+      return
+    }
+    if (hasOpacityGroups(ctx)) {
+      ctx.beginOpacityGroup(FADED_ALPHA)
+      paint(layer)
+      ctx.endOpacityGroup()
+    } else {
+      const scratch = scratchContext(ctx.canvas.width, ctx.canvas.height)
+      this.ctx = scratch
+      try {
+        paint(layer)
+      } finally {
+        this.ctx = ctx
+      }
+      ctx.save()
+      ctx.globalAlpha = FADED_ALPHA
+      ctx.drawImage(scratch.canvas, 0, 0)
+      ctx.restore()
+    }
+  }
+
   // Grouping depends on the batch and the highlights, not on the transform, so
   // a pan or zoom redraws from the groups it already has
   private paintedGroups(batch: RenderBatch) {
@@ -157,6 +201,7 @@ export class Canvas2DRenderer implements Renderer {
       weight: e.thickness,
       last: inRun(edgeRun, i),
       skip: e.skip === true || e.turn === true || e.along === true,
+      faded: e.faded === true,
     })
     const skipOrder = overNodesLongestFirst(batch.edgeCurves)
     const nodes = widestFirst(
@@ -167,6 +212,7 @@ export class Canvas2DRenderer implements Renderer {
           weight: s.thickness,
           last: f !== undefined,
           placeholder: s.placeholder === true,
+          faded: s.faded === true,
         }
       }),
     )
@@ -183,6 +229,7 @@ export class Canvas2DRenderer implements Renderer {
         color: inRun(arrowRun, i) ? brightenAbgr(a.color, factor) : a.color,
         weight: 0,
         last: inRun(arrowRun, i),
+        faded: a.faded === true,
       })),
     })
   }
@@ -198,40 +245,45 @@ export class Canvas2DRenderer implements Renderer {
     if (!t || !batch) {
       return
     }
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
     const factor = this.highlightFactor
     const curves = runItems(batch.edgeCurves, this.edgeRun(batch.edgeCurveRuns))
-    for (const { color, items } of groupByPaint(curves, e => ({
-      color: brightenAbgr(e.color, factor),
-      weight: e.thickness,
-      last: false,
-    }))) {
-      this.strokeCurves(items, color, t)
-    }
     const lifted = [...this.liftedStrokes(batch)]
-    for (const { color, items } of widestFirst(
-      groupByPaint(lifted, ([i, f]) => ({
-        color: brightenAbgr(batch.nodeStrokes[i]!.color, f),
-        weight: batch.nodeStrokes[i]!.thickness,
-        last: false,
-        placeholder: batch.nodeStrokes[i]!.placeholder === true,
-      })),
-    )) {
-      this.strokeNodes(
-        items.map(([i]) => batch.nodeStrokes[i]!),
-        color,
-        t,
-      )
-    }
     const arrows = runItems(batch.arrows, this.edgeRun(batch.arrowRuns))
-    for (const { color, items } of groupByPaint(arrows, a => ({
-      color: brightenAbgr(a.color, factor),
-      weight: 0,
-      last: false,
-    }))) {
-      this.fillArrows(items, color, t)
+    const groups: PaintedLayer = {
+      links: groupByPaint(curves, e => ({
+        color: brightenAbgr(e.color, factor),
+        weight: e.thickness,
+        last: false,
+        faded: e.faded === true,
+      })),
+      nodes: [],
+      skips: [],
+      liftedNodes: widestFirst(
+        groupByPaint(lifted, ([i, f]) => {
+          const s = batch.nodeStrokes[i]!
+          return {
+            color: brightenAbgr(s.color, f),
+            weight: s.thickness,
+            last: false,
+            placeholder: s.placeholder === true,
+            faded: s.faded === true,
+          }
+        }),
+      ).map(g => ({
+        ...g,
+        items: g.items.map(([i]) => batch.nodeStrokes[i]!),
+      })),
+      arrows: groupByPaint(arrows, a => ({
+        color: brightenAbgr(a.color, factor),
+        weight: 0,
+        last: false,
+        faded: a.faded === true,
+      })),
     }
+    this.inFadedLayer(fadedOf(groups), layer => {
+      this.paintGroups(layer, [], t)
+    })
+    this.paintGroups(plainOf(groups), [], t)
   }
 
   private edgeRun(runs: Map<number, Run>) {
@@ -378,15 +430,20 @@ interface Paint {
   placeholder?: boolean
   // a link drawn over the nodes rather than under them
   skip?: boolean
+  // painted in the faded layer
+  faded?: boolean
 }
 
-interface PaintedGroups {
+interface PaintedLayer {
   links: Group<EdgeCurveBatch>[]
   nodes: Group<NodeStroke>[]
   skips: Group<EdgeCurveBatch>[]
   liftedNodes: Group<NodeStroke>[]
-  halos: Arrowhead[]
   arrows: Group<Arrowhead>[]
+}
+
+interface PaintedGroups extends PaintedLayer {
+  halos: Arrowhead[]
 }
 
 interface Group<T> {
@@ -395,7 +452,70 @@ interface Group<T> {
   last: boolean
   placeholder: boolean
   skip: boolean
+  faded: boolean
   items: T[]
+}
+
+function layerOf(groups: PaintedLayer, faded: boolean): PaintedLayer {
+  const keep = <T>(g: Group<T>[]) => g.filter(x => x.faded === faded)
+  return {
+    links: keep(groups.links),
+    nodes: keep(groups.nodes),
+    skips: keep(groups.skips),
+    liftedNodes: keep(groups.liftedNodes),
+    arrows: keep(groups.arrows),
+  }
+}
+
+const fadedOf = (groups: PaintedLayer) => layerOf(groups, true)
+const plainOf = (groups: PaintedLayer) => layerOf(groups, false)
+
+function isEmptyLayer({
+  links,
+  nodes,
+  skips,
+  liftedNodes,
+  arrows,
+}: PaintedLayer) {
+  return (
+    links.length +
+      nodes.length +
+      skips.length +
+      liftedNodes.length +
+      arrows.length ===
+    0
+  )
+}
+
+// A context that composites what is drawn between the two calls as one layer
+// at an opacity, as SVG's <g opacity> does
+interface OpacityGroups {
+  beginOpacityGroup(opacity: number): void
+  endOpacityGroup(): void
+}
+
+function hasOpacityGroups(ctx: object): ctx is OpacityGroups {
+  return 'beginOpacityGroup' in ctx && 'endOpacityGroup' in ctx
+}
+
+// One scratch canvas for every renderer: a frame paints synchronously, so
+// renderers never use it at the same time
+let scratch: CanvasRenderingContext2D | undefined
+
+function scratchContext(width: number, height: number) {
+  const ctx =
+    scratch ?? document.createElement('canvas').getContext('2d') ?? undefined
+  if (!ctx) {
+    throw new Error('Canvas 2D context not available')
+  }
+  scratch = ctx
+  if (ctx.canvas.width !== width || ctx.canvas.height !== height) {
+    ctx.canvas.width = width
+    ctx.canvas.height = height
+  } else {
+    ctx.clearRect(0, 0, width, height)
+  }
+  return ctx
 }
 
 // Items bucketed by what they are painted with, in first-seen order, with the
@@ -414,14 +534,23 @@ function groupByPaint<T>(
       last,
       placeholder = false,
       skip = false,
+      faded = false,
     } = paintOf(item, i)
     const into = last ? deferred : groups
-    const key = `${color}:${weight}:${placeholder}:${skip}`
+    const key = `${color}:${weight}:${placeholder}:${skip}:${faded}`
     const group = into.get(key)
     if (group) {
       group.items.push(item)
     } else {
-      into.set(key, { color, weight, last, placeholder, skip, items: [item] })
+      into.set(key, {
+        color,
+        weight,
+        last,
+        placeholder,
+        skip,
+        faded,
+        items: [item],
+      })
     }
   }
   return [...groups.values(), ...deferred.values()]
@@ -443,6 +572,7 @@ function paintRuns<T>(
       last,
       placeholder = false,
       skip = false,
+      faded = false,
     } = paintOf(item, i)
     const into = last ? deferred : runs
     const run = into.at(-1)
@@ -450,11 +580,20 @@ function paintRuns<T>(
       run?.color === color &&
       run.weight === weight &&
       run.placeholder === placeholder &&
-      run.skip === skip
+      run.skip === skip &&
+      run.faded === faded
     ) {
       run.items.push(item)
     } else {
-      into.push({ color, weight, last, placeholder, skip, items: [item] })
+      into.push({
+        color,
+        weight,
+        last,
+        placeholder,
+        skip,
+        faded,
+        items: [item],
+      })
     }
   }
   return [...runs, ...deferred]

@@ -36,6 +36,9 @@ export function normalizedRgbToCssRgba(
   return `rgba(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)},${alpha})`
 }
 
+// how strongly what is off the lifted walks shows
+export const FADED_ALPHA = 0.18
+
 // The same colour at a fraction of its alpha, so a faded node reads as the
 // same ink through it on any background.
 export function fadeAbgr(c: number, alpha: number) {

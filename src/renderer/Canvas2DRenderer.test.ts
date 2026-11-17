@@ -4,8 +4,9 @@ import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
 import { Canvas2DRenderer, arrowheadOutline } from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
-import { abgrToCssRgba } from './colorBits'
+import { abgrToCssRgba, packAbgr } from './colorBits'
 import { recordingCanvas } from './recordingCanvas'
+import { svgCanvas } from './svgCanvas'
 
 import type { TransformUniform } from './types'
 
@@ -699,4 +700,34 @@ describe('arrowheadOutline', () => {
     expect(tip).toEqual({ x: 100, y: 0 })
     expect(left).toEqual({ x: 80, y: 8 })
   })
+})
+
+test('faded strokes paint opaque in one layer under the rest, laid down once', () => {
+  const grey = packAbgr(160, 160, 160, 255)
+  const blue = packAbgr(0, 0, 255, 255)
+  const line = (x: number) => [
+    { x, y: 0 },
+    { x: x + 10, y: 0 },
+  ]
+  const { canvas, markup } = svgCanvas(100, 100)
+  const renderer = new Canvas2DRenderer(canvas)
+  renderer.updateTransform(TRANSFORM)
+  renderer.uploadGeometry({
+    nodeStrokes: [
+      { points: line(0), thickness: 3, color: blue },
+      { points: line(5), thickness: 2, color: grey, faded: true },
+      { points: line(10), thickness: 4, color: grey, faded: true },
+    ],
+    nodeStrokeRuns: new Map(),
+    edgeCurves: [],
+    edgeCurveRuns: new Map(),
+    arrows: [],
+    arrowRuns: new Map(),
+  })
+  renderer.render([1, 1, 1, 0])
+  const svg = markup()
+  const layer = /<g opacity="0.18">(.*?)<\/g>/.exec(svg)
+  expect(layer?.[1]?.match(/stroke="rgb\(160,160,160\)"/g)).toHaveLength(2)
+  expect(layer?.[1]).not.toContain('stroke-opacity')
+  expect(svg.indexOf('</g>')).toBeLessThan(svg.indexOf('rgb(0,0,255)'))
 })

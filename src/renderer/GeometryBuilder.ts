@@ -43,7 +43,7 @@ import {
 import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
 import { linksAlongNodes } from './alongNodes'
-import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
+import { FADED_ALPHA, abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { laneHeadPlacer } from './laneHeads'
 import { curvesPx, directedRuns, spreadHeads } from './linkRuns'
 import { runsOnTabs } from './runsOn'
@@ -101,7 +101,7 @@ const DELETION_THICKNESS_FACTOR = 2.2
 // rest, to an alpha that keeps every colour scheme's hues, only dimmer, on any
 // background.
 export const LIFT_BACKDROP_COLOR = packAbgr(160, 160, 160, 255)
-export const FADED_ALPHA = 0.18
+export { FADED_ALPHA }
 // a moved component's stub: paler than its colour, and plainer than a fade
 const MOVED_ALPHA = 0.45
 // The same fade as css, for what paints outside the batch: the strip, the
@@ -2130,10 +2130,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const plainEdgeColor = deletions?.has(ei)
       ? EDGE_DELETION_COLOR
       : EDGE_DEFAULT_COLOR
+    const edgeFaded = !!highlight && !onWalk
     const edgeColor =
-      !highlight || onWalk
-        ? plainEdgeColor
-        : fadeAbgr(plainEdgeColor, FADED_ALPHA)
+      edgeFaded && plainEdgeColor === EDGE_DEFAULT_COLOR
+        ? LIFT_BACKDROP_COLOR
+        : plainEdgeColor
+    const fadedMark = edgeFaded ? { faded: true as const } : {}
     const toNode = nodeById.get(edge.to)
     const intoHalfWidth =
       (toNode
@@ -2160,19 +2162,15 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       curves: BezierCurve[],
       thickness: number,
       color: number,
+      faded = edgeFaded,
     ) => {
+      const marks = { ...skipMark, ...turnMark, ...(faded && { faded }) }
       if (!dashed) {
-        edgeCurves.push({ curves, thickness, color, ...skipMark, ...turnMark })
+        edgeCurves.push({ curves, thickness, color, ...marks })
         return
       }
       for (const dash of dashesOf(curves)) {
-        edgeCurves.push({
-          curves: dash.curves,
-          thickness,
-          color,
-          ...skipMark,
-          ...turnMark,
-        })
+        edgeCurves.push({ curves: dash.curves, thickness, color, ...marks })
       }
     }
     const laneStroke = (
@@ -2218,7 +2216,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             })
           : undefined
       if (head) {
-        arrows.push(head)
+        arrows.push({ ...head, ...fadedMark })
       }
     }
 
@@ -2407,9 +2405,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         stroke(
           curvesAlongRun(bridge.run, baseCurves),
           runWidth(bridge.run, fromNode) / 2,
-          highlight && !onWalk
-            ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
-            : nodeInk(fromNode),
+          edgeFaded ? LIFT_BACKDROP_COLOR : nodeInk(fromNode),
         )
       } else if (inView(baseCurves)) {
         const drawn = meetingDrawnNodes(baseCurves, edge.from, edge.to)
@@ -2435,16 +2431,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         if (!inView(curves)) {
           continue
         }
-        const ribbonColor = pathColorByName(edge.pathIds![pathIdx]!)
         stroke(
           curves,
           ribbonThickness,
-          highlight &&
+          pathColorByName(edge.pathIds![pathIdx]!),
+          !!highlight &&
             (highlight.walks.length
               ? !highlight.names.has(edge.pathIds![pathIdx]!)
-              : !onWalk)
-            ? fadeAbgr(ribbonColor, FADED_ALPHA)
-            : ribbonColor,
+              : !onWalk),
         )
         if (pathIdx === arrowRibbon) {
           arrowOn(curves)
@@ -2525,9 +2519,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
 
     // Under lifted walks the lanes carry every colour, so the rest fades in
     // grey rather than in a scheme no lane is drawn in
-    const color = faded
-      ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
-      : nodeInk(node)
+    const color = faded ? LIFT_BACKDROP_COLOR : nodeInk(node)
+    const fadedMark = faded ? { faded } : {}
     const segments = run ? pointsAlongRun(run, laidOut) : laidOut
 
     const start = nodeStrokes.length
@@ -2560,12 +2553,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         nodeStrokes.push({
           points: offsetPolyline(segments, normals, offset, yToX),
           thickness: slotWidth / 2,
-          // a node off the lifted walk fades whichever way it is painted
-          color: faded ? fadeAbgr(stripe, FADED_ALPHA) : stripe,
+          color: stripe,
+          ...fadedMark,
         })
       }
     } else if (drawable) {
-      nodeStrokes.push({ points: segments, thickness: nodeThickness, color })
+      nodeStrokes.push({
+        points: segments,
+        thickness: nodeThickness,
+        color,
+        ...fadedMark,
+      })
     }
     const count = nodeStrokes.length - start
     if (count > 0) {
@@ -2614,13 +2612,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       },
       scale,
       yToX,
-      color: id =>
-        highlight && !highlight.nodeIds.has(id)
-          ? fadeAbgr(EDGE_DELETION_COLOR, FADED_ALPHA)
-          : EDGE_DELETION_COLOR,
+      color: () => EDGE_DELETION_COLOR,
     })) {
       if (!viewportBounds || headInBounds(tab, viewportBounds, scale, yToX)) {
-        arrows.push(tab)
+        arrows.push(
+          highlight && tab.node && !highlight.nodeIds.has(tab.node)
+            ? { ...tab, faded: true }
+            : tab,
+        )
       }
     }
   }

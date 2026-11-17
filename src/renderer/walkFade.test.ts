@@ -3,7 +3,11 @@ import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
 import { buildGeometry } from './GeometryBuilder'
-import { abgrAlpha } from './colorBits'
+import { FADED_ALPHA, abgrAlpha } from './colorBits'
+
+// the alpha a stroke shows with, its faded layer's included
+const shown = (stroke: { color: number; faded?: true }) =>
+  abgrAlpha(stroke.color) * (stroke.faded ? FADED_ALPHA : 1)
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3. Lifting alt out fades v2 and the
 // links it alone uses; lifting both gives each a lane of its own.
@@ -62,7 +66,7 @@ test('a lifted walk keeps its nodes and fades the rest', () => {
   const plain = build()
   const lifted = build(lift('alt#1#chr'))
   const alphaOf = (batch: typeof plain, id: string) =>
-    abgrAlpha(batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!.color)
+    shown(batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!)
   expect(alphaOf(lifted, 'a1+')).toBe(alphaOf(plain, 'a1+'))
   expect(alphaOf(lifted, 'v1+')).toBe(alphaOf(plain, 'v1+'))
   expect(alphaOf(lifted, 'v2+')).toBeLessThan(alphaOf(plain, 'v2+') / 4)
@@ -76,9 +80,7 @@ test("a lifted walk's links carry its lane colour, the others fade", () => {
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
   expect(strokeOf(lifted, 2).color).toBe(one.walks[0]!.colors.get('v1+'))
   expect(strokeOf(lifted, 0).thickness).toBe(strokeOf(plain, 0).thickness)
-  expect(abgrAlpha(strokeOf(lifted, 0).color)).toBeLessThan(
-    abgrAlpha(strokeOf(plain, 0).color) / 4,
-  )
+  expect(shown(strokeOf(lifted, 0))).toBeLessThan(shown(strokeOf(plain, 0)) / 4)
 })
 
 test('two lifted walks each keep a lane, missing where a walk does not go', () => {
@@ -111,7 +113,7 @@ test('a node painted in path stripes fades off the lifted walk too', () => {
     const { start, count } = batch.nodeStrokeRuns.get(id)!
     return batch.nodeStrokes
       .slice(start, start + count)
-      .map(stroke => abgrAlpha(stroke.color))
+      .map(stroke => shown(stroke))
   }
   expect(alphasOf(plain, 'v1+')).toHaveLength(2)
   expect(alphasOf(lifted, 'v1+')).toEqual(alphasOf(plain, 'v1+'))
@@ -135,15 +137,13 @@ test('a focus with no walks keeps its nodes and links as drawn, the rest fades',
     return batch.nodeStrokes.slice(start, start + count)
   }
   expect(strokesOf(focused, 'a1+')).toEqual(strokesOf(plain, 'a1+'))
-  expect(abgrAlpha(strokesOf(focused, 'v2+')[0]!.color)).toBeLessThan(
-    abgrAlpha(strokesOf(plain, 'v2+')[0]!.color) / 4,
+  expect(shown(strokesOf(focused, 'v2+')[0]!)).toBeLessThan(
+    shown(strokesOf(plain, 'v2+')[0]!) / 4,
   )
   const edgeOf = (batch: typeof plain, edge: number) =>
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
   expect(edgeOf(focused, 2)).toEqual(edgeOf(plain, 2))
-  expect(abgrAlpha(edgeOf(focused, 0).color)).toBeLessThan(
-    abgrAlpha(edgeOf(plain, 0).color) / 4,
-  )
+  expect(shown(edgeOf(focused, 0))).toBeLessThan(shown(edgeOf(plain, 0)) / 4)
   const ribbons = build(focus, true)
   const plainRibbons = build(undefined, true)
   expect(edgeOf(ribbons, 2).color).toBe(edgeOf(plainRibbons, 2).color)

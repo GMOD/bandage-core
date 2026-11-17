@@ -3,6 +3,9 @@ import type { BezierCurve } from '../util/geometry'
 
 // Everything the renderer draws is a stroke or a triangle stated in layout
 // units plus a screen-px weight, and the renderer projects it at draw time.
+// A `faded` item is off the lifted walks: it carries its ink opaque, and the
+// renderer paints every faded item into one layer under the rest and lays that
+// down at FADED_ALPHA, so where faded strokes overlap they keep one tone.
 // Nodes used to arrive as a triangle mesh with per-vertex normals, built for a
 // GPU backend that was never wired; stroking the polyline instead is 20-40x
 // faster on Canvas2D and needs no mesh at all (agent-docs/GRAPH_SCALE_AND_LOD.md).
@@ -33,6 +36,7 @@ export interface EdgeCurveBatch {
   // a stroke of a plain link the nodes would hide, its ends laid apart along
   // them (linksAlongNodes)
   along?: boolean
+  faded?: true
 }
 
 export interface LaneSlide {
@@ -56,6 +60,7 @@ export interface NodeStroke {
   // a lane offset at each point, where it varies along the node
   offsets?: number[]
   placeholder?: true
+  faded?: true
 }
 
 // One head per edge: its tip at (x, y) in layout units and its screen angle,
@@ -76,6 +81,7 @@ export interface Arrowhead {
   // a tab past a node's free end: the graph runs on from there past what the
   // drawing holds
   runsOn?: true
+  faded?: true
 }
 
 // A contiguous run of one batch array.

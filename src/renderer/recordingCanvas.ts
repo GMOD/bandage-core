@@ -20,6 +20,7 @@ export function recordingCanvas() {
   const fills: string[] = []
   const lineWidths: number[] = []
   const points: { x: number; y: number }[] = []
+  const opacityGroups: number[] = []
   let clears = 0
   const at = (x: number, y: number) => {
     points.push({ x, y })
@@ -48,6 +49,10 @@ export function recordingCanvas() {
       at(x, y)
     },
     fillRect: () => {},
+    beginOpacityGroup: (opacity: number) => {
+      opacityGroups.push(opacity)
+    },
+    endOpacityGroup: () => {},
     clearRect: () => {
       clears++
     },
@@ -69,6 +74,7 @@ export function recordingCanvas() {
     fills,
     lineWidths,
     points,
+    opacityGroups,
     clears: () => clears,
   }
 }
