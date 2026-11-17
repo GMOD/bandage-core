@@ -1640,6 +1640,58 @@ describe('the drawing through a folded site', () => {
     expect(into.at(-1)?.y).toBeCloseTo(out[0]?.y ?? 0, 9)
   })
 
+  // w crosses the 1 bp site at r2 twice, entering by a1 from its first and
+  // its second visit to r1, coming round by x between; it leaves the first
+  // time by a1's link to r3 and the second by r2's
+  test('a lifted walk crossing a run of folded sites twice by one link meets each crossing at the slots of its own visits, unbroken', () => {
+    const twice = load([
+      `S\tr1\t${bases(1000)}`,
+      'S\tr2\tC',
+      `S\tr3\t${bases(1000)}`,
+      'S\ta1\tT',
+      `S\tx\t${bases(1000)}`,
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr1\t+\ta1\t+\t0M',
+      'L\ta1\t+\tr3\t+\t0M',
+      'L\ta1\t+\tr2\t+\t0M',
+      'L\tr3\t+\tx\t+\t0M',
+      'L\tx\t+\tr1\t+\t0M',
+      'W\tref\t0\tchr\t0\t2001\t>r1>r2>r3',
+      'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>x>r1>a1>r2>r3',
+    ])
+    const laid = {
+      'r1+': at(0, 1000),
+      'r2+': at(1000, 1001),
+      'r3+': at(1001, 2001),
+      'a1+': at(1000, 1001, 0.5),
+      'x+': at(2001, 0, 400),
+    }
+    const batch = build(twice, laid, 0.1, {
+      highlight: walkLift(twice, [{ walk: 'ref#0#chr' }, { walk: 'w#1#chr' }]),
+    })
+    expect(folded(batch)).toEqual(['a1+'])
+    const ends = (from: string, to: string, atEnd: boolean) =>
+      lanesOf(batch, edgeIndex(twice, from, to))
+        .filter(lane => lane.walk === 1)
+        .map(lane => {
+          const curve = atEnd ? lane.curves.at(-1)! : lane.curves[0]!
+          return atEnd
+            ? { x: curve.x1, y: curve.y1 }
+            : { x: curve.x0, y: curve.y0 }
+        })
+    const into = ends('r1+', 'a1+', true)
+    const out = [...ends('a1+', 'r3+', false), ...ends('r2+', 'r3+', false)]
+    expect(into).toHaveLength(2)
+    expect(out).toHaveLength(2)
+    const apart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.hypot(a.x - b.x, a.y - b.y)
+    expect(apart(into[0]!, into[1]!)).toBeGreaterThan(0.1)
+    for (const end of into) {
+      expect(out.some(start => apart(end, start) < 1e-9)).toBe(true)
+    }
+  })
+
   // Twelve 1 bp reference nodes laid half round a circle of radius 4, each
   // with an allele laid on it, odd ones taken by one walk and even ones by
   // another, so the sites touch and make one run bent 3.2 px off the line

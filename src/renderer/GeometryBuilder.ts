@@ -368,8 +368,12 @@ interface RunPassage {
   out?: RunMeeting
 }
 
-const passageKey = (lane: number, ei: number, nodeId: string) =>
-  `${lane}\t${ei}\t${nodeId}`
+const passageKey = (
+  lane: number,
+  ei: number,
+  nodeId: string,
+  outsideThread: number,
+) => `${lane}\t${ei}\t${nodeId}\t${outsideThread}`
 
 const linkIndexes = new WeakMap<Graph, Map<string, number>>()
 
@@ -1668,6 +1672,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     b: RouteStep,
     inside: RouteStep,
     passage: RunPassage,
+    outsideThread: number,
   ) => {
     const ei = linkIndexOf(graph).get(linkKey(a.id, a.strand, b.id, b.strand))
     const sides = ei === undefined ? undefined : linkSides(ei)
@@ -1691,9 +1696,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       (collapse.nodes.has(inside.id) || collapse.edges.has(ei))
         ? outsideEnd
         : insideEnd
-    const [pass, toPass] =
-      (sides && threadPairs(lane, sides.edge.from, sides.edge.to)[0]) ??
-      FIRST_THREADS[0]
     const end =
       sides &&
       (insideAtEnd
@@ -1703,7 +1705,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             sides.fromSegments,
             sides.fromAtStart,
             lane,
-            pass,
+            outsideThread,
           )
         : laneEndOf(
             sides.edge.to,
@@ -1711,7 +1713,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             sides.toSegments,
             sides.toAtStart,
             lane,
-            toPass,
+            outsideThread,
           ))
     return ei !== undefined && at && end
       ? { ei, meeting: meetingAt(passage.path, passage.along, at, end) }
@@ -1721,8 +1723,21 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     string,
     { passage: RunPassage; side: 'into' | 'out' }
   >()
+  // the thread a walk's visit to a node runs on, by the visit's number
+  const threadOfVisit = (lane: number, id: string, visit: number) =>
+    Math.max(0, threads?.[lane]?.threadPasses.get(id)?.indexOf(visit - 1) ?? 0)
   liftedWalks.forEach((walk, lane) => {
+    const visits = new Map<string, number>()
     for (const steps of collapse.sites.length > 0 ? walk.routeSteps : []) {
+      const visitAt = steps.map(({ id }) => {
+        const visit = (visits.get(id) ?? 0) + 1
+        visits.set(id, visit)
+        return visit
+      })
+      const threadOfStep = (k: number) => {
+        const step = steps[k]
+        return step ? threadOfVisit(lane, step.id, visitAt[k]!) : 0
+      }
       let i = 0
       while (i < steps.length) {
         const run = laneRunOf(steps[i]!.id)
@@ -1735,20 +1750,24 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           const passage: RunPassage = { ...traced }
           const before = steps[i - 1]
           const after = steps[j + 1]
+          const intoThread = threadOfStep(i - 1)
+          const outThread = threadOfStep(j + 1)
           const into =
-            before && meetingRun(lane, before, steps[i]!, steps[i]!, passage)
+            before &&
+            meetingRun(lane, before, steps[i]!, steps[i]!, passage, intoThread)
           const out =
-            after && meetingRun(lane, steps[j]!, after, steps[j]!, passage)
+            after &&
+            meetingRun(lane, steps[j]!, after, steps[j]!, passage, outThread)
           passage.into = into?.meeting
           passage.out = out?.meeting
           if (into) {
-            passageAt.set(passageKey(lane, into.ei, steps[i]!.id), {
+            passageAt.set(passageKey(lane, into.ei, steps[i]!.id, intoThread), {
               passage,
               side: 'into',
             })
           }
           if (out) {
-            passageAt.set(passageKey(lane, out.ei, steps[j]!.id), {
+            passageAt.set(passageKey(lane, out.ei, steps[j]!.id, outThread), {
               passage,
               side: 'out',
             })
@@ -2317,8 +2336,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           const endOffsetX = single ? 0 : end.offset * worldPerScreenPx
           const fromShift = threaded ? start.shift : NO_SHIFT
           const toShift = threaded ? end.shift : NO_SHIFT
-          const fromRun = passageAt.get(passageKey(lane, ei, edge.from))
-          const toRun = passageAt.get(passageKey(lane, ei, edge.to))
+          const fromRun = passageAt.get(passageKey(lane, ei, edge.from, toPass))
+          const toRun = passageAt.get(passageKey(lane, ei, edge.to, pass))
           const slid = (
             p: Point,
             shift: { dx: number; dy: number },
