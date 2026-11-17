@@ -279,6 +279,37 @@ test('a figure keys the dashed links it draws as skipped reference sequence, and
   expect(plain).not.toContain(SHORT_SKIP_KEY)
 })
 
+test("at a host's frame a figure draws that pane: its height, the drawing where the frame puts it, and the key of what it shows", () => {
+  const skipped = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(`${GFA}\nL\tv1\t+\tv3\t+\t0M\nW\tdel\t1\tchr\t0\t7\t>v1>v3`),
+    ),
+    'ref',
+  )
+  const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
+  const frame = { scaleX: 3, scaleY: 3, translateX: 40, translateY: 120 }
+  const framed = figureSvg(skipped, skippedLayout, {
+    width: 600,
+    height: 300,
+    frame,
+  })
+  expect(framed).toMatch(/<svg y="\d+(\.\d+)?" width="600" height="300">/)
+  const [first] = skippedLayout.nodePositions['v1+']!
+  expect(framed).toContain(
+    `M${+(first!.x * 3 + 40).toFixed(1)} ${+(first!.y * 3 + 120).toFixed(1)}L`,
+  )
+  expect(framed).toMatch(/skips .+? sequence/)
+  const past = figureSvg(skipped, skippedLayout, {
+    width: 600,
+    height: 300,
+    frame: { ...frame, translateX: -10_000 },
+  })
+  expect(past).not.toMatch(/skips .+? sequence/)
+  expect(figureSvg(skipped, skippedLayout, { width: 600 })).toMatch(
+    /skips .+? sequence/,
+  )
+})
+
 test('a figure keys a layout whose lengths are compressed as not to scale, once', () => {
   const compressed = figureSvg(
     graph,

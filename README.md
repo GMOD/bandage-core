@@ -353,6 +353,11 @@ it is on, so the trips round the repeat can be followed one by one.
   `bandage-figure` CLI makes one from a JSON spec with no browser:
   `npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg`. See
   [docs/figures.md](docs/figures.md)
+- A host exporting what its pane shows hands `figureSvg` the pane's size and
+  its transform as `frame`: the figure then draws at that transform on a pane of
+  exactly that size, the drawing cut at its edges as the host's pane cuts it,
+  and its key lists only what that pane shows, where it would otherwise fit the
+  whole drawing. Facet panels fit their own
 - `figureData` returns what `figureSvg` would draw as columnar tables, for
   another graphics system to draw;
   [ggbandage](https://github.com/GMOD/ggbandage) draws them in ggplot2

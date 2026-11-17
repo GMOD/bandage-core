@@ -43,7 +43,7 @@ import {
 import { svgCanvas } from './renderer/svgCanvas'
 import { THREAD_PX } from './renderer/walkLanes'
 import { version } from './version'
-import { axisScaleOf } from './viewport'
+import { axisScaleOf, viewportOf } from './viewport'
 
 import type { ColorScheme } from './colorSchemes'
 import type { EdgeWidth } from './edgeWidths'
@@ -61,6 +61,7 @@ import type {
 import type { WalkRows } from './layout/walkRows'
 import type { SmallSites } from './levelOfDetail'
 import type { NodeWidth } from './nodeWidths'
+import type { Bounds } from './pipeline'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
@@ -106,6 +107,16 @@ export interface FigureOptions {
   colorDomain?: { start: number; end: number }
   // fit what was drawn rather than the window, as a popped bubble does
   fitToDrawing?: boolean
+  // the transform a host shows its drawing at, layout units to px of its
+  // `width` x `height` pane: the figure draws at it, the drawing cut at the
+  // pane's edges as the host cuts it, and keys what that pane shows, where it
+  // would otherwise fit the whole drawing. Facet panels fit their own
+  frame?: {
+    scaleX: number
+    scaleY: number
+    translateX: number
+    translateY: number
+  }
   // genes on the backbone's refNames (featuresOnBackbone), outlined on the
   // nodes that carry their exons and named under them
   genes?: GeneModel[]
@@ -463,24 +474,38 @@ export function figureSvg(
     return out.join('')
   }
 
-  // The drawing at a w by h pane: the batch for `highlight` at its fit
-  function view(highlight: WalkLift | undefined, w: number, h: number) {
-    const fit = fitTransform(
-      bounds,
-      w,
-      h,
-      pixelRows,
-      facets
-        ? {
-            padLeft: FACET_PAD_PX,
-            padTop: FACET_PAD_PX,
-            padRight: FACET_PAD_PX,
-            padBottom: FACET_PAD_PX,
-          }
-        : { padLeft: nameGutter },
-    )
+  // The drawing at a w by h pane: the batch for `highlight` at `frame`, else
+  // at its fit
+  function view(
+    highlight: WalkLift | undefined,
+    w: number,
+    h: number,
+    frame?: FigureOptions['frame'],
+  ) {
+    const fit = frame
+      ? {
+          scale: frame.scaleX,
+          translateX: frame.translateX,
+          translateY: frame.translateY,
+        }
+      : fitTransform(
+          bounds,
+          w,
+          h,
+          pixelRows,
+          facets
+            ? {
+                padLeft: FACET_PAD_PX,
+                padTop: FACET_PAD_PX,
+                padRight: FACET_PAD_PX,
+                padBottom: FACET_PAD_PX,
+              }
+            : { padLeft: nameGutter },
+        )
     if (fit) {
-      const axis = axisScaleOf(fit.scale, pixelRows)
+      const axis = frame
+        ? { scaleX: frame.scaleX, scaleY: frame.scaleY, pixelRows }
+        : axisScaleOf(fit.scale, pixelRows)
       const batch = geometry(highlight, axis)
       const t = {
         scaleX: axis.scaleX,
@@ -541,6 +566,7 @@ export function figureSvg(
   const keyed = (
     views: ReturnType<typeof view>[],
     unlabelled?: UnlabelledPlaceholders,
+    shown?: Bounds,
   ) => {
     const keys = graphKeySvg(
       graphKey(graph, layout, {
@@ -556,7 +582,10 @@ export function figureSvg(
         connectorThickness:
           o.connectorThickness ?? FIGURE_DEFAULTS.connectorThickness,
         drawsNodes: !rows && !layout.tubeMap,
-        marks: drawnMarks(views.flatMap(v => (v ? [v.batch] : []))),
+        marks: drawnMarks(
+          views.flatMap(v => (v ? [v.batch] : [])),
+          shown,
+        ),
         genePins: pins,
         unlabelled,
       }),
@@ -628,12 +657,22 @@ export function figureSvg(
     const usable = width - 2 * FIT_PADDING
     const drawn =
       pixelRows || !(bounds.w > 0) ? bounds.h : (bounds.h * usable) / bounds.w
+    const frame = o.frame
     const hAt = (header: number) =>
-      Math.max(160, Math.min(room - header, Math.ceil(drawn + 2 * FIT_PADDING)))
+      frame
+        ? room
+        : Math.max(
+            160,
+            Math.min(room - header, Math.ceil(drawn + 2 * FIT_PADDING)),
+          )
     const { drawn: laidOut, header } = settled(above => {
       const h = hAt(above)
-      const v = view(lift, width, h)
-      const key = keyed([v], v?.labels.unlabelled)
+      const v = view(lift, width, h, frame)
+      const key = keyed(
+        [v],
+        v?.labels.unlabelled,
+        frame && v ? viewportOf(v.t, v.t, width, h) : undefined,
+      )
       return {
         drawn: { v, key, h },
         header:
