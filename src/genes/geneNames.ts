@@ -56,8 +56,12 @@ function carriedBefore(a: GenePin, b: GenePin) {
       : a.gene.start < b.gene.start
 }
 
-// Which genes a drawing names, and how. A gene with no symbol is named
-// nowhere, unless no gene in the drawing has one. A gene the reference carries is named on the reference alone. A
+// Which genes a drawing names, and how. A copy on the reference whose
+// stretch the drawn nodes anchored on it mostly do not hold is named nowhere:
+// its sequence is drawn where an earlier copy the reference passed is pinned,
+// and its name would sit on the few nodes of its own. A gene with no symbol
+// is named nowhere, unless no gene in the drawing has one. A gene the
+// reference carries is named on the reference alone. A
 // copy on a lifted walk's own sequence is named too, with its haplotype. A
 // gene only shown haplotypes carry is named once, on the copy chosen by
 // carriedBefore, with its haplotype while any walk is lifted. Every other copy
@@ -67,7 +71,10 @@ export function namedGenePins(
   liftedWalks: readonly string[] = [],
 ) {
   const lifted = new Set(liftedWalks.map(name => pathOrigin(name).name))
-  const named = nameable(pins, pin => pin.gene.name)
+  const named = nameable(
+    pins.filter(pin => pin.anchored >= 0.5),
+    pin => pin.gene.name,
+  )
   const onLift = (pin: GenePin) =>
     !pin.onReference && lifted.has(pin.gene.refName)
   const namedElsewhere = new Set(

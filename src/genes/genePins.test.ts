@@ -204,3 +204,32 @@ test('a refName is the reference where any of its nodes is rank 0, whichever com
     'REFGENE · HG00097#1',
   ])
 })
+
+// pggb's chrY at 9.3-9.65 Mb walks the TSPY array's copies over one loop of
+// nodes anchored at the first: FAM197Y8 held 98% of its span on its own
+// nodes, FAM197Y2-Y7 held 3 to 21 bp of 5.6 kb each and were named round the
+// knot "FAM197Y5 · 0 of 5.6 kb"
+test("a reference copy whose stretch the reference walks over an earlier copy's nodes keeps its exons and no name", () => {
+  const graph: Graph = {
+    name: 'g',
+    nodes: [
+      anchored('r1', 0, 1000),
+      anchored('r2', 1000, 1000),
+      anchored('u', 3000, 10),
+    ],
+    edges: [],
+    paths: [{ name: 'chr1', nodeIds: ['r1', 'r2', 'r1', 'u', 'r2'], start: 0 }],
+  }
+  const pins = genePins(
+    graph,
+    [gene('FIRST', 'chr1', 0, 2000), gene('LATER', 'chr1', 2000, 4010)],
+    along(['r1', 'r2', 'u'], 0),
+  )
+  expect(
+    pins.map(p => [p.gene.name, p.anchored, p.exonsByNode.map(e => e.nodeId)]),
+  ).toEqual([
+    ['FIRST', 1, ['r1', 'r2']],
+    ['LATER', 10 / 2010, ['u']],
+  ])
+  expect(namedGenePins(pins).map(n => n.name)).toEqual(['FIRST'])
+})

@@ -59,6 +59,7 @@ function pin(at: NodeSegment): GenePin {
     nodeIds: new Set(['bb']),
     at,
     covered: 1,
+    anchored: 1,
     onReference: true,
     walks: 1,
   }
@@ -660,9 +661,7 @@ test('a gene the cut holds a sliver of says how much in the unit of the sliver, 
   expect(geneCoverageNote(gene(1_380_350, 8231))).toBe('8.2 kb of 1.4 Mb')
   expect(geneCoverageNote(gene(5603, 3))).toBe('3 bp of 5.6 kb')
   expect(geneCoverageNote(gene(5603, 1000))).toBe('1 of 5.6 kb')
-  expect(geneCoverageNote(gene(20_000_000, 19_000_000))).toBe(
-    '19 of 20 Mb',
-  )
+  expect(geneCoverageNote(gene(20_000_000, 19_000_000))).toBe('19 of 20 Mb')
   expect(geneCoverageNote(gene(1_380_350, 1_352_000))).toBeUndefined()
 })
 

@@ -44,6 +44,12 @@ export interface GenePin {
   // gene runs off it: on the reference, the drawn backbone's share; on a
   // haplotype's own contig, the share inside its walk's records of that contig
   covered: number
+  // of the gene's stretch inside the reference's walk records, the share the
+  // drawn nodes anchored on it hold. Under half where the reference walks
+  // that stretch over nodes it passed before, as through a collapsed
+  // repeat's later copies, whose sequence is drawn where the first copy is
+  // pinned. 1 on a haplotype's own contig, and where no reference walk is cut
+  anchored: number
   // whether the gene lies on the reference's own sequence
   onReference: boolean
   // how many of the graph's walks step any node the gene lies over
@@ -205,7 +211,7 @@ export function genePins(
   // A node drag recomputes the pins each frame and reads no walk's steps
   const known = graphGenesOf(graph)
   const uncounted = new Map<string, Set<string>>()
-  const pins: Omit<GenePin, 'walks'>[] = []
+  const pins: Omit<GenePin, 'walks' | 'anchored'>[] = []
   for (const gene of genes) {
     const onRefName = known.byRefName.get(gene.refName)
     if (!onRefName) {
@@ -301,14 +307,16 @@ export function genePins(
     }
   }
   return pins.map(pin => {
-    const stretch = pin.onReference
-      ? undefined
-      : known.stretches.get(pin.gene.refName)
+    const stretch = known.stretches.get(pin.gene.refName)
+    const walked = stretch ? overlap(stretch, pin.gene) : 0
+    const length = pin.gene.end - pin.gene.start
     return {
       ...pin,
-      covered: stretch
-        ? overlap(stretch, pin.gene) / (pin.gene.end - pin.gene.start)
-        : pin.covered,
+      covered: stretch && !pin.onReference ? walked / length : pin.covered,
+      anchored:
+        pin.onReference && walked > 0
+          ? Math.min(1, (pin.covered * length) / walked)
+          : 1,
       walks: known.walks.get(spanKey(pin.gene)) ?? 0,
     }
   })

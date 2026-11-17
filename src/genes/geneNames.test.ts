@@ -45,6 +45,7 @@ function pinOf(
     nodeIds: new Set([nodeId]),
     at,
     covered: o.covered ?? 1,
+    anchored: 1,
     onReference: o.onReference ?? false,
     walks: o.walks ?? 1,
   }
