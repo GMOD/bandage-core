@@ -39,6 +39,7 @@ import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { laneHeadPlacer } from './laneHeads'
+import { curvesPx, directedRuns, spreadHeads } from './linkRuns'
 import {
   MIN_LANE_STROKE_PX,
   THREAD_PITCH_PX,
@@ -154,6 +155,10 @@ const ARROW_HALF_WIDTH_PER_EDGE_PX = 1.5
 const MIN_LINK_HEADS = 3
 const MIN_ARROW_FIT = 0.5
 const MIN_ARROW_SCALE = 0.45
+// Along a run of links that all point one way, a head at every joint is a
+// beat as regular as a skip's dashes, so the run keeps one head per this many
+// px of its length on screen, and at least one
+export const LINK_HEAD_SPACING_PX = 120
 
 // Steps per cubic when walking a curve back from its end, spaced by the square
 // of the step so they bunch where the head sits: the first is 1/144 of the
@@ -1982,6 +1987,81 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     )
   }
 
+  const headsDropped = new Set<number>()
+  if (showArrows) {
+    const drawnLinks: number[] = []
+    for (let ei = 0; ei < graph.edges.length; ei++) {
+      const { from, to } = graph.edges[ei]!
+      if (
+        nodePositions[from]?.length &&
+        nodePositions[to]?.length &&
+        sharedCurves.has(ei) &&
+        !hiddenEdges?.has(ei) &&
+        !collapse.edges.has(ei)
+      ) {
+        drawnLinks.push(ei)
+      }
+    }
+    const runs = directedRuns(
+      graph.edges,
+      drawnLinks,
+      ei =>
+        !sharedCurves.arcs.has(ei) &&
+        !deletions?.has(ei) &&
+        !turnsAgainstReference(graph.edges[ei]!),
+    )
+    for (const run of runs) {
+      const along: number[] = []
+      const drawable: boolean[] = []
+      let total = 0
+      run.forEach((ei, i) => {
+        const edge = graph.edges[ei]!
+        const toNode = nodeById.get(edge.to)
+        const curves = meetingDrawnNodes(
+          sharedCurves.get(ei)!,
+          edge.from,
+          edge.to,
+        )
+        const numPaths = edge.pathIds?.length ?? 0
+        total += curvesPx(curves, axis.scaleX, axis.scaleY)
+        along.push(total)
+        drawable.push(
+          !collapse.bridges.has(ei) &&
+            arrowheadFor({
+              curves,
+              edgeHalfWidth:
+                (connectorThickness / 2) *
+                (drawPaths && numPaths > 0
+                  ? 1
+                  : edgeWidthFactor(numPaths, busiest, edgeWidth)),
+              nodeHalfWidth:
+                (toNode
+                  ? nodeWidthPx(toNode, contigThickness, nodeWidth, widthScale)
+                  : contigThickness) / 2,
+              scale,
+              yToX,
+              color: EDGE_DEFAULT_COLOR,
+              fromSegments: nodePositions[edge.from]!,
+              toSegments: nodePositions[edge.to]!,
+            }) !== undefined,
+        )
+        if (i < run.length - 1) {
+          total += polylinePx(
+            nodePositions[edge.to]!,
+            axis.scaleX,
+            axis.scaleY,
+          )
+        }
+      })
+      const kept = spreadHeads(along, drawable, total, LINK_HEAD_SPACING_PX)
+      run.forEach((ei, i) => {
+        if (!kept.has(i)) {
+          headsDropped.add(ei)
+        }
+      })
+    }
+  }
+
   for (let ei = 0; ei < graph.edges.length; ei++) {
     const edge = graph.edges[ei]!
     const fromSegments = nodePositions[edge.from]
@@ -2114,7 +2194,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
     const arrowOn = (curves: BezierCurve[]) => {
       const head =
-        showArrows && (dashed || !isDeletion)
+        showArrows && (dashed || !isDeletion) && !headsDropped.has(ei)
           ? arrowheadFor({
               curves,
               edgeHalfWidth:
@@ -2462,6 +2542,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       arrows.push(head)
     }
   }
+
 
   return {
     nodeStrokes,

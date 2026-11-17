@@ -168,6 +168,13 @@ reads them.
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths
+- A link's head says which way it is read. Along a run of links that all point
+  one way, each node between two of them having those two links and no other,
+  one at each end, the run keeps one head per `LINK_HEAD_SPACING_PX` of its
+  length on screen and at least one, each at the joint nearest an even share of
+  that length, so a long chain of short nodes never beats out a rhythm that
+  reads as a skip's dashes. A link at a node with more links, a skip, and a link
+  turning strand against the reference keep their heads
 - `walkLift` lifts a walk out of the drawing, `facetLifts` and `facetGrid` draw
   one panel per walk, and `walkKey` describes each walk in words
 - `graphBackbone`, `backboneAssembly` and `assemblyWalk` find which assembly a
