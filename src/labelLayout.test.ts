@@ -964,6 +964,31 @@ test('a gene whose pin is off the pane is named at the nearest point of it the p
   ])
 })
 
+// Pinned at the pane's left edge, rand-chr18-1's CELF4 read "CELF4 …", as
+// did every gene pinned at an edge: a chip slid only whole steps of 8 px,
+// short of the half of its width that brings it inside the pane
+test('a name pinned at the edge of the pane slides by half its width, so its note stays', () => {
+  const at = { x: 0, y: 200 }
+  const celf4 = {
+    ...pin(at),
+    gene: { ...pin(at).gene, name: 'CELF4', end: 323_000 },
+    covered: 71_800 / 323_000,
+  }
+  const [label] = layoutLabels(
+    source({
+      genePins: [celf4],
+      nodePositions: {
+        bb: [
+          { x: 0, y: 200 },
+          { x: 300, y: 200 },
+        ],
+      },
+    }),
+  ).genes
+  expect(label?.text).toBe('CELF4 · 71.8 of 323 kb')
+  expect(label!.x - label!.w / 2).toBe(0)
+})
+
 test('a small variant stands as a tick above its nodes, with no chip', () => {
   const { bubbles, ticks } = layoutLabels(
     source({

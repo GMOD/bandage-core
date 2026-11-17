@@ -91,8 +91,11 @@ const SLIDE_STEP_PX = 8
 // The sideways moves a label may try on a row, nearest first
 function slides(slide: number) {
   const out = [0]
-  for (let d = SLIDE_STEP_PX; d <= slide; d += SLIDE_STEP_PX) {
+  for (let d = SLIDE_STEP_PX; d < slide; d += SLIDE_STEP_PX) {
     out.push(-d, d)
+  }
+  if (slide > 0) {
+    out.push(-slide, slide)
   }
   return out
 }
