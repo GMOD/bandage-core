@@ -368,7 +368,10 @@ test("a figure writes a placeholder's length whether or not node lengths are on,
   expect(written(true)).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
 })
 
-test("a figure stacks a placeholder's length whose loop another's covers, with a leader to its loop", () => {
+// two haplotypes' 75 kb placeholders, laid on one loop: one length names
+// it, and where the loop is too short to hold the length, stands off it with
+// a leader to it
+test('a figure writes one length for two placeholders drawn on one loop, with a leader where the loop is too short to hold it, and its key counts the other', () => {
   const twin = anchorGraph(
     convertGFAToGraph(
       parseGFA(
@@ -380,20 +383,28 @@ test("a figure stacks a placeholder's length whose loop another's covers, with a
   const laid = layoutModeByValue('auto').run(twin, undefined)!
   const ids = Object.keys(laid.nodePositions)
   const [start] = laid.nodePositions[ids.find(id => id.startsWith('r2'))!]!
-  const short = [start!, { ...start!, x: start!.x + 3000 }]
-  const svg = figureSvg(twin, {
-    ...laid,
-    nodePositions: {
-      ...laid.nodePositions,
-      ...Object.fromEntries(
-        ids.filter(id => id.startsWith('p')).map(id => [id, short]),
-      ),
-    },
-  })
-  expect([...svg.matchAll(/>75 kb<\/text>/g)]).toHaveLength(2)
-  expect(svg).toMatch(
-    /<line [^>]*stroke="#18181c" stroke-width="0.8" stroke-opacity="0.6"\/>/,
-  )
+  const drawn = (units: number) =>
+    figureSvg(twin, {
+      ...laid,
+      nodePositions: {
+        ...laid.nodePositions,
+        ...Object.fromEntries(
+          ids
+            .filter(id => id.startsWith('p'))
+            .map(id => [id, [start!, { ...start!, x: start!.x + units }]]),
+        ),
+      },
+    })
+  const leader =
+    /<line [^>]*stroke="#18181c" stroke-width="0.8" stroke-opacity="0.6"\/>/
+  const loop = drawn(3000)
+  expect([...loop.matchAll(/>75 kb<\/text>/g)]).toHaveLength(1)
+  expect(loop).not.toMatch(leader)
+  expect(loop).toContain('>1 unlabelled, 75 kb<')
+  const speck = drawn(30)
+  expect([...speck.matchAll(/>75 kb<\/text>/g)]).toHaveLength(1)
+  expect(speck).toMatch(leader)
+  expect(speck).toContain('>1 unlabelled, 75 kb<')
 })
 
 test("a lifted walk's own copy of a gene is named with its haplotype, and a gene with no symbol beside one that has is named nowhere", () => {

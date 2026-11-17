@@ -237,29 +237,29 @@ test("a placeholder's length is placed before a gene's name and every bigger nod
   expect(layout.genes.map(l => l.text)).toEqual(['LPA · 32.8 of 132.8 kb'])
 })
 
+// a row's name over the loop's middle
 test('a placeholder whose middle is taken writes its length further along its loop', () => {
-  const nodes = ['a', 'b'].map(id => ({
-    id,
-    name: id,
+  const loop = {
+    id: 'a',
+    name: 'a',
     length: 11_084,
     depth: 1,
     placeholder: true as const,
-  }))
-  const line = [
-    { x: 300, y: 200 },
-    { x: 300, y: 300 },
-  ]
+  }
   const layout = layoutLabels(
     source({
-      nodePositions: { a: line, b: line },
-      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
-      nodeById: new Map(nodes.map(n => [n.id, n])),
+      drawnRowLabels: [{ label: 'HG00438#1', y: 250 }],
+      nodePositions: {
+        a: [
+          { x: 40, y: 200 },
+          { x: 40, y: 300 },
+        ],
+      },
+      nodeLengths: new Map([['a', loop.length]]),
+      nodeById: new Map([['a', loop]]),
     }),
   )
-  expect(layout.sizes.map(l => [l.text, l.y])).toEqual([
-    ['11.1 kb', 250],
-    ['11.1 kb', 225],
-  ])
+  expect(layout.sizes.map(l => [l.text, l.y])).toEqual([['11.1 kb', 225]])
 })
 
 const placeholders = (lengths: number[]) =>
@@ -280,28 +280,33 @@ const sizeBox = (l: { text: string; x: number; y: number }) => {
 const apart = (a: ReturnType<typeof sizeBox>, b: ReturnType<typeof sizeBox>) =>
   a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0
 
-// two placeholders the layout drew on one spot: every spot along the one
-// loop is the other's
+// a 75 kb loop drawn under the 116 kb loop's length: the length's box takes
+// every spot along it, though its middle lies 17 px from the 116 kb's
+const covered = (more: Record<string, NodeSegment[]> = {}) => {
+  const nodes = placeholders([116_000, 75_000])
+  return {
+    nodePositions: {
+      p0: [
+        { x: 300, y: 200 },
+        { x: 324, y: 200 },
+      ],
+      p1: [
+        { x: 317, y: 200 },
+        { x: 341, y: 200 },
+      ],
+      ...more,
+    },
+    nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+    nodeById: new Map(nodes.map(n => [n.id, n])),
+  }
+}
+
 test('a placeholder whose every spot is taken stacks its length beside the nearest, with a leader to it', () => {
-  const nodes = placeholders([75_000, 75_000])
-  const spot = [
-    { x: 300, y: 200 },
-    { x: 324, y: 200 },
-  ]
-  const { sizes } = layoutLabels(
-    source({
-      nodePositions: { p0: spot, p1: spot },
-      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
-      nodeById: new Map(nodes.map(n => [n.id, n])),
-    }),
-  )
-  expect(sizes.map(l => l.text)).toEqual(['75 kb', '75 kb'])
+  const { sizes } = layoutLabels(source(covered()))
+  expect(sizes.map(l => l.text)).toEqual(['116 kb', '75 kb'])
   const [onLoop, stacked] = sizes
   expect(onLoop!.leader).toBeUndefined()
-  expect(stacked!.leader).toBeDefined()
-  expect(stacked!.leader!.y).toBe(200)
-  expect(stacked!.leader!.x).toBeGreaterThanOrEqual(300)
-  expect(stacked!.leader!.x).toBeLessThanOrEqual(324)
+  expect(stacked!.leader).toEqual({ x: 329, y: 200 })
   expect(Math.abs(stacked!.y - 200)).toBe(16)
   expect(apart(sizeBox(onLoop!), sizeBox(stacked!))).toBe(true)
   expect(sizeLeader(stacked!)).toEqual({
@@ -334,86 +339,128 @@ test("a placeholder whose loop is too short to hold its length stacks it off the
   expect(Math.abs(stacked!.y - 200)).toBe(16)
 })
 
+// A stacked length names its loop's middle, the point that tells loops on one
+// spot, rather than whichever spot along the loop had the nearest clear row
+test("a stacked placeholder length leads to its loop's middle, as a speck's does", () => {
+  const nodes = placeholders([116_000, 116_000, 75_000])
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: {
+        p0: [
+          { x: 290, y: 200 },
+          { x: 320, y: 200 },
+        ],
+        p1: [
+          { x: 360, y: 200 },
+          { x: 390, y: 200 },
+        ],
+        p2: [
+          { x: 300, y: 200 },
+          { x: 380, y: 200 },
+        ],
+        above: [
+          { x: 334, y: 184 },
+          { x: 346, y: 184 },
+        ],
+        below: [
+          { x: 334, y: 216 },
+          { x: 346, y: 216 },
+        ],
+      },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes.map(l => l.text)).toEqual(['116 kb', '116 kb', '75 kb'])
+  expect(sizes[2]!.leader).toEqual({ x: 340, y: 200 })
+})
+
 // At the amylase locus the stacked length first stood on the reference bar
 // beside the loops, where it read as that bar's length
 test("a stacked placeholder length keeps off other nodes' ink where it can", () => {
-  const nodes = placeholders([75_000, 75_000])
-  const spot = [
-    { x: 300, y: 200 },
-    { x: 324, y: 200 },
-  ]
   const below = [
     { x: 250, y: 216 },
     { x: 380, y: 216 },
   ]
-  const lengths = new Map(nodes.map(n => [n.id, n.length]))
-  const { sizes } = layoutLabels(
-    source({
-      nodePositions: { p0: spot, p1: spot, bb: below },
-      nodeLengths: lengths,
-      nodeById: new Map(nodes.map(n => [n.id, n])),
-    }),
-  )
-  expect(sizes.map(l => l.text)).toEqual(['75 kb', '75 kb'])
+  const { sizes } = layoutLabels(source(covered({ bb: below })))
+  expect(sizes.map(l => l.text)).toEqual(['116 kb', '75 kb'])
   expect(sizes[1]!.y).toBe(184)
   expect(sizes[1]!.leader).toBeDefined()
 })
 
 test('a stacked placeholder length keeps half the contig thickness clear of another node', () => {
-  const nodes = placeholders([75_000, 75_000])
-  const spot = [
-    { x: 300, y: 200 },
-    { x: 324, y: 200 },
-  ]
   const twoPxBelowTheBox = [
     { x: 250, y: 226 },
     { x: 380, y: 226 },
   ]
   const stackedAt = (contigThickness: number) =>
     layoutLabels(
-      source({
-        contigThickness,
-        nodePositions: { p0: spot, p1: spot, bb: twoPxBelowTheBox },
-        nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
-        nodeById: new Map(nodes.map(n => [n.id, n])),
-      }),
+      source({ contigThickness, ...covered({ bb: twoPxBelowTheBox }) }),
     ).sizes[1]!.y
   expect(stackedAt(2)).toBe(216)
   expect(stackedAt(6)).toBe(184)
 })
 
-// The amylase locus under FMMM drew three 75 kb loops crossing beside one
-// another, and the third lost its length
-test('three loops crossing in one place each keep their length, none over another', () => {
+// the gap between two boxes, 0 where they touch or overlap
+const gap = (a: ReturnType<typeof sizeBox>, b: ReturnType<typeof sizeBox>) =>
+  Math.hypot(
+    Math.max(0, a.x0 - b.x1, b.x0 - a.x1),
+    Math.max(0, a.y0 - b.y1, b.y0 - a.y1),
+  )
+
+// The amylase locus under FMMM drew its 75 kb and 116 kb loops as blades
+// fanning out of one knot, and a blade lost its length; drawn on a narrower
+// track, two blades' "75 kb" stood 9.6 px apart, one length written twice
+test('loops fanning out of one knot each keep their length, two of one length a line apart', () => {
   const nodes = placeholders([116_000, 75_000, 75_000])
-  const loop = (dx: number, dy: number) => [
-    { x: 400 + dx, y: 150 + dy },
-    { x: 430 + dx, y: 135 + dy },
-    { x: 440 + dx, y: 165 + dy },
-    { x: 400 + dx, y: 150 + dy },
+  const blade = (...tip: NodeSegment[]) => [
+    { x: 400, y: 200 },
+    ...tip,
+    { x: 400, y: 200 },
   ]
   const { sizes } = layoutLabels(
     source({
-      nodePositions: { p0: loop(0, 0), p1: loop(6, 4), p2: loop(-4, 6) },
+      nodePositions: {
+        p0: blade({ x: 400, y: 300 }, { x: 410, y: 300 }),
+        p1: blade({ x: 520, y: 150 }, { x: 528, y: 160 }),
+        p2: blade({ x: 520, y: 172 }, { x: 528, y: 182 }),
+      },
       nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
       nodeById: new Map(nodes.map(n => [n.id, n])),
     }),
   )
-  expect(sizes.map(l => l.key).sort()).toEqual([
-    'node:p0',
-    'node:p1',
-    'node:p2',
+  expect(sizes.map(l => [l.node, l.text])).toEqual([
+    ['p0', '116 kb'],
+    ['p1', '75 kb'],
+    ['p2', '75 kb'],
   ])
   sizes.forEach((a, i) => {
     for (const b of sizes.slice(i + 1)) {
       expect(apart(sizeBox(a), sizeBox(b))).toBe(true)
     }
   })
-  for (const label of sizes.filter(l => l.leader)) {
-    expect(
-      Math.hypot(label.x - label.leader!.x, label.y - label.leader!.y),
-    ).toBeLessThan(60)
-  }
+  expect(gap(sizeBox(sizes[1]!), sizeBox(sizes[2]!))).toBeGreaterThanOrEqual(13)
+})
+
+// pggb's chrY at 9.3 Mb drew twenty haplotypes' 3.7 kb placeholders as loops
+// long enough to hold their length, one over another in a knot, and the
+// figure stacked "3.7 kb" in a column off it, leaders into the knot
+test('loops drawn on one spot, each long enough to hold its length, take one length between them, the longest, and the key counts the rest', () => {
+  const nodes = placeholders([3700, 3700, 3700, 3700, 2800])
+  const drop = (d: number) => [
+    { x: 300 + d, y: 200 + d },
+    { x: 304 + d, y: 160 + d },
+    { x: 308 + d, y: 200 + d },
+  ]
+  const { sizes, unlabelled } = layoutLabels(
+    source({
+      nodePositions: Object.fromEntries(nodes.map((n, i) => [n.id, drop(i)])),
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes.map(l => [l.node, l.text])).toEqual([['p0', '3.7 kb']])
+  expect(unlabelled).toEqual({ count: 4, smallest: 2800, largest: 3700 })
 })
 
 // KIV-2 buried its graph under more than a hundred stacked "1 bp" lengths;
@@ -538,33 +585,18 @@ test('a folded placeholder has no length and no leader, and the unlabelled count
 })
 
 test('a folded node under a label moves it no more than no node there would', () => {
-  const nodes = placeholders([75_000, 75_000])
-  const loops = {
-    nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
-    nodeById: new Map(nodes.map(n => [n.id, n])),
-  }
-  const spot = [
-    { x: 300, y: 200 },
-    { x: 324, y: 200 },
-  ]
-  const [, alone] = layoutLabels(
-    source({ ...loops, nodePositions: { p0: spot, p1: spot } }),
-  ).sizes
+  const [, alone] = layoutLabels(source(covered())).sizes
   expect(alone?.leader).toBeDefined()
-  const under = {
-    p0: spot,
-    p1: spot,
+  const under = covered({
     a1: [
       { x: alone!.x - 4, y: alone!.y },
       { x: alone!.x + 4, y: alone!.y },
     ],
-  }
-  const [, drawn] = layoutLabels(
-    source({ ...loops, nodePositions: under }),
-  ).sizes
+  })
+  const [, drawn] = layoutLabels(source(under)).sizes
   expect(drawn?.y).not.toBe(alone?.y)
   const [, folded] = layoutLabels(
-    source({ ...loops, nodePositions: under, folded: new Set(['a1']) }),
+    source({ ...under, folded: new Set(['a1']) }),
   ).sizes
   expect(folded).toEqual(alone)
 

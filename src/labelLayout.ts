@@ -405,19 +405,15 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     ...placeSizeLabels(
       sizeCandidates.filter(c => !c.kept),
       take,
-      { budget, placed: placeholderSizes.length },
+      { budget, placed: placeholderSizes },
     ),
-  ]
+  ].map(({ label }) => label)
   return {
     bubbles,
     ticks,
     genes,
     passes,
     sizes,
-    unlabelled: unlabelledPlaceholders(
-      sizeCandidates,
-      placeholderSizes,
-      m.nodeLengths,
-    ),
+    unlabelled: unlabelledPlaceholders(sizeCandidates, sizes, m.nodeLengths),
   }
 }
