@@ -10,12 +10,16 @@ import {
   geneLeader,
   layoutLabels,
 } from './labelLayout'
+import { SMALL_SITE_PX } from './levelOfDetail'
 import { LABEL_PAD } from './overlayLabels'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
+import type { InkBatch } from './drawnInk'
 import type { GenePin } from './genes/genePins'
+import type { GraphLabel } from './graphLabels'
 import type { LabelLayoutSource } from './labelLayout'
 import type { GraphNode, NodeSegment } from './types'
+import type { BezierCurve } from './util/geometry'
 
 const bubble = {
   refName: 'chr1',
@@ -96,6 +100,7 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     nodeLengths: new Map(),
     nodeById: undefined,
     graph: undefined,
+    drawnBatch: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
     folded: undefined,
@@ -610,6 +615,7 @@ const loopGraph = (offNodes: GraphNode[]) => ({
     onReference('r2', 2000, 2000),
     ...offNodes,
   ],
+  edges: [],
   paths: [
     { name: 'GRCh38', nodeIds: ['r1', 'r2'] },
     { name: 'HG00350#1', nodeIds: ['r1', ...offNodes.map(n => n.id), 'r2'] },
@@ -638,6 +644,64 @@ const loopPositions = {
   ],
 }
 
+// what a pane paints of these nodes, 6 px wide, and of these links, 2 px
+const inkOf = (
+  positions: Record<string, NodeSegment[]>,
+  links: BezierCurve[] = [],
+): InkBatch => ({
+  nodeStrokes: Object.values(positions).map(points => ({
+    points,
+    thickness: 3,
+    color: 0,
+  })),
+  nodeStrokeRuns: new Map(
+    Object.keys(positions).map((id, i) => [id, { start: i, count: 1 }]),
+  ),
+  edgeCurves: links.map(curve => ({ curves: [curve], thickness: 1, color: 0 })),
+  edgeCurveRuns: new Map(links.map((_, i) => [i, { start: i, count: 1 }])),
+})
+
+const straight = (a: NodeSegment, b: NodeSegment): BezierCurve => ({
+  x0: a.x,
+  y0: a.y,
+  cx0: a.x + (b.x - a.x) / 3,
+  cy0: a.y + (b.y - a.y) / 3,
+  cx1: a.x + ((b.x - a.x) * 2) / 3,
+  cy1: a.y + ((b.y - a.y) * 2) / 3,
+  x1: b.x,
+  y1: b.y,
+})
+
+// the box a length's chip takes, as layoutLabels measures it
+const chipBox = ({ text, x, y }: GraphLabel) => {
+  const half = (text.length * 5.7 + 9) / 2
+  return { x0: x - half, x1: x + half, y0: y - 8, y1: y + 8 }
+}
+
+const meetsBox = (
+  a: NodeSegment,
+  b: NodeSegment,
+  box: ReturnType<typeof chipBox>,
+  by: number,
+) =>
+  Array.from({ length: 101 }, (_, k) => ({
+    x: a.x + ((b.x - a.x) * k) / 100,
+    y: a.y + ((b.y - a.y) * k) / 100,
+  })).some(
+    p =>
+      p.x >= box.x0 - by &&
+      p.x <= box.x1 + by &&
+      p.y >= box.y0 - by &&
+      p.y <= box.y1 + by,
+  )
+
+const bigLoop = () =>
+  loopGraph([
+    offReference('a', 30_000),
+    offReference('b', 88_000),
+    offReference('c', 30_000),
+  ])
+
 test("a loop of loaded nodes writes its length at the loop's middle, read along the walk whichever way its nodes are drawn", () => {
   const graph = loopGraph([
     offReference('a', 30_000),
@@ -649,6 +713,7 @@ test("a loop of loaded nodes writes its length at the loop's middle, read along 
       nodePositions: loopPositions,
       nodeById: nodesById(graph.nodes),
       graph,
+      drawnBatch: inkOf(loopPositions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text, l.x, l.y, l.leader])).toEqual([
@@ -668,6 +733,7 @@ test('a loop stepping a node not loaded writes no length of its own, and its pla
       nodeById: nodesById(graph.nodes),
       nodeLengths: labelledNodeLengths(graph.nodes),
       graph,
+      drawnBatch: inkOf(loopPositions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([['a', '30 kb']])
@@ -688,6 +754,7 @@ test('a loop drawn too short to hold its length, or folded, writes none', () => 
       translateY: 200,
       nodeById,
       graph,
+      drawnBatch: inkOf(loopPositions),
     }),
   )
   expect(shrunk.sizes).toEqual([])
@@ -696,6 +763,7 @@ test('a loop drawn too short to hold its length, or folded, writes none', () => 
       nodePositions: loopPositions,
       nodeById,
       graph,
+      drawnBatch: inkOf(loopPositions),
       folded: new Set(['a', 'b', 'c']),
     }),
   )
@@ -710,6 +778,7 @@ test('loops walks take between the same two reference nodes over mostly the same
   ])
   const both = {
     nodes: [...graph.nodes, offReference('c2', 9000)],
+    edges: [],
     paths: [
       ...graph.paths,
       { name: 'NA21309#1', nodeIds: ['r1', 'a', 'b', 'c', 'r2'] },
@@ -721,6 +790,7 @@ test('loops walks take between the same two reference nodes over mostly the same
       nodePositions: { ...loopPositions, c2: loopPositions.c },
       nodeById: nodesById(both.nodes),
       graph: both,
+      drawnBatch: inkOf({ ...loopPositions, c2: loopPositions.c }),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([['b', '127\u2013148 kb']])
@@ -735,6 +805,7 @@ test('loops leaving the reference at other nodes over mostly the same nodes writ
   const r0 = onReference('r0', -1000, 1000)
   const both = {
     nodes: [r0, ...graph.nodes, offReference('c2', 9000)],
+    edges: [],
     paths: [
       { name: 'GRCh38', nodeIds: ['r0', 'r1', 'r2'] },
       { name: 'HG00350#1', nodeIds: ['r0', 'r1', 'a', 'b', 'c', 'r2'] },
@@ -742,18 +813,20 @@ test('loops leaving the reference at other nodes over mostly the same nodes writ
       { name: 'HG003#1', nodeIds: ['r1', 'a', 'r2'] },
     ],
   }
+  const positions = {
+    ...loopPositions,
+    r0: [
+      { x: 0, y: 380 },
+      { x: 0, y: 300 },
+    ],
+    c2: loopPositions.c,
+  }
   const { sizes } = layoutLabels(
     source({
-      nodePositions: {
-        ...loopPositions,
-        r0: [
-          { x: 0, y: 380 },
-          { x: 0, y: 300 },
-        ],
-        c2: loopPositions.c,
-      },
+      nodePositions: positions,
       nodeById: nodesById(both.nodes),
       graph: both,
+      drawnBatch: inkOf(positions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([
@@ -771,26 +844,246 @@ test('loops between the same two reference nodes over other nodes each write the
   const other = offReference('d', 6000)
   const both = {
     nodes: [...graph.nodes, other],
+    edges: [],
     paths: [...graph.paths, { name: 'HG002#2', nodeIds: ['r1', 'd', 'r2'] }],
+  }
+  const positions = {
+    ...loopPositions,
+    d: [
+      { x: 200, y: 300 },
+      { x: 400, y: 370 },
+      { x: 600, y: 300 },
+    ],
   }
   const { sizes } = layoutLabels(
     source({
-      nodePositions: {
-        ...loopPositions,
-        d: [
-          { x: 200, y: 300 },
-          { x: 400, y: 370 },
-          { x: 600, y: 300 },
-        ],
-      },
+      nodePositions: positions,
       nodeById: nodesById(both.nodes),
       graph: both,
+      drawnBatch: inkOf(positions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([
     ['b', '148 kb'],
     ['d', '6 kb'],
   ])
+})
+
+// sv-49 wrote "634 bp" over the knot where other nodes meet its loop, and
+// sv-37 "216–283 bp" over a node on the reference line
+test("a loop's length over another node's ink moves along its loop to a spot clear of it", () => {
+  const graph = bigLoop()
+  const positions = {
+    ...loopPositions,
+    x: [
+      { x: 400, y: 60 },
+      { x: 400, y: 140 },
+    ],
+  }
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: positions,
+      nodeById: nodesById(graph.nodes),
+      graph,
+      drawnBatch: inkOf(positions),
+    }),
+  )
+  expect(sizes.map(l => [l.text, l.x, l.y, l.leader])).toEqual([
+    ['148 kb', 300, 100, undefined],
+  ])
+})
+
+const crossings = (spots: NodeSegment[]) =>
+  Object.fromEntries(
+    spots.map(({ x, y }, k) => [
+      `x${k}`,
+      [
+        { x: x - 10, y: y - 10 },
+        { x: x + 10, y: y + 10 },
+      ],
+    ]),
+  )
+
+// every spot along the loop that a length may take, a node crossing each
+const everySpot = [
+  { x: 400, y: 100 },
+  { x: 300, y: 100 },
+  { x: 500, y: 100 },
+  { x: 200, y: 100 },
+  { x: 600, y: 100 },
+  { x: 200, y: 200 },
+  { x: 600, y: 200 },
+]
+
+test("a loop's length with every spot along its loop over another node's ink stands off the loop's middle on a leader, clear of all ink", () => {
+  const graph = bigLoop()
+  const positions = { ...loopPositions, ...crossings(everySpot) }
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: positions,
+      nodeById: nodesById(graph.nodes),
+      graph,
+      drawnBatch: inkOf(positions),
+    }),
+  )
+  const [length] = sizes
+  expect(length?.text).toBe('148 kb')
+  expect(length?.leader).toEqual({ x: 400, y: 100 })
+  for (const points of Object.values(positions)) {
+    points.forEach((b, k) => {
+      const a = points[k - 1]
+      expect(a && meetsBox(a, b, chipBox(length!), 3)).toBeFalsy()
+    })
+  }
+})
+
+// sv-19 wrote "252 bp" over a dashed skip and two crossing strokes
+test("a loop's length keeps off a link that is not its loop's", () => {
+  const graph = { ...bigLoop(), edges: [{ from: 'r1', to: 'r2' }] }
+  const from = { x: 380, y: 40 }
+  const to = { x: 420, y: 160 }
+  const at = (links: BezierCurve[]) =>
+    layoutLabels(
+      source({
+        nodePositions: loopPositions,
+        nodeById: nodesById(graph.nodes),
+        graph,
+        drawnBatch: inkOf(loopPositions, links),
+      }),
+    ).sizes
+  const [alone] = at([])
+  expect(meetsBox(from, to, chipBox(alone!), 1)).toBe(true)
+  const [length] = at([straight(from, to)])
+  expect(length?.text).toBe('148 kb')
+  expect(meetsBox(from, to, chipBox(length!), 1)).toBe(false)
+})
+
+// sv-26's "1.4–1.5 kb" left its loop for the nodes of the shorter loop the
+// span names
+test("a loop's length may cover the walks' loops drawn over it, whose lengths its span writes", () => {
+  const graph = bigLoop()
+  const both = {
+    nodes: [...graph.nodes, offReference('c2', 9000)],
+    edges: [],
+    paths: [
+      ...graph.paths,
+      { name: 'HG002#2', nodeIds: ['r1', 'a', 'b', 'c2', 'r2'] },
+    ],
+  }
+  const positions = {
+    ...loopPositions,
+    c2: [
+      { x: 400, y: 60 },
+      { x: 400, y: 140 },
+    ],
+  }
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: positions,
+      nodeById: nodesById(both.nodes),
+      graph: both,
+      drawnBatch: inkOf(positions),
+    }),
+  )
+  expect(sizes.map(l => [l.text, l.x, l.y, l.leader])).toEqual([
+    ['127\u2013148 kb', 400, 100, undefined],
+  ])
+})
+
+// sv-7 wrote "230 kb" over a curl at the foot of its own loop
+test("a loop drawn back on itself under its length's box stands it off the loop, as only one stretch of its own stroke may run under the text", () => {
+  const graph = bigLoop()
+  const positions = {
+    ...loopPositions,
+    a: [
+      { x: 200, y: 300 },
+      { x: 200, y: 100 },
+    ],
+    b: [
+      { x: 200, y: 100 },
+      { x: 600, y: 100 },
+      { x: 600, y: 108 },
+      { x: 220, y: 108 },
+    ],
+    c: [
+      { x: 220, y: 108 },
+      { x: 220, y: 300 },
+    ],
+  }
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: positions,
+      nodeById: nodesById(graph.nodes),
+      graph,
+      drawnBatch: inkOf(positions),
+    }),
+  )
+  const [length] = sizes
+  expect(length?.text).toBe('148 kb')
+  expect(length?.leader).toBeDefined()
+  expect(chipBox(length!).y1 < 97 || chipBox(length!).y0 > 111).toBe(true)
+})
+
+test("a loop's length with no spot along its loop or off it clear of ink is not written, and the key does not count it", () => {
+  const graph = bigLoop()
+  const rules = Object.fromEntries(
+    Array.from({ length: 41 }, (_, k) => [
+      `rule${k}`,
+      [
+        { x: 0, y: k * 10 + 5 },
+        { x: 800, y: k * 10 + 5 },
+      ],
+    ]),
+  )
+  const positions = { ...loopPositions, ...rules }
+  const { sizes, unlabelled } = layoutLabels(
+    source({
+      nodePositions: positions,
+      nodeById: nodesById(graph.nodes),
+      graph,
+      drawnBatch: inkOf(positions),
+    }),
+  )
+  expect(sizes).toEqual([])
+  expect(unlabelled).toBeUndefined()
+})
+
+test('a loop writes no length without the drawing it would stand on', () => {
+  const graph = bigLoop()
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: loopPositions,
+      nodeById: nodesById(graph.nodes),
+      graph,
+    }),
+  )
+  expect(sizes).toEqual([])
+})
+
+// sv-16 at its fit wrote several "1 bp" lengths along the reference
+test("a loop whose bp at the reference's px a bp comes to less than SMALL_SITE_PX writes no length, and writes it at the zoom where it comes to that", () => {
+  const graph = loopGraph([
+    offReference('a', 1),
+    offReference('b', 1),
+    offReference('c', 1),
+  ])
+  const at = (scale: number) =>
+    layoutLabels(
+      source({
+        nodePositions: loopPositions,
+        axisScale: { scaleX: scale, scaleY: scale },
+        translateX: 400 - 400 * scale,
+        translateY: 200 - 100 * scale,
+        nodeById: nodesById(graph.nodes),
+        graph,
+        drawnBatch: inkOf(loopPositions),
+      }),
+    ).sizes.map(l => l.text)
+  // the reference's 4000 bp drawn 400 px long at scale 1, and the loop's 3 bp
+  const comesTo = (SMALL_SITE_PX * 4000) / (3 * 400)
+  expect(at(1)).toEqual([])
+  expect(at(comesTo * 0.99)).toEqual([])
+  expect(at(comesTo)).toEqual(['3 bp'])
 })
 
 test('a folded node under a label moves it no more than no node there would', () => {

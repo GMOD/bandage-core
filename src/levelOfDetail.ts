@@ -623,6 +623,31 @@ function referencePxPerBp(
   return backboneBp > 0 ? px / backboneBp : 0
 }
 
+const pxPerBpCache = weakMemo<Record<string, NodeSegment[]>, number>()
+
+// The reference's px a bp at an axis, the measure a site small in bp is
+// folded by
+export function referencePxPerBpAt(
+  nodes: readonly GraphNode[],
+  positions: Record<string, NodeSegment[]>,
+  axis: AxisScale,
+  version = 0,
+) {
+  return pxPerBpCache(
+    positions,
+    [nodes, axis.scaleX, axis.scaleY, version],
+    () => {
+      const backbone = nodes.filter(onReference)
+      return referencePxPerBp(
+        backbone.map(node => node.id),
+        backbone.reduce((sum, node) => sum + node.length, 0),
+        positions,
+        axis,
+      )
+    },
+  )
+}
+
 const onScreen = (p: Point, axis: AxisScale) => ({
   x: p.x * axis.scaleX,
   y: p.y * axis.scaleY,

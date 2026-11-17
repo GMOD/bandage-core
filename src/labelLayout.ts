@@ -1,3 +1,4 @@
+import { inkUnderBox, widestStroke } from './drawnInk'
 import { EXON_RIM_PX } from './genes/exonOutline'
 import { namedGenePins } from './genes/geneNames'
 import {
@@ -12,6 +13,7 @@ import {
 import { HALO_FACTOR } from './halo'
 import { keyColumnBox } from './keyColumn'
 import { polylineSlice } from './layout/mergeRuns'
+import { referencePxPerBpAt } from './levelOfDetail'
 import {
   LABEL_CHAR_PX,
   LABEL_PAD,
@@ -27,10 +29,12 @@ import {
 } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
+import type { Frame, InkBatch } from './drawnInk'
 import type { NamedGenePin } from './genes/geneNames'
 import type { GenePin } from './genes/genePins'
 import type {
   GraphLabel,
+  LoopInk,
   NodeKinds,
   UnlabelledPlaceholders,
 } from './graphLabels'
@@ -76,7 +80,10 @@ export interface LabelLayoutSource {
   // the drawn nodes by id, which says which are placeholders
   nodeById: NodeKinds | undefined
   // the graph whose walks' loops write their lengths
-  graph: Pick<Graph, 'nodes' | 'paths'> | undefined
+  graph: Pick<Graph, 'nodes' | 'paths' | 'edges'> | undefined
+  // what the pane paints, which a loop's length keeps off; none writes no
+  // loop's length
+  drawnBatch: InkBatch | undefined
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
   // the names of lifted walks' passes: passLabelCandidates
@@ -280,6 +287,19 @@ export function geneLeader(
       }
 }
 
+// The batch's ink as a loop's length reads it, the index built the first
+// time a length asks
+function loopInk(batch: InkBatch, frame: Frame): LoopInk {
+  let under: ReturnType<typeof inkUnderBox> | undefined
+  return {
+    under: (box, own) => {
+      under ??= inkUnderBox(batch, frame)
+      return under(box, own)
+    },
+    widest: nodes => widestStroke(batch, nodes),
+  }
+}
+
 function byExtent<T>(items: T[], extent: (item: T) => number) {
   return [...items].sort((a, b) => extent(b) - extent(a))
 }
@@ -346,12 +366,26 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     },
   )
   const loopSizes =
-    m.nodePositions && m.labelsNodeSizes && m.graph
+    m.nodePositions && m.labelsNodeSizes && m.graph && m.drawnBatch
       ? placeSizeLabels(
           loopLabelCandidates({
             loops: walkLoops(m.graph),
+            edges: m.graph.edges,
             nodePositions: m.nodePositions,
             folded: m.folded,
+            pxPerBp: referencePxPerBpAt(
+              m.graph.nodes,
+              m.nodePositions,
+              m.axisScale,
+              m.positionsVersion,
+            ),
+            ink: loopInk(m.drawnBatch, {
+              ...frame,
+              translateX,
+              translateY,
+              scaleX,
+              scaleY,
+            }),
             axis: m.axisScale,
             translateX,
             translateY,
@@ -359,7 +393,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
             height,
           }),
           take,
-          { placed: placeholderSizes },
+          { placed: placeholderSizes, leaders: budget },
         )
       : []
   const lengthsPlaced = [...placeholderSizes, ...loopSizes]

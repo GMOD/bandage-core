@@ -338,6 +338,7 @@ function unlabelledOf(lengths: number[]) {
     nodeLengths: new Map(ids.map((id, i) => [id, lengths[i]!])),
     nodeById: new Map(ids.map(id => [id, { placeholder: true }])),
     graph: undefined,
+    drawnBatch: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
     folded: undefined,

@@ -1,13 +1,22 @@
 import { isBackbone } from './anchoredNodes'
 import { polylinePointAt } from './layout/mergeRuns'
+import { SMALL_SITE_PX } from './levelOfDetail'
 import { labelWidth, occupancy } from './overlayLabels'
 import { compareIds } from './util/canonicalOrder'
 import { polylinePx } from './util/geometry'
 import { pushTo } from './util/groups'
+import { segmentInBox } from './util/hitDetection'
 import { weakMemo } from './util/weakMemo'
 
+import type { InkOwner } from './drawnInk'
 import type { Box, TakeBox } from './overlayLabels'
-import type { AlleleDeletion, Graph, GraphNode, NodeSegment } from './types'
+import type {
+  AlleleDeletion,
+  Graph,
+  GraphEdge,
+  GraphNode,
+  NodeSegment,
+} from './types'
 import type { AxisScale } from './util/geometry'
 
 interface Point {
@@ -44,10 +53,13 @@ interface Point {
 // and two lengths of one text stand a line apart. Stacked lengths are rationed
 // as other lengths are, longest first, and the key counts the placeholders
 // left without one. A loop of loaded nodes, the nodes a drawn walk steps on
-// between two steps on the reference, writes its length along itself where
-// it is drawn long enough to hold it, after the placeholders and before the
-// rest: a force layout draws each node and link at least a few units long,
-// so a loop's drawn length beside the reference's says little of its bp.
+// between two steps on the reference, writes its length where it is drawn
+// long enough to hold it and is not small in bp at the drawing's scale, after
+// the placeholders and before the rest: a force layout draws each node and
+// link at least a few units long, so a loop's drawn length beside the
+// reference's says little of its bp. It covers no ink but its loop's own
+// stroke, standing off the loop on a leader where it must, and is not
+// written where no spot is clear (loopLabelCandidates).
 //
 // Between them they hold at both ends of the scale a pangenome graph spans: 63
 // kb-scale nodes at the amylase locus nearly all carry a length, and a 154-node
@@ -381,6 +393,8 @@ export interface WalkLoop {
   bp: number
   // the shortest of the walks' loops drawn over it
   least: number
+  // the nodes of every walk's loop drawn over it, its own included
+  drawn: Set<string>
 }
 
 const loopsCache = weakMemo<GraphNode[], WalkLoop[]>()
@@ -440,11 +454,14 @@ export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
       const loop = joined === undefined ? undefined : loops[joined]
       if (loop) {
         loop.least = Math.min(loop.least, run.bp)
+        for (const id of run.nodes) {
+          loop.drawn.add(id)
+        }
       } else {
         for (const id of new Set(run.nodes)) {
           pushTo(loopsHolding, id, loops.length)
         }
-        loops.push({ ...run, least: run.bp })
+        loops.push({ ...run, least: run.bp, drawn: new Set(run.nodes) })
       }
     }
     return loops
@@ -508,12 +525,52 @@ const loopLinesCache = weakMemo<
   { loop: WalkLoop; line: NodeSegment[]; ends: number[] }[]
 >()
 
-// Each loop's length, at the first of its spots along it free, where it is
-// drawn long enough to hold it and some node of it is drawn
+// What a loop's length must know of the drawing: whether a box covers ink
+// other than what `own` claims, and how wide a set of nodes is drawn
+export interface LoopInk {
+  under: (box: Box, own: (piece: InkOwner) => boolean) => boolean
+  widest: (nodes: readonly string[]) => number
+}
+
+const noInk = () => false
+
+// Whether a line runs under a box once: one unbroken stretch of it meets the
+// box, no longer inside it than a straight line across it, so it does not
+// turn back under it
+function runsUnderOnce(line: readonly Point[], box: Box) {
+  let stretches = 0
+  let inside = false
+  let length = 0
+  line.forEach((b, k) => {
+    const a = line[k - 1]
+    const within = a ? segmentInBox(a, b, box) : undefined
+    stretches += within && !inside ? 1 : 0
+    inside = !!within
+    length +=
+      within && a
+        ? (within[1] - within[0]) * Math.hypot(b.x - a.x, b.y - a.y)
+        : 0
+  })
+  return (
+    stretches === 1 && length <= Math.hypot(box.x1 - box.x0, box.y1 - box.y0)
+  )
+}
+
+// Each loop's length, where the loop is drawn long enough to hold it, some
+// node of it is drawn and its bp at the reference's px a bp comes to
+// SMALL_SITE_PX, as a site's bp must to be drawn. It stands at the first of
+// its spots along the loop whose box covers no ink but the loop's own, its
+// stroke running under the box once; where none does, off the loop's middle
+// with a leader to it, at the nearest spot whose box covers no ink at all.
+// The loop's own ink is that of the walks' loops it writes the length of and
+// of their links
 export function loopLabelCandidates({
   loops,
+  edges,
   nodePositions,
   folded,
+  pxPerBp,
+  ink,
   axis,
   translateX,
   translateY,
@@ -524,7 +581,10 @@ export function loopLabelCandidates({
   'nodePositions' | 'axis' | 'translateX' | 'translateY' | 'width' | 'height'
 > & {
   loops: readonly WalkLoop[]
+  edges: readonly Pick<GraphEdge, 'from' | 'to'>[]
   folded: ReadonlySet<string> | undefined
+  pxPerBp: number
+  ink: LoopInk
 }) {
   const { scaleX, scaleY } = axis
   const drawnLines = loopLinesCache(nodePositions, [loops], () =>
@@ -533,6 +593,10 @@ export function loopLabelCandidates({
       return drawn ? [{ loop, ...drawn }] : []
     }),
   )
+  const screen = ({ x, y }: Point) => ({
+    x: x * scaleX + translateX,
+    y: y * scaleY + translateY,
+  })
   const onPane = ({ x, y }: Point) =>
     x >= 0 &&
     x <= width &&
@@ -546,6 +610,7 @@ export function loopLabelCandidates({
     const text = formatBpSpan(loop.least, loop.bp)
     const halfW = labelHalfWidth(text)
     if (
+      loop.bp * pxPerBp >= SMALL_SITE_PX &&
       polylinePx(line, scaleX, scaleY) >= (halfW * 2) / MAX_LABEL_OVERHANG &&
       !loop.nodes.every(id => folded?.has(id))
     ) {
@@ -560,19 +625,46 @@ export function loopLabelCandidates({
         node: middleNode,
         text,
       }
-      const spots = KEPT_LABEL_SPOTS.map(fraction => {
-        const { x, y } = polylinePointAt(line, fraction)
-        return { x: x * scaleX + translateX, y: y * scaleY + translateY }
-      }).filter(onPane)
+      const { drawn } = loop
+      const own = ({ node, edge }: InkOwner) =>
+        node !== undefined
+          ? drawn.has(node)
+          : edge !== undefined &&
+            (drawn.has(edges[edge]?.from ?? '') ||
+              drawn.has(edges[edge]?.to ?? ''))
+      const onScreen = line.map(screen)
+      const ownHalf = ink.widest(loop.nodes)
+      const spots = KEPT_LABEL_SPOTS.map(fraction =>
+        screen(polylinePointAt(line, fraction)),
+      ).filter(onPane)
       const along = spots
         .map(({ x, y }) => ({
           label: { ...label, x, y },
           box: boxAt(halfW, x, y),
         }))
-        .filter(({ box }) => wholeOnPane(box))
+        .filter(
+          ({ box }) =>
+            wholeOnPane(box) &&
+            !ink.under(box, own) &&
+            runsUnderOnce(onScreen, {
+              x0: box.x0 - ownHalf,
+              x1: box.x1 + ownHalf,
+              y0: box.y0 - ownHalf,
+              y1: box.y1 + ownHalf,
+            }),
+        )
       const [middle] = spots
-      if (along.length > 0 && middle) {
-        candidates.push({ id: label.key, kept: false, middle, along })
+      if (middle) {
+        candidates.push({
+          id: label.key,
+          kept: false,
+          middle,
+          along,
+          stacked: () =>
+            stackedSpots(label, halfW, middle, height).filter(
+              ({ box }) => wholeOnPane(box) && !ink.under(box, noInk),
+            ),
+        })
       }
     }
   }

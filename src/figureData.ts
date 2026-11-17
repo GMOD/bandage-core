@@ -752,6 +752,7 @@ export function figureData(
     ),
     nodeById,
     graph,
+    drawnBatch: batches[0],
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
     folded: fold?.nodes,
