@@ -105,14 +105,19 @@ reads them.
   could hold it, and two lengths of one text stand at least a line apart;
   `layoutLabels` returns the placeholders left without one as `unlabelled`, and
   a host hands that to `graphKey`, which writes `N unlabelled, X or less each`
-  under the entry. In the tube map, where loading turns one box into its nodes,
-  it is a box with a dashed outline and no tint, captioned
-  `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts placeholders,
-  which graph-walks' `nodeLimit` does not, and its refusal says how many there
-  are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`, which only
-  bandage-core reads back: another tool ignores the tag and takes the line for a
-  real segment off the reference. A GFA meant for another tool must be written
-  from a cut with every piece loaded
+  under the entry. A loop of loaded nodes, what a drawn walk steps on between
+  two steps on the reference (`walkLoops`), writes its length along itself from
+  its middle where it is drawn long enough to hold it, after the placeholders
+  and before every other label; a loop sharing half the bp of a longer one is
+  drawn over it, and the longer writes the span of their lengths,
+  `20.5–20.9 kb`. `layoutLabels` reads the walks from its `graph`. In the tube
+  map, where loading turns one box into its nodes, it is a box with a dashed
+  outline and no tint, captioned `300 bp · nodes not shown`. `loadGraph`'s
+  `maxNodes` counts placeholders, which graph-walks' `nodeLimit` does not, and
+  its refusal says how many there are. `graphTablesGFA` tags a placeholder's S
+  line `nl:i:1`, which only bandage-core reads back: another tool ignores the
+  tag and takes the line for a real segment off the reference. A GFA meant for
+  another tool must be written from a cut with every piece loaded
 - `GraphTables` mirrors graph-walks 7's, and `typecheck/graphWalks.ts` holds the
   two equal. `departures` is required, so tables from a reader that states none
   fail to compile; a source with none, such as GFA text or a gbz-base cut,
