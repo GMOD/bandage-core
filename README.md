@@ -165,6 +165,14 @@ reads them.
   inside the pane's edges (not its padding, so the slide is even wherever it
   fits). A pan is a pure slide, a zoom magnifies about the window's reference,
   and a window is drawn no wider than the pane
+- How a drawing a window places meets the pane's height is the host's
+  `trackFit`, named as JBrowse names a track's sizing. `fit`, the default
+  (`DEFAULT_TRACK_FIT`), is the capped scale above: the whole cut is scaled into
+  the height. `fixed` draws at the window's scale alone (`windowScale`), so a
+  zoom magnifies it; `windowTranslateY` keeps the window's own reference on the
+  pane, and `edgeOverruns` says where the drawing crosses the pane's top or
+  bottom, for the host to mark. `grow` draws as `fixed` does in a pane as tall
+  as the cut at that scale (`grownHeight`), up to the host's cap
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths
