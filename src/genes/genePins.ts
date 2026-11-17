@@ -249,13 +249,13 @@ export function genePins(
         continue
       }
       nodeIds.add(node.id)
-      const [from, to] = alongLine(
+      const onNode = alongLine(
         node,
         Math.max(nodeStart, gene.start) - nodeStart,
         Math.min(nodeEnd, gene.end) - nodeStart,
         stranded,
       )
-      body.push({ nodeId: node.id, from, to })
+      body.push({ nodeId: node.id, from: onNode[0], to: onNode[1] })
       covered += Math.min(nodeEnd, gene.end) - Math.max(nodeStart, gene.start)
       const nodeParts: string[] = []
       const stretches: NodeSegment[][] = []

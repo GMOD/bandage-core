@@ -19,6 +19,8 @@ const pin = (exonsByNode: GenePin['exonsByNode']): GenePin => ({
   nodeIds: new Set(exonsByNode.map(e => e.nodeId)),
   at: { x: 0, y: 0 },
   covered: 1,
+  anchored: 1,
+  body: [],
   onReference: true,
   walks: 1,
 })
