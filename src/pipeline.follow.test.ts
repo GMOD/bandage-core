@@ -180,8 +180,8 @@ function wanderingProfile(seed: number) {
   }
   const ends = pieces
     .flatMap(p => [
-      { bp: p.bp0, x: p.x0 },
-      { bp: p.bp1, x: p.x1 },
+      { bp: p.bp0, x: p.x0, y: p.y0 },
+      { bp: p.bp1, x: p.x1, y: p.y1 },
     ])
     .sort((p, q) => p.bp - q.bp)
   return { profile: { pieces, ends }, end: bp }
@@ -420,8 +420,8 @@ function panFixture(name: string) {
   })
   const ends = pieces
     .flatMap(p => [
-      { bp: p.bp0, x: p.x0 },
-      { bp: p.bp1, x: p.x1 },
+      { bp: p.bp0, x: p.x0, y: p.y0 },
+      { bp: p.bp1, x: p.x1, y: p.y1 },
     ])
     .sort((p, q) => p.bp - q.bp)
   return { ...fixture, profile: { pieces, ends } }

@@ -146,13 +146,13 @@ const hairpin = laidReference([
 const HAIRPIN_CUT = { start: 0, end: 6_000 }
 
 function tallestByStep(
-  profile: ReturnType<typeof referenceProfile>,
-  cut: { start: number; end: number },
+  laid: ReturnType<typeof referenceProfile>,
+  over: { start: number; end: number },
   span: number,
 ) {
   let tallest = 0
-  for (let a = cut.start; a + span <= cut.end; a += 5) {
-    const reach = referenceReach(profile, { start: a, end: a + span })
+  for (let a = over.start; a + span <= over.end; a += 5) {
+    const reach = referenceReach(laid, { start: a, end: a + span })
     tallest = Math.max(tallest, reach ? reach.maxY - reach.minY : 0)
   }
   return tallest
@@ -224,7 +224,7 @@ test('the tallest stretch counts a peak inside a window as well as where its end
 })
 
 test("at every pan step the window's own reference lies whole between the pads, where reference at other bp under the pane's width runs far past them", () => {
-  const { profile: laid, graph: drawn, laid: positions } = hairpin
+  const { profile: laid, graph: drawn, laid: hairpinPositions } = hairpin
   const span = 1_000
   const scale = referenceScale(
     laid,
@@ -235,7 +235,7 @@ test("at every pan step the window's own reference lies whole between the pads, 
     PADS,
   )!
   const bounds = { minY: -400, h: 400 }
-  const lines = drawnSegments(drawn, { nodePositions: positions })
+  const lines = drawnSegments(drawn, { nodePositions: hairpinPositions })
   for (let a = 0; a + span <= HAIRPIN_CUT.end; a += 250) {
     const window = { start: a, end: a + span }
     const { translateX } = followTransform(
