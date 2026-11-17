@@ -73,14 +73,15 @@ const listed = (column: string[] | undefined) =>
 
 test('every node of the node table is drawn or listed as folded, never both, and with small sites drawn as nodes every one is drawn', async () => {
   const gfa = read('ecoli_pggb_subgraph.gfa')
-  const d = await gfaFigureData(gfa, 'ecoli', { engine: 'stress' })
+  const d = await gfaFigureData(gfa, 'ecoli', { engine: 'fmmm', width: 160 })
   const folded = listed(d.sites?.nodes)
   const drawn = new Set(d.nodes.node)
   expect(folded.length).toBeGreaterThan(0)
   expect(folded.filter(id => drawn.has(id))).toEqual([])
   expect(new Set([...drawn, ...folded])).toEqual(new Set(d.nodeInfo.node))
   const all = await gfaFigureData(gfa, 'ecoli', {
-    engine: 'stress',
+    engine: 'fmmm',
+    width: 160,
     smallSites: 'nodes',
   })
   expect(new Set(all.nodes.node)).toEqual(new Set(all.nodeInfo.node))
@@ -550,7 +551,7 @@ test('the sites table lists each folded site, its nodes and links each once and 
       'r3+': at(1001, 1501),
       'r4+': at(1501, 1502),
       'r5+': at(1502, 2002),
-      'a1+': at(1000, 1001, 20),
+      'a1+': at(1000, 1001, 0.25),
     },
   }
   const d = figureData(graph, layout)
@@ -592,10 +593,10 @@ test('the sites table lists each folded site, its nodes and links each once and 
   }
   expect(d.meta.smallSites?.mode).toBe('hidden')
   expect(d.meta.smallSites?.px).toBe(SMALL_SITE_PX)
-  expect(d.meta.smallSites?.bp).toBeCloseTo(SMALL_SITE_PX / d.meta.scaleX)
+  expect(d.meta.smallSites?.bp).toBe(3)
   const keyRow = d.meta.graphKey.key.indexOf('too-small')
   expect(d.meta.graphKey.text[keyRow]).toBe(
-    '1 node and 1 skip under 6 bp not drawn',
+    '1 node and 1 skip under 3 bp not drawn',
   )
   expect(d.meta.graphKey.swatch[keyRow]).toBe('')
   const nodes = figureData(graph, layout, { smallSites: 'nodes' })
@@ -678,7 +679,7 @@ test('a gene on a folded allele is still pinned and listed over its node, with n
       'r1+': at(0, 10_000),
       'r2+': at(10_000, 10_001),
       'r3+': at(10_001, 20_001),
-      'a1+': at(10_000, 10_001, 200),
+      'a1+': at(10_000, 10_001, 2),
     },
   }
   const genes = [

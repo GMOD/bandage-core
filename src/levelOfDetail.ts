@@ -2,6 +2,7 @@ import { isBackbone, readsAsReference } from './anchoredNodes'
 import { departureTails } from './gfa/departures'
 import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
+import { curvePointAt } from './util/geometry'
 import { partitionPoint } from './util/partitionPoint'
 import { weakMemo } from './util/weakMemo'
 import { MAX_ZOOM } from './zoomLimits'
@@ -9,7 +10,7 @@ import { MAX_ZOOM } from './zoomLimits'
 import type { AnchoredNode } from './anchoredNodes'
 import type { Graph, GraphNode, NodeSegment } from './types'
 import type { EdgeCurves } from './util/edgeCurves'
-import type { AxisScale } from './util/geometry'
+import type { AxisScale, BezierCurve } from './util/geometry'
 
 export const SMALL_SITE_PX = 3
 
@@ -504,6 +505,77 @@ function drawnPx(line: readonly NodeSegment[], axis: AxisScale) {
   return px
 }
 
+const CURVE_SAMPLES = 8
+
+// how long a link's curve is drawn on screen
+function curvePx(curves: readonly BezierCurve[], axis: AxisScale) {
+  let px = 0
+  for (const c of curves) {
+    let last = { x: c.x0, y: c.y0 }
+    for (let k = 1; k <= CURVE_SAMPLES; k++) {
+      const p = curvePointAt(c, k / CURVE_SAMPLES)
+      px += Math.hypot(
+        (p.x - last.x) * axis.scaleX,
+        (p.y - last.y) * axis.scaleY,
+      )
+      last = p
+    }
+  }
+  return px
+}
+
+// the straight distance between a link's ends on screen, which no drawing
+// of it at any zoom is shorter than
+function chordPx(curves: readonly BezierCurve[], axis: AxisScale) {
+  const first = curves[0]
+  const last = curves.at(-1)
+  return first && last
+    ? Math.hypot(
+        (last.x1 - first.x0) * axis.scaleX,
+        (last.y1 - first.y0) * axis.scaleY,
+      )
+    : 0
+}
+
+// How long a piece is drawn on screen: its own nodes and links, and the
+// reference between its attachments as that is drawn, its nodes and its own
+// links there, never the straight distance between the attachments, so a
+// long skip whose ends the layout set close together is not small
+function drawnSize(
+  unit: Unit,
+  reference: ReferenceSequence | undefined,
+  positions: Record<string, NodeSegment[]>,
+  curves: EdgeCurves,
+  axis: AxisScale,
+  linkPx: (curves: readonly BezierCurve[], axis: AxisScale) => number,
+) {
+  const start = least(unit.attachments)
+  const end = most(unit.attachments)
+  const nodePx = (id: string) => drawnPx(positions[id] ?? [], axis)
+  const edgePx = (edge: number) => linkPx(curves.get(edge) ?? [], axis)
+  const links = reference?.links ?? []
+  let px = 0
+  for (const id of unit.nodes) {
+    px += nodePx(id)
+  }
+  for (const edge of unit.edges) {
+    px += edgePx(edge)
+  }
+  for (const span of reference
+    ? spansInside(reference.spans, start, end)
+    : []) {
+    px += nodePx(span.id)
+  }
+  for (
+    let i = partitionPoint(links.length, j => links[j]!.at < start);
+    i < links.length && links[i]!.at <= end;
+    i++
+  ) {
+    px += edgePx(links[i]!.edge)
+  }
+  return px
+}
+
 function referencePxPerBp(
   backbone: readonly string[],
   backboneBp: number,
@@ -531,11 +603,35 @@ function foldOf(
     () => unitsOf(graph, deletions, hiddenEdges),
   )
   const pxPerBp = referencePxPerBp(backbone, backboneBp, positions, axis)
-  const deepestPxPerBp = referencePxPerBp(backbone, backboneBp, positions, {
+  const deepest = {
     ...axis,
     scaleX: MAX_ZOOM,
     scaleY: axis.pixelRows ? axis.scaleY : MAX_ZOOM,
-  })
+  }
+  const deepestPxPerBp = referencePxPerBp(
+    backbone,
+    backboneBp,
+    positions,
+    deepest,
+  )
+  const placeholders = new Set(
+    graph.nodes.flatMap(n => (n.placeholder ? [n.id] : [])),
+  )
+  // A piece is small as it is drawn, at this axis, and comes back at the
+  // deepest zoom, drawn no shorter there than its links' straight ends. A
+  // not-loaded stretch is drawn at the layout's least length whatever its
+  // bp, so a piece holding one is also measured by its bp at the
+  // reference's px a bp, and the smaller measure counts
+  const sizeOf = (unit: Unit, refName: string) => {
+    const reference = references.get(refName)
+    const shown = drawnSize(unit, reference, positions, curves, axis, curvePx)
+    const back = drawnSize(unit, reference, positions, curves, deepest, chordPx)
+    const stated = unit.nodes.some(id => placeholders.has(id)) && pxPerBp > 0
+    return {
+      shown: stated ? Math.min(shown, unit.bp * pxPerBp) : shown,
+      back: stated ? Math.min(back, unit.bp * deepestPxPerBp) : back,
+    }
+  }
   const nodes = new Set<string>()
   const edges = new Set<number>()
   const siteOf = new Map<string, Site>()
@@ -546,15 +642,19 @@ function foldOf(
       return point ? [point] : []
     })
     const [refName] = unit.refNames
-    if (
+    const size =
       refName !== undefined &&
       unit.refNames.size === 1 &&
-      pxPerBp > 0 &&
       unit.bp > 0 &&
-      unit.bp * pxPerBp < SMALL_SITE_PX &&
-      unit.bp * deepestPxPerBp >= SMALL_SITE_PX &&
       feet.length === unit.feet.length &&
       unit.nodes.every(id => positions[id]?.length)
+        ? sizeOf(unit, refName)
+        : undefined
+    if (
+      refName !== undefined &&
+      size &&
+      size.shown < SMALL_SITE_PX &&
+      size.back >= SMALL_SITE_PX
     ) {
       const site: Site = {
         nodes: unit.nodes,
@@ -592,6 +692,10 @@ function foldOf(
 }
 
 const foldCache = weakMemo<EdgeCurves, Fold>()
+
+// A bp every folded site is under: the largest folded site's bp and one more
+export const foldedUnderBp = (fold: Fold) =>
+  fold.sites.reduce((bp, site) => Math.max(bp, site.bp + 1), 0)
 
 // The sites too small to draw at this scale: a pure function of the graph,
 // its layout and the axis, held against the curves derived for that axis

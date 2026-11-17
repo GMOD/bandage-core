@@ -11,7 +11,7 @@ import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAt, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
-import { NO_FOLD, SMALL_SITE_PX } from './levelOfDetail'
+import { NO_FOLD, SMALL_SITE_PX, foldedUnderBp } from './levelOfDetail'
 import { haplotypeCount, nodeFrequency, withFrequencies } from './nodeWidths'
 import { LABEL_PX } from './overlayLabels'
 import { passBars } from './passBar'
@@ -904,7 +904,7 @@ export function figureData(
             smallSites: {
               mode: 'hidden',
               px: SMALL_SITE_PX,
-              bp: fold.pxPerBp > 0 ? SMALL_SITE_PX / fold.pxPerBp : null,
+              bp: foldedUnderBp(fold) || null,
             },
           }
         : {}),

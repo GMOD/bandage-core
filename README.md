@@ -151,25 +151,21 @@ reads them.
 - At overview a drawing shows the graph's structure, not every SNP. By default
   (`smallSites: 'hidden'`) `buildGeometry` leaves out a site too small to draw
   at the current scale: an off-reference piece (the nodes off the reference
-  joined to each other, with the links that attach them) or a skip, whose bp
-  plus the reference bp between where it attaches come to under `SMALL_SITE_PX`
-  at the reference's px per bp. `smallSites: 'nodes'` draws everything
-- The reference's px per bp is one number per scale: the drawn length of every
-  reference node on screen over their bp. A force layout draws short nodes
-  longer than their bp, so a local measure at a site's attachments would fold a
-  site by how its neighbours happen to be drawn; one number folds identical
-  sites alike anywhere, and folds the same sites in either layout at the same px
-  per bp
-- That number runs high where the reference has many short nodes, which are
-  drawn no shorter than a floor and so raise it, and there the fold is
-  conservative: a site folds at a smaller bp than the scale the long reference
-  nodes are drawn at would fold it at. On real cuts it was 1.7 times the long
-  nodes' scale on a chr16 window under the force layout, 2 times on KIV-2 under
-  the force layout and 1.65 times under the straight one; elsewhere 0.96 to 1.3
-  times
-- A not-loaded placeholder under the threshold folds too, with whatever hangs
-  only from it, and its length label with it. Larger placeholders are structure
-  and stay
+  joined to each other, with the links that attach them) or a skip, drawn under
+  `SMALL_SITE_PX`: its own nodes and links, and the reference between where it
+  attaches as that is drawn, its nodes and its own links there, in px at the
+  scale. `smallSites: 'nodes'` draws everything
+- A site is measured as the drawing shows it, whatever its bp: a force layout
+  draws a short node at a least length and a link at a set length, so a 1 bp
+  allele the layout draws several px across stays drawn, and a skip is measured
+  along the reference it skips, never by how close the layout set its ends.
+  Identical sites laid alike fold together; laid differently, each folds at the
+  scale its own drawing comes to `SMALL_SITE_PX`
+- A not-loaded placeholder is drawn at that least length whatever its bp, so a
+  piece holding one is measured by the smaller of its drawn length and its bp at
+  the reference's px per bp, the drawn length of the reference's nodes over
+  their bp. A small one folds with whatever hangs only from it, and its length
+  label with it. Larger placeholders are structure and stay
 - Nothing on the reference is folded, nor a link turning the reference back on
   itself, nor what no shown walk steps. Nor is a piece that turns strand, whose
   attachments all touch the same end of their reference nodes; a piece reaching
@@ -184,15 +180,18 @@ reads them.
   `collapsed.through` and `collapsed.bridges` hold what it covers. A drawn node
   outside every run keeps its own thickness, so the key's node thickness holds
   of every node drawn on its own
-- With walks lifted, every lifted walk crossing a folded site, by whatever
-  route, runs one straight lane between the site's attachments, with no head
-  there, and the reference nodes inside the site are drawn only by those lanes
+- With walks lifted, every lifted walk crossing a run of folded sites, by
+  whatever route, runs one lane along the run as it is drawn, from where it
+  leaves the drawn node before the run to where it enters the one after, with no
+  head there, and the reference nodes inside the run are drawn only by those
+  lanes
 - The fold depends only on the layout and the scale: zooming in past the
   threshold draws each site again, a pan reuses what the zoom derived, and under
   a steady zoom each node changes state once at most
 - The key ends with one line, only where something is folded:
   `N nodes and M skips under B bp not drawn`, counting each folded node and skip
-  link once, B being `SMALL_SITE_PX` over the reference's px per bp rounded up
+  link once, B being the largest folded site's bp and one more, so every folded
+  site is under it
 - Folded nodes push no label aside
 - The batch's `collapsed` holds the fold: `findHoveredNode` and
   `findHoveredEdge` take it as a required argument, so a point at a folded site

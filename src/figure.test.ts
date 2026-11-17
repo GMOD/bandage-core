@@ -497,9 +497,18 @@ test.each([
 )
 
 test('by default a figure folds its small sites, draws the allele, and says how many it folded in a last key line', () => {
-  const folded = figureSvg(sites, sitesLayout)
-  const drawn = figureSvg(sites, sitesLayout, { smallSites: 'nodes' })
-  const line = '<text y="13">2 nodes and 1 skip under 8 bp not drawn</text>'
+  // the 1 bp allele and the 2 bp insertion laid beside the reference, so
+  // they are drawn small
+  const beside = {
+    nodePositions: {
+      ...sitesLayout.nodePositions,
+      'a1+': at(1000, 1001, 1),
+      'i1+': at(2000, 2002, 1),
+    },
+  }
+  const folded = figureSvg(sites, beside)
+  const drawn = figureSvg(sites, beside, { smallSites: 'nodes' })
+  const line = '<text y="13">2 nodes and 1 skip under 3 bp not drawn</text>'
   expect(folded).toContain(line)
   expect(drawn).not.toContain('not drawn')
   const key = folded.slice(0, folded.indexOf(line))
@@ -586,7 +595,7 @@ test('a figure outlines no exon on a node it folded, and outlines it with small 
       'r1+': at(0, 10_000),
       'r2+': at(10_000, 10_001),
       'r3+': at(10_001, 20_001),
-      'a1+': at(10_000, 10_001, 200),
+      'a1+': at(10_000, 10_001, 2),
     },
   }
   const onAllele = [

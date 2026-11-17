@@ -5,7 +5,7 @@ import { busiestEdge, edgeWidthFactor } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp } from './graphLabels'
-import { SMALL_SITE_PX } from './levelOfDetail'
+import { foldedUnderBp } from './levelOfDetail'
 import { depthKey, frequencyKey } from './nodeWidths'
 import { referenceLabel } from './reference'
 import {
@@ -142,10 +142,10 @@ export function drawnMarks(
   }
   let width: number | undefined
   for (const { edgeCurves, nodeStrokes, arrows = [], collapsed } of batches) {
-    if (collapsed?.sites.length && collapsed.pxPerBp > 0) {
+    if (collapsed) {
       marks.foldedUnderBp = Math.max(
         marks.foldedUnderBp,
-        Math.ceil(SMALL_SITE_PX / collapsed.pxPerBp),
+        foldedUnderBp(collapsed),
       )
     }
     for (const { nodes, edges } of collapsed?.sites ?? []) {

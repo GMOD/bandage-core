@@ -7,7 +7,6 @@ import { drawnMarks, graphKey, tooSmallText, unlabelledText } from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { layoutModeByValue } from './layoutModes'
-import { SMALL_SITE_PX } from './levelOfDetail'
 import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform } from './pipeline'
 import { graphBackbone } from './reference'
@@ -631,7 +630,7 @@ const smallSites = (): Scene => {
         'r3+': at(1001, 1501),
         'r4+': at(1501, 1502),
         'r5+': at(1502, 2002),
-        'a1+': at(1000, 1001, 20),
+        'a1+': at(1000, 1001, 2),
       },
     },
   }
@@ -802,14 +801,14 @@ test('the key says how many nodes and skips are too small to draw, in one line w
   const { layout, batch } = drawn(SMALL, smallSites())
   expect(batch.collapsed?.sites.map(s => s.nodes)).toEqual([['a1+'], []])
   for (const { bp } of batch.collapsed?.sites ?? []) {
-    expect(bp).toBeLessThan(12)
+    expect(bp).toBeLessThan(3)
   }
   const sections = graphKey(SMALL, layout, { marks: drawnMarks([batch]) })
   const last = sections.at(-1)
   expect(last).toEqual({
     id: 'too-small',
     entries: [
-      { key: 'too-small', text: '1 node and 1 skip under 12 bp not drawn' },
+      { key: 'too-small', text: '1 node and 1 skip under 3 bp not drawn' },
     ],
   })
   expect(keys(SMALL, { ...smallSites(), smallSites: 'nodes' })).not.toContain(
@@ -822,13 +821,13 @@ test('the key says how many nodes and skips are too small to draw, in one line w
   expect(census(dropped, batch, smallSites()).missing).toEqual(['too-small'])
 })
 
-const site = (nodes: string[], edges: number[]): Site => ({
+const site = (nodes: string[], edges: number[], bp = 2): Site => ({
   nodes,
   edges,
   refName: 'chr',
   start: 0,
   end: 0,
-  bp: 0,
+  bp,
   x: 0,
   y: 0,
   count: 1,
@@ -866,12 +865,12 @@ test("the key's counts are the folded nodes and skip links, each once, however m
     { key: 'too-small', text: '1 skip under 3 bp not drawn' },
   ])
   const at18 = drawnMarks([
-    { ...panel, collapsed: { ...fold, pxPerBp: SMALL_SITE_PX / 18.13 } },
-    { ...panel, collapsed: { ...fold, pxPerBp: SMALL_SITE_PX / 7 } },
+    { ...panel, collapsed: foldOf([site(['a1'], [1], 18), site([], [7])]) },
+    { ...panel, collapsed: foldOf([site(['a3'], [4], 6)]) },
   ])
   expect(at18.foldedUnderBp).toBe(19)
   expect(graphKey(SMALL, {}, { marks: at18 }).at(-1)?.entries[0]?.text).toBe(
-    '3 nodes and 2 skips under 19 bp not drawn',
+    '2 nodes and 1 skip under 19 bp not drawn',
   )
 })
 
