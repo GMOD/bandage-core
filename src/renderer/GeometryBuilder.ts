@@ -42,6 +42,7 @@ import {
 } from '../util/geometry'
 import { pushTo } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
+import { linksAlongNodes } from './alongNodes'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { laneHeadPlacer } from './laneHeads'
 import { curvesPx, directedRuns, spreadHeads } from './linkRuns'
@@ -2056,6 +2057,33 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       })
     }
   }
+  const onScreen = (p: { x: number; y: number }) => ({
+    x: p.x * scale,
+    y: p.y * scale * yToX,
+  })
+  const alongNodes = linksAlongNodes(
+    Object.entries(nodePositions).flatMap(([id, line]) =>
+      nodeById.has(id) &&
+      line.length >= 2 &&
+      !collapse.nodes.has(id) &&
+      !crossedAt(id)
+        ? [line.map(onScreen)]
+        : [],
+    ),
+    graph.edges.flatMap((edge, ei) => {
+      const curves = sharedCurves.get(ei)
+      const last = curves?.at(-1)
+      return curves?.[0] && last && edge.from !== edge.to
+        ? [
+            {
+              edge: ei,
+              a: onScreen({ x: curves[0].x0, y: curves[0].y0 }),
+              b: onScreen({ x: last.x1, y: last.y1 }),
+            },
+          ]
+        : []
+    }),
+  )
 
   for (let ei = 0; ei < graph.edges.length; ei++) {
     const edge = graph.edges[ei]!
@@ -2138,7 +2166,11 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
     const skipMark = deletions?.has(ei) ? { skip: true, span: arcPx } : {}
-    const turnMark = turnsAgainstReference(edge) ? { turn: true } : {}
+    const overMark = turnsAgainstReference(edge)
+      ? { turn: true }
+      : alongNodes.has(ei) && !isDeletion
+        ? { along: true }
+        : {}
     const dashesOf = (curves: BezierCurve[]) =>
       dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
@@ -2147,7 +2179,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       color: number,
     ) => {
       if (!dashed) {
-        edgeCurves.push({ curves, thickness, color, ...skipMark, ...turnMark })
+        edgeCurves.push({ curves, thickness, color, ...skipMark, ...overMark })
         return
       }
       for (const dash of dashesOf(curves)) {
@@ -2156,7 +2188,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           thickness,
           color,
           ...skipMark,
-          ...turnMark,
+          ...overMark,
         })
       }
     }
@@ -2184,7 +2216,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         endNormal,
         endOffsetX,
         ...skipMark,
-        ...turnMark,
+        ...overMark,
       })
     }
     const arrowOn = (curves: BezierCurve[]) => {

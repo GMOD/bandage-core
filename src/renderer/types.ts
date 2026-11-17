@@ -30,6 +30,9 @@ export interface EdgeCurveBatch {
   // a stroke of a link between two reference nodes reading one as the
   // reference does and the other against it
   turn?: boolean
+  // a stroke of a plain link whose ends lie apart along drawn nodes
+  // (linksAlongNodes), which would cover it
+  along?: boolean
 }
 
 export interface LaneSlide {

@@ -25,7 +25,8 @@ import type {
 // A link that skips reference sequence is drawn over the nodes it skips, since
 // the dashes are the only mark a deletion has, and so is a link turning strand
 // against the reference, whose ends lie under the nodes it joins wherever the
-// layout puts them together; a plain link lies under them.
+// layout puts them together, and a link whose ends the layout lays apart along
+// nodes; a plain link lies under them.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   readonly ctx: CanvasRenderingContext2D
@@ -155,7 +156,7 @@ export class Canvas2DRenderer implements Renderer {
       color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
       weight: e.thickness,
       last: inRun(edgeRun, i),
-      skip: e.skip === true || e.turn === true,
+      skip: e.skip === true || e.turn === true || e.along === true,
     })
     const skipOrder = overNodesLongestFirst(batch.edgeCurves)
     const nodes = widestFirst(
@@ -461,7 +462,7 @@ function paintRuns<T>(
 
 function overNodesLongestFirst(edgeCurves: EdgeCurveBatch[]) {
   return edgeCurves
-    .flatMap((e, i) => (e.skip || e.turn ? [i] : []))
+    .flatMap((e, i) => (e.skip || e.turn || e.along ? [i] : []))
     .toSorted((a, b) => (edgeCurves[b]!.span ?? 0) - (edgeCurves[a]!.span ?? 0))
 }
 

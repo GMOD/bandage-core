@@ -121,6 +121,9 @@ interface EdgeRow {
   // a link reading one reference node as the reference does and the other
   // against it, which the canvas paints over the nodes, as a skip
   turn: boolean
+  // a plain link whose ends lie apart along drawn nodes, which the canvas
+  // paints over them, as a skip
+  along: boolean
   walk: number | null
   // at the node the link leaves
   pass: number | null
@@ -582,6 +585,7 @@ export function figureData(
     width: [],
     deletion: [],
     turn: [],
+    along: [],
     walk: [],
     pass: [],
     walkPass: [],
@@ -670,6 +674,7 @@ export function figureData(
             width: b.thickness * 2,
             deletion: drawnDeletions.bypassed.has(edge),
             turn: b.turn === true,
+            along: b.along === true,
             walk: keyRowOf(b.walk),
             pass: b.pass ?? null,
             walkPass: b.walkPass ?? null,

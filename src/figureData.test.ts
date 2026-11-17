@@ -749,6 +749,61 @@ test('a link turning strand against the reference is marked turn on its rows, as
   }
 })
 
+test('a plain link whose ends lie apart along a node is marked along on its rows, as the canvas paints it over the nodes, and no other link is', () => {
+  const graph = loadGraph(
+    [
+      `S\tA\t${'A'.repeat(10)}`,
+      `S\tX\t${'C'.repeat(10)}`,
+      `S\tY\t${'G'.repeat(10)}`,
+      `S\tZ\t${'T'.repeat(10)}`,
+      `S\tD\t${'A'.repeat(10)}`,
+      'L\tA\t+\tD\t+\t0M',
+      'L\tA\t+\tX\t+\t0M',
+      'L\tX\t+\tY\t+\t0M',
+      'L\tY\t+\tZ\t+\t0M',
+      'L\tX\t+\tZ\t+\t0M',
+      'L\tZ\t+\tD\t+\t0M',
+      'W\tR\t0\tchr\t0\t20\t>A>D',
+      'W\tT\t1\tchr\t0\t*\t>A>X>Z>D',
+      'W\tU\t1\tchr\t0\t*\t>A>X>Y>Z>D',
+    ].join('\n'),
+    'along',
+    { referencePath: 'R' },
+  )
+  const laid: Record<string, [number, number, number]> = {
+    A: [0, 10, 0],
+    X: [10, 20, 20],
+    Y: [20, 30, 20],
+    Z: [30, 40, 20],
+    D: [40, 50, 0],
+  }
+  const named = (id: string) => id.slice(0, -1)
+  const layout = {
+    nodePositions: Object.fromEntries(
+      graph.nodes.map(n => {
+        const [x0, x1, y] = laid[named(n.id)]!
+        return [
+          n.id,
+          [
+            { x: x0, y },
+            { x: x1, y },
+          ],
+        ]
+      }),
+    ),
+  }
+  const skipping = graph.edges.findIndex(
+    e => named(e.from) === 'X' && named(e.to) === 'Z',
+  )
+  expect(skipping).toBeGreaterThanOrEqual(0)
+  for (const walks of [undefined, [{ walk: 'T#1#chr' }]]) {
+    const d = figureData(graph, layout, { walks, smallSites: 'nodes' })
+    expect(d.edges.along).toHaveLength(d.edges.edge.length)
+    const along = new Set(d.edges.edge.filter((_, i) => d.edges.along[i]))
+    expect([...along]).toEqual([skipping])
+  }
+})
+
 test('with walks lifted across a folded site, a gene over a reference node the lanes alone draw there is outlined nowhere, in the exons table or the figure', () => {
   const graph = loadGraph(
     [
