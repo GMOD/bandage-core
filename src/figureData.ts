@@ -11,7 +11,12 @@ import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAt, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
-import { NO_FOLD, SMALL_SITE_PX, foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
+import {
+  NO_FOLD,
+  SMALL_SITE_PX,
+  foldedUnderBp,
+  nodesNotDrawn,
+} from './levelOfDetail'
 import { haplotypeCount, nodeFrequency, withFrequencies } from './nodeWidths'
 import { LABEL_PX } from './overlayLabels'
 import { passBars } from './passBar'

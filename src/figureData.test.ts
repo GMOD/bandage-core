@@ -771,7 +771,7 @@ test('with walks lifted across a folded site, a gene over a reference node the l
   const layout = {
     nodePositions: {
       'r1+': at(0, 10_000),
-      'r2+': at(10_000, 10_001, 400),
+      'r2+': at(10_000, 10_001),
       'r3+': at(10_001, 20_001),
     },
   }
