@@ -46,6 +46,7 @@ function pinOf(
     at,
     covered: o.covered ?? 1,
     anchored: 1,
+    body: [],
     onReference: o.onReference ?? false,
     walks: o.walks ?? 1,
   }

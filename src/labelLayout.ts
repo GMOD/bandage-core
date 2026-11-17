@@ -9,6 +9,7 @@ import {
 } from './graphLabels'
 import { HALO_FACTOR } from './halo'
 import { keyColumnBox } from './keyColumn'
+import { polylineSlice } from './layout/mergeRuns'
 import {
   LABEL_CHAR_PX,
   LABEL_PAD,
@@ -17,7 +18,11 @@ import {
   occupancy,
   placeLabels,
 } from './overlayLabels'
-import { otherNodeUnderBox, segmentMeetsBox } from './util/hitDetection'
+import {
+  otherNodeUnderBox,
+  segmentInBox,
+  segmentMeetsBox,
+} from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { NamedGenePin } from './genes/geneNames'
@@ -125,6 +130,68 @@ function grown(box: Box, by: number) {
   }
 }
 
+type Screen = (p: { x: number; y: number }) => { x: number; y: number }
+
+// The point of a gene's drawn stretch inside `shown`, a box in pane px,
+// nearest `at` in pane px, in layout units
+function nearestShownPoint(
+  pin: GenePin,
+  positions: Record<string, NodeSegment[]>,
+  screen: Screen,
+  shown: Box,
+  at: { x: number; y: number },
+) {
+  let best: { point: NodeSegment; distance: number } | undefined
+  for (const { nodeId, from, to } of pin.body) {
+    const line = polylineSlice(positions[nodeId] ?? [], from, to)
+    const points = line.length === 1 ? [line[0]!, line[0]!] : line
+    for (let i = 0; i + 1 < points.length; i++) {
+      const a = points[i]!
+      const b = points[i + 1]!
+      const sa = screen(a)
+      const sb = screen(b)
+      const inside = segmentInBox(sa, sb, shown)
+      if (inside) {
+        const dx = sb.x - sa.x
+        const dy = sb.y - sa.y
+        const length2 = dx * dx + dy * dy
+        const toward =
+          length2 > 0
+            ? ((at.x - sa.x) * dx + (at.y - sa.y) * dy) / length2
+            : inside[0]
+        const t = Math.min(inside[1], Math.max(inside[0], toward))
+        const distance = Math.hypot(sa.x + t * dx - at.x, sa.y + t * dy - at.y)
+        if (!best || distance < best.distance) {
+          best = {
+            point: { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) },
+            distance,
+          }
+        }
+      }
+    }
+  }
+  return best?.point
+}
+
+// Where a gene's name is pinned on a pane that shows `shown`, a box in pane
+// px: at its pin where the pane shows that, else at the point of the gene's
+// drawn stretch the pane shows nearest it; nowhere where the pane shows none
+// of the gene, as where the cut runs past the view or under the key
+function shownPin(
+  pin: GenePin,
+  positions: Record<string, NodeSegment[]>,
+  screen: Screen,
+  shown: Box,
+) {
+  const at = screen(pin.at)
+  return at.x >= shown.x0 &&
+    at.x <= shown.x1 &&
+    at.y >= shown.y0 &&
+    at.y <= shown.y1
+    ? pin.at
+    : nearestShownPoint(pin, positions, screen, shown, at)
+}
+
 // The name of each gene namedGenePins names under its pin, or above it where
 // the gene's node runs on under the pin or the spots under it are taken, the
 // longest gene first, with how much of the gene the drawing holds where it
@@ -134,12 +201,14 @@ function grown(box: Box, by: number) {
 // leader still running to the pin; it may cover the gene's own stretch of
 // reference only where no exon is outlined. A gene is a landmark, so where
 // every spot by its pin is taken it stacks at the nearest free one rather
-// than be dropped.
+// than be dropped. A gene whose pin the pane does not show is pinned where
+// shownPin finds it, and one the pane shows nothing of is not named.
 export function geneLabelCandidates(
   pins: GenePin[],
-  screen: (p: { x: number; y: number }) => { x: number; y: number },
+  screen: Screen,
   contigThickness: number,
   otherNodeUnder: (box: Box, own: (nodeId: string) => boolean) => boolean,
+  shown: { box: Box; positions: Record<string, NodeSegment[]> },
   liftedWalks: readonly string[] = [],
 ) {
   const ink = contigThickness / 2
@@ -154,7 +223,14 @@ export function geneLabelCandidates(
     ),
   )
   return byExtent(
-    namedGenePins(pins, liftedWalks),
+    namedGenePins(pins, liftedWalks).flatMap(named => {
+      const at = shownPin(named.pin, shown.positions, screen, shown.box)
+      return !at
+        ? []
+        : at === named.pin.at
+          ? [named]
+          : [{ ...named, pin: { ...named.pin, at } }]
+    }),
     ({ pin }) => pin.gene.end - pin.gene.start,
   ).map(named => {
     const { pin, name } = named
@@ -313,6 +389,10 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
       screen,
       m.contigThickness,
       otherNodeUnder,
+      {
+        box: { x0: 0, x1: keyColumnBox(m).x0, y0: stripPx, y1: height },
+        positions: m.nodePositions ?? {},
+      },
       m.liftedWalks,
     ),
     frame,

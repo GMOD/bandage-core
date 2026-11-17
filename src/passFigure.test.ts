@@ -175,6 +175,7 @@ function pin(at: { x: number; y: number }): GenePin {
     at,
     covered: 1,
     anchored: 1,
+    body: [],
     onReference: true,
     walks: 1,
   }

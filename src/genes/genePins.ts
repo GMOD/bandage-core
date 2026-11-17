@@ -37,6 +37,10 @@ export interface GenePin {
   exonsByNode: { nodeId: string; d: string; stretches: NodeSegment[][] }[]
   // every node the gene lies over, the only ones its name may cover
   nodeIds: ReadonlySet<string>
+  // the stretch of each drawn node the gene lies over, as fractions along
+  // the node's line, where a name whose pin the pane does not show finds the
+  // nearest point of the gene it does
+  body: { nodeId: string; from: number; to: number }[]
   // where the name goes: the point at the gene's midpoint, or the nearest
   // point inside the gene where the midpoint is not in the cut
   at: NodeSegment
@@ -220,6 +224,7 @@ export function genePins(
     const parts: string[] = []
     const exonsByNode: GenePin['exonsByNode'] = []
     const nodeIds = new Set<string>()
+    const body: GenePin['body'] = []
     let at: NodeSegment | undefined
     let atDistance = Infinity
     let covered = 0
@@ -244,6 +249,13 @@ export function genePins(
         continue
       }
       nodeIds.add(node.id)
+      const [from, to] = alongLine(
+        node,
+        Math.max(nodeStart, gene.start) - nodeStart,
+        Math.min(nodeEnd, gene.end) - nodeStart,
+        stranded,
+      )
+      body.push({ nodeId: node.id, from, to })
       covered += Math.min(nodeEnd, gene.end) - Math.max(nodeStart, gene.start)
       const nodeParts: string[] = []
       const stretches: NodeSegment[][] = []
@@ -294,6 +306,7 @@ export function genePins(
         exons: parts.join(''),
         exonsByNode,
         nodeIds,
+        body,
         at,
         covered: covered / (gene.end - gene.start),
         onReference: reference,

@@ -384,6 +384,7 @@ test('the outline is keyed as exons, or as genes where every gene is one exon', 
     at: { x: 0, y: 0 },
     covered: 1,
     anchored: 1,
+    body: [],
     onReference: true,
     walks: 1,
   })

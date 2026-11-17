@@ -225,8 +225,9 @@ export function findHoveredNode(
   return hovered
 }
 
-// Liang-Barsky: whether any of the segment a-b lies inside the box
-export function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
+// Liang-Barsky: the stretch of the segment a-b inside the box, as the
+// fractions along it where it enters and leaves, or undefined where none is
+export function segmentInBox(a: NodeSegment, b: NodeSegment, box: Box) {
   const dx = b.x - a.x
   const dy = b.y - a.y
   let t0 = 0
@@ -238,16 +239,19 @@ export function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
     [dy, box.y1 - a.y],
   ] as const) {
     if (p === 0) {
-      if (q < 0) {
-        return false
-      }
+      t0 = q < 0 ? Infinity : t0
     } else if (p < 0) {
       t0 = Math.max(t0, q / p)
     } else {
       t1 = Math.min(t1, q / p)
     }
   }
-  return t0 <= t1
+  return t0 <= t1 ? ([t0, t1] as const) : undefined
+}
+
+// Whether any of the segment a-b lies inside the box
+export function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
+  return segmentInBox(a, b, box) !== undefined
 }
 
 // Whether the centreline of a node other than the label's `own` crosses a box

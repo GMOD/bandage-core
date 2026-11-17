@@ -60,6 +60,7 @@ function pin(at: NodeSegment): GenePin {
     at,
     covered: 1,
     anchored: 1,
+    body: [],
     onReference: true,
     walks: 1,
   }
@@ -872,26 +873,69 @@ test('a gene name next to the key slides clear of it rather than vanish', () => 
 })
 
 // BandageJS fits the drawing to the whole pane, so a pin can sit under the
-// key's column, where every spot by it is reserved
-test('a gene pinned under the key column is named outside the column, with a leader to its pin', () => {
+// key's column, where every spot by it is reserved; rand-chr10-3 in the
+// linear view pinned ANXA8 and FAM25G there, at the cut's end, and led both
+// names under the key, FAM25G's across ANXA8's chip
+test('a gene pinned under the key column is pinned where the pane shows it, and a gene the key hides is not named', () => {
   const keyLeft = 800 - 2 * LEGEND_INSET_PX - 200
   const at = { x: keyLeft + 100, y: 200 }
+  const anxa8 = {
+    ...pin(at),
+    gene: { ...pin(at).gene, name: 'ANXA8', end: 2000 },
+    body: [{ nodeId: 'bb', from: 0, to: 1 }],
+  }
+  const fam25g = {
+    ...pin(at),
+    gene: { ...pin(at).gene, name: 'FAM25G' },
+    nodeIds: new Set(['end']),
+    body: [{ nodeId: 'end', from: 0, to: 1 }],
+  }
   const layout = layoutLabels(
     source({
-      genePins: [pin(at)],
+      genePins: [anxa8, fam25g],
       nodePositions: {
         bb: [
           { x: keyLeft - 100, y: 200 },
+          { x: keyLeft + 50, y: 200 },
+        ],
+        end: [
+          { x: keyLeft + 50, y: 200 },
           { x: 780, y: 200 },
         ],
       },
       legendSize: { width: 200, height: 40 },
     }),
   )
+  expect(layout.genes.map(l => [l.text, l.item.pin.at])).toEqual([
+    ['ANXA8', { x: keyLeft, y: 200 }],
+  ])
   const [label] = layout.genes
-  expect(label?.text).toBe('hemA')
   expect(label!.x + label!.w / 2).toBeLessThanOrEqual(keyLeft)
-  expect(geneLeader(label!, at, 6).x2).toBe(at.x)
+})
+
+// rand-chr18-1's view lies inside CELF4, whose middle is off the pane's
+// left edge; its name was dropped
+test('a gene whose pin is off the pane is named at the nearest point of it the pane shows', () => {
+  const at = { x: -400, y: 200 }
+  const celf4 = {
+    ...pin(at),
+    gene: { ...pin(at).gene, name: 'CELF4' },
+    body: [{ nodeId: 'bb', from: 0, to: 1 }],
+  }
+  const layout = layoutLabels(
+    source({
+      genePins: [celf4],
+      nodePositions: {
+        bb: [
+          { x: -700, y: 200 },
+          { x: 300, y: 200 },
+        ],
+      },
+    }),
+  )
+  expect(layout.genes.map(l => [l.text, l.item.pin.at])).toEqual([
+    ['CELF4', { x: 0, y: 200 }],
+  ])
 })
 
 test('a small variant stands as a tick above its nodes, with no chip', () => {
