@@ -147,9 +147,9 @@ test('a link along nodes is painted after them, as a skip is, and other plain li
     dpr: 1,
   })
   renderer.render([1, 1, 1, 1])
-  const link = abgrToCssRgba(strokesOf(batch, 'XZ')[0]!.color)
-  const node = abgrToCssRgba(batch.nodeStrokes[0]!.color)
-  expect(strokes).toEqual([link, node, link])
+  const linkInk = abgrToCssRgba(strokesOf(batch, 'XZ')[0]!.color)
+  const nodeInk = abgrToCssRgba(batch.nodeStrokes[0]!.color)
+  expect(strokes).toEqual([linkInk, nodeInk, linkInk])
 })
 
 test("a lifted walk's lane on a link along nodes is marked along too", () => {

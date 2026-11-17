@@ -170,8 +170,7 @@ export function baseEdgeCurves(
             ? archOf(
                 routed,
                 axis,
-                ALONG_ARCH_PX *
-                  archSide(routed, bypassed, nodePositions, axis),
+                ALONG_ARCH_PX * archSide(routed, bypassed, nodePositions, axis),
               )
             : routed
         const drawsArc =

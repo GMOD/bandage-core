@@ -274,24 +274,23 @@ reads them.
   nodes inside a folded site that only the lanes crossing it draw, and leaves
   their stretches out, as `figureSvg` does and `figureData`'s `exons` table does
   for any of its panels. The gene stays pinned and listed over the node
-- The key keys the pane: every row, the not-drawn line among them, says what
-  the pane shows, and nothing drawn in the pane, under the key included,
-  escapes it. A host whose pane shows part of its drawing, after a pan or zoom
-  or as a linear view's track cut past its window, hands `drawnMarks`
-  `keyedView`, the whole pane under the reference strip in layout units, the
-  key's own column included; a host that clips its drawing, as a track
-  following its window clips it at the key's column, hands it the width it
-  paints. A mark counts only where one of its strokes meets
-  that view, and a folded site only where its place lies in it; the node
-  thicknesses keyed are the thickest and thinnest nodes stroked there, keyed
-  whenever the drawing's node strokes vary in thickness anywhere, as the batch
-  states for nodes a viewport culled too; an exon is keyed only where its
-  outline meets the view on a node the drawing strokes. `figureSvg` and
-  `figureData` show the whole drawing, so their key keys all of it. A host
-  that grows its pane to show every row of its key sizes the pane by the key
-  as a layout or a setting leaves it, never by the key of each view, so a pan
-  or zoom never moves the pane; a view's key taller than that scrolls in its
-  column
+- The key keys the pane: every row, the not-drawn line among them, says what the
+  pane shows, and nothing drawn in the pane, under the key included, escapes it.
+  A host whose pane shows part of its drawing, after a pan or zoom or as a
+  linear view's track cut past its window, hands `drawnMarks` `keyedView`, the
+  whole pane under the reference strip in layout units, the key's own column
+  included; a host that clips its drawing, as a track following its window clips
+  it at the key's column, hands it the width it paints. A mark counts only where
+  one of its strokes meets that view, and a folded site only where its place
+  lies in it; the node thicknesses keyed are the thickest and thinnest nodes
+  stroked there, keyed whenever the drawing's node strokes vary in thickness
+  anywhere, as the batch states for nodes a viewport culled too; an exon is
+  keyed only where its outline meets the view on a node the drawing strokes.
+  `figureSvg` and `figureData` show the whole drawing, so their key keys all of
+  it. A host that grows its pane to show every row of its key sizes the pane by
+  the key as a layout or a setting leaves it, never by the key of each view, so
+  a pan or zoom never moves the pane; a view's key taller than that scrolls in
+  its column
 - In either state a lifted lane's stroke is never thinner than
   `MIN_LANE_STROKE_PX`, however far a walk's many passes thin its threads
 
@@ -365,8 +364,8 @@ it is on, so the trips round the repeat can be followed one by one.
   `bandage-figure` CLI makes one from a JSON spec with no browser:
   `npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg`. See
   [docs/figures.md](docs/figures.md)
-- A host exporting what its pane shows hands `figureSvg` the pane's size and
-  its transform as `frame`: the figure then draws at that transform on a pane of
+- A host exporting what its pane shows hands `figureSvg` the pane's size and its
+  transform as `frame`: the figure then draws at that transform on a pane of
   exactly that size, the drawing cut at its edges as the host's pane cuts it,
   and its key lists only what that pane shows, where it would otherwise fit the
   whole drawing. Facet panels fit their own

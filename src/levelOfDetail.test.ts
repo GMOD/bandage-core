@@ -353,12 +353,12 @@ test("the reference's link drawn along a run of folded sites is the reference, n
         : undefined,
     }
   }
-  const folded = alongAt(0.1)
-  expect(folded.batch.collapsed?.bridges.has(link)).toBe(true)
-  expect(folded.along).toBe(false)
-  const drawn = alongAt(0.2)
-  expect(drawn.batch.collapsed?.sites).toEqual([])
-  expect(drawn.along).toBe(true)
+  const zoomedOut = alongAt(0.1)
+  expect(zoomedOut.batch.collapsed?.bridges.has(link)).toBe(true)
+  expect(zoomedOut.along).toBe(false)
+  const zoomedIn = alongAt(0.2)
+  expect(zoomedIn.batch.collapsed?.sites).toEqual([])
+  expect(zoomedIn.along).toBe(true)
 })
 
 test('a skip is measured by how far apart on the reference its ends are, whatever of the skipped reference the cut holds', () => {

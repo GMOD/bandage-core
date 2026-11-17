@@ -337,6 +337,7 @@ function unlabelledOf(lengths: number[]) {
     labelsNodeSizes: true,
     nodeLengths: new Map(ids.map((id, i) => [id, lengths[i]!])),
     nodeById: new Map(ids.map(id => [id, { placeholder: true }])),
+    graph: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
     folded: undefined,
@@ -467,7 +468,6 @@ test("the view a key keys is the pane under the reference strip, the key's colum
       {
         paneWidth: 1000,
         canvasHeight: 300,
-        legendSize: { width: 188, height: 100 },
         referenceStripZonePx: 40,
       },
     ),
@@ -1044,9 +1044,9 @@ test('the not-drawn line counts the sites folded where the view lies, under the 
     ]),
   }
   const line = (view?: Bounds) =>
-    graphKey(SMALL, {}, { marks: drawnMarks([panel], view) })
-      .find(section => section.id === 'too-small')
-      ?.entries[0]?.text
+    graphKey(SMALL, {}, { marks: drawnMarks([panel], view) }).find(
+      section => section.id === 'too-small',
+    )?.entries[0]?.text
   expect(line()).toBe('3 nodes and 2 skips under 41 bp not drawn')
   expect(line({ minX: -1, maxX: 1, minY: -1, maxY: 1 })).toBe(
     '1 node and 1 skip under 6 bp not drawn',

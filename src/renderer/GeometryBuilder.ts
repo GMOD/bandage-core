@@ -2060,11 +2060,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             }) !== undefined,
         )
         if (i < run.length - 1) {
-          total += polylinePx(
-            nodePositions[edge.to]!,
-            axis.scaleX,
-            axis.scaleY,
-          )
+          total += polylinePx(nodePositions[edge.to]!, axis.scaleX, axis.scaleY)
         }
       })
       const kept = spreadHeads(along, drawable, total, LINK_HEAD_SPACING_PX)
@@ -2507,8 +2503,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : lanes
           ? liftedWalks.flatMap((walk, lane) =>
               walk.colors.get(nodeId) === undefined ||
-              (threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS)
-                .length === 0
+              (threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS).length ===
+                0
                 ? []
                 : [
                     laneHalfWidth(
@@ -2555,7 +2551,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         laneStrokesOf(nodeId, segments, width).map(({ stroke }) => stroke)) {
         nodeStrokes.push(laned)
       }
-    } else if (drawable && striped && slots) {
+    } else if (drawable && striped) {
       const normals = pointNormalsOf(segments, yToX)
       for (const slot of slots) {
         const offset =
@@ -2606,19 +2602,16 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         )
       }
     }
-    const widthOf = (id: string) => {
-      const node = nodeById.get(id)
-      return node
-        ? nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
-        : contigThickness
-    }
     for (const tab of runsOnTabs({
       graph,
       nodePositions,
       linked,
       drawn: id =>
         nodeById.has(id) && !collapse.nodes.has(id) && !crossedAt(id),
-      halfWidthPx: id => widthOf(id) / 2,
+      halfWidthPx: id => {
+        const node = nodeById.get(id)
+        return (node ? widthOf(node) : contigThickness) / 2
+      },
       scale,
       yToX,
       color: id =>

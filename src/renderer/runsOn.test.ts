@@ -4,7 +4,7 @@ import { RUNS_ON_KEY, drawnMarks, graphKey } from '../graphKey'
 import { buildGeometry } from './GeometryBuilder'
 import { RUNS_ON_LENGTH_PX } from './runsOn'
 
-import type { Graph, GraphEdge, NodeSegment } from '../types'
+import type { Graph, GraphEdge, LayoutResult, NodeSegment } from '../types'
 
 const at = (x0: number, x1: number, y = 0): NodeSegment[] => [
   { x: x0, y },
@@ -34,11 +34,7 @@ function tailed(leavePos: number, edges: GraphEdge[] = []): Graph {
   return {
     name: 'tail',
     nodes,
-    edges: [
-      { from: 'r1+', to: 'r2+' },
-      { from: 'r1+', to: 't+' },
-      ...edges,
-    ],
+    edges: [{ from: 'r1+', to: 'r2+' }, { from: 'r1+', to: 't+' }, ...edges],
     paths: [{ name: 'ref', nodeIds: ['r1+', 'r2+'] }],
     departures: {
       ...departureTable([
@@ -97,7 +93,7 @@ test('a departure the cut holds both ends of, or a tail linked at both ends, has
 
 test('the key names the tab where the drawing shows one, and figure data lists it', () => {
   const graph = tailed(-93_000)
-  const layout = { nodePositions: positions }
+  const layout: LayoutResult = { nodePositions: positions }
   const keyed = (g: Graph) =>
     graphKey(g, layout, { marks: drawnMarks([build(g)]), drawsNodes: true })
       .flatMap(section => section.entries)

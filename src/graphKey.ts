@@ -593,6 +593,28 @@ export function graphKey(
   const skipInk = lifted
     ? fadeAbgr(EDGE_DELETION_COLOR, FADED_ALPHA)
     : EDGE_DELETION_COLOR
+  const notShownEntries: GraphKeyEntry[] = [
+    ...(drawsNodes && o.marks.placeholder
+      ? [
+          {
+            ...entry('not-shown', NOT_LOADED_TEXT, {
+              kind: 'hollow',
+              ink: NOT_LOADED_FILL_COLOR,
+              rim: NOT_LOADED_COLOR,
+              rimPx: NOT_LOADED_RIM_PX,
+            }),
+            ...(o.unlabelled === 'reserved'
+              ? { under: '' }
+              : o.unlabelled
+                ? { under: unlabelledText(o.unlabelled) }
+                : {}),
+          },
+        ]
+      : []),
+    ...(drawsNodes && o.marks.runsOn
+      ? [entry('runs-on', RUNS_ON_KEY, { kind: 'overhang' })]
+      : []),
+  ]
   const skipEntries: GraphKeyEntry[] = [
     ...(o.marks.dashedSkip
       ? [
@@ -660,40 +682,7 @@ export function graphKey(
           : [],
     },
     { id: 'skips', group: 'Marks', entries: skipEntries },
-    {
-      id: 'not-shown',
-      group: 'Marks',
-      entries: [
-        ...(drawsNodes && o.marks.placeholder
-          ? [
-              {
-                key: 'not-shown',
-                text: NOT_LOADED_TEXT,
-                ...(o.unlabelled === 'reserved'
-                  ? { under: '' }
-                  : o.unlabelled
-                    ? { under: unlabelledText(o.unlabelled) }
-                    : {}),
-                swatch: {
-                  kind: 'hollow',
-                  ink: NOT_LOADED_FILL_COLOR,
-                  rim: NOT_LOADED_COLOR,
-                  rimPx: NOT_LOADED_RIM_PX,
-                },
-              },
-            ]
-          : []),
-        ...(drawsNodes && o.marks.runsOn
-          ? [
-              {
-                key: 'runs-on',
-                text: RUNS_ON_KEY,
-                swatch: { kind: 'overhang' },
-              },
-            ]
-          : []),
-      ],
-    },
+    { id: 'not-shown', group: 'Marks', entries: notShownEntries },
     {
       id: 'exon',
       group: 'Marks',

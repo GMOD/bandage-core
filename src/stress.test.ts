@@ -209,7 +209,8 @@ function uniformBatch(bubbleCount: number) {
 test('draw calls per frame do not grow with the graph', () => {
   const small = countDrawCalls(uniformBatch(100))
   const large = countDrawCalls(uniformBatch(500))
-  // one paint each for the edges, the nodes and the arrowheads
-  expect(small).toEqual({ strokes: 2, fills: 1 })
+  // one paint each for the links under the nodes, the nodes, the links laid
+  // along the line that the nodes would hide, and the arrowheads
+  expect(small).toEqual({ strokes: 3, fills: 1 })
   expect(large).toEqual(small)
 })

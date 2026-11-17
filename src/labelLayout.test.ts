@@ -603,6 +603,7 @@ const offReference = (id: string, length: number) => ({
 // sv-10's 148 kb loop drew as long as the 4 kb window's reference does twice
 // over and nothing on it said 148 kb: a loop of loaded nodes up from r1,
 // across and down to r2, whose middle is b's
+const nodesById = (nodes: GraphNode[]) => new Map(nodes.map(n => [n.id, n]))
 const loopGraph = (offNodes: GraphNode[]) => ({
   nodes: [
     onReference('r1', 0, 2000),
@@ -646,7 +647,7 @@ test("a loop of loaded nodes writes its length at the loop's middle, read along 
   const { sizes } = layoutLabels(
     source({
       nodePositions: loopPositions,
-      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      nodeById: nodesById(graph.nodes),
       graph,
     }),
   )
@@ -664,7 +665,7 @@ test('a loop stepping a node not loaded writes no length of its own, and its pla
   const { sizes } = layoutLabels(
     source({
       nodePositions: loopPositions,
-      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      nodeById: nodesById(graph.nodes),
       nodeLengths: labelledNodeLengths(graph.nodes),
       graph,
     }),
@@ -678,7 +679,7 @@ test('a loop drawn too short to hold its length, or folded, writes none', () => 
     offReference('b', 88_000),
     offReference('c', 30_000),
   ])
-  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
+  const nodeById = nodesById(graph.nodes)
   const shrunk = layoutLabels(
     source({
       nodePositions: loopPositions,
@@ -718,7 +719,7 @@ test('loops walks take between the same two reference nodes over mostly the same
   const { sizes } = layoutLabels(
     source({
       nodePositions: { ...loopPositions, c2: loopPositions.c },
-      nodeById: new Map(both.nodes.map(n => [n.id, n])),
+      nodeById: nodesById(both.nodes),
       graph: both,
     }),
   )
@@ -751,7 +752,7 @@ test('loops leaving the reference at other nodes over mostly the same nodes writ
         ],
         c2: loopPositions.c,
       },
-      nodeById: new Map(both.nodes.map(n => [n.id, n])),
+      nodeById: nodesById(both.nodes),
       graph: both,
     }),
   )
@@ -782,7 +783,7 @@ test('loops between the same two reference nodes over other nodes each write the
           { x: 600, y: 300 },
         ],
       },
-      nodeById: new Map(both.nodes.map(n => [n.id, n])),
+      nodeById: nodesById(both.nodes),
       graph: both,
     }),
   )

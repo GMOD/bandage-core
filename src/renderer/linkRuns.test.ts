@@ -41,9 +41,7 @@ describe('directedRuns', () => {
     expect(directedRuns(edges, [0, 1, 2, 3], () => true)).toEqual([
       [0, 1, 2, 3],
     ])
-    expect(directedRuns(edges, [0, 1, 2, 3], ei => ei !== 2)).toEqual([
-      [0, 1],
-    ])
+    expect(directedRuns(edges, [0, 1, 2, 3], ei => ei !== 2)).toEqual([[0, 1]])
   })
 
   test('a ring is one run', () => {
@@ -58,14 +56,26 @@ describe('spreadHeads', () => {
   const along = Array.from({ length: 50 }, (_, i) => i * 10)
 
   test('one head per spacing of the run, each nearest an even share of it', () => {
-    const kept = [...spreadHeads(along, along.map(() => true), 490, 100)]
+    const kept = [
+      ...spreadHeads(
+        along,
+        along.map(() => true),
+        490,
+        100,
+      ),
+    ]
     expect(kept).toEqual([6, 18, 31, 43])
   })
 
   test('a run shorter than the spacing keeps one head, at its middle', () => {
-    expect([...spreadHeads(along, along.map(() => true), 490, 1000)]).toEqual([
-      24,
-    ])
+    expect([
+      ...spreadHeads(
+        along,
+        along.map(() => true),
+        490,
+        1000,
+      ),
+    ]).toEqual([24])
   })
 
   test('a head that does not fit is passed over for the nearest that does', () => {

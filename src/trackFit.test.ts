@@ -133,8 +133,8 @@ test('a window whose drawing is taller than the pane fills it, and keeps its ref
   const scale = 3
   const translateX = PANE.width / 2 - 200 * scale
   const y = placedY(scale, translateX)
-  expect(0 * scale + y).toBeGreaterThanOrEqual(PADS.padTop - 1e-9)
-  expect(0 * scale + y).toBeLessThanOrEqual(PANE.height - PADS.padBottom)
+  expect(y).toBeGreaterThanOrEqual(PADS.padTop - 1e-9)
+  expect(y).toBeLessThanOrEqual(PANE.height - PADS.padBottom)
   expect(400 * scale + y).toBeGreaterThanOrEqual(PANE.height - PADS.padBottom)
 })
 

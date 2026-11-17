@@ -463,6 +463,7 @@ test("the labels table places the canvas's labels: a placeholder's length always
     labelsNodeSizes: true,
     nodeLengths: labelledNodeLengths(graph.nodes, true),
     nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    graph,
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
     folded: new Set(listed(d.sites?.nodes)),
