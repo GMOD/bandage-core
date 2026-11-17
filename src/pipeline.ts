@@ -454,6 +454,8 @@ export interface ReferencePiece {
   bp1: number
   x0: number
   x1: number
+  y0: number
+  y1: number
 }
 
 interface ReferenceEnd {
@@ -493,8 +495,22 @@ export function referenceProfile(
         if (f1 > f0) {
           pieces.push(
             forwards
-              ? { bp0: bpAt(f0), bp1: bpAt(f1), x0: a.x, x1: b.x }
-              : { bp0: bpAt(f1), bp1: bpAt(f0), x0: b.x, x1: a.x },
+              ? {
+                  bp0: bpAt(f0),
+                  bp1: bpAt(f1),
+                  x0: a.x,
+                  x1: b.x,
+                  y0: a.y,
+                  y1: b.y,
+                }
+              : {
+                  bp0: bpAt(f1),
+                  bp1: bpAt(f0),
+                  x0: b.x,
+                  x1: a.x,
+                  y0: b.y,
+                  y1: a.y,
+                },
           )
         }
       }
@@ -664,6 +680,30 @@ export function shownBounds(
   return maxY >= minY ? { minY, h: maxY - minY } : undefined
 }
 
+// The scale at which the widest stretch of the reference any view-width
+// window in the cut takes in fills the pane's width, so a zoom inside the cut
+// magnifies as a camera does
+export function windowScale(
+  profile: ReferenceProfile,
+  cut: { start: number; end: number },
+  viewSpan: number,
+  paneWidth: number,
+  { padLeft = FIT_PADDING, padRight = FIT_PADDING } = {},
+) {
+  const usableWidth = paneWidth - padLeft - padRight
+  const reach = Math.min(viewSpan, cut.end - cut.start)
+  const widest = widestStretch(
+    profile,
+    cut.start,
+    Math.max(cut.start, cut.end - reach),
+    reach,
+  )
+  return usableWidth > 0 && widest > 0
+    ? clampZoom(usableWidth / widest)
+    : undefined
+}
+
+// windowScale, capped so the whole cut is no taller than the pane
 export function cutScale(
   profile: ReferenceProfile,
   cut: { start: number; end: number },
@@ -678,21 +718,14 @@ export function cutScale(
     padBottom = FIT_PADDING,
   } = {},
 ) {
-  const usableWidth = paneWidth - padLeft - padRight
   const usableHeight = paneHeight - padTop - padBottom
-  const reach = Math.min(viewSpan, cut.end - cut.start)
-  const widest = widestStretch(
-    profile,
-    cut.start,
-    Math.max(cut.start, cut.end - reach),
-    reach,
-  )
-  return usableWidth > 0 && usableHeight > 0 && widest > 0
+  const across = windowScale(profile, cut, viewSpan, paneWidth, {
+    padLeft,
+    padRight,
+  })
+  return across !== undefined && usableHeight > 0
     ? clampZoom(
-        Math.min(
-          usableWidth / widest,
-          bounds.h > 0 ? usableHeight / bounds.h : Infinity,
-        ),
+        Math.min(across, bounds.h > 0 ? usableHeight / bounds.h : Infinity),
       )
     : undefined
 }

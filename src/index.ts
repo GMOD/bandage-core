@@ -18,6 +18,7 @@ export {
   loadGraph,
   referenceProfile,
   shownBounds,
+  windowScale,
 } from './pipeline'
 export type {
   Bounds,
@@ -28,6 +29,21 @@ export type {
   ReferenceProfile,
 } from './pipeline'
 export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
+export {
+  DEFAULT_TRACK_FIT,
+  TRACK_FITS,
+  TRACK_FIT_LABELS,
+  drawEdgeMarks,
+  drawnSegments,
+  edgeOverruns,
+  grownHeight,
+  isTrackFit,
+  reachOver,
+  referenceSegments,
+  scalesByWindow,
+  windowTranslateY,
+} from './trackFit'
+export type { EdgeOverruns, TrackFit } from './trackFit'
 export { createForceLayoutCache } from './layout/forceCache'
 export { cutsWholeWalks, walkStripApplies } from './layout/walkStrip'
 export type { ForceLayoutCache } from './layout/forceCache'

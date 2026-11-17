@@ -88,9 +88,9 @@ const xAtBp = (bp: number) => (bp - 1_000) / 10
 
 test('the profile is the reference drawn piece by piece in bp order, whichever strand a node reads', () => {
   expect(profile.pieces).toEqual([
-    { bp0: 1_000, bp1: 2_000, x0: 0, x1: 100 },
-    { bp0: 2_000, bp1: 3_000, x0: 100, x1: 200 },
-    { bp0: 3_000, bp1: 4_000, x0: 200, x1: 300 },
+    { bp0: 1_000, bp1: 2_000, x0: 0, x1: 100, y0: 0, y1: 0 },
+    { bp0: 2_000, bp1: 3_000, x0: 100, x1: 200, y0: 0, y1: 0 },
+    { bp0: 3_000, bp1: 4_000, x0: 200, x1: 300, y0: 0, y1: 0 },
   ])
 })
 
@@ -175,7 +175,7 @@ function wanderingProfile(seed: number) {
     const length = 20 + next(100)
     const x0 = next(5) === 0 ? x + next(81) - 40 : x
     x = x0 + next(121) - 60
-    pieces.push({ bp0: bp, bp1: bp + length, x0, x1: x })
+    pieces.push({ bp0: bp, bp1: bp + length, x0, x1: x, y0: 0, y1: 0 })
     bp += length
   }
   const ends = pieces
@@ -416,7 +416,7 @@ function panFixture(name: string) {
       4 * i,
       4 * i + 4,
     )
-    return { bp0, bp1, x0, x1 }
+    return { bp0, bp1, x0, x1, y0: 0, y1: 0 }
   })
   const ends = pieces
     .flatMap(p => [
