@@ -202,9 +202,10 @@ function mergedRuns(runs: EdgeRun[]) {
   return out
 }
 
-// Where along the pane's top and bottom edges the drawing runs past them, in
-// screen px: the x each stroke takes while past the edge, inside the width.
-// The top edge sits under whatever the host lays over the pane's top.
+// Where the drawing crosses the pane's top and bottom edges on its way past
+// them, in screen px inside the width, crossings closer than EDGE_RUN_GAP_PX
+// taken as one run. The top edge sits under whatever the host lays over the
+// pane's top.
 export function edgeOverruns(
   segments: Float64Array,
   transform: { scale: number; translateX: number; translateY: number },
@@ -214,24 +215,18 @@ export function edgeOverruns(
   const { scale, translateX, translateY } = transform
   const top: EdgeRun[] = []
   const bottom: EdgeRun[] = []
-  const past = (
+  const crossing = (
     ax: number,
     ay: number,
     bx: number,
     by: number,
     edge: number,
-    beyond: (y: number) => boolean,
     runs: EdgeRun[],
   ) => {
-    const inA = beyond(ay)
-    const inB = beyond(by)
-    if (inA || inB) {
-      const cross = ay === by ? ax : ax + ((bx - ax) * (edge - ay)) / (by - ay)
-      const xs = inA && inB ? [ax, bx] : inA ? [ax, cross] : [cross, bx]
-      const x0 = Math.max(0, Math.min(xs[0]!, xs[1]!))
-      const x1 = Math.min(paneWidth, Math.max(xs[0]!, xs[1]!))
-      if (x1 >= x0) {
-        runs.push({ x0, x1 })
+    if ((ay - edge) * (by - edge) < 0) {
+      const x = ax + ((bx - ax) * (edge - ay)) / (by - ay)
+      if (x >= 0 && x <= paneWidth) {
+        runs.push({ x0: x, x1: x })
       }
     }
   }
@@ -240,8 +235,8 @@ export function edgeOverruns(
     const ay = segments[i + 1]! * scale + translateY
     const bx = segments[i + 2]! * scale + translateX
     const by = segments[i + 3]! * scale + translateY
-    past(ax, ay, bx, by, edges.top, y => y < edges.top, top)
-    past(ax, ay, bx, by, edges.bottom, y => y > edges.bottom, bottom)
+    crossing(ax, ay, bx, by, edges.top, top)
+    crossing(ax, ay, bx, by, edges.bottom, bottom)
   }
   return { top: mergedRuns(top), bottom: mergedRuns(bottom) }
 }
@@ -250,8 +245,8 @@ export type EdgeOverruns = ReturnType<typeof edgeOverruns>
 
 export const EDGE_MARK_PX = 8
 
-// A triangle at the middle of each run, its tip on the edge and pointing off
-// it, as long as the strip's tabs past its sides, haloed in paper so it reads
+// A triangle at the middle of each run of crossings, its tip on the edge and
+// pointing off it, as long as the strip's tabs past its sides, haloed in paper so it reads
 // over the strokes it sits on
 export function drawEdgeMarks(
   ctx: CanvasRenderingContext2D,

@@ -158,16 +158,17 @@ test('a track grown for a cut holds the cut between the pads at the scale drawn'
   expect(grownHeight(whole, 0.5, PADS)).toBe(60 + 40 + 200)
 })
 
-test('where the drawing runs past the top or bottom, the edge is marked under the run, and nowhere else', () => {
-  const scale = 1
+test("where the drawing crosses the top or bottom on its way past it the edge is marked, a loop's two legs as one mark, and nowhere else", () => {
   const runs = edgeOverruns(
     segments,
-    { scale, translateX: 0, translateY: 0 },
+    { scale: 1, translateX: 0, translateY: 100 },
     PANE.width,
     { top: 8, bottom: PANE.height },
   )
-  expect(runs.top).toEqual([{ x0: 0, x1: 300 }])
-  expect(runs.bottom).toEqual([{ x0: 190, x1: 210 }])
+  expect(runs.top).toEqual([])
+  expect(runs.bottom).toHaveLength(1)
+  expect(runs.bottom[0]!.x0).toBeCloseTo(200 - (10 * 200) / 380)
+  expect(runs.bottom[0]!.x1).toBeCloseTo(210 - (10 * 180) / 380)
   const inside = edgeOverruns(
     segments,
     { scale: 0.5, translateX: 0, translateY: 40 },
@@ -175,6 +176,14 @@ test('where the drawing runs past the top or bottom, the edge is marked under th
     { top: 8, bottom: PANE.height },
   )
   expect(inside).toEqual({ top: [], bottom: [] })
+  const above = edgeOverruns(
+    segments,
+    { scale: 1, translateX: 0, translateY: -300 },
+    PANE.width,
+    { top: 8, bottom: PANE.height },
+  )
+  expect(above.top.length).toBeGreaterThan(0)
+  expect(above.bottom).toEqual([])
 })
 
 test('runs past an edge closer than the gap are one mark, and runs further apart two', () => {
