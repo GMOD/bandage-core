@@ -1,4 +1,3 @@
-import { keyColumnPx } from './keyColumn'
 import { clampZoom } from './pipeline'
 
 import type { KeyFrame } from './keyColumn'
@@ -35,15 +34,16 @@ export function viewportOf(
   }
 }
 
-// What a pane shows of its drawing beside the key's column and under the
-// reference strip, in layout units: the view its key keys (drawnMarks)
+// What a pane shows of its drawing under the reference strip, in layout
+// units, the key's own column included, so nothing drawn under the key escapes
+// it: the view its key keys (drawnMarks)
 export function keyedView(
   t: { translateX: number; translateY: number },
   axis: AxisScale,
-  frame: KeyFrame,
+  frame: Pick<KeyFrame, 'paneWidth' | 'canvasHeight' | 'referenceStripZonePx'>,
 ): Bounds {
   return {
-    ...viewportOf(t, axis, frame.paneWidth - keyColumnPx(frame), 0),
+    ...viewportOf(t, axis, frame.paneWidth, 0),
     minY: ((frame.referenceStripZonePx ?? 0) - t.translateY) / axis.scaleY,
     maxY: (frame.canvasHeight - t.translateY) / axis.scaleY,
   }

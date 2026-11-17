@@ -5,6 +5,7 @@ import { NOT_LOADED_TEXT } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { drawnMarks, graphKey, tooSmallText, unlabelledText } from './graphKey'
 import { nodeLabelBudget } from './graphLabels'
+import { keyColumnBox } from './keyColumn'
 import { layoutLabels } from './labelLayout'
 import { polylinePointAt } from './layout/mergeRuns'
 import { layoutModeByValue } from './layoutModes'
@@ -88,7 +89,7 @@ function drawn(g: Graph, s: Scene = {}) {
     ...(s.bounds ? { viewportBounds: s.bounds } : {}),
     ...(s.smallSites ? { smallSites: s.smallSites } : {}),
   })
-  return { layout, batch }
+  return { layout, batch, fit, pixelRows }
 }
 
 function keyOf(g: Graph, s: Scene = {}, o: Partial<GraphKeyOptions> = {}) {
@@ -450,7 +451,7 @@ test('an exon is keyed only where its outline meets the view the pane shows', ()
   expect(keyed(middleOf(layout, other))).not.toContain('exon')
 })
 
-test("the view a key keys is the pane less the key's column and the reference strip", () => {
+test("the view a key keys is the pane under the reference strip, the key's column included", () => {
   expect(
     keyedView(
       { translateX: -100, translateY: 20 },
@@ -462,7 +463,34 @@ test("the view a key keys is the pane less the key's column and the reference st
         referenceStripZonePx: 40,
       },
     ),
-  ).toEqual({ minX: 50, maxX: 450, minY: 10, maxY: 140 })
+  ).toEqual({ minX: 50, maxX: 550, minY: 10, maxY: 140 })
+})
+
+// L6-amy's pane, panned, drew a skip's dashes and a thick reference node in
+// the strip under the key, and the key listed neither
+test('a mark drawn under the key is keyed', () => {
+  const { layout, batch, fit, pixelRows } = drawn(SKIPPED)
+  const skip = batch.edgeCurves.find(e => e.skip && e.walk === undefined)!
+  const xs = skip.curves.flatMap(c => [c.x0, c.cx0, c.cx1, c.x1])
+  const left = xs.reduce((a, b) => Math.min(a, b))
+  const right = xs.reduce((a, b) => Math.max(a, b))
+  const frame = {
+    paneWidth: 1200,
+    canvasHeight: 300,
+    legendSize: { width: 488, height: 100 },
+  }
+  const column = keyColumnBox(frame)
+  const translateX = column.x0 + 10 - left * fit.scale
+  expect(right * fit.scale + translateX).toBeLessThan(column.x1)
+  const view = keyedView(
+    { translateX, translateY: fit.translateY },
+    axisScaleOf(fit.scale, pixelRows),
+    frame,
+  )
+  const skips = graphKey(SKIPPED, layout, { marks: drawnMarks([batch], view) })
+    .filter(section => section.id === 'skips')
+    .flatMap(section => section.entries.map(entry => entry.text))
+  expect(skips).toEqual(['skips GRCh38 chr6 sequence'])
 })
 
 // Y-rand-10's pane showed the reference's nodes, walked by GRCh38 alone,
