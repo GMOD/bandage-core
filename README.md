@@ -99,8 +99,11 @@ reads them.
   `NOT_LOADED_CSS` around `NOT_LOADED_FILL_CSS` and names it `NOT_LOADED_TEXT`,
   as `figureSvg`'s key does. Its length is written on its loop, or stacked off
   the loop with a leader, longest first, while fewer stacked lengths stand than
-  the pane rations node labels; `layoutLabels` returns the placeholders left
-  without one as `unlabelled`, and a host hands that to `graphKey`, which writes
+  the pane rations node labels, and only where its box lies whole on the pane.
+  Placeholders drawn too short to hold their length are specks, and specks
+  nearer one another than a label is tall take one length between them, the
+  longest's; `layoutLabels` returns the placeholders left without one as
+  `unlabelled`, and a host hands that to `graphKey`, which writes
   `N unlabelled, X or less each` under the entry. In the tube map, where loading
   turns one box into its nodes, it is a box with a dashed outline and no tint,
   captioned `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts
@@ -164,6 +167,12 @@ reads them.
 - `graphBackbone`, `backboneAssembly` and `assemblyWalk` find which assembly a
   backbone lies on. `featuresOnBackbone` renames that assembly's genes onto the
   backbone's refNames, and `genePins` pins only those
+- `layoutLabels` names a gene at its pin, or, where the pane does not show the
+  pin, at the nearest point of the gene the pane shows; a gene the pane shows
+  none of is not named. A copy on the reference whose stretch the reference
+  walks over nodes it passed before, as a collapsed repeat's later copies, keeps
+  its exons and no name (`GenePin.anchored`). A gene partly in the cut says how
+  much of it the drawing holds, each amount in its own unit: `8.2 kb of 1.4 Mb`
 
 ## Small sites
 
@@ -240,6 +249,12 @@ reads them.
   nodes inside a folded site that only the lanes crossing it draw, and leaves
   their stretches out, as `figureSvg` does and `figureData`'s `exons` table does
   for any of its panels. The gene stays pinned and listed over the node
+- The key lists what the pane shows. A host whose pane shows part of its
+  drawing, as a linear view's track cut past its window, hands `drawnMarks`
+  `keyedView`, the pane beside the key's column and under the reference strip in
+  layout units: a mark counts only where one of its strokes meets it, the node
+  thicknesses keyed are the thickest and thinnest nodes stroked there, and an
+  exon is keyed only where its outline meets it on a node the drawing strokes
 - In either state a lifted lane's stroke is never thinner than
   `MIN_LANE_STROKE_PX`, however far a walk's many passes thin its threads
 
