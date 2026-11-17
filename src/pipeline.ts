@@ -461,7 +461,10 @@ export interface ReferencePiece {
 interface ReferenceEnd {
   bp: number
   x: number
+  y: number
 }
+
+type Axis = 'x' | 'y'
 
 export interface ReferenceProfile {
   pieces: ReferencePiece[]
@@ -521,23 +524,32 @@ export function referenceProfile(
     pieces,
     ends: pieces
       .flatMap(p => [
-        { bp: p.bp0, x: p.x0 },
-        { bp: p.bp1, x: p.x1 },
+        { bp: p.bp0, x: p.x0, y: p.y0 },
+        { bp: p.bp1, x: p.x1, y: p.y1 },
       ])
       .sort((p, q) => p.bp - q.bp),
   }
 }
 
-const xOn = (piece: ReferencePiece, bp: number) =>
-  piece.x0 +
-  ((piece.x1 - piece.x0) * (bp - piece.bp0)) / (piece.bp1 - piece.bp0)
+const onPiece = (piece: ReferencePiece, bp: number, axis: Axis) => {
+  const [a, b] = axis === 'x' ? [piece.x0, piece.x1] : [piece.y0, piece.y1]
+  return a + ((b - a) * (bp - piece.bp0)) / (piece.bp1 - piece.bp0)
+}
 
-function slidingExtreme(keep: (kept: number, x: number) => boolean) {
+const xOn = (piece: ReferencePiece, bp: number) => onPiece(piece, bp, 'x')
+
+function slidingExtreme(
+  axis: Axis,
+  keep: (kept: number, value: number) => boolean,
+) {
   const ends: ReferenceEnd[] = []
   let from = 0
   return {
     add(end: ReferenceEnd) {
-      while (ends.length > from && keep(ends.at(-1)?.x ?? end.x, end.x)) {
+      while (
+        ends.length > from &&
+        keep(ends.at(-1)?.[axis] ?? end[axis], end[axis])
+      ) {
         ends.pop()
       }
       ends.push(end)
@@ -546,19 +558,19 @@ function slidingExtreme(keep: (kept: number, x: number) => boolean) {
       while ((ends[from]?.bp ?? Infinity) < bp) {
         from++
       }
-      return ends[from]?.x
+      return ends[from]?.[axis]
     },
   }
 }
 
-function pieceCursor(pieces: readonly ReferencePiece[]) {
+function pieceCursor(pieces: readonly ReferencePiece[], axis: Axis) {
   let at = 0
   return (bp: number) => {
     while ((pieces[at]?.bp1 ?? Infinity) <= bp) {
       at++
     }
     const piece = pieces[at]
-    return piece && piece.bp0 < bp ? xOn(piece, bp) : undefined
+    return piece && piece.bp0 < bp ? onPiece(piece, bp, axis) : undefined
   }
 }
 
@@ -590,16 +602,19 @@ function windowStarts(
   return starts
 }
 
+// The most the reference any `reach`-long window starting between `from` and
+// `to` takes in spans along `axis`, as the layout drew it
 function widestStretch(
   { pieces, ends }: ReferenceProfile,
   from: number,
   to: number,
   reach: number,
+  axis: Axis,
 ) {
-  const high = slidingExtreme((kept, x) => kept <= x)
-  const low = slidingExtreme((kept, x) => kept >= x)
-  const atStart = pieceCursor(pieces)
-  const atEnd = pieceCursor(pieces)
+  const high = slidingExtreme(axis, (kept, value) => kept <= value)
+  const low = slidingExtreme(axis, (kept, value) => kept >= value)
+  const atStart = pieceCursor(pieces, axis)
+  const atEnd = pieceCursor(pieces, axis)
   let added = 0
   let widest = 0
   for (const a of windowStarts(ends, from, to, reach)) {
@@ -697,9 +712,48 @@ export function windowScale(
     cut.start,
     Math.max(cut.start, cut.end - reach),
     reach,
+    'x',
   )
   return usableWidth > 0 && widest > 0
     ? clampZoom(usableWidth / widest)
+    : undefined
+}
+
+// windowScale, lowered where it must be so the reference any view-width window
+// inside the cut takes in, as the layout drew it, is no taller than the pane:
+// what hangs off that reference may run past the top or bottom, the reference
+// never. Like windowScale it reads the cut and the view's width, never where
+// the view is, so a pan only slides the drawing.
+export function referenceScale(
+  profile: ReferenceProfile,
+  cut: { start: number; end: number },
+  viewSpan: number,
+  paneWidth: number,
+  paneHeight: number,
+  {
+    padLeft = FIT_PADDING,
+    padTop = FIT_PADDING,
+    padRight = FIT_PADDING,
+    padBottom = FIT_PADDING,
+  } = {},
+) {
+  const usableHeight = paneHeight - padTop - padBottom
+  const across = windowScale(profile, cut, viewSpan, paneWidth, {
+    padLeft,
+    padRight,
+  })
+  const reach = Math.min(viewSpan, cut.end - cut.start)
+  const tallest = widestStretch(
+    profile,
+    cut.start,
+    Math.max(cut.start, cut.end - reach),
+    reach,
+    'y',
+  )
+  return across !== undefined && usableHeight > 0
+    ? clampZoom(
+        Math.min(across, tallest > 0 ? usableHeight / tallest : Infinity),
+      )
     : undefined
 }
 
@@ -728,6 +782,28 @@ export function cutScale(
         Math.min(across, bounds.h > 0 ? usableHeight / bounds.h : Infinity),
       )
     : undefined
+}
+
+// How high and low the reference whose bp lie in the window, ends included,
+// reaches as the layout drew it, each piece cut where the window's ends fall
+export function referenceReach(
+  { pieces }: ReferenceProfile,
+  window: { start: number; end: number },
+) {
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const piece of pieces) {
+    const lo = Math.max(window.start, piece.bp0)
+    const hi = Math.min(window.end, piece.bp1)
+    if (hi >= lo) {
+      for (const bp of [lo, hi]) {
+        const y = onPiece(piece, bp, 'y')
+        minY = Math.min(minY, y)
+        maxY = Math.max(maxY, y)
+      }
+    }
+  }
+  return maxY >= minY ? { minY, maxY } : undefined
 }
 
 function nearestEnd(ends: readonly ReferenceEnd[], bp: number) {

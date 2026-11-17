@@ -17,6 +17,8 @@ export {
   layoutExtent,
   loadGraph,
   referenceProfile,
+  referenceReach,
+  referenceScale,
   shownBounds,
   windowScale,
 } from './pipeline'

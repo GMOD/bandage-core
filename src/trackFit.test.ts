@@ -1,4 +1,11 @@
-import { cutScale, referenceProfile, windowScale } from './pipeline'
+import {
+  cutScale,
+  followTransform,
+  referenceProfile,
+  referenceReach,
+  referenceScale,
+  windowScale,
+} from './pipeline'
 import {
   EDGE_RUN_GAP_PX,
   PAN_GLIDE,
@@ -71,10 +78,20 @@ const reference = referenceSegments(profile)
 const whole = { minY: 0, h: 400 }
 const cut = { start: 1_000, end: 4_000 }
 
+// the bp the reference lays from x0 to x1, at one layout unit per 10 bp
+const bpUnder = (x0: number, x1: number) => ({
+  start: 1_000 + 10 * x0,
+  end: 1_000 + 10 * x1,
+})
+
 function placedY(scale: number, translateX: number) {
   return windowTranslateY({
     segments,
     reference,
+    held: referenceReach(
+      profile,
+      bpUnder(-translateX / scale, (PANE.width - translateX) / scale),
+    ),
     scale,
     translateX,
     bounds: whole,
@@ -93,6 +110,162 @@ test("at the window's scale a zoom magnifies the drawing as a camera does, where
   expect(fitAt(500)).toBeCloseTo(fitAt(1_000))
   expect(scaleAt(500) / scaleAt(1_000)).toBeCloseTo(2)
   expect(scaleAt(250) / scaleAt(500)).toBeCloseTo(2)
+})
+
+// The reference as a run of nodes through [bp, x, y] points in bp order
+function laidReference(points: readonly (readonly [number, number, number])[]) {
+  const nodes = points
+    .slice(1)
+    .map((_, i) =>
+      node(`r${i}+`, points[i]![0], points[i + 1]![0] - points[i]![0]),
+    )
+  const laid = Object.fromEntries(
+    nodes.map((n, i) => [
+      n.id,
+      [
+        { x: points[i]![1], y: points[i]![2] },
+        { x: points[i + 1]![1], y: points[i + 1]![2] },
+      ],
+    ]),
+  )
+  const drawn: Graph = { name: 'laid', nodes, edges: [] }
+  return { profile: referenceProfile(drawn, laid), graph: drawn, laid }
+}
+
+// a reference laid flat for its first 1 kb, then out to the right and back
+// over 4 kb while it climbs 400 units, then flat back over its start
+const hairpin = laidReference([
+  [0, 0, 0],
+  [1_000, 100, 0],
+  [2_000, 350, -100],
+  [3_000, 600, -200],
+  [4_000, 350, -300],
+  [5_000, 100, -400],
+  [6_000, 0, -400],
+])
+const HAIRPIN_CUT = { start: 0, end: 6_000 }
+
+function tallestByStep(
+  profile: ReturnType<typeof referenceProfile>,
+  cut: { start: number; end: number },
+  span: number,
+) {
+  let tallest = 0
+  for (let a = cut.start; a + span <= cut.end; a += 5) {
+    const reach = referenceReach(profile, { start: a, end: a + span })
+    tallest = Math.max(tallest, reach ? reach.maxY - reach.minY : 0)
+  }
+  return tallest
+}
+
+test("the scale stands at the window's scale where the reference any view-width window takes in fits the height, however tall what hangs off it", () => {
+  const span = 1_000
+  const across = windowScale(profile, cut, span, PANE.width, PADS)!
+  expect(
+    referenceScale(profile, cut, span, PANE.width, PANE.height, PADS),
+  ).toBe(across)
+  expect(
+    cutScale(profile, cut, span, whole, PANE.width, PANE.height, PADS),
+  ).toBeLessThan(across / 2)
+})
+
+test('where the reference a view-width window takes in is taller than the height, the scale is the largest at which every such stretch fits it, and no smaller', () => {
+  const { profile: laid } = hairpin
+  for (const span of [1_000, 1_500, 3_000]) {
+    const across = windowScale(laid, HAIRPIN_CUT, span, PANE.width, PADS)!
+    const tallest = tallestByStep(laid, HAIRPIN_CUT, span)
+    const scale = referenceScale(
+      laid,
+      HAIRPIN_CUT,
+      span,
+      PANE.width,
+      PANE.height,
+      PADS,
+    )!
+    expect(USABLE_H / tallest).toBeLessThan(across)
+    expect(scale).toBeCloseTo(USABLE_H / tallest, 6)
+    expect(scale).toBeGreaterThan(USABLE_H / 400)
+  }
+})
+
+test('the tallest stretch counts a peak inside a window as well as where its ends fall', () => {
+  const zigzag = laidReference(
+    Array.from({ length: 41 }, (_, k) => [
+      k * 250,
+      k * 30,
+      (k % 3 === 0 ? -120 : k % 3 === 1 ? 40 : 0) + k * 7,
+    ]),
+  )
+  const zigzagCut = { start: 0, end: 10_000 }
+  for (const span of [300, 700, 1_000, 2_600]) {
+    const scale = referenceScale(
+      zigzag.profile,
+      zigzagCut,
+      span,
+      PANE.width,
+      PANE.height,
+      PADS,
+    )!
+    const across = windowScale(
+      zigzag.profile,
+      zigzagCut,
+      span,
+      PANE.width,
+      PADS,
+    )!
+    expect(scale).toBeCloseTo(
+      Math.min(
+        across,
+        USABLE_H / tallestByStep(zigzag.profile, zigzagCut, span),
+      ),
+      6,
+    )
+  }
+})
+
+test("at every pan step the window's own reference lies whole between the pads, where reference at other bp under the pane's width runs far past them", () => {
+  const { profile: laid, graph: drawn, laid: positions } = hairpin
+  const span = 1_000
+  const scale = referenceScale(
+    laid,
+    HAIRPIN_CUT,
+    span,
+    PANE.width,
+    PANE.height,
+    PADS,
+  )!
+  const bounds = { minY: -400, h: 400 }
+  const lines = drawnSegments(drawn, { nodePositions: positions })
+  for (let a = 0; a + span <= HAIRPIN_CUT.end; a += 250) {
+    const window = { start: a, end: a + span }
+    const { translateX } = followTransform(
+      laid,
+      window,
+      scale,
+      bounds,
+      PANE.width,
+      PANE.height,
+      PADS,
+    )!
+    const held = referenceReach(laid, window)!
+    const y = windowTranslateY({
+      segments: lines,
+      reference: referenceSegments(laid),
+      held,
+      scale,
+      translateX,
+      bounds,
+      paneWidth: PANE.width,
+      paneHeight: PANE.height,
+      pads: PADS,
+    })
+    expect(held.minY * scale + y).toBeGreaterThanOrEqual(PADS.padTop - 1e-9)
+    expect(held.maxY * scale + y).toBeLessThanOrEqual(
+      PANE.height - PADS.padBottom + 1e-9,
+    )
+  }
+  const under = reachOver(lines, -40 / scale, (PANE.width - 40) / scale)!
+  expect((under.maxY - under.minY) * scale).toBeGreaterThan(2 * USABLE_H)
 })
 
 test('the drawn lines are every node and every link, from the end its strands name', () => {
@@ -160,6 +333,7 @@ test("a window whose drawing fits the pane is held whole, where the cut's anchor
       -400,
     ]),
     reference: line,
+    held: { minY: 0, maxY: 0 },
     scale,
     translateX: 40,
     bounds: { minY: -400, h: 415 },
@@ -189,6 +363,7 @@ test("a window whose reference runs far from the cut's middle keeps it on the pa
       2_000,
     ]),
     reference: slope,
+    held: reachOver(slope, -4, 96),
     scale,
     translateX: 40,
     bounds: { minY: -2_000, h: 5_000 },

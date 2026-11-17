@@ -5,10 +5,11 @@ import type { ReferenceProfile } from './pipeline'
 import type { Graph, LayoutResult, NodeSegment } from './types'
 
 // How a drawing placed by a host's window meets the host's height, named as
-// JBrowse names a track's sizing: `fit` scales the whole cut into the height,
-// `fixed` draws it at the window's scale and clips what runs past the top or
-// bottom, `grow` draws it at the window's scale in a track grown to hold the
-// cut, up to the host's cap, and clips past that
+// JBrowse names a track's sizing: `fit` scales the whole cut into the height;
+// `fixed` draws it at the window's scale, lowered only so the window's own
+// reference fits the height (referenceScale), holds that reference whole and
+// clips what hangs off it past the top or bottom; `grow` does the same in a
+// track grown to hold the cut, up to the host's cap
 export const TRACK_FITS = ['fixed', 'grow', 'fit'] as const
 
 export type TrackFit = (typeof TRACK_FITS)[number]
@@ -127,11 +128,14 @@ export const PAN_GLIDE = 1
 // it does not. From there the drawing moves the least that fills the pads
 // with what the pane's width shows where that is taller than them, or holds
 // it all where it fits, counting what lies past the sides by PAN_GLIDE, so a
-// pan moves it up or down no faster than across. Last, it keeps the reference
-// the width shows inside them, however steep the reference runs.
+// pan moves it up or down no faster than across. Last, it holds the window's
+// own reference, the reference whose bp lie in the window (`referenceReach`),
+// inside them, however steep it runs and whatever else lies under the pane's
+// width; at referenceScale it always fits.
 export function windowTranslateY({
   segments,
   reference,
+  held,
   scale,
   translateX,
   bounds,
@@ -141,6 +145,7 @@ export function windowTranslateY({
 }: {
   segments: Float64Array
   reference: Float64Array
+  held: YRange | undefined
   scale: number
   translateX: number
   bounds: { minY: number; h: number }
@@ -166,10 +171,7 @@ export function windowTranslateY({
   )
   const x0 = -translateX / scale
   const x1 = (paneWidth - translateX) / scale
-  return inside(
-    inside(anchor, reachOver(segments, x0, x1, PAN_GLIDE)),
-    reachOver(reference, x0, x1),
-  )
+  return inside(inside(anchor, reachOver(segments, x0, x1, PAN_GLIDE)), held)
 }
 
 // The track height that holds the whole cut drawn at `scale` between the pads
