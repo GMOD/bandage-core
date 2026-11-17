@@ -444,6 +444,7 @@ export { engineKey } from './pipeline'
 export {
   axisScaleOf,
   contains,
+  keyedView,
   padded,
   screenToLayout,
   viewportOf,

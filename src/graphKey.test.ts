@@ -18,7 +18,7 @@ import {
 } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
-import { axisScaleOf } from './viewport'
+import { axisScaleOf, keyedView } from './viewport'
 import { walkLift } from './walkHighlight'
 
 import type { GraphKeyOptions, GraphKeySection } from './graphKey'
@@ -448,6 +448,21 @@ test('an exon is keyed only where its outline meets the view the pane shows', ()
   expect(keyed()).toContain('exon')
   expect(keyed(middleOf(layout, id))).toContain('exon')
   expect(keyed(middleOf(layout, other))).not.toContain('exon')
+})
+
+test("the view a key keys is the pane less the key's column and the reference strip", () => {
+  expect(
+    keyedView(
+      { translateX: -100, translateY: 20 },
+      { scaleX: 2, scaleY: 2 },
+      {
+        paneWidth: 1000,
+        canvasHeight: 300,
+        legendSize: { width: 188, height: 100 },
+        referenceStripZonePx: 40,
+      },
+    ),
+  ).toEqual({ minX: 50, maxX: 450, minY: 10, maxY: 140 })
 })
 
 // Y-rand-10's pane showed the reference's nodes, walked by GRCh38 alone,
