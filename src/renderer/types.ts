@@ -100,6 +100,9 @@ export interface RenderBatch {
   // the reference nodes and links inside a folded site that, with walks
   // lifted, are drawn only by the lanes crossing it
   laneOnly?: { nodes: ReadonlySet<string>; edges: ReadonlySet<number> }
+  // whether the node strokes, hollow ones aside, differ in thickness across
+  // the whole drawing, those of nodes a viewport culled included
+  nodeThicknessesVary?: boolean
 }
 
 export interface TransformUniform {

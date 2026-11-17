@@ -127,11 +127,19 @@ export interface GraphKeySection {
 // and `nodes` holds the nodes a stroke of their own draws there, which the
 // key's node thicknesses and exons are read off; the folded counts are the
 // whole drawing's. Whether the nodes vary in thickness is the whole
-// drawing's too, so a view of one thickness still keys what it shows.
+// drawing's too, as the batch states it for nodes a viewport culled, so a
+// view of one thickness still keys what it shows.
 export function drawnMarks(
   batches: readonly (Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'> &
     Partial<
-      Pick<RenderBatch, 'arrows' | 'collapsed' | 'nodeStrokeRuns' | 'laneOnly'>
+      Pick<
+        RenderBatch,
+        | 'arrows'
+        | 'collapsed'
+        | 'nodeStrokeRuns'
+        | 'laneOnly'
+        | 'nodeThicknessesVary'
+      >
     >)[],
   view?: Bounds,
 ) {
@@ -184,6 +192,7 @@ export function drawnMarks(
         width = thickness
       }
     }
+    marks.widthsVary ||= !!batch.nodeThicknessesVary
     if (collapsed) {
       marks.foldedUnderBp = Math.max(
         marks.foldedUnderBp,

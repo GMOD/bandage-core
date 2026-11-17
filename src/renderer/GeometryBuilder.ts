@@ -2466,6 +2466,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
+  let thinnestStroke = Infinity
+  let thickestStroke = -Infinity
   for (const [nodeId, laidOut] of Object.entries(nodePositions)) {
     const node = nodeById.get(nodeId)
     if (node && crossedAt(nodeId)) {
@@ -2475,24 +2477,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       continue
     }
 
-    if (viewportBounds && !isPolylineInBounds(laidOut, viewportBounds)) {
-      continue
-    }
-
     const faded = highlight !== undefined && !highlight.nodeIds.has(nodeId)
-    // Under lifted walks the lanes carry every colour, so the rest fades in
-    // grey rather than in a scheme no lane is drawn in
-    const color = faded
-      ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
-      : nodeInk(node)
     const run = collapse.through.get(nodeId)
     const width = run
       ? runWidth(run, node)
       : nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
     const nodeThickness = width / 2
-    const segments = run ? pointsAlongRun(run, laidOut) : laidOut
-
-    const start = nodeStrokes.length
     // The node's drawn width is the same either way: the stripes divide it
     // rather than inflate it, so turning paths on does not re-weight the
     // drawing against the edges and the layout underneath it.
@@ -2503,13 +2493,48 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // collapse into one as you zoom out.
     const slots = nodePathSlots.get(nodeId)
     const slotWidth = width / pathCount
-    const drawable = segments.length >= 2
+    const drawable = laidOut.length >= 2
     // Each lifted walk keeps one lane across the whole drawing, so a lane
     // missing from a node is a walk that does not visit it
     const lanes =
       highlight?.walks.length && !faded && !slots?.length
         ? highlight.walks
         : undefined
+    const striped = !!slots?.length && slotWidth >= MIN_PATH_STRIPE_PX
+    const thicknesses =
+      !drawable || (node.placeholder && !faded)
+        ? []
+        : lanes
+          ? liftedWalks.flatMap((walk, lane) =>
+              walk.colors.get(nodeId) === undefined ||
+              (threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS)
+                .length === 0
+                ? []
+                : [
+                    laneHalfWidth(
+                      walkLaneWidthPx(width, liftedWalks.length),
+                      lane,
+                    ),
+                  ],
+            )
+          : [striped ? slotWidth / 2 : nodeThickness]
+    for (const thickness of thicknesses) {
+      thinnestStroke = Math.min(thinnestStroke, thickness)
+      thickestStroke = Math.max(thickestStroke, thickness)
+    }
+
+    if (viewportBounds && !isPolylineInBounds(laidOut, viewportBounds)) {
+      continue
+    }
+
+    // Under lifted walks the lanes carry every colour, so the rest fades in
+    // grey rather than in a scheme no lane is drawn in
+    const color = faded
+      ? fadeAbgr(LIFT_BACKDROP_COLOR, FADED_ALPHA)
+      : nodeInk(node)
+    const segments = run ? pointsAlongRun(run, laidOut) : laidOut
+
+    const start = nodeStrokes.length
     if (drawable && node.placeholder && !faded) {
       nodeStrokes.push({
         points: segments,
@@ -2530,7 +2555,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         laneStrokesOf(nodeId, segments, width).map(({ stroke }) => stroke)) {
         nodeStrokes.push(laned)
       }
-    } else if (drawable && slots?.length && slotWidth >= MIN_PATH_STRIPE_PX) {
+    } else if (drawable && striped && slots) {
       const normals = pointNormalsOf(segments, yToX)
       for (const slot of slots) {
         const offset =
@@ -2652,5 +2677,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     edgeCurveRuns,
     collapsed: collapse,
     laneOnly,
+    nodeThicknessesVary: thinnestStroke < thickestStroke,
   }
 }

@@ -286,6 +286,14 @@ test("a hollow node's thickness is not a thickness the nodes vary by", () => {
     drawnMarks([{ edgeCurves: [], nodeStrokes }]).widthsVary
   expect(widthsVary([stroke(3), stroke(5)])).toBe(true)
   expect(widthsVary([stroke(3), stroke(5, true), stroke(3)])).toBe(false)
+  const deep = (placeholder: boolean) =>
+    drawn(
+      withNodes(graph, name =>
+        name === 'a1' ? { placeholder, depth: 5 } : { depth: 2 },
+      ),
+    ).batch.nodeThicknessesVary
+  expect(deep(true)).toBe(false)
+  expect(deep(false)).toBe(true)
 })
 
 test('nodes not shown are keyed only where a hollow one is drawn', () => {
@@ -506,6 +514,21 @@ test('the node thicknesses keyed are the thickest and thinnest the view shows', 
   expect(thicknesses()).toEqual(['2 walks', '1 walk'])
   expect(thicknesses(middleOf(layout, idOf('a1')))).toEqual(['1 walk'])
   expect(thicknesses(middleOf(layout, idOf('v1')))).toEqual(['2 walks'])
+})
+
+// A2-del571 zoomed to x43 drew one thick node across the pane, from a batch
+// built for the view and the panes round it, and the key had no thickness
+test("the nodes vary in thickness by the whole drawing, not by a viewport's cull", () => {
+  const idOf = (name: string) => graph.nodes.find(n => n.name === name)!.id
+  const { layout } = drawn(graph)
+  const view = middleOf(layout, idOf('v1'))
+  const { batch } = drawn(graph, { bounds: view })
+  expect([...batch.nodeStrokeRuns.keys()]).toEqual([idOf('v1')])
+  expect(
+    graphKey(graph, layout, { marks: drawnMarks([batch], view) })
+      .find(section => section.id === 'node-width')
+      ?.entries.map(entry => entry.text),
+  ).toEqual(['2 walks'])
 })
 
 test("the thickness keys give the scale's two ends, links only where they widen by walks", () => {
@@ -863,6 +886,26 @@ test.each(CUTS)(
       marks: drawnMarks([batch]),
     })
     expect(census(sections, batch, s)).toEqual({ extra: [], missing: [] })
+  },
+)
+
+test.each(CUTS)(
+  'the batch of %s states whether its node strokes vary in thickness as drawn whole, whatever a viewport culls',
+  (_, g, scene) => {
+    const s = scene(g)
+    const { layout, batch } = drawn(g, s)
+    const thicknesses = new Set(
+      batch.nodeStrokes.filter(n => !n.placeholder).map(n => n.thickness),
+    )
+    expect(batch.nodeThicknessesVary).toBe(thicknesses.size > 1)
+    const [id] = Object.keys(layout.nodePositions)
+    const { batch: culled } = drawn(g, {
+      ...s,
+      layout,
+      bounds: middleOf(layout, id!),
+    })
+    expect(culled.nodeStrokes.length).toBeLessThan(batch.nodeStrokes.length)
+    expect(culled.nodeThicknessesVary).toBe(thicknesses.size > 1)
   },
 )
 
