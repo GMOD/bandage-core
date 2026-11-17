@@ -221,11 +221,13 @@ export interface SizeLabelCandidate {
   // a placeholder's length, placed before the rest and outside the budget,
   // at the first of its spots free
   kept: boolean
-  // spots along the node, tried in order; none on a placeholder's loop drawn
-  // too short to hold its length
+  // a placeholder drawn too short to hold its length
+  speck: boolean
+  // spots along the node whose box lies whole on the pane, tried in order;
+  // none on a speck
   along: { label: GraphLabel; box: Box }[]
-  // a placeholder's spots stacked off its loop, tried where every spot along
-  // it is taken; built only then
+  // a placeholder's spots stacked off its loop whose box lies whole on the
+  // pane, tried where every spot along it is taken; built only then
   stacked?: () => { label: GraphLabel; box: Box }[]
 }
 
@@ -300,6 +302,8 @@ export function sizeLabelCandidates({
     x <= width &&
     y + LABEL_HALF_HEIGHT > 0 &&
     y - LABEL_HALF_HEIGHT < height
+  const wholeOnPane = (box: Box) =>
+    box.x0 >= 0 && box.x1 <= width && box.y0 >= 0 && box.y1 <= height
   // Placeholders first, then the biggest allele: in a crowd, the label that
   // survives should be the one carrying the most sequence, not whichever node
   // the layout happened to emit first. The order is `labelOrder`'s, cached
@@ -335,26 +339,29 @@ export function sizeLabelCandidates({
         text: formatBp(nodeLengths.get(id)!),
       }
       const halfW = labelHalfWidth(label.text)
-      const along =
-        drawn >= (halfW * 2) / MAX_LABEL_OVERHANG
-          ? spots.map(({ x, y }) => ({
+      const holds = drawn >= (halfW * 2) / MAX_LABEL_OVERHANG
+      const along = holds
+        ? spots
+            .map(({ x, y }) => ({
               label: { ...label, x, y },
               box: boxAt(halfW, x, y),
             }))
-          : []
+            .filter(({ box }) => wholeOnPane(box))
+        : []
       if (kept || along.length > 0) {
         candidates.push({
           id,
           kept,
+          speck: kept && !holds,
           along,
           stacked: kept
             ? () =>
                 stackedSpots(
                   label,
                   halfW,
-                  along.length > 0 ? spots : [at(0.5)],
+                  holds ? spots : [at(0.5)],
                   height,
-                )
+                ).filter(({ box }) => wholeOnPane(box))
             : undefined,
         })
       }
@@ -422,7 +429,7 @@ export function placeSizeLabels(
       const offLoop =
         along || stacked >= leaders ? undefined : candidate.stacked?.()
       const spots =
-        candidate.along.length === 0 && named(offLoop?.[0]?.label.leader)
+        candidate.speck && named(offLoop?.[0]?.label.leader)
           ? undefined
           : offLoop
       const spot =

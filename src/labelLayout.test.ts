@@ -437,6 +437,32 @@ const shortLoops = (lengths: number[]) => {
   }
 }
 
+// pggb's chrY at 9.3 Mb stacked a placeholder's "2.8 kb" half off the
+// track's bottom edge; a loop against the left edge has no spot whole on the
+// pane, and the key counts it
+test("a length's box lies whole on the pane, stacked or along its node, or the length is counted", () => {
+  const nodes = placeholders([2800, 5000])
+  const { sizes, unlabelled } = layoutLabels(
+    source({
+      nodePositions: {
+        p0: [
+          { x: 300, y: 388 },
+          { x: 302, y: 388 },
+        ],
+        p1: [
+          { x: 4, y: 100 },
+          { x: 4, y: 300 },
+        ],
+      },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes.map(l => l.node)).toEqual(['p0'])
+  expect(sizeBox(sizes[0]!).y1).toBeLessThanOrEqual(400)
+  expect(unlabelled).toEqual({ count: 1, smallest: 5000, largest: 5000 })
+})
+
 // sv-49 drew four haplotypes' 133 bp placeholders on one point, each loop
 // too short to hold its length, and stacked "133 bp" four times off it; sv-48
 // two specks 13 px apart on one walk, "196 bp" and "32 bp" with leaders to

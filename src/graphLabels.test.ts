@@ -3,21 +3,22 @@ import { formatBp, graphLabels, rowLabelBox } from './graphLabels'
 // isotropic: one scale for both axes, which is every layout but the row ones
 const iso = (scale = 1) => ({ scaleX: scale, scaleY: scale })
 
+// along the middle of the 400 px pane, where a label stands whole
 const NODES = {
   long: [
-    { x: 0, y: 0 },
-    { x: 200, y: 0 },
+    { x: 0, y: 200 },
+    { x: 200, y: 200 },
   ],
   // 30 units, which at scale 1 is wide enough to hold "12 bp" within the
   // factor-of-two overhang and at scale 0.2 is not
   small: [
-    { x: 300, y: 0 },
-    { x: 330, y: 0 },
+    { x: 300, y: 200 },
+    { x: 330, y: 200 },
   ],
   // 2 units: a speck, whose label would be twenty times the thing it names
   speck: [
-    { x: 400, y: 0 },
-    { x: 402, y: 0 },
+    { x: 400, y: 200 },
+    { x: 402, y: 200 },
   ],
 }
 const LENGTHS = new Map([
@@ -30,12 +31,12 @@ const LENGTHS = new Map([
 // they carry no labels of their own
 const FLANKS = {
   before: [
-    { x: -80, y: 0 },
-    { x: 0, y: 0 },
+    { x: -80, y: 200 },
+    { x: 0, y: 200 },
   ],
   after: [
-    { x: 200, y: 0 },
-    { x: 280, y: 0 },
+    { x: 200, y: 200 },
+    { x: 280, y: 200 },
   ],
 }
 const FLANKED = { ...NODES, ...FLANKS }
@@ -181,8 +182,8 @@ test('a node inside an allele deletion keeps its length off the drawing', () => 
 test('labels follow positions mutated in place', () => {
   const nodePositions = {
     long: [
-      { x: 0, y: 0 },
-      { x: 200, y: 0 },
+      { x: 0, y: 200 },
+      { x: 200, y: 200 },
     ],
   }
   const at = () =>
