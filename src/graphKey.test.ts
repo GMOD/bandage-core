@@ -299,8 +299,8 @@ test('nodes not shown are keyed only where a hollow one is drawn', () => {
   )
 })
 
-// placeholders on loops drawn 6 px long, ten px apart along one line of a
-// 1200 by 320 pane: each length stacks off its loop
+// placeholders on loops drawn 6 px long, 20 px apart in two rows of a 1200 by
+// 320 pane: each length stacks off its loop
 function unlabelledOf(lengths: number[]) {
   const ids = lengths.map((_, i) => `p${i}`)
   return layoutLabels({
@@ -318,8 +318,8 @@ function unlabelledOf(lengths: number[]) {
       ids.map((id, i) => [
         id,
         [
-          { x: 100 + i * 10, y: 160 },
-          { x: 106 + i * 10, y: 160 },
+          { x: 100 + (i % 50) * 20, y: 110 + Math.floor(i / 50) * 100 },
+          { x: 106 + (i % 50) * 20, y: 110 + Math.floor(i / 50) * 100 },
         ],
       ]),
     ),

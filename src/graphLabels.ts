@@ -383,11 +383,21 @@ interface SizePlacing {
   clear?: (box: Box, id: string) => boolean
 }
 
+// Two points nearer than a label is tall read as one spot
+const ONE_SPOT_PX = 2 * LABEL_HALF_HEIGHT
+
+// The point a placed length names: its own on its loop, or its leader's end
+const namedPoint = (label: GraphLabel) => label.leader ?? label
+
 // Each candidate at its first free spot while the budget lasts, a
 // placeholder's whatever the budget, as `placed` labels already spent it.
 // Where no spot along a placeholder's loop is free, its length stacks off the
 // loop while fewer than `leaders` stacked lengths stand, clear of every other
 // node's ink where `clear` finds a spot that is; else at the nearest free spot.
+// A placeholder drawn too short to hold its length is a speck, and specks on
+// one spot, or on a spot a length already names, take one length between
+// them: the longest's, as the candidates come longest first. The key counts
+// the rest.
 export function placeSizeLabels(
   candidates: SizeLabelCandidate[],
   take: TakeBox,
@@ -399,12 +409,22 @@ export function placeSizeLabels(
   }: SizePlacing = {},
 ) {
   const labels: GraphLabel[] = []
+  const named = (speck: { x: number; y: number } | undefined) =>
+    !!speck &&
+    labels.some(label => {
+      const p = namedPoint(label)
+      return Math.hypot(p.x - speck.x, p.y - speck.y) < ONE_SPOT_PX
+    })
   let stacked = 0
   for (const candidate of candidates) {
     if (candidate.kept || placed + labels.length < budget) {
       const along = candidate.along.find(s => take(s.box))
-      const spots =
+      const offLoop =
         along || stacked >= leaders ? undefined : candidate.stacked?.()
+      const spots =
+        candidate.along.length === 0 && named(offLoop?.[0]?.label.leader)
+          ? undefined
+          : offLoop
       const spot =
         along ??
         spots?.find(s => clear(s.box, candidate.id) && take(s.box)) ??

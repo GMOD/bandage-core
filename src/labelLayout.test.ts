@@ -415,7 +415,8 @@ test('three loops crossing in one place each keep their length, none over anothe
   }
 })
 
-// KIV-2 buried its graph under more than a hundred stacked "1 bp" lengths
+// KIV-2 buried its graph under more than a hundred stacked "1 bp" lengths;
+// here loops drawn 6 px long, 20 px apart in two rows, each a spot of its own
 const shortLoops = (lengths: number[]) => {
   const nodes = placeholders(lengths)
   return {
@@ -425,8 +426,8 @@ const shortLoops = (lengths: number[]) => {
       nodes.map((n, i) => [
         n.id,
         [
-          { x: 100 + i * 10, y: 160 },
-          { x: 106 + i * 10, y: 160 },
+          { x: 100 + (i % 50) * 20, y: 110 + Math.floor(i / 50) * 100 },
+          { x: 106 + (i % 50) * 20, y: 110 + Math.floor(i / 50) * 100 },
         ],
       ]),
     ),
@@ -434,6 +435,39 @@ const shortLoops = (lengths: number[]) => {
     nodeById: new Map(nodes.map(n => [n.id, n])),
   }
 }
+
+// sv-49 drew four haplotypes' 133 bp placeholders on one point, each loop
+// too short to hold its length, and stacked "133 bp" four times off it; sv-48
+// two specks 13 px apart on one walk, "196 bp" and "32 bp" with leaders to
+// one blob
+test('specks on one spot take one length between them, the longest, and the key counts the rest', () => {
+  const nodes = placeholders([133, 133, 133, 133, 196, 32, 40])
+  const speck = (x: number, y: number) => [
+    { x, y },
+    { x: x + 2, y },
+  ]
+  const { sizes, unlabelled } = layoutLabels(
+    source({
+      nodePositions: {
+        p0: speck(209, 175),
+        p1: speck(210, 174),
+        p2: speck(209, 174),
+        p3: speck(210, 175),
+        p4: speck(742, 176),
+        p5: speck(755, 171),
+        p6: speck(775, 171),
+      },
+      nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+    }),
+  )
+  expect(sizes.map(l => [l.node, l.text])).toEqual([
+    ['p4', '196 bp'],
+    ['p0', '133 bp'],
+    ['p6', '40 bp'],
+  ])
+  expect(unlabelled).toEqual({ count: 4, smallest: 32, largest: 133 })
+})
 
 test('placeholder lengths stacked off their loops stand only while the pane has room for node labels, the rest counted', () => {
   const budget = nodeLabelBudget(1200, 320)
