@@ -2083,6 +2083,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           ]
         : []
     }),
+    viewportBounds && {
+      minX: viewportBounds.minX * scale,
+      minY: viewportBounds.minY * scale * yToX,
+      maxX: viewportBounds.maxX * scale,
+      maxY: viewportBounds.maxY * scale * yToX,
+    },
   )
 
   for (let ei = 0; ei < graph.edges.length; ei++) {

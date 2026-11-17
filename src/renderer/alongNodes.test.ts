@@ -32,6 +32,20 @@ describe('linksAlongNodes', () => {
     expect([...linksAlongNodes(lines, links)]).toEqual([])
   })
 
+  test('zoomed far in, a link along a slanting node its whole length is along it, one 2 px beside it is not', () => {
+    const lines = [
+      [
+        { x: 0, y: 0 },
+        { x: 1_000_000, y: 1_000_000 },
+      ],
+    ]
+    const links = [
+      { edge: 0, a: { x: 10, y: 10 }, b: { x: 900_000, y: 900_000 } },
+      { edge: 1, a: { x: 11.5, y: 8.5 }, b: { x: 900_001.5, y: 899_998.5 } },
+    ]
+    expect([...linksAlongNodes(lines, links)]).toEqual([0])
+  })
+
   test('a link running 1 px beside a node is along it, 2 px beside it is not', () => {
     const lines = [row(0, 30)]
     const links = [
