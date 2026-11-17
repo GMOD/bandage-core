@@ -616,8 +616,8 @@ describe('a piece attached at one end folds only where the cut holds the rest of
     'r2+': at(1000, 2000),
     't+': at(1000, 1001, 20),
   }
-  const visited = (leavePos: number) => {
-    const graph = load(lines)
+  const visited = (leavePos: number, held = lines, stepped = ['t+']) => {
+    const graph = load(held)
     const visit: PathVisit = {
       path: 'y#1#chr',
       sample: 'y',
@@ -640,15 +640,20 @@ describe('a piece attached at one end folds only where the cut holds the rest of
     return {
       ...graph,
       nodes: graph.nodes.map(n =>
-        n.id === 't+' ? { ...n, departureVisits: [visit] } : n,
+        stepped.includes(n.id) ? { ...n, departureVisits: [visit] } : n,
       ),
       departures: {
         ...departureTable([departure]),
-        offsets: Int32Array.from([0, 1]),
-        steps: Int32Array.from([graph.nodes.findIndex(n => n.id === 't+')]),
+        offsets: Int32Array.from([0, stepped.length]),
+        steps: Int32Array.from(
+          stepped.map(id => graph.nodes.findIndex(n => n.id === id)),
+        ),
       },
     }
   }
+  const notLoaded = lines.map(line =>
+    line === 'S\tt\tT' ? 'S\tt\t*\tLN:i:2\tnl:i:1' : line,
+  )
 
   test('a departure leaving and rejoining inside the cut holds it, and it folds', () => {
     const graph = visited(500)
@@ -664,6 +669,39 @@ describe('a piece attached at one end folds only where the cut holds the rest of
       expect(batch.collapsed?.sites).toEqual([])
       expect(drawnNodes(batch).has('t+')).toBe(true)
     }
+  })
+
+  test("a departure from past the cut whose way back the cut did not load folds by the bp it states at the reference's px a bp, and is drawn again from where that comes to SMALL_SITE_PX", () => {
+    const graph = visited(-93_000, notLoaded)
+    expect(graph.nodes.find(n => n.id === 't+')).toMatchObject({
+      length: 2,
+      placeholder: true,
+    })
+    expect([...departureTails(graph)]).toEqual(['t+'])
+    for (const scale of [0.01, 1.4999]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toMatchObject([
+        { nodes: ['t+'], bp: 2, count: 1 },
+      ])
+      expect(drawnNodes(batch).has('t+')).toBe(false)
+    }
+    for (const scale of [1.5, MAX_ZOOM]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toEqual([])
+      expect(drawnNodes(batch).has('t+')).toBe(true)
+    }
+  })
+
+  test('a departure from past the cut leaving by a loaded node keeps it drawn with the stretch the cut did not load', () => {
+    const graph = visited(
+      -93_000,
+      [...lines, 'S\tu\t*\tLN:i:2\tnl:i:1', 'L\tt\t+\tu\t+\t0M'],
+      ['t+', 'u+'],
+    )
+    expect([...departureTails(graph)].toSorted()).toEqual(['t+', 'u+'])
+    const batch = build(graph, { ...positions, 'u+': at(1001, 1002, 40) }, 0.01)
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(drawnNodes(batch)).toEqual(new Set(['r1+', 'r2+', 't+', 'u+']))
   })
 })
 

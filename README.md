@@ -166,13 +166,18 @@ reads them.
   the reference's px per bp, the drawn length of the reference's nodes over
   their bp. A small one folds with whatever hangs only from it, and its length
   label with it. Larger placeholders are structure and stay
+- A departure's steps to or from a place past the cut, whose other end the cut
+  does not hold, fold only where every one of them is a not-loaded placeholder,
+  measured by their bp alone at the reference's px per bp; zooming in draws them
+  again like any site
 - Nothing on the reference is folded, nor a link turning the reference back on
   itself, nor what no shown walk steps. Nor is a piece that turns strand, whose
   attachments all touch the same end of their reference nodes; a piece reaching
   a reference node the cut did not load or a second reference sequence; a piece
-  holding a departure's steps to or from a place past the cut, whose other end
-  the cut does not hold; or anything of no bp. A skip is measured by how far
-  apart on the reference its ends are
+  holding a loaded node of a departure's steps to or from a place past the cut,
+  whose other end the cut does not hold, which is structure going out of view;
+  or anything of no bp. A skip is measured by how far apart on the reference its
+  ends are
 - Folded sites whose spans on the reference overlap or touch make one run, and
   the reference through a run, its nodes and its own links from one outer
   attachment to the other, is drawn as one even stroke at the thinner of the two

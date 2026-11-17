@@ -35,6 +35,9 @@ interface Unit {
   walks: number[]
   bp: number
   skip: number | undefined
+  // a departure's tail the cut did not load, which states its bp and nothing
+  // more
+  tail: boolean
 }
 
 export interface Site {
@@ -212,6 +215,7 @@ function unitsOf(
       walks: [],
       bp: 0,
       skip: undefined,
+      tail: false,
       tied: false,
     }
     if (!known) {
@@ -294,6 +298,7 @@ function unitsOf(
           walks: [...walks],
           bp: spread(attachments),
           skip: edge,
+          tail: false,
         })
       }
     }
@@ -307,16 +312,18 @@ function unitsOf(
         walks.add(walk)
       }
     }
+    const tail = component.nodes.some(id => tails.has(id))
     if (
       !tied &&
       (ends.size === 2 || component.feet.length === 1) &&
-      !component.nodes.some(id => tails.has(id)) &&
+      (!tail || component.nodes.every(id => nodeById.get(id)?.placeholder)) &&
       walks.size > 0
     ) {
       units.push({
         ...component,
         bp: component.bp + spread(component.attachments),
         walks: [...walks],
+        tail,
       })
     }
   }
@@ -624,16 +631,19 @@ function foldOf(
   // deepest zoom, drawn no shorter there than its links' straight ends. A
   // not-loaded stretch is drawn at the layout's least length whatever its
   // bp, so a piece holding one is also measured by its bp at the
-  // reference's px a bp, and the smaller measure counts
+  // reference's px a bp, and the smaller measure counts; a departure's tail
+  // the cut did not load is measured by its bp alone
   const sizeOf = (unit: Unit, refName: string) => {
     const reference = references.get(refName)
     const shown = drawnSize(unit, reference, atAxis.node, atAxis.edge)
     const back = drawnSize(unit, reference, atDeepest.node, atDeepest.edge)
     const stated = unit.nodes.some(id => placeholders.has(id)) && pxPerBp > 0
-    return {
-      shown: stated ? Math.min(shown, unit.bp * pxPerBp) : shown,
-      back: stated ? Math.min(back, unit.bp * deepestPxPerBp) : back,
-    }
+    return unit.tail
+      ? { shown: unit.bp * pxPerBp, back: unit.bp * deepestPxPerBp }
+      : {
+          shown: stated ? Math.min(shown, unit.bp * pxPerBp) : shown,
+          back: stated ? Math.min(back, unit.bp * deepestPxPerBp) : back,
+        }
   }
   const nodes = new Set<string>()
   const edges = new Set<number>()
