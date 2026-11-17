@@ -157,33 +157,24 @@ export function drawnMarks(
   const inView = (points: readonly { x: number; y: number }[]) =>
     !view || lineMeetsView(points, view)
   const curveInView = ({ curves }: { curves: readonly BezierCurve[] }) =>
-    !view ||
-    curves.some(curve =>
-      lineMeetsView(
-        CURVE_SAMPLES.map(t => curvePointAt(curve, t)),
-        view,
-      ),
-    )
+    !view || curves.some(curve => curveMeetsView(curve, view))
   let width: number | undefined
   for (const batch of batches) {
-    const { nodeStrokeRuns, nodeStrokes } = batch
+    const { nodeStrokeRuns, nodeStrokes, collapsed } = batch
+    const shown = nodeStrokes.map(stroke => inView(stroke.points))
     if (nodeStrokeRuns) {
       const notDrawn = nodesNotDrawn(batch)
       const nodes = (marks.nodes ??= new Set())
       for (const [id, { start, count }] of nodeStrokeRuns) {
         let drawn = false
         for (let i = start; i < start + count && !drawn; i++) {
-          const stroke = nodeStrokes[i]!
-          drawn = !stroke.placeholder && inView(stroke.points)
+          drawn = shown[i]! && !nodeStrokes[i]!.placeholder
         }
         if (drawn && !notDrawn.has(id)) {
           nodes.add(id)
         }
       }
     }
-  }
-  for (const batch of batches) {
-    const { nodeStrokes, collapsed } = batch
     const arrows = (batch.arrows ?? []).filter(a => inView([a]))
     const edgeCurves = batch.edgeCurves.filter(curveInView)
     for (const { placeholder, thickness } of nodeStrokes) {
@@ -217,7 +208,7 @@ export function drawnMarks(
         }
       }
     }
-    const shownStrokes = nodeStrokes.filter(stroke => inView(stroke.points))
+    const shownStrokes = nodeStrokes.filter((_, i) => shown[i])
     for (const { placeholder, walk, pass = 0, color } of shownStrokes) {
       if (placeholder) {
         marks.placeholder = true
@@ -255,15 +246,51 @@ export type DrawnMarks = ReturnType<typeof drawnMarks>
 
 const CURVE_SAMPLES = Array.from({ length: 9 }, (_, i) => i / 8)
 
-// Whether a line, or a lone point, meets the view
+// Whether a curve meets the view: at once where its control points lie all
+// outside it on one side or all inside it, else by points along it
+function curveMeetsView(c: BezierCurve, view: Bounds) {
+  const xs = [c.x0, c.cx0, c.cx1, c.x1]
+  const ys = [c.y0, c.cy0, c.cy1, c.y1]
+  return xs.every(x => x < view.minX) ||
+    xs.every(x => x > view.maxX) ||
+    ys.every(y => y < view.minY) ||
+    ys.every(y => y > view.maxY)
+    ? false
+    : (xs.every(x => x >= view.minX && x <= view.maxX) &&
+        ys.every(y => y >= view.minY && y <= view.maxY)) ||
+        lineMeetsView(
+          CURVE_SAMPLES.map(t => curvePointAt(c, t)),
+          view,
+        )
+}
+
+// Whether a line, or a lone point, meets the view: at once where its bounds
+// lie outside the view or inside it, else by its segments
 function lineMeetsView(
   points: readonly { x: number; y: number }[],
   view: Bounds,
 ) {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const { x, y } of points) {
+    minX = Math.min(minX, x)
+    minY = Math.min(minY, y)
+    maxX = Math.max(maxX, x)
+    maxY = Math.max(maxY, y)
+  }
   const box = { x0: view.minX, x1: view.maxX, y0: view.minY, y1: view.maxY }
-  return points.length === 1
-    ? segmentMeetsBox(points[0]!, points[0]!, box)
-    : points.some((b, i) => i > 0 && segmentMeetsBox(points[i - 1]!, b, box))
+  return maxX < view.minX ||
+    minX > view.maxX ||
+    maxY < view.minY ||
+    minY > view.maxY
+    ? false
+    : (minX >= view.minX &&
+        maxX <= view.maxX &&
+        minY >= view.minY &&
+        maxY <= view.maxY) ||
+        points.some((b, i) => i > 0 && segmentMeetsBox(points[i - 1]!, b, box))
 }
 
 export interface GraphKeyOptions {
