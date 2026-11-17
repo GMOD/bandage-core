@@ -741,6 +741,7 @@ export function figureData(
       o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
     ),
     nodeById,
+    graph,
     alleleDeletions: layout.alleleDeletions ?? [],
     positionsVersion: 0,
     folded: fold?.nodes,

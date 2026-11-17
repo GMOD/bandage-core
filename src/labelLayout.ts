@@ -1,11 +1,13 @@
 import { EXON_RIM_PX } from './genes/exonOutline'
 import { namedGenePins } from './genes/geneNames'
 import {
+  loopLabelCandidates,
   nodeLabelBudget,
   placeSizeLabels,
   rowLabelBox,
   sizeLabelCandidates,
   unlabelledPlaceholders,
+  walkLoops,
 } from './graphLabels'
 import { HALO_FACTOR } from './halo'
 import { keyColumnBox } from './keyColumn'
@@ -34,7 +36,7 @@ import type {
 } from './graphLabels'
 import type { Box, LabelCandidate, PlacedLabel } from './overlayLabels'
 import type { PassLabelItem } from './passLabels'
-import type { AlleleDeletion, NodeSegment } from './types'
+import type { AlleleDeletion, Graph, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
 export { HALO_FACTOR } from './halo'
@@ -73,6 +75,8 @@ export interface LabelLayoutSource {
   nodeLengths: Map<string, number>
   // the drawn nodes by id, which says which are placeholders
   nodeById: NodeKinds | undefined
+  // the graph whose walks' loops write their lengths
+  graph: Pick<Graph, 'nodes' | 'paths'> | undefined
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
   // the names of lifted walks' passes: passLabelCandidates
@@ -282,7 +286,7 @@ function byExtent<T>(items: T[], extent: (item: T) => number) {
 
 // The order is what survives a crowd: a placeholder's length, which has no
 // place but beside its loop and no other words saying how much sequence the
-// loop stands in for; the bubble's name; the gene's, which slides and stacks
+// loop stands in for; a loaded loop's; the bubble's name; the gene's, which slides and stacks
 // clear; a lifted walk's pass's; and any other node's length last.
 export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   const { paneWidth: width, canvasHeight: height, translateX, translateY } = m
@@ -341,6 +345,24 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
         !otherNodeUnder(grown(box, ink), under => under === id),
     },
   )
+  const loopSizes =
+    m.nodePositions && m.labelsNodeSizes && m.graph
+      ? placeSizeLabels(
+          loopLabelCandidates({
+            loops: walkLoops(m.graph),
+            nodePositions: m.nodePositions,
+            folded: m.folded,
+            axis: m.axisScale,
+            translateX,
+            translateY,
+            width,
+            height,
+          }),
+          take,
+          { placed: placeholderSizes },
+        )
+      : []
+  const lengthsPlaced = [...placeholderSizes, ...loopSizes]
 
   // On a row layout a bubble's name goes in the band above the top row, which
   // is the reference it varies, and stays at the pane's top edge once that row
@@ -401,11 +423,11 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   )
   const passes = placeLabels(m.passLabels ?? [], frame, take, reserved)
   const sizes = [
-    ...placeholderSizes,
+    ...lengthsPlaced,
     ...placeSizeLabels(
       sizeCandidates.filter(c => !c.kept),
       take,
-      { budget, placed: placeholderSizes },
+      { budget, placed: lengthsPlaced },
     ),
   ].map(({ label }) => label)
   return {

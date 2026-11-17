@@ -508,6 +508,7 @@ export function figureSvg(
           labelsNodeSizes: !layout.tubeMap && !highlight,
           nodeLengths,
           nodeById,
+          graph,
           alleleDeletions: layout.alleleDeletions ?? [],
           positionsVersion: 0,
           folded: batch.collapsed?.nodes,

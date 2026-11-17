@@ -1,11 +1,13 @@
+import { isBackbone } from './anchoredNodes'
 import { polylinePointAt } from './layout/mergeRuns'
 import { labelWidth, occupancy } from './overlayLabels'
 import { compareIds } from './util/canonicalOrder'
 import { polylinePx } from './util/geometry'
+import { pushTo } from './util/groups'
 import { weakMemo } from './util/weakMemo'
 
 import type { Box, TakeBox } from './overlayLabels'
-import type { AlleleDeletion, GraphNode, NodeSegment } from './types'
+import type { AlleleDeletion, Graph, GraphNode, NodeSegment } from './types'
 import type { AxisScale } from './util/geometry'
 
 interface Point {
@@ -41,7 +43,11 @@ interface Point {
 // much sequence the loop stands in for. Loops on one spot share one length,
 // and two lengths of one text stand a line apart. Stacked lengths are rationed
 // as other lengths are, longest first, and the key counts the placeholders
-// left without one.
+// left without one. A loop of loaded nodes, the nodes a drawn walk steps on
+// between two steps on the reference, writes its length along itself where
+// it is drawn long enough to hold it, after the placeholders and before the
+// rest: a force layout draws each node and link at least a few units long,
+// so a loop's drawn length beside the reference's says little of its bp.
 //
 // Between them they hold at both ends of the scale a pangenome graph spans: 63
 // kb-scale nodes at the amylase locus nearly all carry a length, and a 154-node
@@ -367,6 +373,220 @@ export function sizeLabelCandidates({
     }
   }
 
+  return candidates
+}
+
+export interface WalkLoop {
+  nodes: string[]
+  bp: number
+  // the shortest of the walks' loops drawn over it
+  least: number
+}
+
+interface Stretch {
+  nodes: string[]
+  bp: number
+}
+
+const loopsCache = weakMemo<GraphNode[], WalkLoop[]>()
+
+// The nodes each drawn walk steps on between two steps on the reference,
+// where every one is loaded, each run of nodes once however many walks take
+// it. Runs between the same two reference nodes that share half the bp of
+// the shorter are one loop as drawn, the longest's nodes with the least of
+// their lengths. The longest first.
+export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
+  return loopsCache(graph.nodes, [graph.paths], () => {
+    const byId = new Map(graph.nodes.map(node => [node.id, node]))
+    const seen = new Set<string>()
+    const bySite = new Map<string, Stretch[]>()
+    for (const path of graph.paths ?? []) {
+      let nodes: string[] = []
+      let bp = 0
+      let loaded = true
+      let from: string | undefined
+      for (const id of path.nodeIds) {
+        const node = byId.get(id)
+        if (node && isBackbone(node)) {
+          const key = nodes.join(' ')
+          if (
+            from !== undefined &&
+            loaded &&
+            nodes.length > 0 &&
+            !seen.has(key)
+          ) {
+            seen.add(key)
+            pushTo(bySite, `${from}>${id}`, { nodes, bp })
+          }
+          from = id
+          nodes = []
+          bp = 0
+          loaded = true
+        } else {
+          nodes.push(id)
+          bp += node?.length ?? 0
+          loaded &&= !!node && !node.placeholder
+        }
+      }
+    }
+    const loops: WalkLoop[] = []
+    for (const stretches of bySite.values()) {
+      const groups: { lead: Stretch; held: Set<string>; least: number }[] = []
+      for (const stretch of stretches.toSorted((a, b) => b.bp - a.bp)) {
+        const own = new Set(stretch.nodes)
+        const shared = (held: Set<string>) => {
+          let bp = 0
+          for (const id of own) {
+            bp += held.has(id) ? (byId.get(id)?.length ?? 0) : 0
+          }
+          return bp
+        }
+        const group = groups.find(g => 2 * shared(g.held) >= stretch.bp)
+        if (group) {
+          group.least = Math.min(group.least, stretch.bp)
+        } else {
+          groups.push({ lead: stretch, held: own, least: stretch.bp })
+        }
+      }
+      for (const { lead, least } of groups) {
+        loops.push({ nodes: lead.nodes, bp: lead.bp, least })
+      }
+    }
+    return loops.sort(
+      (a, b) =>
+        b.bp - a.bp ||
+        compareIds(a.nodes[0] ?? '', b.nodes[0] ?? '') ||
+        b.nodes.length - a.nodes.length,
+    )
+  })
+}
+
+// Two lengths as one span, their unit said once where they share it
+export function formatBpSpan(least: number, most: number) {
+  const low = formatBp(least)
+  const high = formatBp(most)
+  const [lowValue, lowUnit] = low.split(' ')
+  return low === high
+    ? high
+    : lowUnit === high.split(' ')[1]
+      ? `${lowValue}\u2013${high}`
+      : `${low}\u2013${high}`
+}
+
+const distance = (a: NodeSegment, b: NodeSegment) =>
+  Math.hypot(a.x - b.x, a.y - b.y)
+
+// how near a point comes to either end of a line
+const gapToEnds = (p: NodeSegment, line: readonly NodeSegment[]) =>
+  Math.min(distance(p, line[0] ?? p), distance(p, line.at(-1) ?? p))
+
+// A loop's nodes as one line, each read from its end nearer the line so far,
+// the first from its end farther from the second, and where along the line
+// each node ends; none where a node has no position
+function loopLine(
+  nodes: readonly string[],
+  positions: Record<string, NodeSegment[]>,
+) {
+  const lines = nodes.map(id => positions[id] ?? [])
+  const line: NodeSegment[] = []
+  const ends: number[] = []
+  let walked = 0
+  lines.forEach((own, k) => {
+    const first = own[0]
+    const last = own.at(-1)
+    const next = lines[k + 1] ?? []
+    const before = line.at(-1)
+    const reversed =
+      first && last
+        ? before
+          ? distance(before, last) < distance(before, first)
+          : next.length > 0 && gapToEnds(first, next) < gapToEnds(last, next)
+        : false
+    for (let i = 0; i < own.length; i++) {
+      const point = own[reversed ? own.length - 1 - i : i]!
+      const prior = line.at(-1)
+      walked += prior ? distance(prior, point) : 0
+      line.push(point)
+    }
+    ends.push(walked)
+  })
+  return lines.every(own => own.length > 0) ? { line, ends } : undefined
+}
+
+const loopLinesCache = weakMemo<
+  Record<string, NodeSegment[]>,
+  { loop: WalkLoop; line: NodeSegment[]; ends: number[] }[]
+>()
+
+// Each loop's length, at the first of its spots along it free, where it is
+// drawn long enough to hold it and some node of it is drawn
+export function loopLabelCandidates({
+  loops,
+  nodePositions,
+  folded,
+  axis,
+  translateX,
+  translateY,
+  width,
+  height,
+}: Pick<
+  SizeLabelArgs,
+  'nodePositions' | 'axis' | 'translateX' | 'translateY' | 'width' | 'height'
+> & {
+  loops: readonly WalkLoop[]
+  folded: ReadonlySet<string> | undefined
+}) {
+  const { scaleX, scaleY } = axis
+  const drawnLines = loopLinesCache(nodePositions, [loops], () =>
+    loops.flatMap(loop => {
+      const drawn = loopLine(loop.nodes, nodePositions)
+      return drawn ? [{ loop, ...drawn }] : []
+    }),
+  )
+  const onPane = ({ x, y }: Point) =>
+    x >= 0 &&
+    x <= width &&
+    y + LABEL_HALF_HEIGHT > 0 &&
+    y - LABEL_HALF_HEIGHT < height
+  const wholeOnPane = (box: Box) =>
+    box.x0 >= 0 && box.x1 <= width && box.y0 >= 0 && box.y1 <= height
+  const seen = new Map<string, number>()
+  const candidates: SizeLabelCandidate[] = []
+  for (const { loop, line, ends } of drawnLines) {
+    if (!loop.nodes.every(id => folded?.has(id))) {
+      const text = formatBpSpan(loop.least, loop.bp)
+      const halfW = labelHalfWidth(text)
+      const drawn = polylinePx(line, scaleX, scaleY)
+      const total = ends.at(-1) ?? 0
+      const middleNode =
+        loop.nodes[ends.findIndex(end => end >= total / 2)] ?? loop.nodes[0]!
+      const pair = `${loop.nodes[0]}>${loop.nodes.at(-1)}`
+      const copy = seen.get(pair) ?? 0
+      seen.set(pair, copy + 1)
+      const label = {
+        key: `loop:${pair}${copy ? `#${copy}` : ''}`,
+        node: middleNode,
+        text,
+      }
+      const spots = KEPT_LABEL_SPOTS.map(fraction => {
+        const { x, y } = polylinePointAt(line, fraction)
+        return { x: x * scaleX + translateX, y: y * scaleY + translateY }
+      }).filter(onPane)
+      const along =
+        drawn >= (halfW * 2) / MAX_LABEL_OVERHANG
+          ? spots
+              .map(({ x, y }) => ({
+                label: { ...label, x, y },
+                box: boxAt(halfW, x, y),
+              }))
+              .filter(({ box }) => wholeOnPane(box))
+          : []
+      const [middle] = spots
+      if (along.length > 0 && middle) {
+        candidates.push({ id: label.key, kept: false, middle, along })
+      }
+    }
+  }
   return candidates
 }
 

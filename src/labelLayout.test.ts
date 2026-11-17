@@ -15,7 +15,7 @@ import { LABEL_PAD } from './overlayLabels'
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { GenePin } from './genes/genePins'
 import type { LabelLayoutSource } from './labelLayout'
-import type { NodeSegment } from './types'
+import type { GraphNode, NodeSegment } from './types'
 
 const bubble = {
   refName: 'chr1',
@@ -95,6 +95,7 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     labelsNodeSizes: true,
     nodeLengths: new Map(),
     nodeById: undefined,
+    graph: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
     folded: undefined,
@@ -582,6 +583,177 @@ test('a folded placeholder has no length and no leader, and the unlabelled count
   const none = layoutLabels(source({ ...loops, folded: all }))
   expect(none.sizes).toEqual([])
   expect(none.unlabelled).toBeUndefined()
+})
+
+const onReference = (id: string, start: number, length: number) => ({
+  id,
+  name: id,
+  length,
+  depth: 2,
+  stable: { refName: 'chr3', start, rank: 0 },
+})
+const offReference = (id: string, length: number) => ({
+  id,
+  name: id,
+  length,
+  depth: 1,
+  stable: { refName: 'chr3', start: 2000, rank: 1 },
+})
+
+// sv-10's 148 kb loop drew as long as the 4 kb window's reference does twice
+// over and nothing on it said 148 kb: a loop of loaded nodes up from r1,
+// across and down to r2, whose middle is b's
+const loopGraph = (offNodes: GraphNode[]) => ({
+  nodes: [
+    onReference('r1', 0, 2000),
+    onReference('r2', 2000, 2000),
+    ...offNodes,
+  ],
+  paths: [
+    { name: 'GRCh38', nodeIds: ['r1', 'r2'] },
+    { name: 'HG00350#1', nodeIds: ['r1', ...offNodes.map(n => n.id), 'r2'] },
+  ],
+})
+const loopPositions = {
+  r1: [
+    { x: 0, y: 300 },
+    { x: 200, y: 300 },
+  ],
+  r2: [
+    { x: 600, y: 300 },
+    { x: 800, y: 300 },
+  ],
+  a: [
+    { x: 200, y: 300 },
+    { x: 200, y: 100 },
+  ],
+  b: [
+    { x: 600, y: 100 },
+    { x: 200, y: 100 },
+  ],
+  c: [
+    { x: 600, y: 100 },
+    { x: 600, y: 300 },
+  ],
+}
+
+test("a loop of loaded nodes writes its length at the loop's middle, read along the walk whichever way its nodes are drawn", () => {
+  const graph = loopGraph([
+    offReference('a', 30_000),
+    offReference('b', 88_000),
+    offReference('c', 30_000),
+  ])
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: loopPositions,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      graph,
+    }),
+  )
+  expect(sizes.map(l => [l.node, l.text, l.x, l.y, l.leader])).toEqual([
+    ['b', '148 kb', 400, 100, undefined],
+  ])
+})
+
+test('a loop stepping a node not loaded writes no length of its own, and its placeholder writes its own', () => {
+  const graph = loopGraph([
+    { ...offReference('a', 30_000), placeholder: true as const },
+    offReference('b', 88_000),
+    offReference('c', 30_000),
+  ])
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: loopPositions,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      nodeLengths: labelledNodeLengths(graph.nodes),
+      graph,
+    }),
+  )
+  expect(sizes.map(l => [l.node, l.text])).toEqual([['a', '30 kb']])
+})
+
+test('a loop drawn too short to hold its length, or folded, writes none', () => {
+  const graph = loopGraph([
+    offReference('a', 30_000),
+    offReference('b', 88_000),
+    offReference('c', 30_000),
+  ])
+  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
+  const shrunk = layoutLabels(
+    source({
+      nodePositions: loopPositions,
+      axisScale: { scaleX: 0.02, scaleY: 0.02 },
+      translateX: 300,
+      translateY: 200,
+      nodeById,
+      graph,
+    }),
+  )
+  expect(shrunk.sizes).toEqual([])
+  const folded = layoutLabels(
+    source({
+      nodePositions: loopPositions,
+      nodeById,
+      graph,
+      folded: new Set(['a', 'b', 'c']),
+    }),
+  )
+  expect(folded.sizes).toEqual([])
+})
+
+test('loops walks take between the same two reference nodes over mostly the same nodes write one span, and a loop two walks take writes it once', () => {
+  const graph = loopGraph([
+    offReference('a', 30_000),
+    offReference('b', 88_000),
+    offReference('c', 30_000),
+  ])
+  const both = {
+    nodes: [...graph.nodes, offReference('c2', 9000)],
+    paths: [
+      ...graph.paths,
+      { name: 'NA21309#1', nodeIds: ['r1', 'a', 'b', 'c', 'r2'] },
+      { name: 'HG002#2', nodeIds: ['r1', 'a', 'b', 'c2', 'r2'] },
+    ],
+  }
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: { ...loopPositions, c2: loopPositions.c },
+      nodeById: new Map(both.nodes.map(n => [n.id, n])),
+      graph: both,
+    }),
+  )
+  expect(sizes.map(l => [l.node, l.text])).toEqual([['b', '127\u2013148 kb']])
+})
+
+test('loops between the same two reference nodes over other nodes each write their own length', () => {
+  const graph = loopGraph([
+    offReference('a', 30_000),
+    offReference('b', 88_000),
+    offReference('c', 30_000),
+  ])
+  const other = offReference('d', 6000)
+  const both = {
+    nodes: [...graph.nodes, other],
+    paths: [...graph.paths, { name: 'HG002#2', nodeIds: ['r1', 'd', 'r2'] }],
+  }
+  const { sizes } = layoutLabels(
+    source({
+      nodePositions: {
+        ...loopPositions,
+        d: [
+          { x: 200, y: 300 },
+          { x: 400, y: 370 },
+          { x: 600, y: 300 },
+        ],
+      },
+      nodeById: new Map(both.nodes.map(n => [n.id, n])),
+      graph: both,
+    }),
+  )
+  expect(sizes.map(l => [l.node, l.text])).toEqual([
+    ['b', '148 kb'],
+    ['d', '6 kb'],
+  ])
 })
 
 test('a folded node under a label moves it no more than no node there would', () => {
