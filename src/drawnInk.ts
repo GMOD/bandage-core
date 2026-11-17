@@ -139,12 +139,11 @@ function gridOf(pieces: readonly Piece[], f: Frame) {
   return cells
 }
 
-const inkCache = weakMemo<InkBatch['nodeStrokes'], Map<string, Piece[]>>()
+const piecesCache = weakMemo<InkBatch['nodeStrokes'], Piece[]>()
 
-// Whether any stroke the batch paints, other than those `own` claims, meets a
-// box in screen px, each stroke as wide as it is drawn
-export function inkUnderBox(batch: InkBatch, f: Frame) {
-  const cells = inkCache(
+// The batch's pieces on the pane of a frame, held for that frame
+function piecesAt(batch: InkBatch, f: Frame) {
+  return piecesCache(
     batch.nodeStrokes,
     [
       batch.edgeCurves,
@@ -155,8 +154,17 @@ export function inkUnderBox(batch: InkBatch, f: Frame) {
       f.width,
       f.height,
     ],
-    () => gridOf(piecesOf(batch, f), f),
+    () => piecesOf(batch, f),
   )
+}
+
+const gridCache = weakMemo<Piece[], Map<string, Piece[]>>()
+
+// Whether any stroke the batch paints, other than those `own` claims, meets a
+// box in screen px, each stroke as wide as it is drawn
+export function inkUnderBox(batch: InkBatch, f: Frame) {
+  const pieces = piecesAt(batch, f)
+  const cells = gridCache(pieces, [], () => gridOf(pieces, f))
   return (box: Box, own: (piece: InkOwner) => boolean) => {
     const cx1 = Math.floor(box.x1 / CELL_PX)
     const cy1 = Math.floor(box.y1 / CELL_PX)
@@ -175,6 +183,21 @@ export function inkUnderBox(batch: InkBatch, f: Frame) {
     }
     return found
   }
+}
+
+const PIECE_PRECISION = 100
+
+const pieceKey = ({ a, b, halfWidth, node, edge }: Piece) =>
+  `${[a.x, a.y, b.x, b.y].map(v => Math.round(v * PIECE_PRECISION)).join(' ')} ${halfWidth} ${node ?? ''} ${edge ?? ''}`
+
+// Whether two batches paint the same ink on the pane of a frame, each stroke
+// where it is drawn to a hundredth of a px, as wide, and of the same node or
+// link, so what was placed clear of the one's ink is clear of the other's
+export function sameInkOnPane(a: InkBatch, b: InkBatch, f: Frame) {
+  const keysOf = (batch: InkBatch) => piecesAt(batch, f).map(pieceKey).sort()
+  const ka = a === b ? [] : keysOf(a)
+  const kb = a === b ? [] : keysOf(b)
+  return ka.length === kb.length && ka.every((key, i) => key === kb[i])
 }
 
 // The widest any of these nodes is drawn, as a half-width in px

@@ -116,7 +116,7 @@ for (const backbone of [1000, 5000]) {
       nodeLengths,
       nodeById: new Map(graph.nodes.map(n => [n.id, n])),
       graph,
-      drawnBatch: undefined,
+      drawnInk: undefined,
       alleleDeletions: [],
       positionsVersion: 0,
       folded: undefined,

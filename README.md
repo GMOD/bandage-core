@@ -118,15 +118,17 @@ reads them.
   and before every other label; a loop sharing half the bp of a longer one is
   drawn over it, and the longer writes the span of their lengths,
   `20.5–20.9 kb`. `layoutLabels` reads the walks from its `graph` and the ink
-  from its `drawnBatch`, the batch the pane paints, and writes no loop's length
-  without one. In the tube map, where loading turns one box into its nodes, it
-  is a box with a dashed outline and no tint, captioned
-  `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts placeholders,
-  which graph-walks' `nodeLimit` does not, and its refusal says how many there
-  are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`, which only
-  bandage-core reads back: another tool ignores the tag and takes the line for a
-  real segment off the reference. A GFA meant for another tool must be written
-  from a cut with every piece loaded
+  from its `drawnInk`, the batch the pane paints, only where the walks make a
+  loop, and writes no loop's length without one. A host whose labels follow its
+  batch asks `sameInkOnPane` whether a rebuilt batch paints the pane as the last
+  did, and lays them out again only where it does not. In the tube map, where
+  loading turns one box into its nodes, it is a box with a dashed outline and no
+  tint, captioned `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts
+  placeholders, which graph-walks' `nodeLimit` does not, and its refusal says
+  how many there are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`,
+  which only bandage-core reads back: another tool ignores the tag and takes the
+  line for a real segment off the reference. A GFA meant for another tool must
+  be written from a cut with every piece loaded
 - `GraphTables` mirrors graph-walks 7's, and `typecheck/graphWalks.ts` holds the
   two equal. `departures` is required, so tables from a reader that states none
   fail to compile; a source with none, such as GFA text or a gbz-base cut,

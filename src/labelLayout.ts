@@ -81,9 +81,9 @@ export interface LabelLayoutSource {
   nodeById: NodeKinds | undefined
   // the graph whose walks' loops write their lengths
   graph: Pick<Graph, 'nodes' | 'paths' | 'edges'> | undefined
-  // what the pane paints, which a loop's length keeps off; none writes no
-  // loop's length
-  drawnBatch: InkBatch | undefined
+  // what the pane paints, which a loop's length keeps off, read only where the
+  // graph's walks make loops; none writes no loop's length
+  drawnInk: InkBatch | undefined
   alleleDeletions: AlleleDeletion[]
   positionsVersion: number
   // the names of lifted walks' passes: passLabelCandidates
@@ -365,11 +365,14 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
         !otherNodeUnder(grown(box, ink), under => under === id),
     },
   )
+  const loops =
+    m.nodePositions && m.labelsNodeSizes && m.graph ? walkLoops(m.graph) : []
+  const drawnInk = loops.length > 0 ? m.drawnInk : undefined
   const loopSizes =
-    m.nodePositions && m.labelsNodeSizes && m.graph && m.drawnBatch
+    m.nodePositions && m.graph && drawnInk
       ? placeSizeLabels(
           loopLabelCandidates({
-            loops: walkLoops(m.graph),
+            loops,
             edges: m.graph.edges,
             nodePositions: m.nodePositions,
             folded: m.folded,
@@ -379,7 +382,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
               m.axisScale,
               m.positionsVersion,
             ),
-            ink: loopInk(m.drawnBatch, {
+            ink: loopInk(drawnInk, {
               ...frame,
               translateX,
               translateY,

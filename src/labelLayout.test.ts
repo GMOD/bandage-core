@@ -100,7 +100,7 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     nodeLengths: new Map(),
     nodeById: undefined,
     graph: undefined,
-    drawnBatch: undefined,
+    drawnInk: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
     folded: undefined,
@@ -713,7 +713,7 @@ test("a loop of loaded nodes writes its length at the loop's middle, read along 
       nodePositions: loopPositions,
       nodeById: nodesById(graph.nodes),
       graph,
-      drawnBatch: inkOf(loopPositions),
+      drawnInk: inkOf(loopPositions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text, l.x, l.y, l.leader])).toEqual([
@@ -733,7 +733,7 @@ test('a loop stepping a node not loaded writes no length of its own, and its pla
       nodeById: nodesById(graph.nodes),
       nodeLengths: labelledNodeLengths(graph.nodes),
       graph,
-      drawnBatch: inkOf(loopPositions),
+      drawnInk: inkOf(loopPositions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([['a', '30 kb']])
@@ -754,7 +754,7 @@ test('a loop drawn too short to hold its length, or folded, writes none', () => 
       translateY: 200,
       nodeById,
       graph,
-      drawnBatch: inkOf(loopPositions),
+      drawnInk: inkOf(loopPositions),
     }),
   )
   expect(shrunk.sizes).toEqual([])
@@ -763,7 +763,7 @@ test('a loop drawn too short to hold its length, or folded, writes none', () => 
       nodePositions: loopPositions,
       nodeById,
       graph,
-      drawnBatch: inkOf(loopPositions),
+      drawnInk: inkOf(loopPositions),
       folded: new Set(['a', 'b', 'c']),
     }),
   )
@@ -790,7 +790,7 @@ test('loops walks take between the same two reference nodes over mostly the same
       nodePositions: { ...loopPositions, c2: loopPositions.c },
       nodeById: nodesById(both.nodes),
       graph: both,
-      drawnBatch: inkOf({ ...loopPositions, c2: loopPositions.c }),
+      drawnInk: inkOf({ ...loopPositions, c2: loopPositions.c }),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([['b', '127\u2013148 kb']])
@@ -826,7 +826,7 @@ test('loops leaving the reference at other nodes over mostly the same nodes writ
       nodePositions: positions,
       nodeById: nodesById(both.nodes),
       graph: both,
-      drawnBatch: inkOf(positions),
+      drawnInk: inkOf(positions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([
@@ -860,7 +860,7 @@ test('loops between the same two reference nodes over other nodes each write the
       nodePositions: positions,
       nodeById: nodesById(both.nodes),
       graph: both,
-      drawnBatch: inkOf(positions),
+      drawnInk: inkOf(positions),
     }),
   )
   expect(sizes.map(l => [l.node, l.text])).toEqual([
@@ -885,7 +885,7 @@ test("a loop's length over another node's ink moves along its loop to a spot cle
       nodePositions: positions,
       nodeById: nodesById(graph.nodes),
       graph,
-      drawnBatch: inkOf(positions),
+      drawnInk: inkOf(positions),
     }),
   )
   expect(sizes.map(l => [l.text, l.x, l.y, l.leader])).toEqual([
@@ -923,7 +923,7 @@ test("a loop's length with every spot along its loop over another node's ink sta
       nodePositions: positions,
       nodeById: nodesById(graph.nodes),
       graph,
-      drawnBatch: inkOf(positions),
+      drawnInk: inkOf(positions),
     }),
   )
   const [length] = sizes
@@ -948,7 +948,7 @@ test("a loop's length keeps off a link that is not its loop's", () => {
         nodePositions: loopPositions,
         nodeById: nodesById(graph.nodes),
         graph,
-        drawnBatch: inkOf(loopPositions, links),
+        drawnInk: inkOf(loopPositions, links),
       }),
     ).sizes
   const [alone] = at([])
@@ -982,7 +982,7 @@ test("a loop's length may cover the walks' loops drawn over it, whose lengths it
       nodePositions: positions,
       nodeById: nodesById(both.nodes),
       graph: both,
-      drawnBatch: inkOf(positions),
+      drawnInk: inkOf(positions),
     }),
   )
   expect(sizes.map(l => [l.text, l.x, l.y, l.leader])).toEqual([
@@ -1015,7 +1015,7 @@ test("a loop drawn back on itself under its length's box stands it off the loop,
       nodePositions: positions,
       nodeById: nodesById(graph.nodes),
       graph,
-      drawnBatch: inkOf(positions),
+      drawnInk: inkOf(positions),
     }),
   )
   const [length] = sizes
@@ -1041,7 +1041,7 @@ test("a loop's length with no spot along its loop or off it clear of ink is not 
       nodePositions: positions,
       nodeById: nodesById(graph.nodes),
       graph,
-      drawnBatch: inkOf(positions),
+      drawnInk: inkOf(positions),
     }),
   )
   expect(sizes).toEqual([])
@@ -1060,6 +1060,32 @@ test('a loop writes no length without the drawing it would stand on', () => {
   expect(sizes).toEqual([])
 })
 
+// a host that rebuilds its batch reads it again only for a drawing that
+// writes a loop's length
+test('a graph whose walks make no loop does not read the drawn ink', () => {
+  const graph = {
+    ...bigLoop(),
+    paths: [{ name: 'GRCh38', nodeIds: ['r1', 'r2'] }],
+  }
+  let reads = 0
+  const layoutWith = (g: typeof graph) =>
+    layoutLabels({
+      ...source({
+        nodePositions: loopPositions,
+        nodeById: nodesById(g.nodes),
+        graph: g,
+      }),
+      get drawnInk() {
+        reads++
+        return inkOf(loopPositions)
+      },
+    })
+  expect(layoutWith(graph).sizes).toEqual([])
+  expect(reads).toBe(0)
+  expect(layoutWith(bigLoop()).sizes.map(l => l.text)).toEqual(['148 kb'])
+  expect(reads).toBe(1)
+})
+
 // sv-16 at its fit wrote several "1 bp" lengths along the reference
 test("a loop whose bp at the reference's px a bp comes to less than SMALL_SITE_PX writes no length, and writes it at the zoom where it comes to that", () => {
   const graph = loopGraph([
@@ -1076,7 +1102,7 @@ test("a loop whose bp at the reference's px a bp comes to less than SMALL_SITE_P
         translateY: 200 - 100 * scale,
         nodeById: nodesById(graph.nodes),
         graph,
-        drawnBatch: inkOf(loopPositions),
+        drawnInk: inkOf(loopPositions),
       }),
     ).sizes.map(l => l.text)
   // the reference's 4000 bp drawn 400 px long at scale 1, and the loop's 3 bp

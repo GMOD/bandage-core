@@ -1,4 +1,4 @@
-import { inkUnderBox } from './drawnInk'
+import { inkUnderBox, sameInkOnPane } from './drawnInk'
 
 import type { InkBatch } from './drawnInk'
 
@@ -72,4 +72,49 @@ test('ink a box may cover is told by the node or link that paints it', () => {
   expect(under(box(110, 110), ({ node }) => node === 'n')).toBe(false)
   expect(under(box(110, 150), ({ edge }) => edge === 7)).toBe(false)
   expect(under(box(110, 150), ({ node }) => node === 'n')).toBe(true)
+})
+
+const moved = (dx: number, edge = 7): InkBatch => ({
+  ...batch,
+  nodeStrokes: batch.nodeStrokes.map(stroke => ({
+    ...stroke,
+    points: stroke.points.map(({ x, y }) => ({ x: x + dx, y })),
+  })),
+  edgeCurveRuns: new Map([[edge, { start: 0, count: 1 }]]),
+})
+
+// a batch rebuilt for the same pane, as after a pan or a settled fit, paints
+// what the last one did there
+test('two batches paint the same ink on a pane where each stroke lies where the other draws it, as wide, for the same node or link', () => {
+  expect(sameInkOnPane(batch, moved(0), frame)).toBe(true)
+  expect(sameInkOnPane(batch, moved(1), frame)).toBe(false)
+  expect(sameInkOnPane(batch, moved(0, 8), frame)).toBe(false)
+  expect(
+    sameInkOnPane(
+      batch,
+      {
+        ...moved(0),
+        nodeStrokes: [{ ...batch.nodeStrokes[0]!, thickness: 5 }],
+      },
+      frame,
+    ),
+  ).toBe(false)
+})
+
+test('ink off the pane does not make two batches paint differently on it', () => {
+  const far = {
+    ...moved(0),
+    nodeStrokes: [
+      ...batch.nodeStrokes,
+      { points: [{ x: 1000, y: 1000 }], thickness: 4, color: 0 },
+    ],
+  }
+  expect(sameInkOnPane(batch, far, frame)).toBe(true)
+  expect(
+    sameInkOnPane(batch, far, {
+      ...frame,
+      translateX: -1990,
+      translateY: -1990,
+    }),
+  ).toBe(false)
 })

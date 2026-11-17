@@ -534,7 +534,7 @@ export function figureSvg(
           nodeLengths,
           nodeById,
           graph,
-          drawnBatch: batch,
+          drawnInk: batch,
           alleleDeletions: layout.alleleDeletions ?? [],
           positionsVersion: 0,
           folded: batch.collapsed?.nodes,

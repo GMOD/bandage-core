@@ -197,7 +197,7 @@ function source(overrides: Partial<LabelLayoutSource>): LabelLayoutSource {
     nodeLengths: new Map(),
     nodeById: undefined,
     graph: undefined,
-    drawnBatch: undefined,
+    drawnInk: undefined,
     alleleDeletions: [],
     positionsVersion: 0,
     folded: undefined,
