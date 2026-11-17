@@ -311,6 +311,56 @@ describe("a piece drawn inside the reference's stroke between its attachments sh
   })
 })
 
+// two 1 bp sites side by side on the reference's line, a1 for r2 and b1 for
+// r3, with the reference's link from r2 to r3 laid 30 units long under them
+test("the reference's link drawn along a run of folded sites is the reference, never painted over the nodes, though as a plain link along the alleles it is", () => {
+  const graph = load([
+    `S\tr1\t${bases(1000)}`,
+    'S\tr2\tC',
+    'S\tr3\tC',
+    `S\tr4\t${bases(1000)}`,
+    'S\ta1\tT',
+    'S\tb1\tT',
+    'L\tr1\t+\tr2\t+\t0M',
+    'L\tr2\t+\tr3\t+\t0M',
+    'L\tr3\t+\tr4\t+\t0M',
+    'L\tr1\t+\ta1\t+\t0M',
+    'L\ta1\t+\tr3\t+\t0M',
+    'L\tr2\t+\tb1\t+\t0M',
+    'L\tb1\t+\tr4\t+\t0M',
+    'W\tref\t0\tchr\t0\t2002\t>r1>r2>r3>r4',
+    'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r4',
+    'W\tv\t1\tchr\t0\t*\t>r1>r2>b1>r4',
+  ])
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1031, 1032),
+    'r4+': at(1032, 2032),
+    'a1+': at(1000, 1031, 0.5),
+    'b1+': at(1001, 1032, -0.5),
+  }
+  const link = edgeIndex(graph, 'r2+', 'r3+')
+  const alongAt = (scale: number) => {
+    const batch = build(graph, positions, scale)
+    const run = batch.edgeCurveRuns.get(link)
+    return {
+      batch,
+      along: run
+        ? batch.edgeCurves
+            .slice(run.start, run.start + run.count)
+            .some(s => s.along)
+        : undefined,
+    }
+  }
+  const folded = alongAt(0.1)
+  expect(folded.batch.collapsed?.bridges.has(link)).toBe(true)
+  expect(folded.along).toBe(false)
+  const drawn = alongAt(0.2)
+  expect(drawn.batch.collapsed?.sites).toEqual([])
+  expect(drawn.along).toBe(true)
+})
+
 test('a skip is measured by how far apart on the reference its ends are, whatever of the skipped reference the cut holds', () => {
   const graph = convertGFAToGraph(
     parseGFA(

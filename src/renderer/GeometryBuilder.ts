@@ -2075,6 +2075,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       })
     }
   }
+  const bridgeStrokes = new Set<number>()
   for (let ei = 0; ei < graph.edges.length; ei++) {
     const edge = graph.edges[ei]!
     const fromSegments = nodePositions[edge.from]
@@ -2406,6 +2407,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     } else if (!ribbons) {
       const fromNode = nodeById.get(edge.from)
       if (inView(baseCurves) && bridge && fromNode) {
+        bridgeStrokes.add(edgeCurves.length)
         stroke(
           curvesAlongRun(bridge.run, baseCurves),
           runWidth(bridge.run, fromNode) / 2,
@@ -2616,7 +2618,11 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     })),
     edgeCurves.flatMap((stroke, k) => {
       const last = stroke.curves.at(-1)
-      return stroke.curves[0] && last && !stroke.skip && !stroke.turn
+      return stroke.curves[0] &&
+        last &&
+        !stroke.skip &&
+        !stroke.turn &&
+        !bridgeStrokes.has(k)
         ? [
             {
               id: k,
