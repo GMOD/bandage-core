@@ -553,10 +553,12 @@ export function loopLabelCandidates({
   const seen = new Map<string, number>()
   const candidates: SizeLabelCandidate[] = []
   for (const { loop, line, ends } of drawnLines) {
-    if (!loop.nodes.every(id => folded?.has(id))) {
-      const text = formatBpSpan(loop.least, loop.bp)
-      const halfW = labelHalfWidth(text)
-      const drawn = polylinePx(line, scaleX, scaleY)
+    const text = formatBpSpan(loop.least, loop.bp)
+    const halfW = labelHalfWidth(text)
+    if (
+      polylinePx(line, scaleX, scaleY) >= (halfW * 2) / MAX_LABEL_OVERHANG &&
+      !loop.nodes.every(id => folded?.has(id))
+    ) {
       const total = ends.at(-1) ?? 0
       const middleNode =
         loop.nodes[ends.findIndex(end => end >= total / 2)] ?? loop.nodes[0]!
@@ -572,15 +574,12 @@ export function loopLabelCandidates({
         const { x, y } = polylinePointAt(line, fraction)
         return { x: x * scaleX + translateX, y: y * scaleY + translateY }
       }).filter(onPane)
-      const along =
-        drawn >= (halfW * 2) / MAX_LABEL_OVERHANG
-          ? spots
-              .map(({ x, y }) => ({
-                label: { ...label, x, y },
-                box: boxAt(halfW, x, y),
-              }))
-              .filter(({ box }) => wholeOnPane(box))
-          : []
+      const along = spots
+        .map(({ x, y }) => ({
+          label: { ...label, x, y },
+          box: boxAt(halfW, x, y),
+        }))
+        .filter(({ box }) => wholeOnPane(box))
       const [middle] = spots
       if (along.length > 0 && middle) {
         candidates.push({ id: label.key, kept: false, middle, along })
