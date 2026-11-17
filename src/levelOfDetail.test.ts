@@ -9,12 +9,14 @@ import { anchorGraph } from './pathAnchoring'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { baseEdgeCurves } from './util/edgeCurves'
+import { curvePointAt } from './util/geometry'
 import { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 import { walkLift } from './walkHighlight'
 import { MAX_ZOOM } from './zoomLimits'
 
 import type { BuildOptions } from './renderer/GeometryBuilder'
 import type { Graph, NodeSegment, PathVisit } from './types'
+import type { BezierCurve } from './util/geometry'
 
 const load = (lines: string[]) =>
   anchorGraph(convertGFAToGraph(parseGFA(lines.join('\n'))), 'ref')
@@ -183,6 +185,59 @@ describe('a piece folds when it is drawn under SMALL_SITE_PX: its own nodes and 
     expect(batch.collapsed?.sites).toEqual([])
     expect(batch.edgeCurveRuns.has(2)).toBe(true)
   })
+})
+
+test('a link is measured along the curve drawn, so a piece folds below the scale at which that curve brings it to SMALL_SITE_PX and is drawn above it', () => {
+  const { graph } = snp(1, 1)
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1001),
+    'r3+': at(1001, 2001),
+    'a1+': at(1010, 1011, 20),
+  }
+  const unit = { scaleX: 1, scaleY: 1 }
+  const curves = baseEdgeCurves(
+    positions,
+    graph,
+    unit,
+    layoutGeometryInputs({ nodePositions: positions }, drawingOf(graph))
+      .deletions,
+    0,
+  )
+  const chords = (curve: BezierCurve[], n: number) =>
+    curve.reduce((px, c) => {
+      let sum = 0
+      for (let k = 1; k <= n; k++) {
+        const a = curvePointAt(c, (k - 1) / n)
+        const b = curvePointAt(c, k / n)
+        sum += Math.hypot(b.x - a.x, b.y - a.y)
+      }
+      return px + sum
+    }, 0)
+  const curvePx = (from: string, to: string) => {
+    const curve = curves.get(edgeIndex(graph, from, to)) ?? []
+    return (4 * chords(curve, 16384) - chords(curve, 8192)) / 3
+  }
+  const atScaleOne =
+    1 +
+    1 +
+    curvePx('r1+', 'a1+') +
+    curvePx('a1+', 'r3+') +
+    curvePx('r1+', 'r2+') +
+    curvePx('r2+', 'r3+')
+  const sampled = (from: string, to: string) =>
+    chords(curves.get(edgeIndex(graph, from, to)) ?? [], 8)
+  expect(
+    (curvePx('r1+', 'a1+') - sampled('r1+', 'a1+')) / atScaleOne,
+  ).toBeGreaterThan(1e-5)
+  const threshold = SMALL_SITE_PX / atScaleOne
+  const thin = { contigThickness: 0.2 }
+  expect(folded(build(graph, positions, threshold * (1 - 1e-6), thin))).toEqual(
+    ['a1+'],
+  )
+  expect(folded(build(graph, positions, threshold * (1 + 1e-6), thin))).toEqual(
+    [],
+  )
 })
 
 test('a skip is measured by how far apart on the reference its ends are, whatever of the skipped reference the cut holds', () => {

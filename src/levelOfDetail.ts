@@ -2,7 +2,7 @@ import { isBackbone, readsAsReference } from './anchoredNodes'
 import { departureTails } from './gfa/departures'
 import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
-import { curvePointAt } from './util/geometry'
+import { cubicLengthPx } from './util/curveLength'
 import { partitionPoint } from './util/partitionPoint'
 import { weakMemo } from './util/weakMemo'
 import { MAX_ZOOM } from './zoomLimits'
@@ -505,24 +505,9 @@ function drawnPx(line: readonly NodeSegment[], axis: AxisScale) {
   return px
 }
 
-const CURVE_SAMPLES = 8
-
 // how long a link's curve is drawn on screen
-function curvePx(curves: readonly BezierCurve[], axis: AxisScale) {
-  let px = 0
-  for (const c of curves) {
-    let last = { x: c.x0, y: c.y0 }
-    for (let k = 1; k <= CURVE_SAMPLES; k++) {
-      const p = curvePointAt(c, k / CURVE_SAMPLES)
-      px += Math.hypot(
-        (p.x - last.x) * axis.scaleX,
-        (p.y - last.y) * axis.scaleY,
-      )
-      last = p
-    }
-  }
-  return px
-}
+const curvePx = (curves: readonly BezierCurve[], axis: AxisScale) =>
+  curves.reduce((px, c) => px + cubicLengthPx(c, axis.scaleX, axis.scaleY), 0)
 
 // the straight distance between a link's ends on screen, which no drawing
 // of it at any zoom is shorter than
@@ -544,15 +529,11 @@ function chordPx(curves: readonly BezierCurve[], axis: AxisScale) {
 function drawnSize(
   unit: Unit,
   reference: ReferenceSequence | undefined,
-  positions: Record<string, NodeSegment[]>,
-  curves: EdgeCurves,
-  axis: AxisScale,
-  linkPx: (curves: readonly BezierCurve[], axis: AxisScale) => number,
+  nodePx: (id: string) => number,
+  edgePx: (edge: number) => number,
 ) {
   const start = least(unit.attachments)
   const end = most(unit.attachments)
-  const nodePx = (id: string) => drawnPx(positions[id] ?? [], axis)
-  const edgePx = (edge: number) => linkPx(curves.get(edge) ?? [], axis)
   const links = reference?.links ?? []
   let px = 0
   for (const id of unit.nodes) {
@@ -574,6 +555,19 @@ function drawnSize(
     px += edgePx(links[i]!.edge)
   }
   return px
+}
+
+// each key measured the first time it is asked for, and held
+function once<K>(measure: (key: K) => number) {
+  const held = new Map<K, number>()
+  return (key: K) => {
+    const known = held.get(key)
+    const px = known ?? measure(key)
+    if (known === undefined) {
+      held.set(key, px)
+    }
+    return px
+  }
 }
 
 function referencePxPerBp(
@@ -617,6 +611,15 @@ function foldOf(
   const placeholders = new Set(
     graph.nodes.flatMap(n => (n.placeholder ? [n.id] : [])),
   )
+  const measured = (
+    axisOf: AxisScale,
+    linkPx: (curves: readonly BezierCurve[], axis: AxisScale) => number,
+  ) => ({
+    node: once((id: string) => drawnPx(positions[id] ?? [], axisOf)),
+    edge: once((edge: number) => linkPx(curves.get(edge) ?? [], axisOf)),
+  })
+  const atAxis = measured(axis, curvePx)
+  const atDeepest = measured(deepest, chordPx)
   // A piece is small as it is drawn, at this axis, and comes back at the
   // deepest zoom, drawn no shorter there than its links' straight ends. A
   // not-loaded stretch is drawn at the layout's least length whatever its
@@ -624,8 +627,8 @@ function foldOf(
   // reference's px a bp, and the smaller measure counts
   const sizeOf = (unit: Unit, refName: string) => {
     const reference = references.get(refName)
-    const shown = drawnSize(unit, reference, positions, curves, axis, curvePx)
-    const back = drawnSize(unit, reference, positions, curves, deepest, chordPx)
+    const shown = drawnSize(unit, reference, atAxis.node, atAxis.edge)
+    const back = drawnSize(unit, reference, atDeepest.node, atDeepest.edge)
     const stated = unit.nodes.some(id => placeholders.has(id)) && pxPerBp > 0
     return {
       shown: stated ? Math.min(shown, unit.bp * pxPerBp) : shown,
