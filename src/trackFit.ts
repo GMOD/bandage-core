@@ -14,7 +14,7 @@ export const TRACK_FITS = ['fixed', 'grow', 'fit'] as const
 
 export type TrackFit = (typeof TRACK_FITS)[number]
 
-export const DEFAULT_TRACK_FIT: TrackFit = 'fit'
+export const DEFAULT_TRACK_FIT: TrackFit = 'fixed'
 
 // What a host's menu calls each, the drawing's size first and the track's
 // height second, as JBrowse words its track sizing

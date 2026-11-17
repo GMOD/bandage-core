@@ -175,20 +175,20 @@ reads them.
   fits). A pan is a pure slide, a zoom magnifies about the window's reference,
   and a window is drawn no wider than the pane
 - How a drawing a window places meets the pane's height is the host's
-  `trackFit`, named as JBrowse names a track's sizing. `fit`, the default
-  (`DEFAULT_TRACK_FIT`), is the capped scale above: the whole cut is scaled into
-  the height. `fixed` keeps the stretch under the ruler in frame at a useful
-  size: it draws at the window's scale, so a zoom magnifies it, lowered only
-  where the reference some view-width window in the cut takes in, as laid, would
-  be taller than the pane, to the largest scale at which every such stretch fits
-  (`referenceScale`). Like the window's scale it reads the cut and the view's
-  width, never where the view is, so a pan only slides the drawing.
-  `windowTranslateY` then holds the reference whose bp lie in the window
-  (`referenceReach`) whole between the pads, and what hangs off it is clipped
-  where it runs past the top or bottom: `edgeOverruns` says where the drawing
-  crosses those edges, for the host to mark. `grow` draws as `fixed` does, its
-  reference fitted to the host's cap, in a pane as tall as the cut at that scale
-  (`grownHeight`), up to that cap
+  `trackFit`, named as JBrowse names a track's sizing. `fit` is the capped scale
+  above: the whole cut is scaled into the height, and nothing is clipped.
+  `fixed`, the default (`DEFAULT_TRACK_FIT`), keeps the stretch under the ruler
+  in frame at a useful size: it draws at the window's scale, so a zoom magnifies
+  it, lowered only where the reference some view-width window in the cut takes
+  in, as laid, would be taller than the pane, to the largest scale at which
+  every such stretch fits (`referenceScale`). Like the window's scale it reads
+  the cut and the view's width, never where the view is, so a pan only slides
+  the drawing. `windowTranslateY` then holds the reference whose bp lie in the
+  window (`referenceReach`) whole between the pads, and what hangs off it is
+  clipped where it runs past the top or bottom: `edgeOverruns` says where the
+  drawing crosses those edges, for the host to mark. `grow` draws as `fixed`
+  does, its reference fitted to the host's cap, in a pane as tall as the cut at
+  that scale (`grownHeight`), up to that cap
 - `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
   label placement. The library also finds bubbles and deletion edges and colors
   paths
