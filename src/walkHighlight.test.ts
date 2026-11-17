@@ -128,6 +128,51 @@ test('a walk lifted alone shades light to dark along itself', () => {
   expect(inv!.colors.get('v1+')).toBe(schemeColor('blue', 7 / 9))
 })
 
+test('a stated value paints a walk that colour, the reference too, and its key', () => {
+  const lift = walkLift(
+    walks,
+    [
+      { walk: 'ref#0#chr', color: { value: '#5c5c5c' } },
+      { walk: 'alt#1#chr', color: { value: '#2a9fd0', field: 'progress' } },
+      { walk: 'inv#1#chr', color: { value: 'teal' } },
+    ],
+    ramp,
+  )!
+  expect(lift.walks.map(w => [w.name, w.encoding])).toEqual([
+    ['ref#0#chr', { field: 'walk', scheme: 'grey', value: '#5c5c5c' }],
+    ['alt#1#chr', { field: 'walk', scheme: 'blue', value: '#2a9fd0' }],
+    ['inv#1#chr', { field: 'walk', scheme: 'red' }],
+  ])
+  const [ref, alt] = lift.walks
+  expect(new Set(ref!.colors.values())).toEqual(
+    new Set([
+      encodedColor({ field: 'walk', scheme: 'grey', value: '#5c5c5c' }),
+    ]),
+  )
+  expect(new Set(alt!.colors.values()).size).toBe(1)
+  expect(encodingStops(alt!.encoding)).toEqual([
+    {
+      offset: 0,
+      color: 'rgb(42, 159, 208)',
+      abgr: [...alt!.colors.values()][0],
+    },
+  ])
+})
+
+test('a walk lifted alone with a stated value is that one colour', () => {
+  const [ref] = walkLift(
+    walks,
+    [{ walk: 'ref#0#chr', color: { value: '#abc' } }],
+    ramp,
+  )!.walks
+  expect(ref!.encoding).toEqual({
+    field: 'walk',
+    scheme: 'grey',
+    value: '#abc',
+  })
+  expect(encodingStops(ref!.encoding)[0]!.color).toBe('rgb(170, 187, 204)')
+})
+
 test('a walk states where its stretch sits on its own contig, from its record', () => {
   const lift = walkLift(walks, [{ walk: 'alt#1#chr' }], ramp)!
   expect(lift.walks[0]!.range).toEqual({ contig: 'chr', start: 0, end: 13 })

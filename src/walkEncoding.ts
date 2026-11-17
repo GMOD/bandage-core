@@ -18,8 +18,13 @@ import { packAbgr } from './renderer/colorBits'
 //
 //   "walkLayers": [
 //     { "walk": "GRCh38#0#chr6" },
-//     { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } }
+//     { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } },
+//     { "walk": "HG00097#2#CM090084.1", "color": { "value": "#2a9fd0" } }
 //   ]
+//
+// A stated `value`, a hex colour, paints the walk that one colour whatever
+// its field and scheme, and the reference too, as ggplot2's identity scale
+// paints a value as itself: a sample sheet's own colour for a haplotype.
 
 export const WALK_FIELDS = [
   { value: 'progress', label: 'Progress along the walk' },
@@ -55,6 +60,7 @@ export type WalkScheme = (typeof WALK_SCHEMES)[number]['value']
 export interface WalkEncoding {
   field: WalkField
   scheme: WalkScheme
+  value?: string
   darkest?: number
   shade?: number
   stretch?: readonly [number, number]
@@ -82,14 +88,30 @@ const isField = (v: unknown): v is WalkField =>
 const isScheme = (v: unknown): v is WalkScheme =>
   WALK_SCHEMES.some(s => s.value === v)
 
-// A stated field or scheme this build does not have reads as unset
+// A hex colour, #rgb or #rrggbb, as rgb 0-255
+export function hexRgb(hex: unknown): [number, number, number] | undefined {
+  const digits =
+    typeof hex === 'string' && /^#([0-9a-f]{3}){1,2}$/i.test(hex)
+      ? hex.length === 4
+        ? hex.slice(1).replaceAll(/./g, '$&$&')
+        : hex.slice(1)
+      : ''
+  const at = (i: number) => Number.parseInt(digits.slice(i, i + 2), 16)
+  return digits ? [at(0), at(2), at(4)] : undefined
+}
+
+// A stated field, scheme or value this build does not have reads as unset
 export function resolveEncoding(
   layer: WalkLayer,
   reference: boolean,
   picked: number,
   alone = true,
 ): WalkEncoding {
-  const { field: askedField, scheme: askedScheme } = layer.color ?? {}
+  const {
+    field: askedField,
+    scheme: askedScheme,
+    value: askedValue,
+  } = layer.color ?? {}
   const field = isField(askedField) ? askedField : alone ? 'progress' : 'walk'
   const family = reference ? 'grey' : FAMILIES[picked % FAMILIES.length]!
   const scheme = isScheme(askedScheme)
@@ -98,11 +120,13 @@ export function resolveEncoding(
       : askedScheme
     : family
   const round = Math.floor(picked / FAMILIES.length) % SHADES.length
-  return flatField(field) && scheme === family && round > 0
-    ? { field, scheme, shade: SHADES[round] }
-    : alone || flatField(field)
-      ? { field, scheme }
-      : { field, scheme, darkest: TOGETHER_DARKEST }
+  return hexRgb(askedValue)
+    ? { field: 'walk', scheme, value: askedValue }
+    : flatField(field) && scheme === family && round > 0
+      ? { field, scheme, shade: SHADES[round] }
+      : alone || flatField(field)
+        ? { field, scheme }
+        : { field, scheme, darkest: TOGETHER_DARKEST }
 }
 
 const flatField = (field: WalkField) => field === 'walk' || field === 'pass'
@@ -242,30 +266,43 @@ export function schemeColor(scheme: WalkScheme, t: number, darkest?: number) {
   return packAbgr(r!, g!, b!, 255)
 }
 
-// A field's value at a node through the walk's scheme; `t` undefined is a node
-// the field has nothing to say about, off the reference for `reference`
+// A field's value at a node through the walk's scheme, or the walk's stated
+// value; `t` undefined is a node the field has nothing to say about, off the
+// reference for `reference`
 export function encodedColor(encoding: WalkEncoding, t?: number) {
-  const { field, scheme, darkest, shade = BASE_T } = encoding
-  return flatField(field)
-    ? schemeColor(scheme, shade)
-    : t === undefined
-      ? NO_VALUE_COLOR
-      : schemeColor(scheme, along(encoding, t), darkest)
+  const { field, scheme, value, darkest, shade = BASE_T } = encoding
+  const rgb = hexRgb(value)
+  return rgb
+    ? packAbgr(...rgb, 255)
+    : flatField(field)
+      ? schemeColor(scheme, shade)
+      : t === undefined
+        ? NO_VALUE_COLOR
+        : schemeColor(scheme, along(encoding, t), darkest)
 }
 
 export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
 
 // A key's colours: the walk's one colour, or the scheme across the field
 export function encodingStops(encoding: WalkEncoding) {
-  const { field, scheme, darkest, shade = BASE_T } = encoding
+  const { field, scheme, value, darkest, shade = BASE_T } = encoding
   const stop = (offset: number, t: number) => ({
     offset,
     color: schemeCss(scheme, t, darkest),
     abgr: schemeColor(scheme, t, darkest),
   })
-  return flatField(field)
-    ? [stop(0, shade)]
-    : Array.from({ length: 7 }, (_, i) => stop(i / 6, along(encoding, i / 6)))
+  const rgb = hexRgb(value)
+  return rgb
+    ? [
+        {
+          offset: 0,
+          color: `rgb(${rgb.join(', ')})`,
+          abgr: packAbgr(...rgb, 255),
+        },
+      ]
+    : flatField(field)
+      ? [stop(0, shade)]
+      : Array.from({ length: 7 }, (_, i) => stop(i / 6, along(encoding, i / 6)))
 }
 
 // A swatch for the legend: the walk's colour, or the scheme across the field
