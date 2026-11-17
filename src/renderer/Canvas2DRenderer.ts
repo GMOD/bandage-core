@@ -351,7 +351,7 @@ export function arrowheadOutline(a: Arrowhead, t: TransformUniform) {
   const halfWidth = a.halfWidth * t.dpr
   const backX = tipX - ux * length
   const backY = tipY - uy * length
-  const notchBack = length * (1 - ARROW_NOTCH)
+  const notchBack = length * (1 - (a.runsOn ? 0 : ARROW_NOTCH))
   return [
     { x: tipX, y: tipY },
     { x: backX - uy * halfWidth, y: backY + ux * halfWidth },

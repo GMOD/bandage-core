@@ -182,6 +182,11 @@ reads them.
   is drawn instead as an arch between its feet whose apex clears that stretch,
   on the side away from where the skipped nodes lean off its chord. A skip too
   short on screen for its dashes keeps its route
+- A departure's tail, own steps of a haplotype on its way to or from a place
+  past the cut, ends in a dark tab past each free end no drawn link meets, the
+  reference strip's tab laid along the node: the graph runs on from there past
+  what the drawing holds. The key names it `graph runs on past what is drawn`,
+  and `figureData`'s `arrows` table lists it with `runsOn`
 - `walkLift` lifts a walk out of the drawing, `facetLifts` and `facetGrid` draw
   one panel per walk, and `walkKey` describes each walk in words
 - `graphBackbone`, `backboneAssembly` and `assemblyWalk` find which assembly a

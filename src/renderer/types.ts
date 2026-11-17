@@ -70,6 +70,9 @@ export interface Arrowhead {
   node?: string
   against?: boolean
   halo?: boolean
+  // a tab past a node's free end: the graph runs on from there past what the
+  // drawing holds
+  runsOn?: true
 }
 
 // A contiguous run of one batch array.

@@ -45,6 +45,7 @@ import { weakMemo } from '../util/weakMemo'
 import { abgrToCssRgba, fadeAbgr, packAbgr } from './colorBits'
 import { laneHeadPlacer } from './laneHeads'
 import { curvesPx, directedRuns, spreadHeads } from './linkRuns'
+import { runsOnTabs } from './runsOn'
 import {
   MIN_LANE_STROKE_PX,
   THREAD_PITCH_PX,
@@ -2537,6 +2538,54 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
+  if (graph.departures?.names.length) {
+    const linked = new Set<string>()
+    for (let ei = 0; ei < graph.edges.length; ei++) {
+      const { from, to } = graph.edges[ei]!
+      const curves = sharedCurves.get(ei)
+      const fromSegments = nodePositions[from]
+      const toSegments = nodePositions[to]
+      if (
+        curves &&
+        fromSegments?.length &&
+        toSegments?.length &&
+        !hiddenEdges?.has(ei)
+      ) {
+        const first = curves[0]!
+        const last = curves.at(-1)!
+        linked.add(
+          `${from}\t${nearerStart({ x: first.x0, y: first.y0 }, fromSegments, yToX)}`,
+        )
+        linked.add(
+          `${to}\t${nearerStart({ x: last.x1, y: last.y1 }, toSegments, yToX)}`,
+        )
+      }
+    }
+    const widthOf = (id: string) => {
+      const node = nodeById.get(id)
+      return node
+        ? nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
+        : contigThickness
+    }
+    for (const tab of runsOnTabs({
+      graph,
+      nodePositions,
+      linked,
+      drawn: id =>
+        nodeById.has(id) && !collapse.nodes.has(id) && !crossedAt(id),
+      halfWidthPx: id => widthOf(id) / 2,
+      scale,
+      yToX,
+      color: id =>
+        highlight && !highlight.nodeIds.has(id)
+          ? fadeAbgr(EDGE_DELETION_COLOR, FADED_ALPHA)
+          : EDGE_DELETION_COLOR,
+    })) {
+      if (!viewportBounds || headInBounds(tab, viewportBounds, scale, yToX)) {
+        arrows.push(tab)
+      }
+    }
+  }
 
   return {
     nodeStrokes,

@@ -267,6 +267,9 @@ interface ArrowRow {
   alpha: number
   // a head the canvas strokes a white halo under, LANE_HEAD_HALO_PX each side
   halo: boolean
+  // a tab past `node`'s free end, drawn without the notch: the graph runs on
+  // from there past what the drawing holds
+  runsOn: boolean
 }
 
 function columns<T extends object>(out: Columns<T>) {
@@ -604,6 +607,7 @@ export function figureData(
     color: [],
     alpha: [],
     halo: [],
+    runsOn: [],
   })
 
   const batches: RenderBatch[] = []
@@ -686,7 +690,7 @@ export function figureData(
     }
     batch.arrows.forEach((a, i) => {
       const edge = edgeOf.get(i)
-      if (edge !== undefined || a.walk !== undefined) {
+      if (edge !== undefined || a.walk !== undefined || a.runsOn) {
         arrows.push({
           panel,
           edge: edge ?? null,
@@ -701,6 +705,7 @@ export function figureData(
           color: abgrHex(a.color),
           alpha: alphaOf(a.color),
           halo: a.halo === true,
+          runsOn: a.runsOn === true,
         })
       }
     })

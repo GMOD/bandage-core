@@ -148,6 +148,7 @@ export function drawnMarks(
     headsAgainst: false,
     headsAlong: false,
     headsHaloed: false,
+    runsOn: false,
     foldedNodes: new Set<string>(),
     foldedSkips: new Set<number>(),
     foldedUnderBp: 0,
@@ -231,12 +232,13 @@ export function drawnMarks(
         }
       }
     }
-    for (const { walk, against, halo } of arrows) {
+    for (const { walk, against, halo, runsOn } of arrows) {
       if (walk !== undefined) {
         marks.headsAgainst ||= !!against
         marks.headsAlong ||= !against
         marks.headsHaloed ||= !!halo
       }
+      marks.runsOn ||= !!runsOn
     }
   }
   return marks
@@ -329,6 +331,8 @@ export interface GraphKeyOptions {
 // LIFT_BACKDROP_COLOR reads paler alone than faded strokes do where they
 // overlap, so the key samples it darker
 export const FADED_KEY_INK = fadeAbgr(LIFT_BACKDROP_COLOR, 0.45)
+// what a tab past a node's free end says (renderer/runsOn.ts)
+export const RUNS_ON_KEY = 'graph runs on past what is drawn'
 export const EXON_INK = hexAbgr(EXON_COLOR)
 const HALO_INK = hexAbgr(BUBBLE_HALO_COLOR)
 export const THREAD_INK = packAbgr(68, 68, 68, 255)
@@ -651,8 +655,8 @@ export function graphKey(
     {
       id: 'not-shown',
       group: 'Marks',
-      entries:
-        drawsNodes && o.marks.placeholder
+      entries: [
+        ...(drawsNodes && o.marks.placeholder
           ? [
               {
                 key: 'not-shown',
@@ -670,7 +674,17 @@ export function graphKey(
                 },
               },
             ]
-          : [],
+          : []),
+        ...(drawsNodes && o.marks.runsOn
+          ? [
+              {
+                key: 'runs-on',
+                text: RUNS_ON_KEY,
+                swatch: { kind: 'overhang' },
+              },
+            ]
+          : []),
+      ],
     },
     {
       id: 'exon',
