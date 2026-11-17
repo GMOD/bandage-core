@@ -288,7 +288,7 @@ test('a name says how much of its gene the drawing holds only where part of the 
   expect(texts).toEqual([
     'OWNPAST · HG00097#1 · 1.6 of 2 kb',
     'OWNWHOLE · HG00097#1',
-    'PAST · 0.5 of 1 kb',
+    'PAST · 500 bp of 1 kb',
     'WHOLE',
   ])
   expect(pins.map(p => [p.gene.name, p.onReference, p.walks])).toEqual([

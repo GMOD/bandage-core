@@ -648,6 +648,24 @@ test('a gene the cut carries only part of says how much, in its own unit', () =>
   ).toEqual(['LPA · 35 of 132.8 kb'])
 })
 
+// sv-31's window, 8.2 kb inside PRKN's 1.38 Mb, was labelled "PRKN · 0 of
+// 1.4 Mb", and a pggb copy holding 3 bp of its 5.6 kb "0 of 5.6 kb"
+test('a gene the cut holds a sliver of says how much in the unit of the sliver, never 0', () => {
+  const at = { x: 300, y: 200 }
+  const gene = (end: number, held: number) => ({
+    ...pin(at),
+    gene: { ...pin(at).gene, name: 'PRKN', start: 0, end },
+    covered: held / end,
+  })
+  expect(geneCoverageNote(gene(1_380_350, 8231))).toBe('8.2 kb of 1.4 Mb')
+  expect(geneCoverageNote(gene(5603, 3))).toBe('3 bp of 5.6 kb')
+  expect(geneCoverageNote(gene(5603, 1000))).toBe('1 of 5.6 kb')
+  expect(geneCoverageNote(gene(20_000_000, 19_000_000))).toBe(
+    '19 of 20 Mb',
+  )
+  expect(geneCoverageNote(gene(1_380_350, 1_352_000))).toBeUndefined()
+})
+
 // `pangenome/pggb_bubble_tier` labelled K12's IS5 node `oppA`: oppA's chip
 // hangs under its pin on the backbone, which is the rank-1 row, where the IS5
 // node lies, and oppA starts past the element.

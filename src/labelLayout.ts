@@ -93,22 +93,27 @@ export interface LabelLayout {
   unlabelled?: UnlabelledPlaceholders
 }
 
-// How much of a gene the drawing holds, when that is not all of it, in the
-// unit of the gene's length: `35 of 132.8 kb`. On the reference that is the
-// drawn backbone's share, on a haplotype's own contig its walk records' share
+function amountOf(bp: number) {
+  const [per, unit] =
+    bp >= 999_500 ? [1_000_000, 'Mb'] : bp >= 999.5 ? [1000, 'kb'] : [1, 'bp']
+  return { value: +(bp / per).toFixed(per === 1 ? 0 : 1), unit }
+}
+
+// How much of a gene the drawing holds, when that is not all of it, each
+// amount in its own unit and a unit they share said once: `35 of 132.8 kb`,
+// `8.3 kb of 1.4 Mb`. None where the two read the same. On the reference that
+// is the drawn backbone's share, on a haplotype's own contig its walk
+// records' share
 export function geneCoverageNote(pin: GenePin) {
   const length = pin.gene.end - pin.gene.start
-  if (pin.covered >= 0.98) {
-    return undefined
-  }
-  const [per, unit] =
-    length >= 999_500
-      ? [1_000_000, 'Mb']
-      : length >= 1000
-        ? [1000, 'kb']
-        : [1, 'bp']
-  const amount = (bp: number) => +(bp / per).toFixed(per === 1 ? 0 : 1)
-  return `${amount(pin.covered * length)} of ${amount(length)} ${unit}`
+  const held = amountOf(pin.covered * length)
+  const whole = amountOf(length)
+  return pin.covered >= 0.98 ||
+    (held.value === whole.value && held.unit === whole.unit)
+    ? undefined
+    : held.unit === whole.unit
+      ? `${held.value} of ${whole.value} ${whole.unit}`
+      : `${held.value} ${held.unit} of ${whole.value} ${whole.unit}`
 }
 
 function grown(box: Box, by: number) {
