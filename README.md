@@ -158,9 +158,20 @@ reads them.
 - A site is measured as the drawing shows it, whatever its bp: a force layout
   draws a short node at a least length and a link at a set length, so a 1 bp
   allele the layout draws several px across stays drawn, and a skip is measured
-  along the reference it skips, never by how close the layout set its ends.
-  Identical sites laid alike fold together; laid differently, each folds at the
-  scale its own drawing comes to `SMALL_SITE_PX`
+  along the reference it skips, never by how close the layout set its ends. A
+  link is measured along the curve drawn. Identical sites laid alike fold
+  together; laid differently, each folds at the scale its own drawing comes to
+  `SMALL_SITE_PX`
+- A piece laid inside the reference's stroke shows no length of its own, so it
+  is measured by its bp at the reference's px per bp, and folds where that is
+  under `SMALL_SITE_PX`: every point of its nodes' laid lines and of its links'
+  curves lies within half the stroke's width of the laid line of a reference
+  node wholly between its attachments, or of a point where one of its links
+  meets the reference, the width being the least drawn width of those reference
+  nodes and the ones its links meet. It folds only where at the deepest zoom its
+  bp comes to `SMALL_SITE_PX` and a point of its nodes' laid lines lies out of
+  that stroke, so zooming in draws it again; a piece laid on the reference's own
+  line, which no zoom draws apart from it, stays drawn
 - A not-loaded placeholder is drawn at that least length whatever its bp, so a
   piece holding one is measured by the smaller of its drawn length and its bp at
   the reference's px per bp, the drawn length of the reference's nodes over

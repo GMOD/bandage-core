@@ -61,6 +61,10 @@ function build(
   })
 }
 
+// a reference stroke too thin to lie over a piece laid off its line, for
+// tests of how long a piece is drawn
+const hairline = { contigThickness: 0.02 }
+
 const folded = (batch: ReturnType<typeof build>) =>
   [...(batch.collapsed?.nodes ?? [])].toSorted()
 const drawnNodes = (batch: ReturnType<typeof build>) =>
@@ -137,7 +141,7 @@ describe('a piece folds when it is drawn under SMALL_SITE_PX: its own nodes and 
     'a %i bp allele laid on the %i bp it takes the place of, at %f px a unit, folds: %s',
     (altBp, refBp, scale, isFolded) => {
       const { graph, positions } = snp(altBp, refBp, undefined, 0)
-      const batch = build(graph, positions, scale)
+      const batch = build(graph, positions, scale, hairline)
       expect(folded(batch)).toEqual(isFolded ? ['a1+'] : [])
       expect(drawnNodes(batch).has('a1+')).toBe(!isFolded)
       expect(batch.collapsed?.edges.size).toBe(isFolded ? 2 : 0)
@@ -148,9 +152,13 @@ describe('a piece folds when it is drawn under SMALL_SITE_PX: its own nodes and 
   test('the same allele laid farther off the reference is drawn longer, and folds only further out', () => {
     const near = snp(1, 1, undefined, 0)
     const far = snp(1, 1, undefined, 20)
-    expect(folded(build(near.graph, near.positions, 0.1))).toEqual(['a1+'])
-    expect(folded(build(far.graph, far.positions, 0.1))).toEqual([])
-    expect(folded(build(far.graph, far.positions, 0.05))).toEqual(['a1+'])
+    expect(folded(build(near.graph, near.positions, 0.1, hairline))).toEqual([
+      'a1+',
+    ])
+    expect(folded(build(far.graph, far.positions, 0.1, hairline))).toEqual([])
+    expect(folded(build(far.graph, far.positions, 0.05, hairline))).toEqual([
+      'a1+',
+    ])
   })
 
   test('a skip is drawn as its link and the reference it skips', () => {
@@ -231,13 +239,76 @@ test('a link is measured along the curve drawn, so a piece folds below the scale
     (curvePx('r1+', 'a1+') - sampled('r1+', 'a1+')) / atScaleOne,
   ).toBeGreaterThan(1e-5)
   const threshold = SMALL_SITE_PX / atScaleOne
-  const thin = { contigThickness: 0.2 }
-  expect(folded(build(graph, positions, threshold * (1 - 1e-6), thin))).toEqual(
-    ['a1+'],
-  )
-  expect(folded(build(graph, positions, threshold * (1 + 1e-6), thin))).toEqual(
-    [],
-  )
+  expect(
+    folded(build(graph, positions, threshold * (1 - 1e-6), hairline)),
+  ).toEqual(['a1+'])
+  expect(
+    folded(build(graph, positions, threshold * (1 + 1e-6), hairline)),
+  ).toEqual([])
+})
+
+describe("a piece drawn inside the reference's stroke between its attachments shows no length of its own, and folds by its bp where the deepest zoom lays it out of that stroke", () => {
+  // a1, 1 bp, takes the place of r2, 1 bp; both are laid 30 units long, a1
+  // 10 units beside r2, so at 0.2 px a unit a1 is drawn 6 px, 2 px off the
+  // reference's line, inside the 3 px half of the default 6 px stroke
+  const { graph } = snp(1, 1)
+  const positions = {
+    'r1+': at(0, 1000),
+    'r2+': at(1000, 1030),
+    'r3+': at(1030, 2030),
+    'a1+': at(1000, 1030, 10),
+  }
+
+  test('it folds while every point of it is within the stroke, is listed with its bp, and is drawn again from where a point comes out', () => {
+    for (const scale of [0.2, 0.299]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toMatchObject([
+        { nodes: ['a1+'], bp: 2, count: 1 },
+      ])
+      expect(drawnNodes(batch).has('a1+')).toBe(false)
+    }
+    for (const scale of [0.301, MAX_ZOOM]) {
+      const batch = build(graph, positions, scale)
+      expect(batch.collapsed?.sites).toEqual([])
+      expect(drawnNodes(batch).has('a1+')).toBe(true)
+    }
+  })
+
+  test('the stroke is as wide as the drawing draws the reference', () => {
+    const batch = build(graph, positions, 0.2, { contigThickness: 3 })
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(drawnNodes(batch).has('a1+')).toBe(true)
+  })
+
+  test('a piece with a point laid out of the stroke is drawn', () => {
+    const peaked = {
+      ...positions,
+      'a1+': [
+        { x: 1000, y: 10 },
+        { x: 1015, y: 20 },
+        { x: 1030, y: 10 },
+      ],
+    }
+    const batch = build(graph, peaked, 0.2)
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(drawnNodes(batch).has('a1+')).toBe(true)
+  })
+
+  test('a piece laid on the reference line itself, which no zoom lays out of the stroke, is drawn', () => {
+    const onLine = { ...positions, 'a1+': at(1000, 1030) }
+    for (const scale of [0.2, MAX_ZOOM]) {
+      expect(build(graph, onLine, scale).collapsed?.sites).toEqual([])
+    }
+  })
+
+  test("a piece inside the stroke whose bp comes to SMALL_SITE_PX at the reference's px a bp is drawn", () => {
+    const { graph: long, positions: laid } = snp(30, 30, undefined, 10)
+    const batch = build(long, laid, 0.2)
+    expect(batch.collapsed?.pxPerBp).toBe(0.2)
+    expect(60 * 0.2).toBeGreaterThanOrEqual(SMALL_SITE_PX)
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(drawnNodes(batch).has('a1+')).toBe(true)
+  })
 })
 
 test('a skip is measured by how far apart on the reference its ends are, whatever of the skipped reference the cut holds', () => {
@@ -861,9 +932,10 @@ test('the fold follows the skips the drawing holds and hides, on the same graph 
     held: typeof deletions | undefined,
     hidden?: Set<number>,
   ) =>
-    foldedSites(graph, positions, axis, curves, held, hidden).sites.map(
-      s => s.edges,
-    )
+    foldedSites(graph, positions, axis, curves, held, hidden, {
+      contigThickness: 6,
+      nodeWidth: 'uniform',
+    }).sites.map(s => s.edges)
   const curves = curvesAt(0)
   expect(skipsOf(curves, deletions)).toEqual([[2]])
   expect(skipsOf(curves, deletions, new Set([2]))).toEqual([])

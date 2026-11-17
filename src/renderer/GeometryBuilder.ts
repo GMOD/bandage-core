@@ -1172,6 +1172,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           sharedCurves,
           deletions,
           hiddenEdges,
+          { contigThickness, nodeWidth },
         )
       : NO_FOLD
   const siteAt = new Map<number, Site>()

@@ -1,20 +1,39 @@
 import { isBackbone, readsAsReference } from './anchoredNodes'
 import { departureTails } from './gfa/departures'
-import { haplotypeIndex, haplotypeOf } from './nodeWidths'
+import {
+  haplotypeIndex,
+  haplotypeOf,
+  nodeWidthPx,
+  widthNorm,
+} from './nodeWidths'
 import { panSNHaplotype } from './pansn'
 import { cubicLengthPx } from './util/curveLength'
 import { partitionPoint } from './util/partitionPoint'
+import { flattenedPx, pointInStroke, segmentInStroke } from './util/strokeCover'
 import { weakMemo } from './util/weakMemo'
 import { MAX_ZOOM } from './zoomLimits'
 
 import type { AnchoredNode } from './anchoredNodes'
+import type { NodeWidth } from './nodeWidths'
 import type { Graph, GraphNode, NodeSegment } from './types'
 import type { EdgeCurves } from './util/edgeCurves'
 import type { AxisScale, BezierCurve } from './util/geometry'
+import type { Stroke } from './util/strokeCover'
 
 export const SMALL_SITE_PX = 3
 
 export type SmallSites = 'hidden' | 'nodes'
+
+// how the drawing sets a node's width, which says how wide the reference's
+// stroke is
+export interface NodeStrokes {
+  contigThickness: number
+  nodeWidth: NodeWidth
+}
+
+// how far a link's curve may be flattened from the curve drawn, in px, when
+// asking whether it lies inside the reference's stroke
+const FLATNESS_PX = 0.01
 
 interface Point {
   x: number
@@ -590,6 +609,41 @@ function referencePxPerBp(
   return backboneBp > 0 ? px / backboneBp : 0
 }
 
+const onScreen = (p: Point, axis: AxisScale) => ({
+  x: p.x * axis.scaleX,
+  y: p.y * axis.scaleY,
+})
+
+// whether every point of a piece's nodes as laid and its links as drawn lies
+// inside a stroke, at this axis
+function laidInside(
+  unit: Unit,
+  stroke: Stroke,
+  positions: Record<string, NodeSegment[]>,
+  curves: EdgeCurves,
+  axis: AxisScale,
+) {
+  const lines = unit.nodes.map(id =>
+    (positions[id] ?? []).map(p => onScreen(p, axis)),
+  )
+  const along = (line: readonly Point[], inset: number) =>
+    line.every(
+      (p, i) => i === 0 || segmentInStroke(line[i - 1]!, p, stroke, inset),
+    )
+  return (
+    lines.every(line => line.every(p => pointInStroke(p, stroke))) &&
+    lines.every(line => along(line, 0)) &&
+    unit.edges.every(edge =>
+      (curves.get(edge) ?? []).every(c =>
+        along(
+          flattenedPx(c, axis.scaleX, axis.scaleY, FLATNESS_PX),
+          FLATNESS_PX,
+        ),
+      ),
+    )
+  )
+}
+
 function foldOf(
   graph: Graph,
   positions: Record<string, NodeSegment[]>,
@@ -597,6 +651,7 @@ function foldOf(
   curves: EdgeCurves,
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
+  strokes: NodeStrokes,
 ): Fold {
   const { units, total, backbone, backboneBp, references } = unitsCache(
     graph,
@@ -645,6 +700,78 @@ function foldOf(
           back: stated ? Math.min(back, unit.bp * deepestPxPerBp) : back,
         }
   }
+  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
+  const norm = widthNorm(graph, strokes.nodeWidth)
+  const halfWidthOf = (id: string) => {
+    const node = nodeById.get(id)
+    return node
+      ? nodeWidthPx(node, strokes.contigThickness, strokes.nodeWidth, norm) / 2
+      : 0
+  }
+  // The reference's stroke between a piece's attachments, on screen at an
+  // axis: the laid lines of the reference nodes lying wholly between them and
+  // the points where its links meet the reference, each widened by half the
+  // least drawn width of those nodes and the reference nodes its links meet
+  const referenceStroke = (
+    unit: Unit,
+    reference: ReferenceSequence | undefined,
+    feet: readonly Point[],
+    axisOf: AxisScale,
+  ): Stroke => {
+    const between = reference
+      ? spansInside(
+          reference.spans,
+          least(unit.attachments),
+          most(unit.attachments),
+        ).map(span => span.id)
+      : []
+    const met = unit.feet.flatMap(({ edge, atEnd }) => {
+      const link = graph.edges[edge]
+      return link ? [atEnd ? link.to : link.from] : []
+    })
+    return {
+      lines: between.map(id =>
+        (positions[id] ?? []).map(p => onScreen(p, axisOf)),
+      ),
+      points: feet.map(p => onScreen(p, axisOf)),
+      halfWidth: [...between, ...met].reduce(
+        (half, id) => Math.min(half, halfWidthOf(id)),
+        Infinity,
+      ),
+    }
+  }
+  // A piece drawn inside the reference's stroke between its attachments
+  // shows no length of its own, so it is measured by its bp at the
+  // reference's px a bp, and folds where that is small and, at the deepest
+  // zoom, that comes to SMALL_SITE_PX and a point of its nodes as laid comes
+  // out of that stroke
+  const coveredOf = (
+    unit: Unit,
+    reference: ReferenceSequence | undefined,
+    feet: readonly Point[],
+  ) => {
+    const comesOut = () => {
+      const deepStroke = referenceStroke(unit, reference, feet, deepest)
+      return unit.nodes.some(id =>
+        (positions[id] ?? []).some(
+          p => !pointInStroke(onScreen(p, deepest), deepStroke),
+        ),
+      )
+    }
+    return (
+      unit.nodes.length > 0 &&
+      unit.bp * pxPerBp < SMALL_SITE_PX &&
+      unit.bp * deepestPxPerBp >= SMALL_SITE_PX &&
+      laidInside(
+        unit,
+        referenceStroke(unit, reference, feet, axis),
+        positions,
+        curves,
+        axis,
+      ) &&
+      comesOut()
+    )
+  }
   const nodes = new Set<string>()
   const edges = new Set<number>()
   const siteOf = new Map<string, Site>()
@@ -666,8 +793,9 @@ function foldOf(
     if (
       refName !== undefined &&
       size &&
-      size.shown < SMALL_SITE_PX &&
-      size.back >= SMALL_SITE_PX
+      size.back >= SMALL_SITE_PX &&
+      (size.shown < SMALL_SITE_PX ||
+        coveredOf(unit, references.get(refName), feet))
     ) {
       const site: Site = {
         nodes: unit.nodes,
@@ -719,8 +847,19 @@ export function foldedSites(
   curves: EdgeCurves,
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
+  strokes: NodeStrokes,
 ) {
-  return foldCache(curves, [graph, positions, deletions, hiddenEdges], () =>
-    foldOf(graph, positions, axis, curves, deletions, hiddenEdges),
+  return foldCache(
+    curves,
+    [
+      graph,
+      positions,
+      deletions,
+      hiddenEdges,
+      strokes.contigThickness,
+      strokes.nodeWidth,
+    ],
+    () =>
+      foldOf(graph, positions, axis, curves, deletions, hiddenEdges, strokes),
   )
 }
