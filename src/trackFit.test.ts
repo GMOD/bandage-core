@@ -144,6 +144,63 @@ test('a window showing only flat reference beside a tall loop keeps the referenc
   expect(y).toBeLessThanOrEqual(PANE.height - PADS.padBottom + 1e-9)
 })
 
+test("a window whose drawing fits the pane is held whole, where the cut's anchor would run it past an edge", () => {
+  const line = Float64Array.from([0, 0, 2_100, 0])
+  const scale = 10
+  const y = windowTranslateY({
+    segments: Float64Array.from([
+      ...line,
+      50,
+      0,
+      50,
+      15,
+      2_000,
+      0,
+      2_000,
+      -400,
+    ]),
+    reference: line,
+    scale,
+    translateX: 40,
+    bounds: { minY: -400, h: 415 },
+    paneWidth: PANE.width,
+    paneHeight: PANE.height,
+    pads: PADS,
+  })
+  expect(y).toBeGreaterThanOrEqual(PADS.padTop - 1e-9)
+  expect(15 * scale + y).toBeLessThanOrEqual(
+    PANE.height - PADS.padBottom + 1e-9,
+  )
+})
+
+test("a window whose reference runs far from the cut's middle keeps it on the pane, where filling the pane alone would leave it off", () => {
+  const slope = Float64Array.from([0, 0, 300, 3_000])
+  const scale = 10
+  const y = windowTranslateY({
+    segments: Float64Array.from([
+      ...slope,
+      10,
+      -2_000,
+      10,
+      0,
+      10,
+      0,
+      10,
+      2_000,
+    ]),
+    reference: slope,
+    scale,
+    translateX: 40,
+    bounds: { minY: -2_000, h: 5_000 },
+    paneWidth: PANE.width,
+    paneHeight: PANE.height,
+    pads: PADS,
+  })
+  const shown = [y, 96 * 10 * scale + y]
+  expect(shown[0]).toBeLessThanOrEqual(PANE.height - PADS.padBottom)
+  expect(shown[1]).toBeGreaterThanOrEqual(PADS.padTop)
+})
+
 test('a pan moves the drawing up or down no faster than it moves it across', () => {
   const scale = 3
   let was = placedY(scale, 600)

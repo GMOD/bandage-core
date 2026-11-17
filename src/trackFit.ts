@@ -126,8 +126,9 @@ export const PAN_GLIDE = 1
 // keeps the whole cut inside them where it fits, or fills them with it where
 // it does not. From there the drawing moves the least that fills the pads
 // with what the pane's width shows where that is taller than them, or holds
-// it all where it fits, and keeps the reference the width shows inside them.
-// No bound moves faster than PAN_GLIDE as the window slides.
+// it all where it fits, counting what lies past the sides by PAN_GLIDE, so a
+// pan moves it up or down no faster than across. Last, it keeps the reference
+// the width shows inside them, however steep the reference runs.
 export function windowTranslateY({
   segments,
   reference,
@@ -167,7 +168,7 @@ export function windowTranslateY({
   const x1 = (paneWidth - translateX) / scale
   return inside(
     inside(anchor, reachOver(segments, x0, x1, PAN_GLIDE)),
-    reachOver(reference, x0, x1, PAN_GLIDE),
+    reachOver(reference, x0, x1),
   )
 }
 
