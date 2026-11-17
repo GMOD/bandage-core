@@ -10,9 +10,10 @@ export interface KeyFrame {
 }
 
 // The key takes a column of its own down the pane's right edge, its width and
-// an inset either side, so neither the drawing nor a walk row nor a readout
-// runs under it. The fit and the rows take the pane less this column; a pane
-// too narrow for both keeps the key whole and shrinks the drawing.
+// an inset either side, so at the fit neither the drawing nor a walk row nor a
+// readout runs under it. The fit and the rows take the pane less this column;
+// a pane too narrow for both keeps the key whole and shrinks the drawing. A
+// pan or zoom may draw under it, and the key keys that too (keyedView).
 export function keyColumnPx({ legendSize }: Pick<KeyFrame, 'legendSize'>) {
   return legendSize.width > 0 ? legendSize.width + 2 * LEGEND_INSET_PX : 0
 }

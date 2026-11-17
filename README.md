@@ -257,10 +257,10 @@ reads them.
 - The fold depends only on the layout and the scale: zooming in past the
   threshold draws each site again, a pan reuses what the zoom derived, and under
   a steady zoom each node changes state once at most
-- The key ends with one line, only where something is folded:
-  `N nodes and M skips under B bp not drawn`, counting each folded node and skip
-  link once, B being the largest folded site's bp and one more, so every folded
-  site is under it
+- The key ends with one line, only where something is folded in the view it
+  keys: `N nodes and M skips under B bp not drawn`, counting each folded node
+  and skip link of a site whose place lies in the view once, B being the largest
+  such site's bp and one more, so every one of them is under it
 - Folded nodes push no label aside
 - The batch's `collapsed` holds the fold: `findHoveredNode` and
   `findHoveredEdge` take it as a required argument, so a point at a folded site
@@ -274,12 +274,24 @@ reads them.
   nodes inside a folded site that only the lanes crossing it draw, and leaves
   their stretches out, as `figureSvg` does and `figureData`'s `exons` table does
   for any of its panels. The gene stays pinned and listed over the node
-- The key lists what the pane shows. A host whose pane shows part of its
-  drawing, as a linear view's track cut past its window, hands `drawnMarks`
-  `keyedView`, the pane beside the key's column and under the reference strip in
-  layout units: a mark counts only where one of its strokes meets it, the node
-  thicknesses keyed are the thickest and thinnest nodes stroked there, and an
-  exon is keyed only where its outline meets it on a node the drawing strokes
+- The key keys the pane: every row, the not-drawn line among them, says what
+  the pane shows, and nothing drawn in the pane, under the key included,
+  escapes it. A host whose pane shows part of its drawing, after a pan or zoom
+  or as a linear view's track cut past its window, hands `drawnMarks`
+  `keyedView`, the whole pane under the reference strip in layout units, the
+  key's own column included; a host that clips its drawing, as a track
+  following its window clips it at the key's column, hands it the width it
+  paints. A mark counts only where one of its strokes meets
+  that view, and a folded site only where its place lies in it; the node
+  thicknesses keyed are the thickest and thinnest nodes stroked there, keyed
+  whenever the drawing's node strokes vary in thickness anywhere, as the batch
+  states for nodes a viewport culled too; an exon is keyed only where its
+  outline meets the view on a node the drawing strokes. `figureSvg` and
+  `figureData` show the whole drawing, so their key keys all of it. A host
+  that grows its pane to show every row of its key sizes the pane by the key
+  as a layout or a setting leaves it, never by the key of each view, so a pan
+  or zoom never moves the pane; a view's key taller than that scrolls in its
+  column
 - In either state a lifted lane's stroke is never thinner than
   `MIN_LANE_STROKE_PX`, however far a walk's many passes thin its threads
 
