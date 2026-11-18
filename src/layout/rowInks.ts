@@ -98,27 +98,40 @@ function stopsAt(stops: readonly string[], t: number) {
     : mixHex(stops[i]!, stops[i + 1]!, at - i)
 }
 
-// The pass stretches as offsets along the bar, in bar order, with stretches
-// of one colour nearer than `joinBp` joined so the hairline between two
-// neighbouring nodes shows no bar under them. Pass bp are bp of contig past
-// the walk's range start, or offsets along the bar where the bar is on
-// another contig
-function passStretches(ink: RowInk, row: InkedRow, joinBp: number) {
+// The walk's pass runs as offsets along the row's bar, placed by the contig
+// position the bar starts at, and none on a bar with no position on the
+// walk's contig to place them by
+function placedPasses(ink: RowInk, row: InkedRow) {
   const { range } = ink
   const axis = row.axis
-  const along = (start: number, end: number) =>
-    axis && range && axis.contig === range.contig
-      ? alongRow(axis, range.start + start, range.start + end)
-      : { start, end }
-  const stretches = (ink.passes ?? [])
-    .map(pass => {
-      const { start, end } = along(pass.start, pass.end)
-      return {
-        from: Math.max(0, start),
-        to: Math.min(row.bp, end),
+  return axis && range && axis.contig === range.contig
+    ? (ink.passes ?? []).map(pass => ({
+        ...alongRow(axis, range.start + pass.start, range.start + pass.end),
         color: pass.color,
-      }
-    })
+      }))
+    : []
+}
+
+// Whether the row's bar shows every one of the walk's passes, so a pass bar
+// beside it would say nothing more
+export function rowShowsPasses(ink: RowInk, row: InkedRow) {
+  const placed = placedPasses(ink, row)
+  return (
+    placed.length > 0 &&
+    placed.every(pass => pass.start >= 0 && pass.end <= row.bp)
+  )
+}
+
+// The pass stretches along the bar, in bar order, with stretches of one
+// colour nearer than `joinBp` joined so the hairline between two neighbouring
+// nodes shows no bar under them
+function passStretches(ink: RowInk, row: InkedRow, joinBp: number) {
+  const stretches = placedPasses(ink, row)
+    .map(pass => ({
+      from: Math.max(0, pass.start),
+      to: Math.min(row.bp, pass.end),
+      color: pass.color,
+    }))
     .filter(s => s.to > s.from)
     .sort((a, b) => a.from - b.from)
   const joined: typeof stretches = []

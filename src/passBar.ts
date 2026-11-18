@@ -1,6 +1,6 @@
 import { el } from './el'
 import { formatBp } from './graphLabels'
-import { walkNamesRow } from './layout/rowInks'
+import { liftedRowInks, rowShowsPasses, walkNamesRow } from './layout/rowInks'
 import { abgrHex } from './renderer/colorBits'
 import { passInk } from './walkPasses'
 
@@ -26,14 +26,18 @@ export interface PassBar {
   bundled: boolean
 }
 
-// A bar for each walk lifted by pass, but for a walk whose row `shown` draws,
-// which the row's pass colours already say
+// A bar for each walk lifted by pass, but for a walk whose row in `shown`
+// shows every pass in its colours already
 export function passBars(lift: WalkLift | undefined, shown?: WalkRows) {
   const rows = shown ? [shown.reference, ...shown.rows] : []
   return (lift?.walks ?? []).flatMap(walk => {
     const drawn = walk.walkPasses
+    const ink = liftedRowInks([walk])[0]
     return drawn?.passes.length &&
-      !rows.some(row => walkNamesRow(walk.name, row))
+      !rows.some(
+        row =>
+          walkNamesRow(walk.name, row) && !!ink && rowShowsPasses(ink, row),
+      )
       ? [
           {
             walk: walk.name,

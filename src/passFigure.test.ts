@@ -212,9 +212,16 @@ test('the reference walk lifted by pass gets no pass bar while the strip draws i
   expect(figureSvg(graph, layout, { width: 600, walks })).toContain(
     'along its length',
   )
-  expect(
-    figureSvg(graph, layout, { width: 600, walks, walkStrip: { rows } }),
-  ).not.toContain('along its length')
+  const svg = figureSvg(graph, layout, {
+    width: 600,
+    walks,
+    walkStrip: { rows },
+  })
+  expect(svg).not.toContain('along its length')
+  const passes = walkLift(graph, walks)!.walks[0]!.walkPasses!.passes
+  for (const pass of passes) {
+    expect(svg).toContain(`stop-color="${abgrHex(pass.ink)}"`)
+  }
 })
 
 // The middle copy lacks b, so at this zoom b's second visit runs on the

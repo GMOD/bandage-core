@@ -1,5 +1,6 @@
 import { serializeEl } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
+import { passBars } from '../passBar'
 import { loadGraph } from '../pipeline'
 import { abgrHex } from '../renderer/colorBits'
 import { walkLift } from '../walkHighlight'
@@ -1221,7 +1222,7 @@ describe('rows in the lifted walks colours', () => {
 })
 
 describe('the row of a walk lifted by pass', () => {
-  const gfa = (walk: string) =>
+  const gfa = (lines: string[]) =>
     [
       'S\ts1\t*\tLN:i:1000',
       'S\ts2\t*\tLN:i:500',
@@ -1234,19 +1235,26 @@ describe('the row of a walk lifted by pass', () => {
       'L\tr\t+\tu\t+\t0M',
       'L\tu\t+\ts5\t+\t0M',
       'P\tref#0#chr1\ts1+,s2+,r+,u+,s5+\t*',
-      `P\thap#1#ctg\t${walk}\t*`,
+      ...lines,
     ].join('\n')
-  const lifted = (walk: string, cut?: { start: number; end: number }) => {
-    const graph = loadGraph(gfa(walk), 'test')
-    const lift = walkLift(graph, [
-      { walk: 'hap#1#ctg', color: { field: 'pass' } },
-    ])!
+  // hap walks `walk`, or the pieces and links `lines` give, and `name` is the
+  // walk lifted by pass
+  const lifted = (
+    walk: string | string[],
+    cut?: { start: number; end: number },
+    name = 'hap#1#ctg',
+  ) => {
+    const graph = loadGraph(
+      gfa(typeof walk === 'string' ? [`P\thap#1#ctg\t${walk}\t*`] : walk),
+      'test',
+    )
+    const lift = walkLift(graph, [{ walk: name, color: { field: 'pass' } }])!
     const bars = walkRows(graph, cut)!
     const row = bars.rows.find(r => r.name.startsWith('hap#1#ctg'))!
     const ink = rowInkOf(row, liftedRowInks(lift.walks))!
     const passes = lift.walks[0]!.walkPasses!
     const color = (pass: number) => abgrHex(passes.passes[pass]!.ink)
-    return { bars, row, ink, color, own: ink.stops[0]! }
+    return { lift, bars, row, ink, color, own: ink.stops[0]! }
   }
 
   test('takes each pass colour on the nodes the walk steps again, and its own colour elsewhere', () => {
@@ -1271,6 +1279,39 @@ describe('the row of a walk lifted by pass', () => {
     expect(rowInkAt(ink, row, 600)).toBe(color(1))
     expect(rowInkAt(ink, row, 800)).toBe(color(0))
     expect(rowInkAt(ink, row, 1000)).toBe(own)
+  })
+
+  test("a row with no contig position to place the passes by keeps the walk's own colour, and its pass bar", () => {
+    // two overlapping pieces of hap give its cut row no axis
+    const { lift, bars, row, ink, own } = lifted(
+      [
+        'P\thap#1#ctg:0-1900\ts1+,s2+,r+,r+\t*',
+        'P\thap#1#ctg:1500-5700\tr+,u+,s5+\t*',
+      ],
+      { start: 1200, end: 4500 },
+      'hap#1#ctg:0-1900',
+    )
+    expect(row.axis).toBeUndefined()
+    expect(ink.passes?.length).toBeGreaterThan(0)
+    expect(
+      [0, 600, 800, 1500, 2000].map(offset => rowInkAt(ink, row, offset)),
+    ).toEqual([own, own, own, own, own])
+    expect(passBars(lift, bars)).toHaveLength(1)
+  })
+
+  test("a row that shows only some of the walk's passes keeps its pass bar", () => {
+    // hap runs through the window twice, and its row draws the first time
+    const { lift, bars, row, ink, color } = lifted(
+      [
+        'L\ts5\t+\ts1\t+\t0M',
+        'P\thap#1#ctg\ts1+,s2+,r+,u+,s5+,s1+,s2+,r+,u+,s5+\t*',
+      ],
+      { start: 1200, end: 4500 },
+    )
+    expect(rowInkAt(ink, row, 600)).toBe(color(0))
+    expect(passBars(lift, bars)).toHaveLength(1)
+    const whole = lifted('s1+,s2+,r+,r+,u+,s5+')
+    expect(passBars(whole.lift, whole.bars)).toEqual([])
   })
 
   test('the bar is one rect whose gradient has a hard edge at each pass', () => {
