@@ -43,7 +43,9 @@ export interface GenePin {
   // nearest point of the gene it does
   body: { nodeId: string; from: number; to: number }[]
   // where the name goes: the point at the gene's midpoint, or the nearest
-  // point inside the gene where the midpoint is not in the cut
+  // point inside the gene where the midpoint is not in the cut; on a
+  // reference copy with no drawn node of its own, the middle of the drawn
+  // node the reference walks most of it over
   at: NodeSegment
   // how much of the gene's span the drawing holds, so a label can say when a
   // gene runs off it: on the reference, the drawn backbone's share; on a
@@ -56,6 +58,9 @@ export interface GenePin {
   // pinned, and where a haplotype walks it over the reference's nodes, its
   // own being the variants along the way. 1 where no walk of the contig is cut
   anchored: number
+  // on a reference copy mostly not held (heldOnOwnNodes), the bp of each node
+  // the reference walks its stretch over, drawn or not
+  walkedOver?: ReadonlyMap<string, number>
   // whether the gene lies on the reference's own sequence
   onReference: boolean
   // how many of the graph's walks step any node the gene lies over
@@ -76,8 +81,10 @@ interface RefNameNodes {
 // contig, and how many walks step the nodes under each gene span asked about
 interface GraphGenes {
   byRefName: Map<string, RefNameNodes>
+  lengths: Map<string, number>
   stretches: Map<string, Interval[]>
   walks: Map<string, number>
+  walkedOver: Map<string, Map<string, number>>
 }
 
 const graphGenesCache = new WeakMap<Graph, GraphGenes>()
@@ -85,10 +92,13 @@ const graphGenesCache = new WeakMap<Graph, GraphGenes>()
 function graphGenesOf(graph: Graph) {
   let known = graphGenesCache.get(graph)
   if (!known) {
+    const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
     known = {
       byRefName: anchoredByRefName(graph),
-      stretches: walkStretches(graph),
+      lengths,
+      stretches: walkStretches(graph, lengths),
       walks: new Map(),
+      walkedOver: new Map(),
     }
     graphGenesCache.set(graph, known)
   }
@@ -126,8 +136,7 @@ interface Interval {
 
 // Where the walks' records lie on each contig, by the contig's name: one
 // interval per record, sorted, with those that touch or overlap merged
-function walkStretches(graph: Graph) {
-  const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
+function walkStretches(graph: Graph, lengths: Map<string, number>) {
   const records = new Map<string, Interval[]>()
   for (const path of graph.paths ?? []) {
     const origin = pathOrigin(path.name)
@@ -161,6 +170,59 @@ function overlap(stretch: readonly Interval[], { start, end }: Interval) {
     0,
   )
 }
+
+// The bp of each node the walk records on a gene's contig step inside its span
+function steppedInside(
+  graph: Graph,
+  lengths: Map<string, number>,
+  gene: GeneModel,
+) {
+  const stepped = new Map<string, number>()
+  for (const path of graph.paths ?? []) {
+    const origin = pathOrigin(path.name)
+    if (origin.name === gene.refName) {
+      let at = path.start ?? origin.start
+      for (const id of path.nodeIds) {
+        const end = at + (lengths.get(id) ?? 0)
+        const inside = Math.min(end, gene.end) - Math.max(at, gene.start)
+        if (inside > 0) {
+          stepped.set(id, (stepped.get(id) ?? 0) + inside)
+        }
+        at = end
+      }
+    }
+  }
+  return stepped
+}
+
+function walkedOverOf(known: GraphGenes, graph: Graph, gene: GeneModel) {
+  const key = spanKey(gene)
+  let stepped = known.walkedOver.get(key)
+  if (!stepped) {
+    stepped = steppedInside(graph, known.lengths, gene)
+    known.walkedOver.set(key, stepped)
+  }
+  return stepped
+}
+
+function mostWalkedPoint(
+  walkedOver: ReadonlyMap<string, number>,
+  positions: Record<string, NodeSegment[]>,
+) {
+  let most = 0
+  let point: NodeSegment | undefined
+  for (const [id, bp] of walkedOver) {
+    const line = positions[id]
+    if (line?.length && bp > most) {
+      most = bp
+      point = polylineSlice(line, 0.5, 0.5)[0]
+    }
+  }
+  return point
+}
+
+// Whether the drawn nodes anchored on a gene hold at least half its stretch
+export const heldOnOwnNodes = (pin: { anchored: number }) => pin.anchored >= 0.5
 
 // How many walks step any node of each set, by the set
 function walksStepping(graph: Graph, nodeSets: readonly ReadonlySet<string>[]) {
@@ -289,6 +351,9 @@ export function genePins(
         at = polylineSlice(line, along, along)[0]
       }
     }
+    at ??= reference
+      ? mostWalkedPoint(walkedOverOf(known, graph, gene), positions)
+      : undefined
     if (at) {
       if (under) {
         uncounted.set(key, under)
@@ -315,10 +380,15 @@ export function genePins(
     const stretch = known.stretches.get(pin.gene.refName)
     const walked = stretch ? overlap(stretch, pin.gene) : 0
     const length = pin.gene.end - pin.gene.start
+    const anchored =
+      walked > 0 ? Math.min(1, (pin.covered * length) / walked) : 1
     return {
       ...pin,
       covered: stretch && !pin.onReference ? walked / length : pin.covered,
-      anchored: walked > 0 ? Math.min(1, (pin.covered * length) / walked) : 1,
+      anchored,
+      ...(pin.onReference && !heldOnOwnNodes({ anchored })
+        ? { walkedOver: walkedOverOf(known, graph, pin.gene) }
+        : {}),
       walks: known.walks.get(spanKey(pin.gene)) ?? 0,
     }
   })

@@ -1,5 +1,6 @@
 import { panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
+import { heldOnOwnNodes } from './genePins'
 
 import type { GenePin } from './genePins'
 
@@ -36,10 +37,11 @@ const whose = (pin: GenePin) =>
   `${pin.gene.name} · ${haplotypeOf(pin.gene.refName)}`
 
 // The genes over a node, for its hover: every one, named or not, a copy off
-// the reference with its haplotype
+// the reference with its haplotype, and a reference copy on each node the
+// reference walks it over
 export function genesOverNode(pins: readonly GenePin[], nodeId: string) {
   return pins.flatMap(pin =>
-    pin.nodeIds.has(nodeId)
+    pin.nodeIds.has(nodeId) || pin.walkedOver?.has(nodeId)
       ? [pin.onReference ? pin.gene.name : whose(pin)]
       : [],
   )
@@ -77,19 +79,19 @@ export function namedGenePins(
   const lifted = new Set(liftedWalks.map(name => pathOrigin(name).name))
   const onReference = new Set(
     pins.flatMap(pin =>
-      pin.onReference && pin.anchored >= 0.5 ? [pin.gene.name] : [],
+      pin.onReference && heldOnOwnNodes(pin) ? [pin.gene.name] : [],
     ),
   )
   const named = nameable(
     pins.filter(
       pin =>
-        pin.anchored >= 0.5 ||
+        heldOnOwnNodes(pin) ||
         (!pin.onReference && !onReference.has(pin.gene.name)),
     ),
     pin => pin.gene.name,
   )
   const onLift = (pin: GenePin) =>
-    !pin.onReference && pin.anchored >= 0.5 && lifted.has(pin.gene.refName)
+    !pin.onReference && heldOnOwnNodes(pin) && lifted.has(pin.gene.refName)
   const namedElsewhere = new Set(
     named.flatMap(pin =>
       pin.onReference || onLift(pin) ? [pin.gene.name] : [],

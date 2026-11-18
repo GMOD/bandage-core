@@ -1,4 +1,4 @@
-import { namedGenePins } from './geneNames'
+import { genesOverNode, namedGenePins } from './geneNames'
 import { genePins } from './genePins'
 
 import type { Graph } from '../types'
@@ -231,7 +231,58 @@ test("a reference copy whose stretch the reference walks over an earlier copy's 
     ['FIRST', 1, ['r1', 'r2']],
     ['LATER', 10 / 2010, ['u']],
   ])
+  expect(pins.map(p => p.walkedOver && [...p.walkedOver])).toEqual([
+    undefined,
+    [
+      ['r1', 1000],
+      ['u', 10],
+      ['r2', 1000],
+    ],
+  ])
   expect(namedGenePins(pins).map(n => n.name)).toEqual(['FIRST'])
+  expect(['r1', 'u'].map(id => genesOverNode(pins, id))).toEqual([
+    ['FIRST', 'LATER'],
+    ['LATER'],
+  ])
+})
+
+test('a reference copy with no node of its own is pinned on the node the reference walks most of it over', () => {
+  const graph: Graph = {
+    name: 'g',
+    nodes: [anchored('r1', 0, 1000), anchored('r2', 1000, 3000)],
+    edges: [],
+    paths: [{ name: 'chr1', nodeIds: ['r1', 'r2', 'r1', 'r2'], start: 0 }],
+  }
+  const pins = genePins(
+    graph,
+    [
+      gene('FIRST', 'chr1', 0, 4000),
+      gene('LATER', 'chr1', 4500, 6000),
+      gene('PAST', 'chr1', 9000, 9500),
+    ],
+    along(['r1', 'r2'], 0),
+  )
+  expect(
+    pins.map(p => [
+      p.gene.name,
+      p.anchored,
+      [...p.nodeIds],
+      p.walkedOver && [...p.walkedOver],
+    ]),
+  ).toEqual([
+    ['FIRST', 1, ['r1', 'r2'], undefined],
+    [
+      'LATER',
+      0,
+      [],
+      [
+        ['r1', 500],
+        ['r2', 1000],
+      ],
+    ],
+  ])
+  expect(pins[1]!.at).toEqual({ x: 150, y: 0 })
+  expect(genesOverNode(pins, 'r2')).toEqual(['FIRST', 'LATER'])
 })
 
 // HPRC's C4 with HG00128#1 and HG00133#1 lifted: their CAT genes named every
