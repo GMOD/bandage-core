@@ -1429,6 +1429,36 @@ test("a gene's name with no free spot under or over its pin stacks at the neares
   expect(geneLeader(label!, at, 6)).toMatchObject({ x2: at.x })
 })
 
+// BandageJS's E. coli example pinned some 350 names, each the others crowded
+// out of its stack sent to the nearest free spot with a leader, and the graph
+// went under them
+test('a dense gene track names only the genes its stacked rows hold, and none crowded out by other names stands apart with a leader', () => {
+  const nodePositions = {
+    bb: [
+      { x: 0, y: 100 },
+      { x: 800, y: 100 },
+    ],
+  }
+  const pins = Array.from({ length: 40 }, (_, i) => {
+    const p = pin({ x: 200 + i * 10, y: 100 })
+    return {
+      ...p,
+      gene: { ...p.gene, name: `gene${String(i).padStart(2, '0')}` },
+    }
+  })
+  const { genes } = layoutLabels(source({ genePins: pins, nodePositions }))
+  const row = 11 + 2 * LABEL_PAD
+  const stackRows = [124, 124 + row, 124 + 2 * row, 87, 87 - row, 87 - 2 * row]
+  expect(genes.length).toBeGreaterThan(0)
+  expect(genes.length).toBeLessThan(pins.length)
+  for (const label of genes) {
+    expect(stackRows).toContain(label.y)
+    expect(Math.abs(label.x - label.item.pin.at.x)).toBeLessThan(
+      label.w / 2 + 0.01,
+    )
+  }
+})
+
 test("a gene's leader runs from the chip's top down to a pin above it, leaning where the chip slid", () => {
   expect(geneLeader({ x: 90, y: 130 }, { x: 100, y: 100 }, 6)).toEqual({
     x1: 90,

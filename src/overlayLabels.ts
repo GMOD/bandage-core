@@ -32,9 +32,10 @@ export interface LabelCandidate<T> {
   fits?: (box: Box) => boolean
   // how far sideways, in px, the label may move to find a box on a row
   slide?: number
-  // where no row from `y` or `flipY` takes it, the label stands at the free
-  // spot nearest this point, one that `fits` where any does, so it is never
-  // dropped
+  // where no row from `y` or `flipY` takes it and no other label took one it
+  // could stand on, the label stands at the free spot nearest this point, one
+  // that `fits` where any does: a node, an exon or a reserved box does not
+  // drop it, a crowd of labels does
   nearest?: { x: number; y: number }
 }
 
@@ -156,12 +157,9 @@ export function placeLabels<T>(
   // label took one, which keeps a dense gene track to one lane
   const place = (c: LabelCandidate<T>, text: string) => {
     const first = stackFrom(c, text, c.y, c.y > frame.height / 2 ? -1 : 1)
-    return (
-      first.placed ??
-      (c.flipY === undefined || first.crowded
-        ? undefined
-        : stackFrom(c, text, c.flipY, c.flipY < c.y ? -1 : 1).placed)
-    )
+    return first.placed || c.flipY === undefined || first.crowded
+      ? first
+      : stackFrom(c, text, c.flipY, c.flipY < c.y ? -1 : 1)
   }
   // rows up and down from `nearest` to the pane's edges, nearest first, and
   // of two as near the higher, then the one to the left; slid either way to
@@ -197,10 +195,15 @@ export function placeLabels<T>(
     return spot && { ...c, x: spot.x, y: spot.y, text, w }
   }
   for (const c of candidates) {
+    const full = place(c, c.text)
+    const short =
+      full.placed || c.fallback === undefined ? undefined : place(c, c.fallback)
     const placed =
-      place(c, c.text) ??
-      (c.fallback === undefined ? undefined : place(c, c.fallback)) ??
-      (c.nearest === undefined ? undefined : nearestFree(c, c.text, c.nearest))
+      full.placed ??
+      short?.placed ??
+      (c.nearest === undefined || full.crowded || short?.crowded
+        ? undefined
+        : nearestFree(c, c.text, c.nearest))
     if (placed) {
       out.push(placed)
     }
