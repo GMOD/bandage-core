@@ -79,6 +79,8 @@ export type GraphKeySwatch =
   | { kind: 'heads'; ink: number; haloed: boolean }
   // the reference strip's tab past its edge
   | { kind: 'overhang' }
+  // the marks where the drawing runs past the pane's top or bottom
+  | { kind: 'overrun' }
 
 // An entry with no swatch is a note on the drawing
 export interface GraphKeyEntry {
@@ -648,7 +650,7 @@ export function graphKey(
     ...(o.runsPastEdge
       ? [
           entry('runs-past', 'drawing continues above or below the pane', {
-            kind: 'overhang',
+            kind: 'overrun',
           }),
         ]
       : []),

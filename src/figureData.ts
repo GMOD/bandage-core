@@ -385,7 +385,10 @@ function graphKeyTable(sections: GraphKeySection[]) {
     for (const entry of entries) {
       const swatch = entry.swatch
       const ink =
-        swatch && swatch.kind !== 'scale' && swatch.kind !== 'overhang'
+        swatch &&
+        swatch.kind !== 'scale' &&
+        swatch.kind !== 'overhang' &&
+        swatch.kind !== 'overrun'
           ? swatch.ink
           : undefined
       table.push({

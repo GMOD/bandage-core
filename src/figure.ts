@@ -225,6 +225,8 @@ function swatchSvg(swatch: GraphKeySwatch, id: string) {
         .join('')
     case 'overhang':
       return `<path d="M0,9 L8,4 L8,14 Z M18,9 L10,4 L10,14 Z" fill="${abgrHex(EDGE_DELETION_COLOR)}"/>`
+    case 'overrun':
+      return `<path d="M4,4 L0,13 L8,13 Z M14,14 L10,5 L18,5 Z" fill="${abgrHex(EDGE_DELETION_COLOR)}"/>`
     case 'heads':
       return headsSwatchSvg(swatch.ink, swatch.haloed)
   }

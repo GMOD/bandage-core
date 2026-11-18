@@ -720,9 +720,11 @@ test('the halo, the strip tab, the edge marks and compress are keyed where they 
     "graph's reference continues past the pane edge",
   )
   const pastEdge = keyOf(graph, {}, { runsPastEdge: true })
-  expect(
-    pastEdge.find(s => s.id === 'not-shown')!.entries.map(e => e.text),
-  ).toContain('drawing continues above or below the pane')
+  const runsPast = pastEdge
+    .find(s => s.id === 'not-shown')!
+    .entries.find(e => e.key === 'runs-past')!
+  expect(runsPast.text).toBe('drawing continues above or below the pane')
+  expect(runsPast.swatch).toEqual({ kind: 'overrun' })
   expect(pastEdge.map(s => s.id)).not.toContain('overhang')
   const layout = layoutModeByValue('ordered').run(graph, undefined)!
   expect(
