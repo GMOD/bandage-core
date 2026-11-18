@@ -711,9 +711,9 @@ export interface GeneBox {
   w: number
   h: number
   exons: { x: number; w: number }[]
-  // the name inside the box where it fits and lands on no other name, shorter
-  // genes taking their room first; or, on a row that names genes above it,
-  // over the box with a leader down to it
+  // the name centred on the box where it lands on no other name, names that
+  // fit their boxes first; or, on a row that names genes above it, over the
+  // box with a leader down to it where it cannot stand inside
   label?: {
     x: number
     y: number
@@ -728,6 +728,9 @@ const GENE_LEADER_PX = 6
 const GENE_DESCENT_PX = 2
 const GENE_ASCENT_PX = 7
 const GENE_NAME_GAP_PX = 6
+// how far a name may run past its box, or past the bar's ends, half the gap
+// before a row's readout
+const NAME_OVERRUN_PX = READOUT_GAP_PX / 2
 // DejaVu Sans Bold's capitals over its Book face's, which readoutTextPx
 // measures: A 1585/1401, M 1995/1767
 const BOLD_WIDENING = 1.13
@@ -794,8 +797,13 @@ function labelAbove(x: number, baseline: number, centre: number, top: number) {
 
 // A row's genes as boxes in screen px around its bar at `y`, at the rows'
 // pitch, named where the bar is tall enough to letter; none where the rows
-// leave no room to box them. With `namesAbove`, the frame's right edge, a
-// name that does not fit inside its box is set above it.
+// leave no room to box them. A name that fits its box is centred on it where
+// it meets no other name, narrowest gene first. Then, on a row that does not
+// name genes above it, a name wider than its box is centred on it where it
+// meets no other name, crosses no other gene's box and stays about within the
+// bar's `ends`, the least overflowing first, so a copy too short for its name
+// is still named on a haplotype's row. With `namesAbove`, the frame's right
+// edge, a name that does not fit its box is set above the row.
 export function rowGeneBoxes(
   genes: RowGene[],
   X: (offset: number) => number,
@@ -804,7 +812,13 @@ export function rowGeneBoxes(
     rowPx = ROW_HEIGHT_PX,
     barPx = BAR_PX,
     namesAbove,
-  }: { rowPx?: number; barPx?: number; namesAbove?: number } = {},
+    ends,
+  }: {
+    rowPx?: number
+    barPx?: number
+    namesAbove?: number
+    ends?: { x0: number; x1: number }
+  } = {},
 ): GeneBox[] {
   if (!boxesGenes(rowPx, barPx)) {
     return []
@@ -823,22 +837,40 @@ export function rowGeneBoxes(
   const narrowestFirst = boxes
     .filter(box => lettered.has(box.g))
     .sort((a, b) => a.w - b.w)
+  const overflow = (box: (typeof boxes)[number]) =>
+    geneNamePx(box.g.name) - box.w - 2 * NAME_OVERRUN_PX
+  const fitting = narrowestFirst.filter(box => overflow(box) <= 0)
+  const overflowing = narrowestFirst
+    .filter(box => overflow(box) > 0)
+    .sort((a, b) => overflow(a) - overflow(b))
   const taken: [number, number][] = []
   const named = new Set(
-    (barPx >= MIN_LETTERED_BAR_PX ? narrowestFirst : []).filter(
-      ({ g, x, w }) => {
-        const half = geneNamePx(g.name) / 2
-        const at: [number, number] = [x + w / 2 - half, x + w / 2 + half]
-        if (
-          2 * half > w + 6 ||
-          taken.some(([a, b]) => at[0] < b + 2 && at[1] > a - 2)
-        ) {
-          return false
-        }
-        taken.push(at)
-        return true
-      },
-    ),
+    (barPx >= MIN_LETTERED_BAR_PX
+      ? [...fitting, ...(namesAbove === undefined ? overflowing : [])]
+      : []
+    ).filter(box => {
+      const { g, x, w } = box
+      const half = geneNamePx(g.name) / 2
+      const at: [number, number] = [x + w / 2 - half, x + w / 2 + half]
+      const crosses = (other: { x: number; w: number }) =>
+        at[0] < other.x + other.w &&
+        at[1] > other.x &&
+        (at[0] < other.x || at[1] > other.x + other.w)
+      const fits = overflow(box) <= 0
+      const onBar =
+        ends === undefined ||
+        (at[0] >= ends.x0 - NAME_OVERRUN_PX &&
+          at[1] <= ends.x1 + NAME_OVERRUN_PX)
+      const clearOfBoxes = !boxes.some(other => other !== box && crosses(other))
+      if (
+        !(fits || (onBar && clearOfBoxes)) ||
+        taken.some(([a, b]) => at[0] < b + 2 && at[1] > a - 2)
+      ) {
+        return false
+      }
+      taken.push(at)
+      return true
+    }),
   )
   // the widest genes' names first, as a graph names its longest genes first
   const lines: [number, number][][] = [[], []]
@@ -1471,6 +1503,7 @@ export function walkRowsTree(
         rowPx,
         barPx,
         namesAbove: i === 0 ? frame.width : undefined,
+        ends: { x0: along(0), x1: along(barEnd(row)) },
       }).map(box => geneTree(box, y, barPx)),
       [
         call &&

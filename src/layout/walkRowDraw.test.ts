@@ -230,6 +230,102 @@ test('names inside neighbouring gene boxes stay clear of each other at their dra
   ])
 })
 
+// At amylase, beside the key, a haplotype's AMY1 boxes were about 19 px
+// against a 35 px name, and every copy went unnamed, so no row could be
+// counted
+test("a name wider than its box on a haplotype's row is centred on the box where it meets no other name, crosses no other gene's box and stays on the bar, after the names that fit", () => {
+  const genes = [
+    { name: 'RNPC3', start: 0, end: 31, exons: [] },
+    { name: 'AMY1A', start: 100, end: 119, exons: [] },
+    { name: 'AMY1B', start: 300, end: 319, exons: [] },
+    { name: 'AMY1C', start: 330, end: 349, exons: [] },
+    { name: 'AMY1D', start: 400, end: 419, exons: [] },
+    { name: 'AMY1E', start: 422, end: 441, exons: [] },
+    { name: 'LONGGENE', start: 500, end: 600, exons: [] },
+    { name: 'AMY1F', start: 540, end: 559, exons: [] },
+    { name: 'AMY1G', start: 680, end: 699, exons: [] },
+  ]
+  const drawnPx = (name: string) => (readoutTextPx(name) * 9 * 1.13) / 11
+  expect(drawnPx('AMY1A')).toBeGreaterThan(19 + 6)
+  const boxes = rowGeneBoxes(genes, bp => bp, 50, {
+    ends: { x0: 0, x1: 700 },
+  })
+  expect(boxes.map(b => [b.name, !!b.label])).toEqual([
+    ['RNPC3', true],
+    ['AMY1A', true],
+    ['AMY1B', true],
+    ['AMY1C', false],
+    ['AMY1D', false],
+    ['AMY1E', false],
+    ['LONGGENE', true],
+    ['AMY1F', false],
+    ['AMY1G', false],
+  ])
+  const [, a] = boxes
+  expect(a!.label).toEqual({ x: 109.5, y: 53, size: 9 })
+})
+
+// SNHG1's snoRNAs lie inside its box on every haplotype at chr11:62.85M, and
+// its name, which fits the box, crossed them, so the rows named SNORD22 and
+// never SNHG1
+test("a host gene's name that fits its box stands over the small genes inside it on a haplotype's row", () => {
+  const genes = [
+    { name: 'SNHG1', start: 392, end: 610, exons: [] },
+    { name: 'SNORD22', start: 437, end: 443, exons: [] },
+    { name: 'SNORD30', start: 474, end: 477, exons: [] },
+    { name: 'SNORD29', start: 498, end: 504, exons: [] },
+  ]
+  const boxes = rowGeneBoxes(genes, bp => bp, 50, {
+    ends: { x0: 0, x1: 900 },
+  })
+  expect(boxes.map(b => [b.name, !!b.label])).toEqual([
+    ['SNHG1', true],
+    ['SNORD22', true],
+    ['SNORD30', false],
+    ['SNORD29', false],
+  ])
+  expect(boxes[0]!.label).toMatchObject({ x: 501 })
+})
+
+// At MHC III, where genes overlap readthroughs and antisense genes, the
+// haplotype rows lost PRRC2A, MSH5, VWA7, VARS1, SNHG32, EHMT2 and C2, every
+// one of them a name that fits its box
+test("names that fit their boxes on a haplotype's row stand over genes that overlap theirs", () => {
+  const genes = [
+    { name: 'VARS1', start: 100, end: 150, exons: [] },
+    { name: 'VWA7', start: 140, end: 200, exons: [] },
+  ]
+  expect(
+    rowGeneBoxes(genes, bp => bp, 50).map(b => [b.name, !!b.label]),
+  ).toEqual([
+    ['VARS1', true],
+    ['VWA7', true],
+  ])
+})
+
+// HG00128#1 at amylase carries five AMY1 copies, two with ACTG1P4 beside them
+// and one with AMYP1, whose narrower boxes took the room first and left three
+// copies unnamed
+test("a pseudogene's name, overflowing its box more, leaves the room to the AMY1 copy beside it", () => {
+  const genes = [
+    { name: 'AMY1A', start: 100, end: 113, exons: [] },
+    { name: 'ACTG1P4', start: 140, end: 142, exons: [] },
+    { name: 'AMY1C', start: 300, end: 313, exons: [] },
+    { name: 'AMYP1', start: 337, end: 346, exons: [] },
+  ]
+  expect(
+    rowGeneBoxes(genes, bp => bp, 50, { ends: { x0: 0, x1: 900 } }).map(b => [
+      b.name,
+      !!b.label,
+    ]),
+  ).toEqual([
+    ['AMY1A', true],
+    ['ACTG1P4', false],
+    ['AMY1C', true],
+    ['AMYP1', false],
+  ])
+})
+
 test('names that crowd one line above the reference row take a second, widest gene first', () => {
   const genes = [
     { name: 'SHORT', start: 200, end: 203, exons: [] },
