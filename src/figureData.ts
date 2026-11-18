@@ -8,7 +8,7 @@ import { genePins } from './genes/genePins'
 import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnMarks, graphKey } from './graphKey'
 import { labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
-import { rowInkAt, rowInkOf } from './layout/rowInks'
+import { rowInkAlong, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
 import {
@@ -1012,16 +1012,29 @@ interface WalkRowColumns {
 
 // For a host that tiles walk rows itself: the key row naming each walk row's
 // walk, or null, and each tile's colour `offset` bp along its row's bar, as
-// walk rows draw it (layout/rowInks.ts), null on a row no lifted walk inks
+// walk rows draw it (layout/rowInks.ts), null on a row no lifted walk inks.
+// `passRuns` are the figure's passRuns with `key` the key row of their walk
 export function walkRowInks(
   keys: KeyColumns,
   rows: WalkRowColumns,
   tiles: { row: number[]; offset: number[] },
+  passRuns?: { key: number[]; start: number[]; end: number[]; color: string[] },
 ) {
   const inks = keys.name.map((walk, k): RowInk => {
     const contig = keys.contig[k]
     const start = keys.start[k]
     const end = keys.end[k]
+    const passes = (passRuns?.key ?? []).flatMap((key, i) =>
+      key === k
+        ? [
+            {
+              start: passRuns!.start[i]!,
+              end: passRuns!.end[i]!,
+              color: passRuns!.color[i]!,
+            },
+          ]
+        : [],
+    )
     return {
       walk,
       stops: keys.stops[k]!.split(','),
@@ -1029,31 +1042,26 @@ export function walkRowInks(
         contig != null && start != null && end != null
           ? { contig, start, end }
           : undefined,
+      ...(passes.length ? { passes } : {}),
     }
   })
   const named = rows.name.map(name => rowInkOf({ name }, inks))
-  const inked = named.map((ink, r) => {
+  const inkAt = named.map((ink, r) => {
     const contig = rows.contig[r]
     const start = rows.contigStart[r]
     return ink && keys.field[inks.indexOf(ink)] !== 'reference'
-      ? {
-          ink,
-          row: {
-            bp: rows.bp[r]!,
-            axis:
-              contig != null && start != null
-                ? { contig, start, reversed: rows.backward[r]! }
-                : undefined,
-          },
-        }
+      ? rowInkAlong(ink, {
+          bp: rows.bp[r]!,
+          axis:
+            contig != null && start != null
+              ? { contig, start, reversed: rows.backward[r]! }
+              : undefined,
+        })
       : undefined
   })
   return {
     key: named.map(ink => (ink ? inks.indexOf(ink) : null)),
-    color: tiles.row.map((r, t) => {
-      const at = inked[r]
-      return at ? rowInkAt(at.ink, at.row, tiles.offset[t]!) : null
-    }),
+    color: tiles.row.map((r, t) => inkAt[r]?.(tiles.offset[t]!) ?? null),
   }
 }
 

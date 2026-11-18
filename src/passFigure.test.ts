@@ -1,10 +1,12 @@
 import { figureSvg } from './figure'
-import { figureData } from './figureData'
+import { figureData, walkRowInks } from './figureData'
 import { figureScene } from './figureScene'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { THREAD_INK } from './graphKey'
 import { layoutLabels } from './labelLayout'
+import { liftedRowInks, rowInkAt, rowInkOf } from './layout/rowInks'
+import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
 import { LABEL_PAD, LABEL_PX, labelWidth } from './overlayLabels'
 import { passBarTree, passBars } from './passBar'
@@ -127,6 +129,68 @@ test('the bar colours only the stretches a pass steps again, however far the pas
   ])
   expect(bar.runs.some(r => r.start < 434 && r.end > 34)).toBe(false)
   expect(passRuns.color[1]).toBe(passes.color[1])
+})
+
+test("a host's walk rows take each pass's colour from the figure's pass runs, as the core's rows do", () => {
+  const { graph, tables } = data('>f1>a>b>c>d>a>b>p>c>d>a>b>c>d>f2')
+  const { keys, passRuns } = tables
+  const bars = walkRows(graph)!
+  const all = [bars.reference, ...bars.rows]
+  const hap = all.findIndex(r => r.name.startsWith(HAP))
+  const offsets = [5, 20, 30, 200, 450]
+  const inks = walkRowInks(
+    keys,
+    {
+      name: all.map(r => r.name),
+      bp: all.map(r => r.bp),
+      contig: all.map(r => r.axis?.contig ?? null),
+      contigStart: all.map(r => r.axis?.start ?? null),
+      backward: all.map(r => !!r.axis?.reversed),
+    },
+    { row: offsets.map(() => hap), offset: offsets },
+    { ...passRuns, key: passRuns.walk.map(w => keys.walk.indexOf(w)) },
+  )
+  const own = keys.stops[inks.key[hap]!]
+  expect(inks.color).toEqual([
+    own,
+    passRuns.color[0],
+    passRuns.color[1],
+    own,
+    passRuns.color[3],
+  ])
+  const ink = rowInkOf(
+    all[hap]!,
+    liftedRowInks(walkLift(graph, byPass)!.walks),
+  )!
+  expect(offsets.map(o => rowInkAt(ink, all[hap]!, o))).toEqual(inks.color)
+})
+
+test("a strip that draws the walk's row carries its passes, so the figure draws no pass bar for it", () => {
+  const { graph, layout, tables } = data('>f1>a>b>c>d>a>b>p>c>d>a>b>c>d>f2')
+  const rows = walkRows(graph)!
+  const svg = figureSvg(graph, layout, {
+    width: 600,
+    walks: byPass,
+    walkStrip: { rows },
+  })
+  expect(svg).not.toContain('along its length')
+  const hap = svg
+    .split('<g data-testid="graph-walk-')
+    .find(
+      g => g.includes(`id="strip-`) && g.includes(tables.passRuns.color[0]!),
+    )
+  expect(hap).toBeDefined()
+  for (const color of new Set(tables.passRuns.color)) {
+    expect(hap).toContain(`stop-color="${color}"`)
+  }
+  const elsewhere = figureSvg(graph, layout, {
+    width: 600,
+    walks: byPass,
+    walkStrip: {
+      rows: { ...rows, rows: rows.rows.filter(r => !r.name.startsWith(HAP)) },
+    },
+  })
+  expect(elsewhere).toContain('along its length')
 })
 
 // The middle copy lacks b, so at this zoom b's second visit runs on the

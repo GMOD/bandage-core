@@ -13,7 +13,7 @@ import { drawnMarks, graphKey, walkKeyEntry } from './graphKey'
 import { labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { FIT_PADDING } from './layout/fitAssumptions'
-import { liftedRowInks } from './layout/rowInks'
+import { liftedRowInks, walkNamesRow } from './layout/rowInks'
 import {
   walkRowsKey,
   walkRowsKeyTree,
@@ -689,7 +689,12 @@ export function figureSvg(
     )
     height = header + h
   }
-  for (const bar of facets ? [] : passBars(lift)) {
+  const strip = o.walkStrip
+  const stripped = strip && !rows && !layout.tubeMap ? strip.rows.rows : []
+  const bars = (facets ? [] : passBars(lift)).filter(
+    bar => !stripped.some(row => walkNamesRow(bar.walk, row)),
+  )
+  for (const bar of bars) {
     parts.push(
       `<svg y="${height}" width="${width}" height="${PASS_BAR_HEIGHT}">${serializeEl(
         passBarTree(bar, labelOf(bar.walk), width),
@@ -697,7 +702,6 @@ export function figureSvg(
     )
     height += PASS_BAR_HEIGHT
   }
-  const strip = o.walkStrip
   if (strip && !rows && !layout.tubeMap) {
     const frame = walkStripFrame(strip.rows, { width })
     const inks = liftedRowInks(

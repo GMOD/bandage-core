@@ -1,6 +1,7 @@
 import { serializeEl } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { loadGraph } from '../pipeline'
+import { abgrHex } from '../renderer/colorBits'
 import { walkLift } from '../walkHighlight'
 import { liftedRowInks, rowInkAt, rowInkOf } from './rowInks'
 import {
@@ -1216,5 +1217,88 @@ describe('rows in the lifted walks colours', () => {
     const row = serializeEl(walkRowsTree(onlyRow(hg1), frame, { inks: flat }))
     expect(row).not.toContain('linearGradient')
     expect(row).toContain(`fill="${ink.stops[0]}"`)
+  })
+})
+
+describe('the row of a walk lifted by pass', () => {
+  const gfa = (walk: string) =>
+    [
+      'S\ts1\t*\tLN:i:1000',
+      'S\ts2\t*\tLN:i:500',
+      'S\tr\t*\tLN:i:200',
+      'S\tu\t*\tLN:i:3000',
+      'S\ts5\t*\tLN:i:1000',
+      'L\ts1\t+\ts2\t+\t0M',
+      'L\ts2\t+\tr\t+\t0M',
+      'L\tr\t+\tr\t+\t0M',
+      'L\tr\t+\tu\t+\t0M',
+      'L\tu\t+\ts5\t+\t0M',
+      'P\tref#0#chr1\ts1+,s2+,r+,u+,s5+\t*',
+      `P\thap#1#ctg\t${walk}\t*`,
+    ].join('\n')
+  const lifted = (walk: string, cut?: { start: number; end: number }) => {
+    const graph = loadGraph(gfa(walk), 'test')
+    const lift = walkLift(graph, [
+      { walk: 'hap#1#ctg', color: { field: 'pass' } },
+    ])!
+    const bars = walkRows(graph, cut)!
+    const row = bars.rows.find(r => r.name.startsWith('hap#1#ctg'))!
+    const ink = rowInkOf(row, liftedRowInks(lift.walks))!
+    const passes = lift.walks[0]!.walkPasses!
+    const color = (pass: number) => abgrHex(passes.passes[pass]!.ink)
+    return { bars, row, ink, color, own: ink.stops[0]! }
+  }
+
+  test('takes each pass colour on the nodes the walk steps again, and its own colour elsewhere', () => {
+    const { row, ink, color, own } = lifted('s1+,s2+,r+,r+,u+,s5+')
+    expect(ink.passes).toHaveLength(2)
+    expect(rowInkAt(ink, row, 100)).toBe(own)
+    expect(rowInkAt(ink, row, 1600)).toBe(color(0))
+    expect(rowInkAt(ink, row, 1800)).toBe(color(1))
+    expect(rowInkAt(ink, row, 3000)).toBe(own)
+  })
+
+  test('a backward row finds its passes by contig position', () => {
+    // hap runs down ctg, so the cut's bar runs from contig 4900 down, and the
+    // repeat's two passes, at contig 4000 to 4200 and 4200 to 4400, lie 700
+    // to 900 and 500 to 700 bp along it
+    const { row, ink, color, own } = lifted('s5-,u-,r-,r-,s2-,s1-', {
+      start: 1200,
+      end: 4500,
+    })
+    expect(row.axis).toEqual({ contig: 'ctg', start: 4900, reversed: true })
+    expect(rowInkAt(ink, row, 400)).toBe(own)
+    expect(rowInkAt(ink, row, 600)).toBe(color(1))
+    expect(rowInkAt(ink, row, 800)).toBe(color(0))
+    expect(rowInkAt(ink, row, 1000)).toBe(own)
+  })
+
+  test('the bar is one rect whose gradient has a hard edge at each pass', () => {
+    const { bars, row, ink, color, own } = lifted('s1+,s2+,r+,r+,u+,s5+')
+    const frame = {
+      scaleX: 0.1,
+      scaleY: 1,
+      translateX: 10 - bars.origin * 0.1,
+      translateY: 20,
+      width: 800,
+      height: 400,
+      rowPx: 20,
+      barPx: 12,
+    }
+    const svg = serializeEl(
+      walkRowsTree({ ...bars, rows: [row] }, frame, {
+        inks: [ink],
+        idPrefix: 'p',
+      }),
+    )
+    const stops = [
+      ...svg.matchAll(/<stop offset="([\d.e-]+)" stop-color="([^"]+)"/g),
+    ].map(m => ({ offset: +m[1]!, color: m[2]! }))
+    const at = (offset: number) =>
+      stops.findLast(s => s.offset <= offset / row.bp)!.color
+    expect(stops[0]!.color).toBe(own)
+    expect(at(1600)).toBe(color(0))
+    expect(at(1800)).toBe(color(1))
+    expect(at(3000)).toBe(own)
   })
 })

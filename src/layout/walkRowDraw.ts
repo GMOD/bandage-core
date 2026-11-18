@@ -32,6 +32,7 @@ import {
 import { rowInkOf, rowInkStops } from './rowInks'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { rowsNeedingRoutes } from './walkRowLinks'
+import { alongRow } from './walkRows'
 
 import type { El, ElAttrs } from '../el'
 import type { GeneModel } from '../genes/genePins'
@@ -632,13 +633,6 @@ export function runPaint(
           : stops.length === 1
             ? { fill: rampHueCss(stops[0]!) }
             : { stops: stops.map(rampHueCss) }
-}
-
-// A contig span as offsets along a row's bar
-export function alongRow(axis: WalkAxis, start: number, end: number) {
-  return axis.reversed
-    ? { start: axis.start - end, end: axis.start - start }
-    : { start: start - axis.start, end: end - axis.start }
 }
 
 // The contig span a row's bar covers
@@ -1368,7 +1362,7 @@ export function walkRowsTree(
     const drawn = frame.bars === false ? [] : row.runs
     const coalesced = coalesceRuns(drawn, frame.scaleX, marked)
     const ink = o.inks && rowInkOf(row, o.inks)
-    const inkStops = ink && rowInkStops(ink, row)
+    const inkStops = ink && rowInkStops(ink, row, 1 / frame.scaleX)
     const inkId = `${prefix}-${i}-ink`
     const inkGradient =
       inkStops &&

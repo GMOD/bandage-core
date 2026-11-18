@@ -267,7 +267,12 @@ export {
 } from './bubbles/bubbleLabel'
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
-export { filterSamples, rowHaplotype, walkRows } from './layout/walkRows'
+export {
+  alongRow,
+  filterSamples,
+  rowHaplotype,
+  walkRows,
+} from './layout/walkRows'
 export { runAt, walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
 export type {
   WalkRowMeta,
@@ -302,7 +307,6 @@ export {
   NOT_COMPARED_TEXT as WALK_NOT_COMPARED_TEXT,
   UNBACKED_TICK as WALK_UNBACKED_TICK,
   ON_PATH_STRIP_INK as WALK_ON_PATH_STRIP_INK,
-  alongRow,
   barEnd,
   callTickInk,
   coalesceRuns,
@@ -334,6 +338,7 @@ export type {
 } from './layout/walkRowDraw'
 export {
   liftedRowInks,
+  rowInkAlong,
   rowInkAt,
   rowInkOf,
   rowInkStops,

@@ -64,6 +64,13 @@ export interface WalkAxis {
   reversed: boolean
 }
 
+// A contig span as offsets along a row's bar
+export function alongRow(axis: WalkAxis, start: number, end: number) {
+  return axis.reversed
+    ? { start: axis.start - end, end: axis.start - start }
+    : { start: start - axis.start, end: end - axis.start }
+}
+
 // How a walk that reaches one flank stops past its last step inside. Its
 // contig ends there (`shortBp` short of the region when it never enters it)
 // only where that step is on the reference, no departure of the walk leaves
