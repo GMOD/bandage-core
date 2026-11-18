@@ -6,6 +6,7 @@ import { departureTails } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
+import { archSeeds } from './layout/archSeeds'
 import {
   routeNodes,
   takeRoutes,
@@ -176,15 +177,19 @@ export function engineRequest(
       edgeLength: scaling.opts.edgeLength * s.spacing,
     },
   }
+  const seeded = anchored
+    ? seededNodes(
+        canonical,
+        spaced,
+        s.engine === 'fmmm' ? FMMM_SEED_STRETCH : 1,
+      )
+    : spaced.nodes
   return {
     graph: {
-      nodes: anchored
-        ? seededNodes(
-            canonical,
-            spaced,
-            s.engine === 'fmmm' ? FMMM_SEED_STRETCH : 1,
-          )
-        : spaced.nodes,
+      nodes:
+        anchored && s.engine === 'fmmm'
+          ? archSeeds(seeded, canonical.edges, spaced.opts)
+          : seeded,
       edges: canonical.edges,
     },
     options: {
