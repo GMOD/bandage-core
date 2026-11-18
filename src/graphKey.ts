@@ -353,6 +353,9 @@ export interface GraphKeyOptions {
   halos?: readonly { whole: boolean }[]
   // the reference strip has a tab past an edge
   stripOverhangs?: boolean
+  // the drawing runs past the pane's top or bottom, marked on that edge
+  // (trackFit's edgeOverruns)
+  runsPastEdge?: boolean
   // the placeholders the labels left without a length: layoutLabels'
   // `unlabelled`. A host that sizes its pane by the key before it places the
   // labels passes 'reserved': the line under is kept, blank, whenever
@@ -642,6 +645,13 @@ export function graphKey(
     ...(drawsNodes && o.marks.runsOn
       ? [entry('runs-on', RUNS_ON_KEY, { kind: 'overhang' })]
       : []),
+    ...(o.runsPastEdge
+      ? [
+          entry('runs-past', 'drawing continues above or below the pane', {
+            kind: 'overhang',
+          }),
+        ]
+      : []),
   ]
   const skipEntries: GraphKeyEntry[] = [
     ...(o.marks.dashedSkip
@@ -733,7 +743,7 @@ export function graphKey(
         ? [
             {
               key: 'overhang',
-              text: 'graph runs past this edge',
+              text: "graph's reference continues past the pane edge",
               swatch: { kind: 'overhang' },
             },
           ]

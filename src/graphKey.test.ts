@@ -711,13 +711,19 @@ test('the key groups digits the same whatever the host locale', () => {
   }
 })
 
-test('the halo, the strip tab and compress are keyed where they are drawn', () => {
+test('the halo, the strip tab, the edge marks and compress are keyed where they are drawn', () => {
   expect(keys(graph, {}, { halos: [{ whole: true }] })).not.toContain('halo')
   expect(keys(graph, {}, { halos: [{ whole: false }] })).toContain('halo')
   expect(keys(graph)).not.toContain('overhang')
+  expect(keys(graph)).not.toContain('runs-past')
   expect(texts(graph, {}, { stripOverhangs: true })).toContain(
-    'graph runs past this edge',
+    "graph's reference continues past the pane edge",
   )
+  const pastEdge = keyOf(graph, {}, { runsPastEdge: true })
+  expect(
+    pastEdge.find(s => s.id === 'not-shown')!.entries.map(e => e.text),
+  ).toContain('drawing continues above or below the pane')
+  expect(pastEdge.map(s => s.id)).not.toContain('overhang')
   const layout = layoutModeByValue('ordered').run(graph, undefined)!
   expect(
     keyOf(graph, { layout: { ...layout, compressed: true } })

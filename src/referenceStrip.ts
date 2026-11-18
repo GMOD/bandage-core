@@ -115,6 +115,19 @@ export function stripOverhang(
     : { left: Math.round(above), right: Math.round(below) }
 }
 
+// Whether a block drawn pale on some row lies inside the window, so a key
+// names the grey only while some shows
+export function stripFadedShown(
+  blocks: readonly StripBlock[],
+  frame: BpFrame,
+  width: number,
+) {
+  return blocks.some(b => {
+    const [x0, x1] = span(frame, b.bp0, b.bp1)
+    return b.faded && x1 > 0 && x0 < width
+  })
+}
+
 export function stripBlockAt(
   blocks: readonly StripBlock[],
   frame: BpFrame,

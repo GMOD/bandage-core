@@ -2,6 +2,7 @@ import {
   nodeAnchor,
   referenceStripBlocks,
   stripBlockAt,
+  stripFadedShown,
   stripOverhang,
   stripPixels,
 } from './referenceStrip'
@@ -120,6 +121,27 @@ test('a block is hit where the linear view places its bp', () => {
   // reversed, the strip runs right to left
   const reversed = { scale: -0.5, translateX: 600 }
   expect(stripBlockAt(blocks, reversed, 75, 4)).toBe('a')
+})
+
+test('pale is shown only while a pale block is inside the window', () => {
+  const blocks = referenceStripBlocks(graph, {
+    colorScheme: 'uniform',
+    walks: [{ colors: new Map(['a', 'c'].map(id => [id, 0])) }],
+  })
+  // bp 1000 to 1100, which a fills, with b starting on its right edge
+  expect(stripFadedShown(blocks, { scale: 1, translateX: -1000 }, 100)).toBe(
+    false,
+  )
+  expect(stripFadedShown(blocks, { scale: 1, translateX: -1050 }, 100)).toBe(
+    true,
+  )
+  // reversed, bp 1100 to 1200 runs right to left
+  expect(stripFadedShown(blocks, { scale: -1, translateX: 1200 }, 100)).toBe(
+    true,
+  )
+  expect(stripFadedShown(blocks, { scale: -1, translateX: 1100 }, 100)).toBe(
+    false,
+  )
 })
 
 test('the overhang is the backbone drawn past each edge of the window', () => {
