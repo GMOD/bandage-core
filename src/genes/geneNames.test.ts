@@ -1,6 +1,11 @@
 import { layoutLabels } from '../labelLayout'
 import { exonStretches } from './exonOutline'
-import { genesOverNode, hasGeneSymbol, namedGenePins } from './geneNames'
+import {
+  copyNames,
+  genesOverNode,
+  hasGeneSymbol,
+  namedGenePins,
+} from './geneNames'
 import { genePins } from './genePins'
 
 import type { LabelLayoutSource } from '../labelLayout'
@@ -302,5 +307,62 @@ test('a name says how much of its gene the drawing holds only where part of the 
     ['PAST', true, 2],
     ['OWNWHOLE', false, 1],
     ['OWNPAST', false, 1],
+  ])
+})
+
+test('two copies on one stretch of nodes are each named in full', () => {
+  expect(copyNames(['C4A'])).toBe('C4A')
+  expect(copyNames(['C4A', 'C4B'])).toBe('C4A, C4B')
+  expect(copyNames(['VCY', 'VCY1B'])).toBe('VCY, VCY1B')
+  expect(copyNames(['RBMY1E', 'RBMY1D'])).toBe('RBMY1D, RBMY1E')
+  expect(copyNames(['SMN2', 'SMN1', 'SMN1'])).toBe('SMN1, SMN2')
+  expect(copyNames(['CYP21A1P', 'CYP21A2'])).toBe('CYP21A1P, CYP21A2')
+})
+
+test('three or more copies that differ only in a number at the end are named as how many they are', () => {
+  expect(
+    copyNames(['TSPY4', 'TSPY1', 'TSPY3', 'TSPY8', 'TSPY9', 'TSPY10']),
+  ).toBe('6 TSPY genes')
+  expect(
+    copyNames(['FAM197Y8', ...[2, 3, 4, 5, 6, 7].map(n => `FAM197Y${n}`)]),
+  ).toBe('7 FAM197Y genes')
+  expect(copyNames(['C4A', 'C4B', 'C4C'])).toBe('C4A, C4B, C4C')
+  expect(copyNames(['TSPY4', 'TSPY1', 'TSPY3', 'RBMY1A1', 'VCY'])).toBe(
+    'RBMY1A1, 3 TSPY genes, VCY',
+  )
+})
+
+test("a reference copy the reference walks over a named copy's nodes is named in that copy's name", () => {
+  const held = pinOf('TSPY4', 'chr1', { x: 0, y: 0 }, { onReference: true })
+  const other = pinOf(
+    'RBMY1A1',
+    'chr1',
+    { x: 500, y: 0 },
+    { onReference: true },
+  )
+  const [ring] = held.nodeIds
+  const walked = (name: string, over: [string, number][]): GenePin => ({
+    ...pinOf(name, 'chr1', { x: 0, y: 0 }, { onReference: true }),
+    nodeIds: new Set([`own:${name}`]),
+    anchored: 0.01,
+    walkedOver: new Map(over),
+  })
+  const pins = [
+    held,
+    other,
+    walked('TSPY1', [[ring!, 2800]]),
+    walked('TSPY3', [
+      [ring!, 1500],
+      ['own:TSPY3', 20],
+    ]),
+    walked('LOC105377224', [[ring!, 2800]]),
+    walked('TSPY9', [
+      [ring!, 100],
+      ['elsewhere', 2700],
+    ]),
+  ]
+  expect(namedGenePins(pins).map(n => [n.pin.gene.name, n.name])).toEqual([
+    ['TSPY4', '3 TSPY genes'],
+    ['RBMY1A1', 'RBMY1A1'],
   ])
 })

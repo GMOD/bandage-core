@@ -58,10 +58,76 @@ function carriedBefore(a: GenePin, b: GenePin) {
       : a.gene.start < b.gene.start
 }
 
+// The named copy over whose nodes the reference walks at least half of a
+// copy's stretch, the one holding most of it
+function walkedCopy(pin: GenePin, held: readonly GenePin[]) {
+  const walkedOver = [...(pin.walkedOver ?? [])]
+  const total = walkedOver.reduce((sum, [, bp]) => sum + bp, 0)
+  let most = 0
+  let copy: GenePin | undefined
+  for (const candidate of held) {
+    const over = walkedOver.reduce(
+      (sum, [id, bp]) => (candidate.nodeIds.has(id) ? sum + bp : sum),
+      0,
+    )
+    if (over > most) {
+      most = over
+      copy = candidate
+    }
+  }
+  return most * 2 >= total ? copy : undefined
+}
+
+// For each named reference copy, the names of the copies the reference walks
+// over its nodes
+function walkedOverCopies(pins: readonly GenePin[], named: readonly GenePin[]) {
+  const held = named.filter(pin => pin.onReference)
+  const copies = new Map<GenePin, string[]>()
+  for (const pin of pins) {
+    const copy =
+      pin.onReference && !heldOnOwnNodes(pin) && hasGeneSymbol(pin.gene.name)
+        ? walkedCopy(pin, held)
+        : undefined
+    if (copy) {
+      copies.set(copy, [...(copies.get(copy) ?? []), pin.gene.name])
+    }
+  }
+  return copies
+}
+
+const NUMBERED = /^(.*\D)\d+$/
+
+// The names of the copies one stretch of nodes holds, as one name: each in
+// full, in order, but three or more that differ only in a number at the end
+// as how many they are: "C4A, C4B", "SMN1, SMN2", "6 TSPY genes"
+export function copyNames(names: readonly string[]) {
+  const families: { stem?: string; names: string[] }[] = []
+  for (const name of [...new Set(names)].toSorted((a, b) =>
+    a.localeCompare(b, 'en', { numeric: true }),
+  )) {
+    const stem = NUMBERED.exec(name)?.[1]
+    const family = families.at(-1)
+    if (stem !== undefined && family?.stem === stem) {
+      family.names.push(name)
+    } else {
+      families.push({ stem, names: [name] })
+    }
+  }
+  return families
+    .flatMap(family =>
+      family.names.length > 2
+        ? [`${family.names.length} ${family.stem} genes`]
+        : family.names,
+    )
+    .join(', ')
+}
+
 // Which genes a drawing names, and how. A copy on the reference whose
-// stretch the drawn nodes anchored on it mostly do not hold is named nowhere:
-// its sequence is drawn where an earlier copy the reference passed is pinned,
-// and its name would sit on the few nodes of its own. A haplotype's copy it
+// stretch the drawn nodes anchored on it mostly do not hold has no name of
+// its own: its sequence is drawn where an earlier copy the reference passed
+// is pinned, and its name would sit on the few nodes of its own. It is named
+// in that earlier copy's name, as copyNames words them, where that copy is
+// named. A haplotype's copy it
 // walks mostly over other contigs' nodes is not on its own sequence, its own
 // nodes being the variants along the way: it is named nowhere where the
 // reference carries the gene, and otherwise as a copy no walk is lifted for.
@@ -97,6 +163,7 @@ export function namedGenePins(
       pin.onReference || onLift(pin) ? [pin.gene.name] : [],
     ),
   )
+  const copies = walkedOverCopies(pins, named)
   const offReference = new Map<string, GenePin>()
   for (const pin of named) {
     const { name } = pin.gene
@@ -111,7 +178,7 @@ export function namedGenePins(
   }
   return named.flatMap(pin =>
     pin.onReference
-      ? [{ pin, name: pin.gene.name }]
+      ? [{ pin, name: copyNames([pin.gene.name, ...(copies.get(pin) ?? [])]) }]
       : onLift(pin)
         ? [{ pin, name: whose(pin) }]
         : offReference.get(pin.gene.name) === pin

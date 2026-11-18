@@ -209,7 +209,7 @@ test('a refName is the reference where any of its nodes is rank 0, whichever com
 // nodes anchored at the first: FAM197Y8 held 98% of its span on its own
 // nodes, FAM197Y2-Y7 held 3 to 21 bp of 5.6 kb each and were named round the
 // knot "FAM197Y5 · 0 of 5.6 kb"
-test("a reference copy whose stretch the reference walks over an earlier copy's nodes keeps its exons and no name", () => {
+test("a reference copy whose stretch the reference walks over an earlier copy's nodes keeps its exons and is named in that copy's name", () => {
   const graph: Graph = {
     name: 'g',
     nodes: [
@@ -239,7 +239,7 @@ test("a reference copy whose stretch the reference walks over an earlier copy's 
       ['r2', 1000],
     ],
   ])
-  expect(namedGenePins(pins).map(n => n.name)).toEqual(['FIRST'])
+  expect(namedGenePins(pins).map(n => n.name)).toEqual(['FIRST, LATER'])
   expect(['r1', 'u'].map(id => genesOverNode(pins, id))).toEqual([
     ['FIRST', 'LATER'],
     ['LATER'],
