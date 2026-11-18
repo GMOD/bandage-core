@@ -4,7 +4,9 @@ import { SMALL_SITE_PX } from '../levelOfDetail'
 // SMALL_SITE_PX or more apart, with node lines along half the line between
 // them or more, and whose line the nodes' ink leaves under LEAST_SHOWN_PX or
 // under half its length clear, is hidden by them unless painted over them,
-// as a skip is.
+// as a skip is. A lifted walk's link is its lane, so it is painted over them
+// wherever the unfaded nodes of other lanes leave it that little clear, along
+// them or across.
 export const ALONG_NODE_PX = 1
 export const LEAST_SHOWN_PX = 2
 const END_INSET_PX = 0.75
@@ -23,12 +25,15 @@ interface Point {
 export interface NodeLine {
   points: Point[]
   halfWidth: number
+  faded?: boolean
+  walk?: number
 }
 
 export interface LinkEnds {
   id: number
   a: Point
   b: Point
+  walk?: number
 }
 
 export interface Bounds {
@@ -42,6 +47,8 @@ interface Segment {
   a: Point
   b: Point
   halfWidth: number
+  faded: boolean
+  walk: number | undefined
 }
 
 function distanceToSegment(p: Point, { a, b }: Segment) {
@@ -103,12 +110,12 @@ export function linksAlongNodes(
       held.push(segment)
     }
   }
-  for (const { points, halfWidth } of lines) {
+  for (const { points, halfWidth, faded = false, walk } of lines) {
     for (let i = 0; i < points.length; i++) {
       const a = points[Math.max(0, i - 1)]!
       const b = points[i]!
       if (!bounds || meets(a, b, bounds, reachPx)) {
-        const segment = { a, b, halfWidth }
+        const segment = { a, b, halfWidth, faded, walk }
         const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / stepPx)
         for (let k = 0; k <= steps; k++) {
           const x = a.x + ((b.x - a.x) * k) / Math.max(1, steps)
@@ -122,7 +129,7 @@ export function linksAlongNodes(
     }
   }
   const along = new Set<number>()
-  for (const { id, a, b } of links) {
+  for (const { id, a, b, walk } of links) {
     const length = Math.hypot(b.x - a.x, b.y - a.y)
     if (length >= SMALL_SITE_PX && (!bounds || meets(a, b, bounds, 0))) {
       const inner = length - 2 * END_INSET_PX
@@ -134,16 +141,26 @@ export function linksAlongNodes(
         samples < MOST_SAMPLES ? SAMPLE_STEP_PX : inner / (MOST_SAMPLES - 1)
       let on = 0
       let clear = 0
+      let clearOfOtherLanes = 0
       for (let k = 0; k < samples; k++) {
         const u = (END_INSET_PX + k * spacing) / length
         const p = { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }
         const near = cells.get(cellAt(p.x, p.y)) ?? []
         on += near.some(s => distanceToSegment(p, s) <= ALONG_NODE_PX) ? 1 : 0
         clear += near.some(s => distanceToSegment(p, s) <= s.halfWidth) ? 0 : 1
+        clearOfOtherLanes += near.some(
+          s =>
+            !s.faded &&
+            s.walk !== walk &&
+            distanceToSegment(p, s) <= s.halfWidth,
+        )
+          ? 0
+          : 1
       }
+      const leastShown = Math.max(LEAST_SHOWN_PX, length / 2)
       if (
-        2 * on >= samples &&
-        clear * spacing < Math.max(LEAST_SHOWN_PX, length / 2)
+        (2 * on >= samples && clear * spacing < leastShown) ||
+        (walk !== undefined && clearOfOtherLanes * spacing < leastShown)
       ) {
         along.add(id)
       }

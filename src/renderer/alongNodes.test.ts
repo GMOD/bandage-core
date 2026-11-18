@@ -65,6 +65,30 @@ describe('linksAlongNodes', () => {
     const links = [{ id: 0, a: { x: 5, y: 0.8 }, b: { x: 25, y: 0.8 } }]
     expect([...linksAlongNodes(lines, links)]).toEqual([])
   })
+
+  test("a lane's link across other lanes that cover it is along them; a plain link there, or a lane's across its own lane or faded nodes, is not", () => {
+    const band = [0, 6, 12].map(y => ({ ...node(row(0, 30, y)), walk: 1 }))
+    const across = { a: { x: 10, y: 0 }, b: { x: 10, y: 12 } }
+    expect([
+      ...linksAlongNodes(band, [
+        { id: 0, ...across },
+        { id: 1, ...across, walk: 0 },
+        { id: 2, ...across, walk: 1 },
+      ]),
+    ]).toEqual([1])
+    expect([
+      ...linksAlongNodes(
+        band.map(line => ({ ...line, faded: true })),
+        [{ id: 1, ...across, walk: 0 }],
+      ),
+    ]).toEqual([])
+  })
+
+  test("a lane's link the other lanes leave clear for half its length is not along them", () => {
+    const lines = [0, 20].map(y => ({ ...node(row(0, 30, y)), walk: 1 }))
+    const links = [{ id: 0, a: { x: 10, y: 0 }, b: { x: 10, y: 20 }, walk: 0 }]
+    expect([...linksAlongNodes(lines, links)]).toEqual([])
+  })
 })
 
 // the reference steps A then D; an insertion X, Y, Z between them, laid in a
@@ -174,4 +198,63 @@ test("a lane is judged where it is drawn: lifted beside the other walk's lane on
   const lanes = strokesOf(batch, 'XZ')
   expect(lanes.map(lane => lane.walk)).toEqual([0])
   expect(lanes[0]!.along).toBeUndefined()
+})
+
+test("a lane's link that another walk's lane, on a node laid across it, would cover is marked along; with that node laid apart it is not", () => {
+  const crossed = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        [
+          'S\tA\tAAAAAAAAAA',
+          'S\tX\tCCCCCCCCCC',
+          'S\tY\tGGGGGGGGGG',
+          'S\tZ\tTTTTTTTTTT',
+          'S\tD\tAAAAAAAAAA',
+          'L\tA\t+\tD\t+\t0M',
+          'L\tA\t+\tX\t+\t0M',
+          'L\tX\t+\tZ\t+\t0M',
+          'L\tZ\t+\tD\t+\t0M',
+          'L\tA\t+\tY\t+\t0M',
+          'L\tY\t+\tD\t+\t0M',
+          'W\tref\t0\tchr\t0\t20\t>A>D',
+          'W\talt\t1\tchr\t0\t*\t>A>X>Z>D',
+          'W\tcross\t1\tchr\t0\t*\t>A>Y>D',
+        ].join('\n'),
+      ),
+    ),
+    'ref',
+  )
+  const laneOfXZ = (y: { x: number; y: number }[]) => {
+    const batch = buildGeometry({
+      nodePositions: {
+        'A+': row(0, 10),
+        'X+': row(10, 20, 20),
+        'Z+': row(24, 34, 20),
+        'Y+': y,
+        'D+': row(40, 50),
+      },
+      graph: crossed,
+      nodeById: new Map(crossed.nodes.map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      contigThickness: 10,
+      connectorThickness: 4,
+      drawPaths: false,
+      axis: { scaleX: 1, scaleY: 1 },
+      stranded: true,
+      highlight: walkLift(crossed, [
+        { walk: 'alt#1#chr' },
+        { walk: 'cross#1#chr' },
+      ]),
+    })
+    const ei = crossed.edges.findIndex(e => e.from === 'X+' && e.to === 'Z+')
+    const run = batch.edgeCurveRuns.get(ei)
+    return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
+  }
+  const across = laneOfXZ([
+    { x: 22, y: 0 },
+    { x: 22, y: 40 },
+  ])
+  expect(across.map(lane => [lane.walk, lane.along])).toEqual([[0, true]])
+  const apart = laneOfXZ(row(16, 28, 60))
+  expect(apart.map(lane => [lane.walk, lane.along])).toEqual([[0, undefined]])
 })

@@ -2648,6 +2648,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     nodeStrokes.map(stroke => ({
       points: stroke.points.map(onScreen),
       halfWidth: stroke.thickness,
+      faded: stroke.faded === true,
+      walk: stroke.walk,
     })),
     edgeCurves.flatMap((stroke, k) => {
       const last = stroke.curves.at(-1)
@@ -2661,6 +2663,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               id: k,
               a: onScreen({ x: stroke.curves[0].x0, y: stroke.curves[0].y0 }),
               b: onScreen({ x: last.x1, y: last.y1 }),
+              walk: stroke.walk,
             },
           ]
         : []
