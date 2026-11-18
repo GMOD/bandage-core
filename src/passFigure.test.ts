@@ -193,6 +193,30 @@ test("a strip that draws the walk's row carries its passes, so the figure draws 
   expect(elsewhere).toContain('along its length')
 })
 
+test('the reference walk lifted by pass gets no pass bar while the strip draws its row', () => {
+  const graph = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        [
+          ...SEGMENTS.slice(0, -1),
+          'W\tref\t0\tchr\t0\t42\t>f1>a>b>c>d>a>b>c>d>f2',
+          'W\thap\t1\tctg\t0\t*\t>f1>a>b>c>d>f2',
+        ].join('\n'),
+      ),
+    ),
+    'ref',
+  )
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const walks: WalkLayer[] = [{ walk: 'ref#0#chr', color: { field: 'pass' } }]
+  const rows = walkRows(graph)!
+  expect(figureSvg(graph, layout, { width: 600, walks })).toContain(
+    'along its length',
+  )
+  expect(
+    figureSvg(graph, layout, { width: 600, walks, walkStrip: { rows } }),
+  ).not.toContain('along its length')
+})
+
 // The middle copy lacks b, so at this zoom b's second visit runs on the
 // band's third thread
 test("each thread's rows say its slot, its visit and its walk's pass, and a slot is not a visit", () => {

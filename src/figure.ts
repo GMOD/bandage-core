@@ -690,7 +690,10 @@ export function figureSvg(
     height = header + h
   }
   const strip = o.walkStrip
-  const stripped = strip && !rows && !layout.tubeMap ? strip.rows.rows : []
+  const stripped =
+    strip && !rows && !layout.tubeMap
+      ? [strip.rows.reference, ...strip.rows.rows]
+      : []
   const bars = (facets ? [] : passBars(lift)).filter(
     bar => !stripped.some(row => walkNamesRow(bar.walk, row)),
   )
