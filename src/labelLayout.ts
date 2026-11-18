@@ -212,8 +212,9 @@ function shownPin(
 // leader still running to the pin; it may cover the gene's own stretch of
 // reference only where no exon is outlined. A gene is a landmark, so where
 // nodes, exons or the key refuse every spot by its pin it stacks at the
-// nearest free one rather than be dropped; where other names took them it is
-// dropped, which thins a dense track. A gene whose pin the pane does not show is pinned where
+// nearest free one rather than be dropped; where other names took them it
+// does so only while the pane's ration of names standing apart lasts, which
+// thins a dense track and names every gene of a sparse one. A gene whose pin the pane does not show is pinned where
 // shownPin finds it, and one the pane shows nothing of is not named.
 export function geneLabelCandidates(
   pins: GenePin[],
@@ -458,6 +459,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     frame,
     take,
     reserved,
+    budget,
   )
   const passes = placeLabels(m.passLabels ?? [], frame, take, reserved)
   const sizes = [

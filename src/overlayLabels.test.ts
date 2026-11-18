@@ -188,3 +188,21 @@ test('a label kept from being dropped stands past a reserved column, nearest its
   expect(placed[0]!.x + placed[0]!.w / 2).toBeLessThanOrEqual(300)
   expect(placed[0]!.x + placed[0]!.w / 2).toBeGreaterThan(300 - 8)
 })
+
+test('labels other labels crowded out stand at the nearest free spot only while the ration of labels standing apart lasts', () => {
+  const at = { x: 200, y: 100 }
+  const placed = placeLabels(
+    ['a', 'b', 'c', 'd'].map(item => ({
+      item,
+      ...at,
+      text: 'gene',
+      nearest: at,
+    })),
+    frame,
+    occupancy(frame),
+    [],
+    2,
+  )
+  expect(placed.map(p => p.item)).toEqual(['a', 'b', 'c'])
+  expect(placed.slice(1).every(p => p.y !== at.y)).toBe(true)
+})

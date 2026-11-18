@@ -1432,7 +1432,7 @@ test("a gene's name with no free spot under or over its pin stacks at the neares
 // BandageJS's E. coli example pinned some 350 names, each the others crowded
 // out of its stack sent to the nearest free spot with a leader, and the graph
 // went under them
-test('a dense gene track names only the genes its stacked rows hold, and none crowded out by other names stands apart with a leader', () => {
+test('a dense gene track names the genes its stacked rows hold, and only a ration of the others crowded out stands apart with a leader', () => {
   const nodePositions = {
     bb: [
       { x: 0, y: 100 },
@@ -1449,13 +1449,45 @@ test('a dense gene track names only the genes its stacked rows hold, and none cr
   const { genes } = layoutLabels(source({ genePins: pins, nodePositions }))
   const row = 11 + 2 * LABEL_PAD
   const stackRows = [124, 124 + row, 124 + 2 * row, 87, 87 - row, 87 - 2 * row]
-  expect(genes.length).toBeGreaterThan(0)
+  const inStack = genes.filter(
+    label =>
+      stackRows.includes(label.y) &&
+      Math.abs(label.x - label.item.pin.at.x) < label.w / 2 + 0.01,
+  )
+  expect(inStack.length).toBeGreaterThan(0)
+  expect(genes.length - inStack.length).toBeLessThanOrEqual(
+    nodeLabelBudget(800, 400),
+  )
   expect(genes.length).toBeLessThan(pins.length)
+})
+
+// The plugin's CFH cut, 30 bp across a 1600 by 160 pane, pins CFH and CFHR1-3
+// on one point at the pane's top: its stack holds three names, the pane above
+// it none, and the others were dropped though the pane is nearly empty
+test('genes pinned on one point that its stack cannot hold are all named, with leaders, in a pane with room for them', () => {
+  const at = { x: 800, y: 10 }
+  const nodePositions = {
+    bb: [
+      { x: 0, y: 10 },
+      { x: 1600, y: 10 },
+    ],
+  }
+  const names = ['CFH', 'CFHR1', 'CFHR2', 'CFHR3', 'CFHR4']
+  const pins = names.map(name => ({
+    ...pin(at),
+    gene: { ...pin(at).gene, name },
+  }))
+  const { genes } = layoutLabels(
+    source({
+      genePins: pins,
+      nodePositions,
+      paneWidth: 1600,
+      canvasHeight: 160,
+    }),
+  )
+  expect(genes.map(l => l.text).sort()).toEqual(names)
   for (const label of genes) {
-    expect(stackRows).toContain(label.y)
-    expect(Math.abs(label.x - label.item.pin.at.x)).toBeLessThan(
-      label.w / 2 + 0.01,
-    )
+    expect(geneLeader(label, at, 6)).toMatchObject({ x2: at.x })
   }
 })
 

@@ -32,10 +32,10 @@ export interface LabelCandidate<T> {
   fits?: (box: Box) => boolean
   // how far sideways, in px, the label may move to find a box on a row
   slide?: number
-  // where no row from `y` or `flipY` takes it and no other label took one it
-  // could stand on, the label stands at the free spot nearest this point, one
-  // that `fits` where any does: a node, an exon or a reserved box does not
-  // drop it, a crowd of labels does
+  // where no row from `y` or `flipY` takes it, the label stands at the free
+  // spot nearest this point, one that `fits` where any does: a node, an exon
+  // or a reserved box does not drop it, and a crowd of labels drops it once
+  // `leaders` labels stand apart from their stacks
   nearest?: { x: number; y: number }
 }
 
@@ -109,8 +109,10 @@ export function placeLabels<T>(
   frame: Frame,
   take: TakeBox,
   reserved: readonly Box[] = [],
+  leaders = 0,
 ): PlacedLabel<T>[] {
   const out: PlacedLabel<T>[] = []
+  let apart = 0
   const row = LABEL_PX + LABEL_PAD * 2
   const boxAt = (x: number, y: number, w: number) => ({
     x0: x - w / 2,
@@ -198,12 +200,16 @@ export function placeLabels<T>(
     const full = place(c, c.text)
     const short =
       full.placed || c.fallback === undefined ? undefined : place(c, c.fallback)
-    const placed =
-      full.placed ??
-      short?.placed ??
-      (c.nearest === undefined || full.crowded || short?.crowded
+    const stacked = full.placed ?? short?.placed
+    const crowded = full.crowded || short?.crowded === true
+    const led =
+      stacked || c.nearest === undefined || (crowded && apart >= leaders)
         ? undefined
-        : nearestFree(c, c.text, c.nearest))
+        : nearestFree(c, c.text, c.nearest)
+    if (led) {
+      apart++
+    }
+    const placed = stacked ?? led
     if (placed) {
       out.push(placed)
     }
