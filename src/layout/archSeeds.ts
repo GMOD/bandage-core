@@ -49,7 +49,7 @@ const entering = (node: Seeded, strand: Edge['toStrand']): Side =>
 const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 const joinKey = (j: Join) =>
-  [j.from, j.fromSide, j.to, j.toSide, j.via ?? ''].join('\u0001')
+  [j.from, j.fromSide, j.to, j.toSide, j.via ?? ''].join(' ')
 
 const drawsAtMinimum = (opts: BandageScaleOpts) => (node: LayoutNode) =>
   !node.placeholder &&
