@@ -9,8 +9,8 @@ runs:
       shell: bash
       working-directory: ${{ runner.temp }}
       env:
-        VERSION: v0.12.0
-        SHA256: 98d1fccc2085deb1e276634120d48893165f68dd87d0a337d082ec5493a1dcac
+        VERSION: v5.0.0
+        SHA256: 5340c785359420dbe92b6e9f0b98fa8e9c34ce3e64d3fbba6b29a1bc65ec03d4
       run: |
         asset=gfa-to-tabix-x86_64-unknown-linux-musl
         curl -fsSLO "https://github.com/GMOD/gfa-to-tabix/releases/download/$VERSION/$asset.tar.gz"
