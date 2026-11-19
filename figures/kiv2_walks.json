@@ -1,9 +1,5 @@
 {
-  "gbz": {
-    "db": "hprc",
-    "region": "chr6:160,614,798-160,647,758",
-    "haplotypes": ["HG00097#1", "HG01960#1", "HG00133#1"]
-  },
+  "gfa": "kiv2_walks.gfa.gz",
   "layout": "force",
   "walks": [
     "GRCh38#0#chr6",
