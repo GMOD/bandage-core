@@ -10,8 +10,9 @@ own viewer or figures with it.
 - **In:** a pangenome graph as GFA, or a region of one read from a
   [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file with
   [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks)
-- **Out:** a drawing of the graph on an HTML canvas or as an SVG file, with each
-  haplotype's path, genes and deletions marked
+- **Out:** a layout of the graph, drawn on an HTML canvas (as in the JBrowse
+  plugin and BandageJS), to an SVG file, or as tables of coordinates for another
+  plotting library (ggbandage plots them with ggplot2)
 - **Layouts:** Bandage's force-directed layout, which shows the graph's loops
   and bubbles, or layouts along the reference genome, such as one bar per
   haplotype or a tube map
@@ -65,12 +66,26 @@ const svg = figureSvg(graph, result, {
 
 ![GRCh38, HG00097#1 and HG00133#1 at LPA's KIV-2 repeat, a panel each, colored yellow to red along each haplotype. HG00097#1 is 22.2 kb longer than GRCh38, and HG00133#1 is 116 kb longer, 106 kb of it in a hollow grey loop whose nodes were not loaded](img/readme_kiv2.svg)
 
+## Haplotype threads
+
+Leave out `facet` in the example above, and `figureSvg` draws all three
+haplotypes on one layout, each in a different color along the nodes it passes
+through. Where haplotypes pass through the same nodes, their threads run side by
+side, so a loop drawn in one color is a loop only that haplotype passes through.
+On a canvas, passing `walkLift(graph, walks)` to `buildGeometry` as `highlight`
+draws the same threads. A haplotype colored by `pass` splits into one thread per
+trip round a repeat; see [Threading by pass](docs/drawing.md#threading-by-pass).
+
+![GRCh38 in grey, HG00097 in blue and HG00133 in orange on one force-directed layout of LPA's KIV-2 repeat. The three run side by side through the shared loops. HG00097 also passes through one small loop that GRCh38 skips, and HG00133 through two other small loops and the large loop below](img/figure_kiv2_threads.svg)
+
 ## Docs
 
 - [API](docs/api.md): the main exports, by task: loading, layouts, drawing to a
   canvas, figures, haplotypes, and genes and variants
 - [Walk rows and departures](docs/departures.md): where a haplotype leaves the
   reference, what the text beside each walk row means, and what a host app does
+- [Drawing reference](docs/drawing.md): fitting a drawing to a pane, labels,
+  small sites and threading by pass, for an app that draws with bandage-core
 - [Command-line tools](docs/cli.md): `bandage-figure` draws a figure from a JSON
   spec, and `bandage-fold` merges small variants into the reference for viewing
   zoomed out

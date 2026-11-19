@@ -1,9 +1,11 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { panSNFields, panSNSample } from '../pansn'
+import { pathOrigin, stateStrands } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
-import { stretchSegments } from './departures'
+import { ownStepRuns, stretchSegments } from './departures'
 import { linkKey } from './linkKey'
 import {
+  FORWARD,
   REVERSED,
   orientSegments,
   respelled,
@@ -16,6 +18,7 @@ import type {
   GraphNode,
   GraphPath,
   PathOrigin,
+  PathVisit,
 } from '../types'
 
 /**
@@ -45,6 +48,11 @@ export interface GraphTables {
     // how many times the reference's paths pass each node, 0 for a node
     // placed off the reference; absent from tables another source builds
     passes?: Int32Array
+    // 1 where the reference steps the node reversed at `starts`, whether or
+    // not a reference walk of the tables reaches it, 0 where forward and for
+    // a node placed off the reference; absent from tables another source
+    // builds, where a node's strand is its reference walk's step on it
+    reversed?: Uint8Array
     placeholders?: Uint8Array
   }
   links: {
@@ -62,6 +70,10 @@ export interface GraphTables {
     offsets: Int32Array
     steps: Int32Array
     reversed: Uint8Array
+    // where each step lies on the reference, at the pass its row names of a
+    // node the reference passes more than once, NaN for a step off it; absent
+    // from tables another source builds, which state no pass
+    refStarts?: Float64Array
     // bp of each walk a walk-file cut read but kept out, before and after it;
     // absent where the source states none, so a walk's ends say nothing
     trimmedBefore?: Float64Array
@@ -72,10 +84,52 @@ export interface GraphTables {
   }
   // every departure from the reference over the cut, each once
   departures: DepartureTable
+  // how many nodes the reference's paths pass more than once, the walk file
+  // header's `revisited`, NaN where the source cannot state it: above 0, a
+  // run off the reference may be a copy of sequence it passes elsewhere
+  revisited: number
   // what lies between each walk's fragments, past its ends and in its
   // departures outside them, as graph-walks' ADR 0001 states it; absent from
   // tables another source builds
   gaps?: GapTable
+}
+
+// The reference walk's name, stripped of the range suffix odgi leaves on a P
+// record's name: `referencePath`, else the walk a rank 0 segment's tag names,
+// else the first walk, where gbz-base and walk-file cuts write it
+export function referenceOf(
+  names: string[],
+  referencePath: string | undefined,
+  rankZero: Set<string>,
+) {
+  return referencePath !== undefined && names.includes(referencePath)
+    ? referencePath
+    : (names.find(n => rankZero.has(n)) ?? names[0])
+}
+
+// How many segments the reference's walks pass more than once, as a walk
+// file's header counts them, of a graph whole: its reference is the one
+// `referenceOf` picks with no `referencePath`. NaN with no walk to be it.
+export function revisitedCount<T>(
+  walks: { name: string; segments: Iterable<T> }[],
+  rankZero: Set<string>,
+) {
+  const names = walks.map(w => pathOrigin(w.name).name)
+  const reference = referenceOf(names, undefined, rankZero)
+  const passes = new Map<T, number>()
+  let revisited = 0
+  walks.forEach((w, p) => {
+    if (names[p] === reference) {
+      for (const segment of w.segments) {
+        const n = (passes.get(segment) ?? 0) + 1
+        passes.set(segment, n)
+        if (n === 2) {
+          revisited++
+        }
+      }
+    }
+  })
+  return reference === undefined ? Number.NaN : revisited
 }
 
 // A stretch of a walk's contig per row: `walks` the walk the stretch follows,
@@ -198,12 +252,33 @@ function namesByList(
  * `traversals` when given one.
  */
 function tableOrientation(
-  { nodes: n, links: l, walks: w }: Omit<GraphTables, 'departures'>,
+  {
+    nodes: n,
+    links: l,
+    walks: w,
+  }: Omit<GraphTables, 'departures' | 'revisited'>,
   traversals?: Int32Array,
 ) {
+  const referenceReversals = new Int32Array(n.names.length)
+  for (let p = 0; p < w.names.length; p++) {
+    const ref = n.refNames.indexOf(pathOrigin(w.names[p]!).name)
+    if (ref >= 0) {
+      for (let s = w.offsets[p]!; s < w.offsets[p + 1]!; s++) {
+        const node = w.steps[s]!
+        if (n.refs[node] === ref) {
+          referenceReversals[node]! += w.reversed[s] ? 1 : -1
+        }
+      }
+    }
+  }
   const backbone = new Uint8Array(n.names.length)
   for (let i = 0; i < n.lengths.length; i++) {
-    backbone[i] = n.refs[i]! >= 0 && n.ranks[i] === REFERENCE_RANK ? 1 : 0
+    backbone[i] =
+      n.refs[i]! >= 0 && n.ranks[i] === REFERENCE_RANK
+        ? referenceReversals[i]! > 0
+          ? REVERSED
+          : FORWARD
+        : 0
   }
   const reversals = new Int32Array(n.names.length)
   const stepCount = w.offsets[w.names.length] ?? 0
@@ -250,7 +325,9 @@ const nodeIdsOf = (names: string[], orient: Uint8Array) =>
 /**
  * Each segment's Graph node id: its name and its one drawn orientation.
  */
-export function tableNodeIds(tables: Omit<GraphTables, 'departures'>) {
+export function tableNodeIds(
+  tables: Omit<GraphTables, 'departures' | 'revisited'>,
+) {
   return nodeIdsOf(
     tables.nodes.names,
     tableOrientation({ ...tables, links: distinctLinks(tables.links) }),
@@ -261,11 +338,17 @@ export function tableNodeIds(tables: Omit<GraphTables, 'departures'>) {
  * The Graph `convertGFAToGraph` builds from `graphTablesGFA(tables)`, deep
  * equal, built by index: a step costs a few array reads and its visit, where
  * the text costs a string and several map lookups. GFA has no line for a
- * departure or a trimmed walk's bp, so only this Graph keeps the tables'
- * `departures` and each walk's trimmed bp.
+ * departure, a trimmed walk's bp, the source's count of nodes the reference
+ * passes more than once or the strand the reference steps a node on where no
+ * walk of the text reaches it, so only this Graph keeps the tables'
+ * `departures`, each walk's trimmed bp, `revisited` and such a node's strand
+ * from `nodes.reversed`, and counts into node depth, as each
+ * node's `departureVisits`, and into the walks on links each walk's
+ * departures' own steps no fragment of it holds (departures.ts ownStepRuns);
+ * the text counts its own walks.
  */
 export function graphFromTables(
-  { nodes: n, links, walks: w, departures, gaps }: GraphTables,
+  { nodes: n, links, walks: w, departures, revisited, gaps }: GraphTables,
   name = 'Imported GFA',
 ): Graph {
   const l = distinctLinks(links)
@@ -280,15 +363,46 @@ export function graphFromTables(
   const traversals = new Int32Array(count)
   const orient = tableOrientation({ nodes: n, links: l, walks: w }, traversals)
   const ids = nodeIdsOf(n.names, orient)
+  const departed = ownStepRuns({ nodes: n, walks: w, departures })
+  const departureVisits = new Array<PathVisit[] | undefined>(count)
+  let departedSteps = 0
+  for (const { walk, steps, held, starts, reversed } of departed) {
+    const path = tablePath(w, walk).name
+    const sample = panSNSample(path)
+    steps.forEach((node, i) => {
+      if (!held[i]) {
+        const visit: PathVisit = {
+          path,
+          sample,
+          start: starts[i]!,
+          strand: reversed[i] ? '-' : '+',
+        }
+        const visits = departureVisits[node]
+        if (visits) {
+          visits.push(visit)
+        } else {
+          departureVisits[node] = [visit]
+        }
+      }
+    })
+    departedSteps += steps.length
+  }
 
   const nodes: GraphNode[] = []
   for (let i = 0; i < declared; i++) {
     const ref = n.refs[i]!
+    const visits = departureVisits[i]
+    const strand =
+      n.reversed && n.ranks[i] === REFERENCE_RANK
+        ? n.reversed[i] === 1
+          ? '-'
+          : '+'
+        : undefined
     nodes.push({
       id: ids[i]!,
       name: n.names[i]!,
       length: n.lengths[i]!,
-      depth: Math.max(traversals[i]!, 1),
+      depth: Math.max(traversals[i]! + (visits?.length ?? 0), 1),
       stable:
         ref < 0
           ? undefined
@@ -296,9 +410,11 @@ export function graphFromTables(
               refName: n.refNames[ref]!,
               start: n.starts[i]!,
               rank: n.ranks[i]!,
+              ...(strand ? { strand } : {}),
             },
       samples: undefined,
       ...(n.placeholders?.[i] === 1 ? { placeholder: true as const } : {}),
+      ...(visits ? { departureVisits: visits } : {}),
     })
   }
 
@@ -375,8 +491,10 @@ export function graphFromTables(
   // load, 1,816 fragments of 233 samples.
   const nameIndex = new Map<string, number>()
   const pathNames: string[] = []
-  // a walk crosses at most a list per step
-  const crossedList = new Int32Array(w.offsets[w.names.length] ?? 0)
+  // a walk or a departure's run crosses at most a list per step
+  const crossedList = new Int32Array(
+    (w.offsets[w.names.length] ?? 0) + departedSteps,
+  )
   const crossedName = new Int32Array(crossedList.length)
   let crossings = 0
   const lastWalk = new Int32Array(lists).fill(-1)
@@ -440,13 +558,25 @@ export function graphFromTables(
       }
       prev = node
     }
-    paths.push({ ...head, nodeIds })
+    const refStarts = w.refStarts?.subarray(first, w.offsets[p + 1])
+    paths.push({ ...head, nodeIds, ...(refStarts ? { refStarts } : {}) })
     anchorPaths.push({
       name: visitName,
       sample: visitSample,
       start,
       length: pos - start,
     })
+  }
+  for (const { walk, steps, held } of departed) {
+    const edgeNamed = edgeNameIndex.get(tablePath(w, walk).name)!
+    for (let i = 1; i < steps.length; i++) {
+      const list =
+        held[i - 1] && held[i] ? -1 : listOf(steps[i - 1]!, steps[i]!)
+      if (list >= 0) {
+        crossedList[crossings] = list
+        crossedName[crossings++] = edgeNamed
+      }
+    }
   }
   const listNames = namesByList(
     crossedList.subarray(0, crossings),
@@ -461,14 +591,8 @@ export function graphFromTables(
     }
   })
 
-  const walked = drawnWalks.length > 0
-  return {
-    name,
-    nodes,
-    edges,
-    paths: walked ? paths : undefined,
-    anchorPaths: walked ? anchorPaths : undefined,
-    pathVisits: walked
+  const pathVisits =
+    drawnWalks.length > 0
       ? new PathVisits({
           segments: visitOrder.map(node => n.names[node]!),
           offsets: Int32Array.from(blocks),
@@ -478,8 +602,19 @@ export function graphFromTables(
           paths: pathNames,
           samples: pathSamples,
         })
-      : undefined,
+      : undefined
+  if (pathVisits) {
+    stateStrands(nodes, pathVisits)
+  }
+  return {
+    name,
+    nodes,
+    edges,
+    paths: pathVisits ? paths : undefined,
+    anchorPaths: pathVisits ? anchorPaths : undefined,
+    pathVisits,
     anchoredBy: nodes.some(node => node.stable) ? 'tags' : undefined,
+    revisited,
     ...(departures.names.length > 0 ? { departures } : {}),
     ...(gaps && gaps.names.length > 0 ? { gaps: graphGaps(gaps, ids) } : {}),
   }

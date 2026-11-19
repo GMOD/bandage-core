@@ -511,10 +511,10 @@ test("odgi's range-suffixed pieces of one walk make one row", () => {
 
 test('a sample filter keeps the samples it names, in its order', () => {
   const rows = [
-    { sample: 'A', label: 'A#2' },
-    { sample: 'C', label: 'C#1' },
-    { sample: 'B', label: 'B#1' },
-    { sample: 'A', label: 'A#1' },
+    { name: 'A#2#c', sample: 'A', label: 'A#2' },
+    { name: 'C#1#c', sample: 'C', label: 'C#1' },
+    { name: 'B#1#c', sample: 'B', label: 'B#1' },
+    { name: 'A#1#c', sample: 'A', label: 'A#1' },
   ]
   expect(filterSamples(rows, ['B', 'A']).map(r => r.label)).toEqual([
     'B#1',
@@ -522,6 +522,26 @@ test('a sample filter keeps the samples it names, in its order', () => {
     'A#2',
   ])
   expect(filterSamples(rows, undefined)).toBe(rows)
+})
+
+test('a sample filter keeps one haplotype where it names it as sample#haplotype', () => {
+  // W lines state the haplotype; P lines name it in the path's PanSN name
+  const rows = [
+    { name: 'A#2#c', sample: 'A', haplotype: 2, label: 'A#2' },
+    { name: 'B#1#c', sample: 'B', haplotype: 1, label: 'B' },
+    { name: 'A#1#c', sample: 'A', haplotype: 1, label: 'A#1' },
+    { name: 'B#2#c:10-20', sample: 'B', label: 'B' },
+    { name: 'C#1#c', sample: 'C', haplotype: 1, label: 'C#1' },
+  ]
+  expect(filterSamples(rows, ['B#2', 'A#1']).map(r => r.name)).toEqual([
+    'B#2#c:10-20',
+    'A#1#c',
+  ])
+  expect(filterSamples(rows, ['A#1', 'B']).map(r => r.name)).toEqual([
+    'A#1#c',
+    'B#1#c',
+    'B#2#c:10-20',
+  ])
 })
 
 test('two haplotypes of one sample, named by P lines, label every row sample#haplotype', () => {

@@ -1,4 +1,4 @@
-import { el } from '../el'
+import { el, elOf } from '../el'
 
 import type { El } from '../el'
 import type { GenePin } from './genePins'
@@ -12,6 +12,8 @@ import type { GenePin } from './genePins'
 export const EXON_COLOR = '#daa520'
 const EXON_GAP_PX = 1
 const EXON_LINE_PX = 2
+// how far an outline reaches past its node's ink
+export const EXON_RIM_PX = EXON_GAP_PX + EXON_LINE_PX
 // a lifted walk's lane at the least, as the geometry draws it
 const MIN_LANE_PX = 4
 
@@ -30,6 +32,7 @@ export function exonStretches(
   halfWidthPx: (nodeId: string) => number,
   lift?: { nodeIds: ReadonlySet<string>; walks: readonly unknown[] },
   pathOf: (d: string) => string = d => d,
+  folded?: ReadonlySet<string>,
 ): ExonStretch[] {
   const inkPx = (nodeId: string) => {
     const own = halfWidthPx(nodeId) * 2
@@ -38,11 +41,17 @@ export function exonStretches(
       : own
   }
   return pins.flatMap(pin =>
-    pin.exonsByNode.map(({ nodeId, d }) => ({
-      key: `${pin.gene.name}-${pin.gene.start}-${nodeId}`,
-      d: pathOf(d),
-      inner: inkPx(nodeId) + 2 * EXON_GAP_PX,
-    })),
+    pin.exonsByNode.flatMap(({ nodeId, d }) =>
+      folded?.has(nodeId)
+        ? []
+        : [
+            {
+              key: `${pin.gene.name}-${pin.gene.refName}-${pin.gene.start}-${nodeId}`,
+              d: pathOf(d),
+              inner: inkPx(nodeId) + 2 * EXON_GAP_PX,
+            },
+          ],
+    ),
   )
 }
 
@@ -79,11 +88,12 @@ export function exonOutlineTree(
         width: o.width,
         height: o.height,
       },
-      el(
+      elOf(
         'g',
         { transform: o.transform },
-        ...stretches.map(s => stroke(s, '#fff', s.inner + 2 * EXON_LINE_PX)),
-        ...stretches.map(s => stroke(s, '#000', s.inner)),
+        stretches
+          .map(s => stroke(s, '#fff', s.inner + 2 * EXON_LINE_PX))
+          .concat(stretches.map(s => stroke(s, '#000', s.inner))),
       ),
     ),
     el('rect', {

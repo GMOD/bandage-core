@@ -1,14 +1,31 @@
 import { isBackbone } from './anchoredNodes'
 import { departureAt, gapParts } from './gfa/departures'
+import { linkKey } from './gfa/linkKey'
+import { onOtherWalks } from './otherWalks'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
-import { encodedColor, resolveEncoding, splitFamilies } from './walkEncoding'
+import { abgrHex } from './renderer/colorBits'
+import { ownStrand } from './util/geometry'
+import {
+  encodedColor,
+  encodingStops,
+  resolveEncoding,
+  splitFamilies,
+} from './walkEncoding'
+import { liftedPasses, passInk, walkPassesOf } from './walkPasses'
 
 import type { GraphGap } from './gfa/departures'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { Graph, GraphNode, GraphPath } from './types'
 import type { WalkEncoding, WalkLayer } from './walkEncoding'
+import type { LiftedPasses } from './walkPasses'
+
+export interface RouteStep {
+  id: string
+  strand: Strand
+  start: number
+}
 
 // One walk lifted out of the drawing: the nodes it visits and the links it
 // takes, how far along the walk each node is, and what it carries through the
@@ -25,12 +42,13 @@ export interface WalkHighlight {
   // the same fraction at every visit, in the order the walk makes them
   passProgress: Map<string, number[]>
   passes: Map<string, number>
+  backwards: Map<string, boolean[]>
   mostPasses: number
   route: readonly (readonly string[])[]
+  routeSteps: readonly (readonly RouteStep[])[]
   steps: number
   bp: number
   unloadedBp: number
-  referenceBp?: number
   // where the walk's stretch of the cut sits on its own contig, from its W or
   // P record: its start where it begins and its end where it ends
   range?: { contig: string; start: number; end: number }
@@ -39,6 +57,10 @@ export interface WalkHighlight {
   // (gfa/departures.ts gapParts)
   missingBp: number
   ownBp: number
+  // what ownBp is measured off, and Graph.revisited, which says whether it is
+  // the walk's own sequence or only off that path (gfa/departures.ts ownIsExact)
+  referencePath: string | undefined
+  revisited: number | undefined
   // where a walk-file cut states its stretches: bp it read and kept out, and
   // bp of the contig it did not read
   readBp?: number
@@ -47,14 +69,11 @@ export interface WalkHighlight {
 
 export interface LiftedWalk extends WalkHighlight {
   encoding: WalkEncoding
+  walkPasses?: LiftedPasses
   // the lane colour at each node the walk visits
   colors: Map<string, number>
   // the colour at each visit, in the order the walk makes them
   passColors: Map<string, number[]>
-  // the nodes it crosses the other way from the reference walk, and their
-  // bp; empty for the reference
-  reversed: Set<string>
-  reversedBp: number
 }
 
 // The walks lifted together, reference first and the rest in the order they
@@ -70,30 +89,26 @@ export interface WalkLift {
   names: Set<string>
 }
 
-// What a lift's faded key says: that the faded drawing is other haplotypes'
-// sequence when every node it fades lies on another of the graph's paths.
-// Links don't count, since a cut keeps the source graph's links between the
-// nodes it keeps even where it drops the walks that take them.
+// What a lift's faded key says of what it draws in grey, or nothing where it
+// draws none: the nodes it fades, and under a lifted walk's lanes the nodes
+// other walks share with it at their own width. That is other haplotypes when
+// every faded node lies on a walk the lift leaves out, or no walk where some lie
+// on no walk at all. Links don't decide it,
+// since a cut keeps the source graph's links between the nodes it keeps even
+// where it drops the walks that take them.
 export function fadedKey(graph: Graph, lift: WalkLift, walks: string) {
-  const onPaths = new Set<string>()
-  for (const path of graph.paths ?? []) {
-    for (const id of path.nodeIds) {
-      onPaths.add(id)
-    }
-  }
-  const lifted = new Set([...lift.names].map(n => pathOrigin(n).name))
-  for (const gap of graph.gaps ?? []) {
-    if (!lifted.has(pathOrigin(gap.name).name)) {
-      for (const segment of gap.segments) {
-        for (const id of segment.nodes) {
-          onPaths.add(id)
-        }
-      }
-    }
-  }
-  return graph.nodes.every(n => lift.nodeIds.has(n.id) || onPaths.has(n.id))
-    ? 'only in other haplotypes'
-    : `nodes and links not on ${walks}`
+  const onOthers = onOtherWalks(graph, lift.names)
+  const faded = graph.nodes.filter(n => !lift.nodeIds.has(n.id))
+  const shared =
+    lift.walks.length > 0 &&
+    graph.nodes.some(n => lift.nodeIds.has(n.id) && onOthers.has(n.id))
+  return faded.length > 0 || shared
+    ? faded.every(n => onOthers.has(n.id))
+      ? 'other haplotypes'
+      : onOthers.size > 0
+        ? 'other haplotypes, or no walk'
+        : `nodes and links not on ${walks}`
+    : undefined
 }
 
 const isReference = (graph: Graph, name: string) =>
@@ -111,12 +126,54 @@ function piecesOf(graph: Graph, name: string) {
 
 const nodesById = (graph: Graph) => new Map(graph.nodes.map(n => [n.id, n]))
 
+type Strand = '+' | '-'
+
+const strandOf = (reversed: boolean): Strand => (reversed ? '-' : '+')
+
+// Each link by the steps that take it, read either way along it, so two links
+// joining the same two nodes in different orientations stay two links
 function graphIndex(graph: Graph) {
-  const edgeAt = new Map<string, number>()
+  const linkAt = new Map<string, number>()
   graph.edges.forEach((e, i) => {
-    edgeAt.set(`${e.from}>${e.to}`, i)
+    linkAt.set(
+      linkKey(
+        e.from,
+        e.fromStrand ?? ownStrand(e.from),
+        e.to,
+        e.toStrand ?? ownStrand(e.to),
+      ),
+      i,
+    )
   })
-  return { byId: nodesById(graph), edgeAt }
+  return { byId: nodesById(graph), linkAt }
+}
+
+// The strand each step of a walk's records reads its node on: the walk's
+// visits replayed in path order, as tubeMapLayout's pathSteps reads them, and
+// the node's own strand where no visit is recorded
+function recordStrands(
+  graph: Graph,
+  byId: Map<string, GraphNode>,
+  origin: string,
+) {
+  const visits = graph.pathVisits
+  const next = visits?.replay()
+  const walk = visits?.pathIndex(origin) ?? -1
+  const strands = new Map<GraphPath, Strand[]>()
+  for (const path of graph.paths ?? []) {
+    if (pathOrigin(path.name).name === origin) {
+      strands.set(
+        path,
+        path.nodeIds.map(id => {
+          const node = byId.get(id)
+          const at =
+            visits && next && node ? next(visits.slot(node.name), walk) : -1
+          return at >= 0 && visits ? visits.strand(at) : ownStrand(id)
+        }),
+      )
+    }
+  }
+  return strands
 }
 
 export function walkHighlight(graph: Graph, name: string) {
@@ -126,7 +183,7 @@ export function walkHighlight(graph: Graph, name: string) {
 function highlightOf(
   graph: Graph,
   name: string,
-  { byId, edgeAt }: ReturnType<typeof graphIndex>,
+  { byId, linkAt }: ReturnType<typeof graphIndex>,
 ): WalkHighlight | undefined {
   const pieces = piecesOf(graph, name)
   const first = pieces[0]
@@ -160,6 +217,11 @@ function highlightOf(
   const rowEnds = stated.filter(
     g => g.edge !== 0 && drawnBp(g) === g.end - g.start,
   )
+  const strandsOf = recordStrands(graph, byId, origin)
+  const stranded = (steps: GraphPath, reversed: boolean[]) => {
+    strandsOf.set(steps, reversed.map(strandOf))
+    return steps
+  }
   const attached = [...pieces.map((_, p) => between(p)), ...rowEnds].flatMap(
     gap => {
       let at = gap?.start ?? 0
@@ -167,7 +229,7 @@ function highlightOf(
         const start = at
         at += x.bp
         return x.kind === 'steps' && x.nodes.length > 0
-          ? [{ name, nodeIds: x.nodes, start }]
+          ? [stranded({ name, nodeIds: x.nodes, start }, x.reversed)]
           : []
       })
     },
@@ -179,9 +241,18 @@ function highlightOf(
   const unloaded = (id: string) => byId.get(id)?.placeholder === true
   // from the first piece's start to the furthest piece's end, gaps included
   const extentOf = (ps: GraphPath[]) => {
-    const start = Math.min(...ps.map(p => p.start ?? Infinity))
+    const start = ps.reduce(
+      (least, p) => Math.min(least, p.start ?? Infinity),
+      Infinity,
+    )
     return Number.isFinite(start)
-      ? { start, end: Math.max(...ps.map(p => (p.start ?? 0) + bpOf(p))) }
+      ? {
+          start,
+          end: ps.reduce(
+            (most, p) => Math.max(most, (p.start ?? 0) + bpOf(p)),
+            -Infinity,
+          ),
+        }
       : undefined
   }
   if (walked.length === 0) {
@@ -199,21 +270,27 @@ function highlightOf(
   const edgeIndexes = new Set<number>()
   const progress = new Map<string, number>()
   const passProgress = new Map<string, number[]>()
+  const backwards = new Map<string, boolean[]>()
   const passes = new Map<string, number>()
   let mostPasses = 1
   let before = 0
   const steppedOn = new Set<GraphPath>(attached)
+  const routeSteps: RouteStep[][] = []
   let previous: GraphPath | undefined
   for (const piece of walked) {
     if (range) {
       before = Math.max(before, (piece.start ?? 0) - range.start)
     }
+    const steps: RouteStep[] = []
+    routeSteps.push(steps)
     const joins =
       previous !== undefined &&
       (steppedOn.has(previous) || steppedOn.has(piece)) &&
       previous.start !== undefined &&
       endOf(previous) === piece.start
     const last = previous?.nodeIds.at(-1)
+    const lastStrand = previous && strandsOf.get(previous)?.at(-1)
+    const strands = strandsOf.get(piece)
     piece.nodeIds.forEach((id, i) => {
       nodeIds.add(id)
       const passed = (passes.get(id) ?? 0) + 1
@@ -221,21 +298,32 @@ function highlightOf(
       mostPasses = Math.max(mostPasses, passed)
       const a = i > 0 ? piece.nodeIds[i - 1] : joins ? last : undefined
       if (a !== undefined) {
-        const index = edgeAt.get(`${a}>${id}`) ?? edgeAt.get(`${id}>${a}`)
+        const index = linkAt.get(
+          linkKey(
+            a,
+            (i > 0 ? strands?.[i - 1] : lastStrand) ?? ownStrand(a),
+            id,
+            strands?.[i] ?? ownStrand(id),
+          ),
+        )
         if (index !== undefined) {
           edgeIndexes.add(index)
         }
       }
       const length = lengthOf(id)
+      steps.push({ id, strand: strands?.[i] ?? ownStrand(id), start: before })
       const at = span > 0 ? (before + length / 2) / span : 0
       if (!progress.has(id)) {
         progress.set(id, at)
       }
       const seen = passProgress.get(id)
+      const turned = (strands?.[i] ?? ownStrand(id)) !== ownStrand(id)
       if (seen) {
         seen.push(at)
+        backwards.get(id)?.push(turned)
       } else {
         passProgress.set(id, [at])
+        backwards.set(id, [turned])
       }
       before += length
     })
@@ -285,19 +373,6 @@ function highlightOf(
   })
   rowEnds.forEach(countOwn)
   const reference = isReference(graph, name)
-  // measured as `range` is, so a walk identical to a cut reference reads equal
-  const referenceSpan = () => {
-    const referencePieces = reference
-      ? []
-      : (graph.paths ?? []).filter(p => isReference(graph, p.name))
-    if (referencePieces.length === 0) {
-      return undefined
-    }
-    const e = extentOf(referencePieces)
-    return e
-      ? e.end - e.start
-      : referencePieces.reduce((sum, piece) => sum + bpOf(piece), 0)
-  }
   return {
     name,
     reference,
@@ -307,8 +382,10 @@ function highlightOf(
     progress,
     passProgress,
     passes,
+    backwards,
     mostPasses,
     route: walked.map(piece => piece.nodeIds),
+    routeSteps,
     steps: walked.reduce(
       (sum, piece) => sum + piece.nodeIds.filter(id => !unloaded(id)).length,
       0,
@@ -323,9 +400,10 @@ function highlightOf(
         ),
       0,
     ),
-    referenceBp: referenceSpan(),
     missingBp,
     ownBp,
+    referencePath: graph.referencePath,
+    revisited: graph.revisited,
     ...(stated.length > 0 ? { readBp, unreadBp } : {}),
   }
 }
@@ -352,24 +430,40 @@ function laneColors(
   walk: WalkHighlight,
   encoding: WalkEncoding,
   ramp: ReferenceRamp | undefined,
+  layer: WalkLayer | undefined,
+  lanes: readonly string[] = [],
+  taken: readonly string[] = [],
 ) {
   const places =
-    encoding.field === 'progress' || !ramp
+    encoding.field !== 'reference' || !ramp
       ? undefined
       : referencePlaces(graph, byId, walk, ramp)
+  const walkPasses =
+    encoding.field === 'pass'
+      ? liftedPasses(
+          walkPassesOf(walk, id => byId.get(id)?.length ?? 0, layer?.passes),
+          encodedColor(encoding),
+          layer?.passNames,
+          lanes,
+          taken,
+        )
+      : undefined
   const colors = new Map<string, number>()
   const passColors = new Map<string, number[]>()
   for (const [id, progress] of walk.passProgress) {
     const at = places?.get(id)
-    const each = progress.map((t, pass) =>
+    const passed = walkPasses?.visitPass.get(id)
+    const each = progress.map((t, visit) =>
       byId.get(id)?.placeholder
         ? NOT_LOADED_COLOR
-        : encodedColor(encoding, places ? at?.[pass] : t),
+        : walkPasses
+          ? passInk(walkPasses, passed?.[visit] ?? -1)
+          : encodedColor(encoding, places ? at?.[visit] : t),
     )
     colors.set(id, each[0]!)
     passColors.set(id, each)
   }
-  return { colors, passColors }
+  return { colors, passColors, ...(walkPasses ? { walkPasses } : {}) }
 }
 
 // Each visit's fraction along the ramp, in the order the walk makes them. A
@@ -422,37 +516,6 @@ function referencePlaces(
   return places
 }
 
-// The nodes a walk reads on the other strand from the reference walk
-function reversedNodes(
-  graph: Graph,
-  byId: Map<string, GraphNode>,
-  walk: WalkHighlight,
-) {
-  const reversed = new Set<string>()
-  let bp = 0
-  const referencePath = graph.referencePath
-  if (!referencePath || walk.reference) {
-    return { reversed, bp }
-  }
-  const visits = graph.pathVisits
-  if (!visits) {
-    return { reversed, bp }
-  }
-  const own = visits.pathIndex(pathOrigin(walk.name).name)
-  const theirs = visits.pathIndex(referencePath)
-  for (const id of walk.progress.keys()) {
-    const node = byId.get(id)
-    const slot: number = node ? visits.slot(node.name) : -1
-    const a = slot < 0 ? -1 : visits.firstBy(slot, own)
-    const b = slot < 0 ? -1 : visits.firstBy(slot, theirs)
-    if (a >= 0 && b >= 0 && visits.reversed[a] !== visits.reversed[b]) {
-      reversed.add(id)
-      bp += node!.length
-    }
-  }
-  return { reversed, bp }
-}
-
 export function walkLift(
   graph: Graph,
   layers: readonly WalkLayer[],
@@ -481,16 +544,26 @@ export function walkLift(
       ),
     ),
   )
-  const walks = lifted.map(({ walk }, i) => {
+  const laneInks = encodings.map(encoding =>
+    encodingStops(encoding).map(stop => abgrHex(stop.abgr)),
+  )
+  const taken: string[] = []
+  const walks = lifted.map(({ walk, layer }, i) => {
     const encoding = encodings[i]!
-    const { reversed, bp } = reversedNodes(graph, index.byId, walk)
-    return {
-      ...walk,
+    const colored = laneColors(
+      graph,
+      index.byId,
+      walk,
       encoding,
-      ...laneColors(graph, index.byId, walk, encoding, ramp),
-      reversed,
-      reversedBp: bp,
+      ramp,
+      layer,
+      laneInks.filter((_, j) => j !== i).flat(),
+      taken,
+    )
+    for (const { ink } of colored.walkPasses?.passes ?? []) {
+      taken.push(abgrHex(ink))
     }
+    return { ...walk, encoding, ...colored }
   })
   return liftOf(walks, ramp)
 }
@@ -519,7 +592,14 @@ export function facetLifts(
         {
           ...walk,
           encoding,
-          ...laneColors(graph, byId, walk, encoding, ramp),
+          ...laneColors(
+            graph,
+            byId,
+            walk,
+            encoding,
+            ramp,
+            layers.find(l => l.walk === walk.name),
+          ),
         },
       ],
       ramp,

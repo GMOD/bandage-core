@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest'
 
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { bubbleLabel, bubbleSegmentIds } from './bubbleLabel'
 import { bubbleKey, sameBubble } from './bubbleLine'
-import { bubbleSegmentIds, classifyBubble } from './classifyBubble'
 import { bubbleSubgraph } from './popBubble'
 import { graphBubbles, superbubblesFromGraph } from './superbubbles'
 
@@ -141,7 +141,7 @@ describe('graphBubbles', () => {
     })
     expect(bubbleSegmentIds(snp!)[0]).toBe('x1')
     expect(bubbleSegmentIds(snp!).at(-1)).toBe('x2')
-    expect(classifyBubble(snp!).label).toBe('SNP')
+    expect(bubbleLabel(snp!)).toBe('SNP')
   })
 
   it('keeps the outer superbubble at the top and its chain on the pop', () => {

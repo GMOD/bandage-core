@@ -11,16 +11,25 @@ export interface El {
   children: (El | string)[]
 }
 
-export function el(
+// el with its children as one array, for as many as the data has
+export function elOf(
   tag: string,
-  attrs: ElAttrs = {},
-  ...children: (El | string | undefined | false)[]
+  attrs: ElAttrs,
+  children: readonly (El | string | undefined | false)[],
 ): El {
   return {
     tag,
     attrs,
     children: children.filter((c): c is El | string => !!c || c === ''),
   }
+}
+
+export function el(
+  tag: string,
+  attrs: ElAttrs = {},
+  ...children: (El | string | undefined | false)[]
+): El {
+  return elOf(tag, attrs, children)
 }
 
 function escapeText(s: string) {

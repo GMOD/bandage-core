@@ -74,6 +74,18 @@ export class PathVisits {
     return -1
   }
 
+  startingAt(slot: number, p: number, start: number) {
+    let found = -1
+    for (
+      let i = this.offsets[slot]!;
+      i < this.offsets[slot + 1]! && found < 0;
+      i++
+    ) {
+      found = this.path[i] === p && this.start[i] === start ? i : found
+    }
+    return found
+  }
+
   // the visit of `slot` on the path first in name order, at its lowest offset
   // there: where gfa-to-tabix places a segment the reference doesn't visit, so
   // both place it alike whatever order the file lists its paths in

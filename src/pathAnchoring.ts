@@ -1,4 +1,4 @@
-import { REFERENCE_RANK } from './anchoredNodes'
+import { REFERENCE_RANK, isAnchored } from './anchoredNodes'
 import { panSNSample } from './pansn'
 import { PathVisitsBuilder } from './pathVisits'
 import { groupBy } from './util/groups'
@@ -137,6 +137,32 @@ function anchorNode(
       strand: visits.strand(anchor),
     },
     samples: samplesOf(slot),
+  }
+}
+
+function statedStrand(node: AnchoredNode, visits: PathVisits, p: number) {
+  const slot = visits.slot(node.name)
+  const first = slot >= 0 && p >= 0 ? visits.firstBy(slot, p) : -1
+  const atStart =
+    first >= 0 ? visits.startingAt(slot, p, node.stable.start) : -1
+  return first >= 0 ? visits.strand(atStart >= 0 ? atStart : first) : undefined
+}
+
+export function stateStrands(nodes: GraphNode[], visits: PathVisits) {
+  const pathOf = new Map<string, number>()
+  const pathIndex = (name: string) => {
+    const p = pathOf.get(name) ?? visits.pathIndex(name)
+    pathOf.set(name, p)
+    return p
+  }
+  for (const node of nodes) {
+    const strand =
+      isAnchored(node) && node.stable.strand === undefined
+        ? statedStrand(node, visits, pathIndex(node.stable.refName))
+        : undefined
+    if (isAnchored(node) && strand) {
+      node.stable.strand = strand
+    }
   }
 }
 

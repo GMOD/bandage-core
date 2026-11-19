@@ -117,7 +117,10 @@ export function mergeRuns(
       name: node.name,
       length: members.reduce((sum, n) => sum + n.length, 0),
       depth: node.depth,
-      stable: first.stable,
+      stable:
+        first.stable && ownStrand(first.id) !== ownStrand(node.id)
+          ? { ...first.stable, strand: flip(first.stable.strand ?? '+') }
+          : first.stable,
     })
   }
   // A link can only reach a run at its free ends, the first member's start and
@@ -191,10 +194,18 @@ export function polylineSlice(line: NodeSegment[], from: number, to: number) {
   return slice(line, arc, from * total, to * total)
 }
 
+// The point a fraction of the way along a polyline by arc length
+export function polylinePointAt(
+  line: NodeSegment[],
+  fraction: number,
+): NodeSegment {
+  const arc = arcPrefix(line)
+  return pointAt(line, arc, arc.at(-1)! * fraction)
+}
+
 // The point halfway along a polyline by arc length, where a node's label goes.
 export function polylineMidpoint(line: NodeSegment[]): NodeSegment {
-  const arc = arcPrefix(line)
-  return pointAt(line, arc, arc.at(-1)! / 2)
+  return polylinePointAt(line, 0.5)
 }
 
 // Cumulative distance to each point of a polyline, starting at 0.

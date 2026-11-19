@@ -4,6 +4,7 @@ import { weakMemo } from './weakMemo'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Box } from '../overlayLabels'
+import type { RenderBatch } from '../renderer/types'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
@@ -101,6 +102,29 @@ function getSpatialIndex(
   )
 }
 
+const LABEL_CELL_PX = 16
+
+const labelCache = weakMemo<Record<string, NodeSegment[]>, SpatialIndex>()
+
+// The nodes in cells no smaller than a label on screen, so a label's box
+// covers a few of them at any zoom
+function getLabelIndex(
+  nodePositions: Record<string, NodeSegment[]>,
+  version: number,
+  scaleX: number,
+  scaleY: number,
+) {
+  return labelCache(
+    nodePositions,
+    [version, scaleX, scaleY],
+    () =>
+      new SpatialIndex(nodePositions, undefined, {
+        x: LABEL_CELL_PX / Math.abs(scaleX),
+        y: LABEL_CELL_PX / Math.abs(scaleY),
+      }),
+  )
+}
+
 const edgeCache = weakMemo<Record<string, NodeSegment[]>, EdgeSpatialIndex>()
 
 function getEdgeSpatialIndex(
@@ -109,9 +133,9 @@ function getEdgeSpatialIndex(
   drawPaths: boolean,
   axis: AxisScale,
   version: number,
-  deletions?: Map<number, string[]>,
-  routes?: DeletionRoutes,
-  stranded = false,
+  deletions: Map<number, string[]> | undefined,
+  routes: DeletionRoutes | undefined,
+  stranded: boolean | undefined,
 ) {
   return edgeCache(
     nodePositions,
@@ -163,8 +187,10 @@ export function findHoveredNode(
   graphX: number,
   graphY: number,
   axis: AxisScale,
-  version = 0,
-  ink?: NodeInk,
+  version: number,
+  ink: NodeInk | undefined,
+  // RenderBatch.collapsed: the folded nodes, which draw nothing
+  collapsed: RenderBatch['collapsed'],
 ) {
   const yToX = yToXOf(axis)
   const index = getSpatialIndex(nodePositions, version)
@@ -181,14 +207,16 @@ export function findHoveredNode(
   let best = Infinity
   for (const { nodeId, segmentIdx } of candidates) {
     const segments = nodePositions[nodeId]!
-    const dist = distanceToSegment(
-      graphX,
-      graphY * yToX,
-      segments[segmentIdx]!.x,
-      segments[segmentIdx]!.y * yToX,
-      segments[segmentIdx + 1]!.x,
-      segments[segmentIdx + 1]!.y * yToX,
-    )
+    const dist = collapsed?.nodes.has(nodeId)
+      ? Infinity
+      : distanceToSegment(
+          graphX,
+          graphY * yToX,
+          segments[segmentIdx]!.x,
+          segments[segmentIdx]!.y * yToX,
+          segments[segmentIdx + 1]!.x,
+          segments[segmentIdx + 1]!.y * yToX,
+        )
     if (dist < best && dist < reach(ink?.halfWidthPx(nodeId) ?? 0)) {
       best = dist
       hovered = nodeId
@@ -197,8 +225,9 @@ export function findHoveredNode(
   return hovered
 }
 
-// Liang-Barsky: whether any of the segment a-b lies inside the box
-function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
+// Liang-Barsky: the stretch of the segment a-b inside the box, as the
+// fractions along it where it enters and leaves, or undefined where none is
+export function segmentInBox(a: NodeSegment, b: NodeSegment, box: Box) {
   const dx = b.x - a.x
   const dy = b.y - a.y
   let t0 = 0
@@ -210,53 +239,51 @@ function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
     [dy, box.y1 - a.y],
   ] as const) {
     if (p === 0) {
-      if (q < 0) {
-        return false
-      }
+      t0 = q < 0 ? Infinity : t0
     } else if (p < 0) {
       t0 = Math.max(t0, q / p)
     } else {
       t1 = Math.min(t1, q / p)
     }
   }
-  return t0 <= t1
+  return t0 <= t1 ? ([t0, t1] as const) : undefined
 }
 
-// The nodes whose centreline crosses a box in screen px, for a label that
-// must not cover a node it does not name
-export function nodesUnderBox(
+// Whether any of the segment a-b lies inside the box
+export function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
+  return segmentInBox(a, b, box) !== undefined
+}
+
+// Whether the centreline of a node other than the label's `own` crosses a box
+// in screen px, for a label that must not cover a node it does not name
+export function otherNodeUnderBox(
   nodePositions: Record<string, NodeSegment[]>,
   t: { scaleX: number; scaleY: number; translateX: number; translateY: number },
   version = 0,
 ) {
-  const index = getSpatialIndex(nodePositions, version)
+  const index = getLabelIndex(nodePositions, version, t.scaleX, t.scaleY)
   const screen = (p: NodeSegment) => ({
     x: p.x * t.scaleX + t.translateX,
     y: p.y * t.scaleY + t.translateY,
   })
-  return (box: Box) => {
-    const hits = new Set<string>()
-    const candidates = index.query(
+  return (box: Box, own: (nodeId: string) => boolean) =>
+    index.some(
       ((box.x0 + box.x1) / 2 - t.translateX) / t.scaleX,
       ((box.y0 + box.y1) / 2 - t.translateY) / t.scaleY,
       Math.abs((box.x1 - box.x0) / 2 / t.scaleX),
       Math.abs((box.y1 - box.y0) / 2 / t.scaleY),
-    )
-    for (const { nodeId, segmentIdx } of candidates) {
-      const line = nodePositions[nodeId]!
-      if (
-        !hits.has(nodeId) &&
-        segmentMeetsBox(
-          screen(line[segmentIdx]!),
-          screen(line[segmentIdx + 1]!),
-          box,
+      ({ nodeId, segmentIdx }) => {
+        const line = nodePositions[nodeId]
+        const from = line?.[segmentIdx]
+        const to = line?.[segmentIdx + 1]
+        return (
+          from !== undefined &&
+          to !== undefined &&
+          !own(nodeId) &&
+          segmentMeetsBox(screen(from), screen(to), box)
         )
-      ) {
-        hits.add(nodeId)
-      }
-    }
-    return hits
-  }
+      },
+    )
 }
 
 export function findHoveredEdge(
@@ -266,11 +293,15 @@ export function findHoveredEdge(
   graphY: number,
   axis: AxisScale,
   drawPaths: boolean,
-  version = 0,
-  deletions?: Map<number, string[]>,
-  hiddenEdges?: ReadonlySet<number>,
-  deletionRoutes?: DeletionRoutes,
-  stranded = false,
+  version: number,
+  deletions: Map<number, string[]> | undefined,
+  hiddenEdges: ReadonlySet<number> | undefined,
+  deletionRoutes: DeletionRoutes | undefined,
+  // LayoutResult.stranded, as the drawing was given it, so the curve tested
+  // joins the node ends the drawn link does
+  stranded: boolean | undefined,
+  // RenderBatch.collapsed: the folded links, which draw nothing
+  collapsed: RenderBatch['collapsed'],
 ) {
   const yToX = yToXOf(axis)
   const edgeThreshold = 10 / axis.scaleX
@@ -301,7 +332,8 @@ export function findHoveredEdge(
     if (
       !fromSegments?.length ||
       !toSegments?.length ||
-      hiddenEdges?.has(edgeIdx)
+      hiddenEdges?.has(edgeIdx) ||
+      collapsed?.edges.has(edgeIdx)
     ) {
       continue
     }

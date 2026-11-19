@@ -1,6 +1,7 @@
 import { groupDigits } from './graphLabels'
 import { isGenericSample } from './pansn'
 import { pathOrigin } from './pathAnchoring'
+import { compareIds } from './util/canonicalOrder'
 
 import type { GraphPath } from './types'
 
@@ -160,7 +161,7 @@ export function walkLabelsOf(entries: { name: string; label: string }[]) {
   const seen = new Map<string, number>()
   return new Map(
     [...entries]
-      .sort((a, b) => a.label.localeCompare(b.label))
+      .sort((a, b) => compareIds(a.label, b.label))
       .map(e => {
         const n = (seen.get(e.label) ?? 0) + 1
         seen.set(e.label, n)

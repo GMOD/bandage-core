@@ -1,5 +1,6 @@
 import { panSNHaplotype } from './pansn'
 
+import type { Run } from './levelOfDetail'
 import type { Graph, GraphNode, GraphPath } from './types'
 import type { NodeInk } from './util/hitDetection'
 
@@ -50,16 +51,27 @@ export function meanDepth(graph: Graph) {
   return length > 0 ? weighted / length : 0
 }
 
-function haplotypeOf(path: GraphPath) {
+export function haplotypeOf(path: GraphPath) {
   return path.sample === undefined
     ? (panSNHaplotype(path.name) ?? path.name)
     : `${path.sample}#${path.haplotype ?? 0}`
 }
 
-// How many haplotypes the graph's walks belong to, a contig split into several
-// records counted once
+// The haplotypes the graph's walks belong to, numbered as met, a contig split
+// into several records one haplotype
+export function haplotypeIndex(graph: Graph) {
+  const index = new Map<string, number>()
+  for (const path of graph.paths ?? []) {
+    const haplotype = haplotypeOf(path)
+    if (!index.has(haplotype)) {
+      index.set(haplotype, index.size)
+    }
+  }
+  return index
+}
+
 export function haplotypeCount(graph: Graph) {
-  return new Set((graph.paths ?? []).map(haplotypeOf)).size
+  return haplotypeIndex(graph).size
 }
 
 // The node's passes per haplotype: its AF tag, or its depth over the
@@ -113,14 +125,34 @@ export function frequencyKey(contigThickness: number) {
   }))
 }
 
-function depthWidthFactor(node: GraphNode, mean: number) {
-  if (!(mean > 0) || !(node.depth > 0)) {
+function depthWidthFactor(depth: number, mean: number) {
+  if (!(mean > 0) || !(depth > 0)) {
     return 1
   }
-  return Math.min(
-    MAX_FACTOR,
-    Math.max(MIN_FACTOR, Math.sqrt(node.depth / mean)),
-  )
+  return Math.min(MAX_FACTOR, Math.max(MIN_FACTOR, Math.sqrt(depth / mean)))
+}
+
+// The ends of the depth scale among the `shown` nodes, or every node, thickest
+// first, each as wide as a node of that depth draws against the whole graph's
+// mean; one where they share a depth, none where there are none
+export function depthKey(
+  graph: Graph,
+  contigThickness: number,
+  shown?: ReadonlySet<string>,
+) {
+  let min = Infinity
+  let max = -Infinity
+  for (const { id, depth } of graph.nodes) {
+    if (!shown || shown.has(id)) {
+      min = Math.min(min, depth)
+      max = Math.max(max, depth)
+    }
+  }
+  const mean = meanDepth(graph)
+  return (min < max ? [max, min] : min === max ? [max] : []).map(depth => ({
+    depth,
+    widthPx: contigThickness * depthWidthFactor(depth, mean),
+  }))
 }
 
 // How wide a node is drawn, in screen px. One function for the geometry and
@@ -135,7 +167,7 @@ export function nodeWidthPx(
   return (
     contigThickness *
     (nodeWidth === 'depth'
-      ? depthWidthFactor(node, norm)
+      ? depthWidthFactor(node.depth, norm)
       : nodeWidth === 'frequency'
         ? frequencyWidthFactor(node, norm)
         : 1)
@@ -155,29 +187,52 @@ export function walkLaneWidthPx(width: number, lanes: number) {
   return Math.max(width / lanes, MIN_WALK_LANE_PX)
 }
 
+// The width the reference through a run of folded sites is drawn at: the
+// thinner of the drawn reference nodes at its two ends, or `own` where
+// neither is known
+export function runWidthPx(
+  run: Run,
+  own: number,
+  widthOf: (id: string) => number | undefined,
+) {
+  const widths = [...run.from, ...run.to].flatMap(id => {
+    const width = widthOf(id)
+    return width === undefined ? [] : [width]
+  })
+  return widths.length > 0
+    ? widths.reduce((a, b) => Math.min(a, b), Infinity)
+    : own
+}
+
 // How far each node's ink reaches from its centreline, for the hit test: the
 // widths the geometry draws with, from the same function. With `lanes` lifted
 // walks the node draws as that many side-by-side lanes, which can reach
-// further than the node's own width.
+// further than the node's own width. A reference node inside a run of folded
+// sites, `through` the batch's collapsed.through, reaches as far as the run
+// is drawn.
 export function nodeInk(
   graph: Graph | undefined,
   nodeById: ReadonlyMap<string, GraphNode> | undefined,
   contigThickness: number,
   nodeWidth: NodeWidth,
   lanes = 0,
+  through?: ReadonlyMap<string, Run>,
 ): NodeInk {
   const norm = graph ? widthNorm(graph, nodeWidth) : 0
   const reach = (width: number) =>
     lanes > 0 ? (walkLaneWidthPx(width, lanes) * lanes) / 2 : width / 2
+  const widthOf = (id: string) => {
+    const node = nodeById?.get(id)
+    return node
+      ? nodeWidthPx(node, contigThickness, nodeWidth, norm)
+      : undefined
+  }
   return {
     maxHalfWidthPx: reach(maxNodeWidthPx(contigThickness, nodeWidth)),
     halfWidthPx: id => {
-      const node = nodeById?.get(id)
-      return reach(
-        node
-          ? nodeWidthPx(node, contigThickness, nodeWidth, norm)
-          : contigThickness,
-      )
+      const own = widthOf(id) ?? contigThickness
+      const run = through?.get(id)
+      return reach(run ? runWidthPx(run, own, widthOf) : own)
     },
   }
 }

@@ -321,3 +321,27 @@ test('with deletion edges off, a drawing still draws one nothing else bridges', 
   expect(deletionDrawing(bridged, kept, false).hidden.size).toBe(0)
   expect(deletionDrawing(bridged, kept, false).shown).toEqual(kept)
 })
+
+// The cut lost the reference's link from 2 to 3, so either deletion alone
+// joins the two halves and only one can be left out: the same one whatever
+// order the L lines came in
+test('with deletion edges off, which of two bridging deletions is drawn does not hang on the order of the L lines', () => {
+  const lines = [
+    'S\t1\t*\tLN:i:10\tSN:Z:GRCh38#0#chr6\tSO:i:0\tSR:i:0',
+    'S\t2\t*\tLN:i:10\tSN:Z:GRCh38#0#chr6\tSO:i:10\tSR:i:0',
+    'S\t3\t*\tLN:i:10\tSN:Z:GRCh38#0#chr6\tSO:i:20\tSR:i:0',
+    'S\t4\t*\tLN:i:10\tSN:Z:GRCh38#0#chr6\tSO:i:30\tSR:i:0',
+    'L\t1\t+\t2\t+\t0M',
+    'L\t3\t+\t4\t+\t0M',
+    'L\t1\t+\t3\t+\t0M',
+    'L\t2\t+\t4\t+\t0M',
+  ]
+  const drawn = (gfa: string[]) => {
+    const graph = graphOf(gfa.join('\n'))
+    return deletionDrawing(graph, deletionEdges(graph), false).shown.map(
+      d => `${d.from}>${d.to}`,
+    )
+  }
+  expect(drawn(lines)).toHaveLength(1)
+  expect(drawn(lines.toReversed())).toEqual(drawn(lines))
+})

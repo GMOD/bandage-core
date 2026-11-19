@@ -11,10 +11,14 @@ export const LANE_SMOOTHING_PX = 12
 export const THREAD_REACH_PX = 64
 export const THREAD_TAPER_PX = 24
 export const MAX_BAND_PX = 48
+export const MIN_LANE_STROKE_PX = 1
 export const PASSES_KEY = 'a thread per pass through a node'
 
-export const threadsPasses = (walks: readonly { mostPasses: number }[]) =>
-  walks.length > 1 && walks.some(w => w.mostPasses > 1)
+export const threadsPasses = (
+  walks: readonly { mostPasses: number; encoding?: { field: string } }[],
+) =>
+  walks.some(w => w.mostPasses > 1) &&
+  (walks.length > 1 || walks.some(w => w.encoding?.field === 'pass'))
 
 export interface Normal {
   nx: number
@@ -50,6 +54,19 @@ function slotLayout(
 }
 
 export const THREAD_PITCH_PX = THREAD_PX + THREAD_GAP_PX
+
+export const MIN_THREAD_PITCH_PX = 2
+const FUSED_SEAM_PX = 0.5
+
+export const threadsFuse = (thinned: number) =>
+  THREAD_PITCH_PX * thinned < MIN_THREAD_PITCH_PX
+
+export const threadHalfWidthPx = (thinned: number, bundled: boolean) =>
+  ((bundled && threadsFuse(thinned)
+    ? THREAD_PITCH_PX + FUSED_SEAM_PX
+    : THREAD_PX) /
+    2) *
+  thinned
 
 // Where each walk's first thread runs, in px from the band's middle; a walk's
 // later threads step THREAD_PITCH_PX on from there

@@ -2,9 +2,11 @@ import { isBackbone } from './anchoredNodes'
 import { spreadFor } from './bubbleSpreads'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
+import { departureTails } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
+import { archSeeds } from './layout/archSeeds'
 import {
   routeNodes,
   takeRoutes,
@@ -13,20 +15,29 @@ import {
 import {
   drawnLengthOf,
   drawnNodeLength,
+  isProportional,
   layoutScaling,
 } from './layout/drawnScale'
+import { FIT_PADDING, fitOrAssumed, fitRoom } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
+import { clearOfReference } from './layout/referenceClearance'
 import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
-import { canonicalEdgeOrder } from './util/edgeOrder'
+import { buildNeighbors, nodeReferenceSpan } from './referenceSpan'
+import { MAX_BAND_PX } from './renderer/walkLanes'
+import { canonicalEdgeOrder, canonicalNodeOrder } from './util/canonicalOrder'
+import { ownStrand } from './util/geometry'
+import { MAX_ZOOM, MIN_ZOOM } from './zoomLimits'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { GraphTables } from './gfa/graphTables'
 import type { LayoutScaling } from './layout/drawnScale'
+import type { FitSize } from './layout/fitAssumptions'
 import type { LayoutNode } from './layout/referenceSeeds'
 import type { LayoutEngineKind } from './layoutEngines'
+import type { ReferenceSpan } from './referenceSpan'
 import type { Graph, LayoutResult, NodeSegment } from './types'
 
 // The graph a view draws, from GFA text to layouts, with no host in it: the
@@ -132,6 +143,11 @@ export function engineSettingsOf(
   }
 }
 
+// FMMM's coarsest level buckled a chain seeded at drawn length into waves.
+// Fitted to FMMM's force law, not derived from it: any stretch from 3 to 6
+// straightens it
+const FMMM_SEED_STRETCH = 4
+
 // the engine's own gap between components, which `componentSeparation` scales
 const COMPONENT_SEPARATION = 15
 
@@ -148,18 +164,33 @@ export function engineRequest(
 ): EngineRequest {
   const anchored = graph.nodes.some(isBackbone)
   const s = engineSettingsOf(settings)
+  const canonical = {
+    ...graph,
+    nodes: canonicalNodeOrder(graph.nodes),
+    edges: canonicalEdgeOrder(graph.edges),
+  }
   // the seeds lay the backbone out at the spaced link length too
   const spaced = {
-    ...scaling,
+    nodes: canonicalNodeOrder(scaling.nodes),
     opts: {
       ...scaling.opts,
       edgeLength: scaling.opts.edgeLength * s.spacing,
     },
   }
+  const seeded = anchored
+    ? seededNodes(
+        canonical,
+        spaced,
+        s.engine === 'fmmm' ? FMMM_SEED_STRETCH : 1,
+      )
+    : spaced.nodes
   return {
     graph: {
-      nodes: anchored ? seededNodes(graph, spaced) : spaced.nodes,
-      edges: canonicalEdgeOrder(graph.edges),
+      nodes:
+        anchored && s.engine === 'fmmm'
+          ? archSeeds(seeded, canonical.edges, spaced.opts)
+          : seeded,
+      edges: canonical.edges,
     },
     options: {
       quality: s.quality,
@@ -173,13 +204,26 @@ export function engineRequest(
 }
 
 // What a force layout of this graph is a function of, as a cache key: every
-// engine setting, whether it seeds, and the reference path the seeds follow.
-export function engineKey(graph: Graph, settings: EngineSettings) {
+// engine setting, whether it seeds, the reference path the seeds follow, and
+// what it reads of the pane it is sized for: the stress engine's clearance
+// its width and height, a compressing spread's loop floor its width.
+export function engineKey(
+  graph: Graph,
+  settings: EngineSettings,
+  fit?: FitSize,
+) {
+  const s = engineSettingsOf(settings)
   const anchored = graph.nodes.some(isBackbone)
+  const { width, height } = fitOrAssumed(fit)
   return [
-    ...Object.values(engineSettingsOf(settings)),
+    ...Object.values(s),
     anchored,
     graph.referencePath ?? '',
+    ...(s.engine === 'stress'
+      ? [width, height]
+      : isProportional(spreadFor(s.bubbleSpread).law)
+        ? []
+        : [width]),
   ].join('|')
 }
 
@@ -193,11 +237,23 @@ export function engineKey(graph: Graph, settings: EngineSettings) {
 // match, was prototyped and declined (scripts/layout-lab/continuity.ts): FMMM
 // keeps only its coarsest level's seeds, and the matched turn carried a
 // curled reference's angle forward, to 45 degrees by 125 kb at bovine DEFB.
+//
+// `fit` is the pane in px the host will fit the drawing into, the size it
+// hands fitTransform: the gap between the reference and what lies beside it,
+// and under compress the shortest loop off it, are sized in px at that fit.
+// Absent, or too small to hold a drawing, the layout assumes ASSUMED_FIT.
 export async function forceLayout(
-  graph: Graph,
+  given: Graph,
   settings: EngineSettings,
   engine: LayoutEngine,
+  fit?: FitSize,
 ) {
+  const graph = {
+    ...given,
+    nodes: canonicalNodeOrder(given.nodes),
+    departures: undefined,
+  }
+  const sized = fitOrAssumed(fit)
   const spread = spreadFor(settings.bubbleSpread)
   const { shown: deletions, hidden: dropped } = deletionDrawing(
     graph,
@@ -210,7 +266,7 @@ export async function forceLayout(
     ...merged.graph,
     nodes: merged.graph.nodes.filter(n => !routed.ids.has(n.id)),
   }
-  const engineScaling = layoutScaling(runs, spread)
+  const engineScaling = layoutScaling(runs, spread, loopFloor(sized))
   const drawnOf = drawnLengthOf(runs, spread)
   const { result, duration } = await engine(
     engineRequest(
@@ -225,7 +281,10 @@ export async function forceLayout(
             routed.routes,
             drawnOf,
             engineScaling.opts,
-            runs.nodes.reduce((sum, n) => sum + drawnOf(n.length), 0),
+            engineScaling.nodes.reduce(
+              (sum, n) => sum + drawnNodeLength(engineScaling.opts, n.length),
+              0,
+            ),
           ),
         ],
       },
@@ -243,22 +302,64 @@ export async function forceLayout(
     ]),
   )
   const positions = splitRuns(smoothed, merged.runs, id => drawn.get(id) ?? 0)
-  const { nodePositions, deletionRoutes } = takeRoutes(
+  const routedPositions = takeRoutes(
     graph.nodes.some(isBackbone)
       ? orientToReference(graph, positions)
       : positions,
     routed.routes,
   )
+  const { deletionRoutes } = routedPositions
+  const tails = departureTails(given)
+  const referenceStraight = engineSettingsOf(settings).engine === 'stress'
+  const nodePositions = referenceStraight
+    ? clearOfReference(
+        graph,
+        routedPositions.nodePositions,
+        fittedExtent(routedPositions.nodePositions, deletionRoutes, tails),
+        sized,
+      )
+    : routedPositions.nodePositions
   return {
     result: {
       ...result,
       nodePositions,
       stranded: true,
+      ...(isProportional(spread.law) ? {} : { compressed: true }),
+      ...(tails.size > 0
+        ? {
+            frame: layoutExtent(
+              Object.fromEntries(
+                Object.entries(nodePositions).filter(([id]) => !tails.has(id)),
+              ),
+            ),
+          }
+        : {}),
       ...(deletions.length
         ? { deletionRoutes, extent: layoutExtent(deletionRoutes) }
         : {}),
     },
     duration,
+  }
+}
+
+// What the fit frames of a force layout: its nodes but the departure tails it
+// leaves to run off the pane, and its deletion routes
+function fittedExtent(
+  nodePositions: Record<string, NodeSegment[]>,
+  deletionRoutes: Record<number, NodeSegment[]>,
+  tails: ReadonlySet<string>,
+) {
+  const nodes = layoutExtent(
+    Object.fromEntries(
+      Object.entries(nodePositions).filter(([id]) => !tails.has(id)),
+    ),
+  )
+  const routes = layoutExtent(deletionRoutes)
+  return {
+    minX: Math.min(nodes.minX, routes.minX),
+    minY: Math.min(nodes.minY, routes.minY),
+    maxX: Math.max(nodes.maxX, routes.maxX),
+    maxY: Math.max(nodes.maxY, routes.maxY),
   }
 }
 
@@ -280,14 +381,13 @@ export function layoutExtent(
   return { minX, minY, maxX, maxY }
 }
 
-// Gap between the drawing and the edge of the pane, on all four sides.
-export const FIT_PADDING = 40
-
-// The floor keeps a scale positive and finite, and has to clear the smallest
-// scale a real layout asks for: fitting a chromosome-scale rGFA (250 Mbp) into
-// ~720 px needs ~3e-6.
-const MIN_ZOOM = 1e-6
-const MAX_ZOOM = 100
+// A stretch off the reference draws as a loop beside it, and shows only where
+// the loop reaches past the widest band of lanes the reference draws with. A
+// loop spans its length over pi, and the fit lays the reference across the
+// pane.
+export function loopFloor(fit?: FitSize) {
+  return (Math.PI * MAX_BAND_PX) / fitRoom(fitOrAssumed(fit)).width
+}
 
 export function clampZoom(zoom: number) {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
@@ -354,6 +454,430 @@ export function fitTransform(
   }
 }
 
+export interface ReferencePiece {
+  bp0: number
+  bp1: number
+  x0: number
+  x1: number
+  y0: number
+  y1: number
+}
+
+interface ReferenceEnd {
+  bp: number
+  x: number
+  y: number
+}
+
+type Axis = 'x' | 'y'
+
+export interface ReferenceProfile {
+  pieces: ReferencePiece[]
+  ends: ReferenceEnd[]
+}
+
+export function referenceProfile(
+  graph: Graph,
+  positions: Readonly<Record<string, readonly NodeSegment[]>>,
+) {
+  const pieces: ReferencePiece[] = []
+  for (const node of graph.nodes) {
+    const line = positions[node.id]
+    if (isBackbone(node) && node.length > 0 && line?.length) {
+      const forwards = ownStrand(node.id) === (node.stable.strand ?? '+')
+      const bpAt = (f: number) =>
+        node.stable.start + node.length * (forwards ? f : 1 - f)
+      const steps =
+        line.length > 1
+          ? line.slice(1).map((b, i) => {
+              const a = line[i] ?? b
+              return { a, b, length: Math.hypot(b.x - a.x, b.y - a.y) }
+            })
+          : line.map(p => ({ a: p, b: p, length: 0 }))
+      const total = steps.reduce((sum, step) => sum + step.length, 0)
+      let walked = 0
+      for (const { a, b, length } of steps) {
+        const f0 = total > 0 ? walked / total : 0
+        walked += length
+        const f1 = total > 0 ? walked / total : 1
+        if (f1 > f0) {
+          pieces.push(
+            forwards
+              ? {
+                  bp0: bpAt(f0),
+                  bp1: bpAt(f1),
+                  x0: a.x,
+                  x1: b.x,
+                  y0: a.y,
+                  y1: b.y,
+                }
+              : {
+                  bp0: bpAt(f1),
+                  bp1: bpAt(f0),
+                  x0: b.x,
+                  x1: a.x,
+                  y0: b.y,
+                  y1: a.y,
+                },
+          )
+        }
+      }
+    }
+  }
+  pieces.sort((p, q) => p.bp0 - q.bp0)
+  return {
+    pieces,
+    ends: pieces
+      .flatMap(p => [
+        { bp: p.bp0, x: p.x0, y: p.y0 },
+        { bp: p.bp1, x: p.x1, y: p.y1 },
+      ])
+      .sort((p, q) => p.bp - q.bp),
+  }
+}
+
+const onPiece = (piece: ReferencePiece, bp: number, axis: Axis) => {
+  const [a, b] = axis === 'x' ? [piece.x0, piece.x1] : [piece.y0, piece.y1]
+  return a + ((b - a) * (bp - piece.bp0)) / (piece.bp1 - piece.bp0)
+}
+
+const xOn = (piece: ReferencePiece, bp: number) => onPiece(piece, bp, 'x')
+
+function slidingExtreme(
+  axis: Axis,
+  keep: (kept: number, value: number) => boolean,
+) {
+  const ends: ReferenceEnd[] = []
+  let from = 0
+  return {
+    add(end: ReferenceEnd) {
+      while (
+        ends.length > from &&
+        keep(ends.at(-1)?.[axis] ?? end[axis], end[axis])
+      ) {
+        ends.pop()
+      }
+      ends.push(end)
+    },
+    from(bp: number) {
+      while ((ends[from]?.bp ?? Infinity) < bp) {
+        from++
+      }
+      return ends[from]?.[axis]
+    },
+  }
+}
+
+function pieceCursor(pieces: readonly ReferencePiece[], axis: Axis) {
+  let at = 0
+  return (bp: number) => {
+    while ((pieces[at]?.bp1 ?? Infinity) <= bp) {
+      at++
+    }
+    const piece = pieces[at]
+    return piece && piece.bp0 < bp ? onPiece(piece, bp, axis) : undefined
+  }
+}
+
+function windowStarts(
+  ends: readonly ReferenceEnd[],
+  from: number,
+  to: number,
+  reach: number,
+) {
+  const starts = [from]
+  let i = 0
+  let j = 0
+  while (i < ends.length || j < ends.length) {
+    const entering = (ends[i]?.bp ?? Infinity) - reach
+    const leaving = ends[j]?.bp ?? Infinity
+    const a = Math.min(entering, leaving)
+    if (entering <= leaving) {
+      i++
+    } else {
+      j++
+    }
+    if (a > (starts.at(-1) ?? from) && a < to) {
+      starts.push(a)
+    }
+  }
+  if (to > from) {
+    starts.push(to)
+  }
+  return starts
+}
+
+// The most the reference any `reach`-long window starting between `from` and
+// `to` takes in spans along `axis`, as the layout drew it
+function widestStretch(
+  { pieces, ends }: ReferenceProfile,
+  from: number,
+  to: number,
+  reach: number,
+  axis: Axis,
+) {
+  const high = slidingExtreme(axis, (kept, value) => kept <= value)
+  const low = slidingExtreme(axis, (kept, value) => kept >= value)
+  const atStart = pieceCursor(pieces, axis)
+  const atEnd = pieceCursor(pieces, axis)
+  let added = 0
+  let widest = 0
+  for (const a of windowStarts(ends, from, to, reach)) {
+    const b = a + reach
+    for (let end = ends[added]; end && end.bp <= b; end = ends[++added]) {
+      high.add(end)
+      low.add(end)
+    }
+    let x0 = Infinity
+    let x1 = -Infinity
+    for (const x of [high.from(a), low.from(a), atStart(a), atEnd(b)]) {
+      if (x !== undefined) {
+        x0 = Math.min(x0, x)
+        x1 = Math.max(x1, x)
+      }
+    }
+    widest = Math.max(widest, x1 - x0)
+  }
+  return widest
+}
+
+// Where on the reference each node lies: its own bp on the reference, the
+// flanks an allele hangs between, and for a chain too long for the flank
+// search the span of the nearest node placed
+function locatedSpans(graph: Graph) {
+  const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
+  const neighbors = buildNeighbors(graph)
+  const spans = new Map<string, ReferenceSpan>()
+  for (const node of graph.nodes) {
+    const span = nodeReferenceSpan({ nodeId: node.id, nodeById, neighbors })
+    if (span) {
+      spans.set(node.id, span)
+    }
+  }
+  let frontier = [...spans.keys()]
+  while (frontier.length > 0) {
+    const next: string[] = []
+    for (const id of frontier) {
+      const span = spans.get(id)
+      for (const neighborId of neighbors.get(id) ?? []) {
+        if (span && !spans.has(neighborId)) {
+          spans.set(neighborId, span)
+          next.push(neighborId)
+        }
+      }
+    }
+    frontier = next
+  }
+  return spans
+}
+
+// The height a held cut is drawn in: of what some window inside the cut
+// shows, the reference over the cut and every node off it whose place on the
+// reference lies inside the cut, with the deletion routes. A node off the
+// reference hanging from where the cut's edge runs through a reference node
+// lies inside no window, and like a departure tail it may run past the pane.
+export function shownBounds(
+  graph: Graph,
+  layout: LayoutResult,
+  cut: { start: number; end: number },
+) {
+  const spans = locatedSpans(graph)
+  const tails = departureTails(graph)
+  let { minY, maxY } = layoutExtent(layout.deletionRoutes ?? {})
+  for (const node of graph.nodes) {
+    const span = spans.get(node.id)
+    const shown =
+      span !== undefined &&
+      !tails.has(node.id) &&
+      (isBackbone(node)
+        ? span.start < cut.end && span.end > cut.start
+        : span.start >= cut.start && span.end <= cut.end)
+    for (const p of shown ? (layout.nodePositions[node.id] ?? []) : []) {
+      minY = Math.min(minY, p.y)
+      maxY = Math.max(maxY, p.y)
+    }
+  }
+  return maxY >= minY ? { minY, h: maxY - minY } : undefined
+}
+
+// The scale at which the widest stretch of the reference any view-width
+// window in the cut takes in fills the pane's width, so a zoom inside the cut
+// magnifies as a camera does
+export function windowScale(
+  profile: ReferenceProfile,
+  cut: { start: number; end: number },
+  viewSpan: number,
+  paneWidth: number,
+  { padLeft = FIT_PADDING, padRight = FIT_PADDING } = {},
+) {
+  const usableWidth = paneWidth - padLeft - padRight
+  const reach = Math.min(viewSpan, cut.end - cut.start)
+  const widest = widestStretch(
+    profile,
+    cut.start,
+    Math.max(cut.start, cut.end - reach),
+    reach,
+    'x',
+  )
+  return usableWidth > 0 && widest > 0
+    ? clampZoom(usableWidth / widest)
+    : undefined
+}
+
+// windowScale, lowered where it must be so the reference any view-width window
+// inside the cut takes in, as the layout drew it, is no taller than the pane:
+// what hangs off that reference may run past the top or bottom, the reference
+// never. Like windowScale it reads the cut and the view's width, never where
+// the view is, so a pan only slides the drawing.
+export function referenceScale(
+  profile: ReferenceProfile,
+  cut: { start: number; end: number },
+  viewSpan: number,
+  paneWidth: number,
+  paneHeight: number,
+  {
+    padLeft = FIT_PADDING,
+    padTop = FIT_PADDING,
+    padRight = FIT_PADDING,
+    padBottom = FIT_PADDING,
+  } = {},
+) {
+  const usableHeight = paneHeight - padTop - padBottom
+  const across = windowScale(profile, cut, viewSpan, paneWidth, {
+    padLeft,
+    padRight,
+  })
+  const reach = Math.min(viewSpan, cut.end - cut.start)
+  const tallest = widestStretch(
+    profile,
+    cut.start,
+    Math.max(cut.start, cut.end - reach),
+    reach,
+    'y',
+  )
+  return across !== undefined && usableHeight > 0
+    ? clampZoom(
+        Math.min(across, tallest > 0 ? usableHeight / tallest : Infinity),
+      )
+    : undefined
+}
+
+// windowScale, capped so the whole cut is no taller than the pane
+export function cutScale(
+  profile: ReferenceProfile,
+  cut: { start: number; end: number },
+  viewSpan: number,
+  bounds: { h: number },
+  paneWidth: number,
+  paneHeight: number,
+  {
+    padLeft = FIT_PADDING,
+    padTop = FIT_PADDING,
+    padRight = FIT_PADDING,
+    padBottom = FIT_PADDING,
+  } = {},
+) {
+  const usableHeight = paneHeight - padTop - padBottom
+  const across = windowScale(profile, cut, viewSpan, paneWidth, {
+    padLeft,
+    padRight,
+  })
+  return across !== undefined && usableHeight > 0
+    ? clampZoom(
+        Math.min(across, bounds.h > 0 ? usableHeight / bounds.h : Infinity),
+      )
+    : undefined
+}
+
+// How high and low the reference whose bp lie in the window, ends included,
+// reaches as the layout drew it, each piece cut where the window's ends fall
+export function referenceReach(
+  { pieces }: ReferenceProfile,
+  window: { start: number; end: number },
+) {
+  let minY = Infinity
+  let maxY = -Infinity
+  for (const piece of pieces) {
+    const lo = Math.max(window.start, piece.bp0)
+    const hi = Math.min(window.end, piece.bp1)
+    if (hi >= lo) {
+      for (const bp of [lo, hi]) {
+        const y = onPiece(piece, bp, 'y')
+        minY = Math.min(minY, y)
+        maxY = Math.max(maxY, y)
+      }
+    }
+  }
+  return maxY >= minY ? { minY, maxY } : undefined
+}
+
+function nearestEnd(ends: readonly ReferenceEnd[], bp: number) {
+  return ends.reduce<ReferenceEnd | undefined>(
+    (best, end) =>
+      best && Math.abs(best.bp - bp) <= Math.abs(end.bp - bp) ? best : end,
+    undefined,
+  )
+}
+
+export function followTransform(
+  { pieces, ends }: ReferenceProfile,
+  window: { start: number; end: number },
+  scale: number,
+  bounds: { minY: number; h: number },
+  paneWidth: number,
+  paneHeight: number,
+  {
+    padLeft = FIT_PADDING,
+    padTop = FIT_PADDING,
+    padRight = FIT_PADDING,
+    padBottom = FIT_PADDING,
+  } = {},
+) {
+  const usableWidth = paneWidth - padLeft - padRight
+  const usableHeight = paneHeight - padTop - padBottom
+  const span = window.end - window.start
+  const ruler = (bp: number) =>
+    padLeft + (usableWidth * (bp - window.start)) / span
+  let covered = 0
+  let offset = 0
+  let x0 = Infinity
+  let x1 = -Infinity
+  for (const piece of pieces) {
+    const lo = Math.max(window.start, piece.bp0)
+    const hi = Math.min(window.end, piece.bp1)
+    if (hi > lo) {
+      const mid = (lo + hi) / 2
+      covered += hi - lo
+      offset += (hi - lo) * (ruler(mid) - scale * xOn(piece, mid))
+      x0 = Math.min(x0, xOn(piece, lo), xOn(piece, hi))
+      x1 = Math.max(x1, xOn(piece, lo), xOn(piece, hi))
+    }
+  }
+  const inside = (tx: number) => {
+    const lower = -scale * x0
+    const upper = paneWidth - scale * x1
+    return lower <= upper
+      ? Math.min(upper, Math.max(lower, tx))
+      : (lower + upper) / 2
+  }
+  const end =
+    covered > 0 ? undefined : nearestEnd(ends, (window.start + window.end) / 2)
+  const translateX =
+    covered > 0
+      ? inside(offset / covered)
+      : end && ruler(end.bp) - scale * end.x
+  return usableWidth > 0 &&
+    usableHeight > 0 &&
+    span > 0 &&
+    translateX !== undefined
+    ? {
+        scale,
+        translateX,
+        translateY: fittedTranslateY(bounds, usableHeight, scale, padTop),
+      }
+    : undefined
+}
+
 // Extent of the drawing in layout units, which the fit and the pane height
 // read. On a reference-bp layout x is the cut window rather than how far the
 // drawing reaches: an allele anchored far outside it is a fact about the
@@ -366,7 +890,8 @@ export function drawingBounds(
     extent?: LayoutResult['extent']
   } = {},
 ) {
-  let { minX, minY, maxX, maxY } = layoutExtent(layout.nodePositions)
+  let { minX, minY, maxX, maxY } =
+    layout.frame ?? layoutExtent(layout.nodePositions)
   const { region } = opts
   if (layout.referenceAxis && region && region.end > region.start) {
     minX = region.start

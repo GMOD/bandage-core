@@ -18,13 +18,19 @@ import { packAbgr } from './renderer/colorBits'
 //
 //   "walkLayers": [
 //     { "walk": "GRCh38#0#chr6" },
-//     { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } }
+//     { "walk": "HG00133#1#CM090050.1", "color": { "scheme": "purple" } },
+//     { "walk": "HG00097#2#CM090084.1", "color": { "value": "#2a9fd0" } }
 //   ]
+//
+// A stated `value`, a hex colour, paints the walk that one colour whatever
+// its field and scheme, and the reference too, as ggplot2's identity scale
+// paints a value as itself: a sample sheet's own colour for a haplotype.
 
 export const WALK_FIELDS = [
   { value: 'progress', label: 'Progress along the walk' },
   { value: 'walk', label: 'One colour for the walk' },
   { value: 'reference', label: 'Reference position' },
+  { value: 'pass', label: 'Each pass through repeated nodes' },
 ] as const
 
 export type WalkField = (typeof WALK_FIELDS)[number]['value']
@@ -54,14 +60,24 @@ export type WalkScheme = (typeof WALK_SCHEMES)[number]['value']
 export interface WalkEncoding {
   field: WalkField
   scheme: WalkScheme
+  value?: string
   darkest?: number
   shade?: number
   stretch?: readonly [number, number]
 }
 
+// bp from the walk's first base
+export interface PassSpan {
+  start: number
+  end: number
+}
+
 export interface WalkLayer {
   walk: string
   color?: Partial<WalkEncoding>
+  // for a walk that steps no node twice here
+  passes?: readonly PassSpan[]
+  passNames?: readonly string[]
 }
 
 // the families lifted haplotypes take by default, in the order they were picked
@@ -72,14 +88,30 @@ const isField = (v: unknown): v is WalkField =>
 const isScheme = (v: unknown): v is WalkScheme =>
   WALK_SCHEMES.some(s => s.value === v)
 
-// A stated field or scheme this build does not have reads as unset
+// A hex colour, #rgb or #rrggbb, as rgb 0-255
+export function hexRgb(hex: unknown): [number, number, number] | undefined {
+  const digits =
+    typeof hex === 'string' && /^#([0-9a-f]{3}){1,2}$/i.test(hex)
+      ? hex.length === 4
+        ? hex.slice(1).replaceAll(/./g, '$&$&')
+        : hex.slice(1)
+      : ''
+  const at = (i: number) => Number.parseInt(digits.slice(i, i + 2), 16)
+  return digits ? [at(0), at(2), at(4)] : undefined
+}
+
+// A stated field, scheme or value this build does not have reads as unset
 export function resolveEncoding(
   layer: WalkLayer,
   reference: boolean,
   picked: number,
   alone = true,
 ): WalkEncoding {
-  const { field: askedField, scheme: askedScheme } = layer.color ?? {}
+  const {
+    field: askedField,
+    scheme: askedScheme,
+    value: askedValue,
+  } = layer.color ?? {}
   const field = isField(askedField) ? askedField : alone ? 'progress' : 'walk'
   const family = reference ? 'grey' : FAMILIES[picked % FAMILIES.length]!
   const scheme = isScheme(askedScheme)
@@ -88,14 +120,18 @@ export function resolveEncoding(
       : askedScheme
     : family
   const round = Math.floor(picked / FAMILIES.length) % SHADES.length
-  return field === 'walk' && scheme === family && round > 0
-    ? { field, scheme, shade: SHADES[round] }
-    : alone || field === 'walk'
-      ? { field, scheme }
-      : { field, scheme, darkest: TOGETHER_DARKEST }
+  return hexRgb(askedValue)
+    ? { field: 'walk', scheme, value: askedValue }
+    : flatField(field) && scheme === family && round > 0
+      ? { field, scheme, shade: SHADES[round] }
+      : alone || flatField(field)
+        ? { field, scheme }
+        : { field, scheme, darkest: TOGETHER_DARKEST }
 }
 
-const TOGETHER_DARKEST = 0.55
+const flatField = (field: WalkField) => field === 'walk' || field === 'pass'
+
+export const TOGETHER_DARKEST = 0.55
 
 // Where a flat lane sits on its family: halfway between its ends
 const BASE_T = 0.5
@@ -109,7 +145,7 @@ const SHADES = [BASE_T, 0.85, 0.2]
 const STRETCH_GAP = 0.08
 
 const rampsOn = ({ field, scheme }: WalkEncoding) =>
-  field !== 'walk' && scheme !== 'rainbow'
+  !flatField(field) && scheme !== 'rainbow'
 
 // Ramps lifted together that share a family split it, the first taking the
 // pale end, so past the fourth walk no two gradients pass through one colour
@@ -158,11 +194,12 @@ function oklab(hex: string) {
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
-  return [
+  const lab: [number, number, number] = [
     0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
     1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
     0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
   ]
+  return lab
 }
 
 function oklabToRgb([L, a, b]: number[]) {
@@ -174,6 +211,16 @@ function oklabToRgb([L, a, b]: number[]) {
     -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
     -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
   ].map(c => toGamma(Math.max(0, Math.min(1, c))) * 255)
+}
+
+const hexOf = (rgb: number[]) =>
+  `#${rgb.map(c => Math.round(c).toString(16).padStart(2, '0')).join('')}`
+
+// Two hex colours mixed in OKLab, `t` of the way from the first
+export function mixHex(from: string, to: string, t: number) {
+  const a = oklab(from)
+  const b = oklab(to)
+  return hexOf(oklabToRgb(a.map((v, i) => v + (b[i]! - v) * t)))
 }
 
 const endsCache = new Map<WalkScheme, number[][] | undefined>()
@@ -219,30 +266,43 @@ export function schemeColor(scheme: WalkScheme, t: number, darkest?: number) {
   return packAbgr(r!, g!, b!, 255)
 }
 
-// A field's value at a node through the walk's scheme; `t` undefined is a node
-// the field has nothing to say about, off the reference for `reference`
+// A field's value at a node through the walk's scheme, or the walk's stated
+// value; `t` undefined is a node the field has nothing to say about, off the
+// reference for `reference`
 export function encodedColor(encoding: WalkEncoding, t?: number) {
-  const { field, scheme, darkest, shade = BASE_T } = encoding
-  return field === 'walk'
-    ? schemeColor(scheme, shade)
-    : t === undefined
-      ? NO_VALUE_COLOR
-      : schemeColor(scheme, along(encoding, t), darkest)
+  const { field, scheme, value, darkest, shade = BASE_T } = encoding
+  const rgb = hexRgb(value)
+  return rgb
+    ? packAbgr(...rgb, 255)
+    : flatField(field)
+      ? schemeColor(scheme, shade)
+      : t === undefined
+        ? NO_VALUE_COLOR
+        : schemeColor(scheme, along(encoding, t), darkest)
 }
 
 export const NO_VALUE_COLOR = REFERENCE_RAMP_ALT_COLOR
 
 // A key's colours: the walk's one colour, or the scheme across the field
 export function encodingStops(encoding: WalkEncoding) {
-  const { field, scheme, darkest, shade = BASE_T } = encoding
+  const { field, scheme, value, darkest, shade = BASE_T } = encoding
   const stop = (offset: number, t: number) => ({
     offset,
     color: schemeCss(scheme, t, darkest),
     abgr: schemeColor(scheme, t, darkest),
   })
-  return field === 'walk'
-    ? [stop(0, shade)]
-    : Array.from({ length: 7 }, (_, i) => stop(i / 6, along(encoding, i / 6)))
+  const rgb = hexRgb(value)
+  return rgb
+    ? [
+        {
+          offset: 0,
+          color: `rgb(${rgb.join(', ')})`,
+          abgr: packAbgr(...rgb, 255),
+        },
+      ]
+    : flatField(field)
+      ? [stop(0, shade)]
+      : Array.from({ length: 7 }, (_, i) => stop(i / 6, along(encoding, i / 6)))
 }
 
 // A swatch for the legend: the walk's colour, or the scheme across the field
@@ -251,4 +311,84 @@ export function encodingSwatchCss(encoding: WalkEncoding) {
   return stops.length === 1
     ? stops[0]!.color
     : `linear-gradient(to right, ${stops.map(s => `${s.color} ${s.offset * 100}%`).join(', ')})`
+}
+
+// Okabe and Ito's, then Tol's
+export const PASS_HUES = [
+  '#D55E00',
+  '#0072B2',
+  '#009E73',
+  '#CC79A7',
+  '#E69F00',
+  '#56B4E9',
+  '#882255',
+  '#332288',
+  '#999933',
+  '#44AA99',
+  '#CCBB44',
+  '#AA3377',
+  '#117733',
+  '#DDCC77',
+  '#CC6677',
+  '#AA4499',
+  '#88CCEE',
+  '#EE6677',
+  '#228833',
+  '#4477AA',
+  '#66CCEE',
+  '#EE8866',
+  '#EEDD88',
+  '#FFAABB',
+  '#99DDFF',
+  '#44BB99',
+  '#BBCC33',
+  '#AAAA00',
+  '#EE7733',
+  '#0077BB',
+  '#33BBEE',
+  '#EE3377',
+  '#CC3311',
+  '#009988',
+  '#661100',
+  '#6699CC',
+  '#994455',
+  '#997700',
+  '#EECC66',
+  '#004488',
+]
+
+// OKLab distances from every lane colour and from every pass colour taken
+export const PASS_FROM_WALK = 0.17
+export const PASS_FROM_PASS = 0.18
+
+export const oklabGap = (a: string, b: string) => {
+  const p = oklab(a)
+  const q = oklab(b)
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
+}
+
+const nearestGap = (hue: string, colours: readonly string[]) =>
+  colours.reduce((least, c) => Math.min(least, oklabGap(hue, c)), Infinity)
+
+export function passPalette(
+  own: string,
+  count: number,
+  lanes: readonly string[] = [],
+  taken: readonly string[] = [],
+) {
+  const walks = [own].concat(lanes)
+  const picked: string[] = []
+  const slack = (hue: string) =>
+    Math.min(
+      nearestGap(hue, walks) - PASS_FROM_WALK,
+      nearestGap(hue, taken.concat(picked)) - PASS_FROM_PASS,
+    )
+  while (picked.length < Math.min(count, PASS_HUES.length)) {
+    const open = PASS_HUES.filter(hue => !picked.includes(hue))
+    picked.push(
+      open.find(hue => slack(hue) >= 0) ??
+        open.reduce((most, hue) => (slack(hue) > slack(most) ? hue : most)),
+    )
+  }
+  return picked
 }

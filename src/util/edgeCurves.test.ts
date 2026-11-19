@@ -1,8 +1,11 @@
 import { buildGeometry } from '../renderer/GeometryBuilder'
 import { EdgeSpatialIndex } from './SpatialIndex'
-import { baseEdgeCurves } from './edgeCurves'
+import { SKIP_LEVEL_PX, baseEdgeCurves } from './edgeCurves'
+import { curvePointAt } from './geometry'
 
+import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, GraphNode, NodeSegment } from '../types'
+import type { BezierCurve } from './geometry'
 
 const nodes: GraphNode[] = [
   { id: 'a+', name: 'a', length: 100, depth: 1 },
@@ -220,5 +223,403 @@ describe('a dragged node', () => {
       [115, 185],
       [215, 115],
     ])
+  })
+})
+
+// Six 10 bp backbone segments end to end, drawn 2 px each, with every skip's
+// route laid on the backbone as a force layout lays a short one: sv-49's 16 bp
+// skip and the 1 bp skips sharing its anchors were drawn over each other there
+describe('skips at one site', () => {
+  const scale = 0.2
+  const axis = { scaleX: scale, scaleY: scale }
+  // the widest a skip draws at the default connector, dashed
+  const widestSkipPx = 2 * 2.2
+  const backbone: GraphNode[] = [0, 1, 2, 3, 4, 5].map(i => ({
+    id: `n${i}+`,
+    name: `n${i}`,
+    length: 10,
+    depth: 1,
+    stable: { refName: 'chr1', start: i * 10, rank: 0 },
+  }))
+  const positions = () =>
+    Object.fromEntries(
+      backbone.map((n, i) => [
+        n.id,
+        [
+          { x: i * 10, y: 0 },
+          { x: i * 10 + 10, y: 0 },
+        ],
+      ]),
+    )
+  const skips = (links: [number, number, number[]][]) => {
+    const edges = links.map(([from, to]) => ({
+      from: `n${from}+`,
+      to: `n${to}+`,
+    }))
+    const routes: DeletionRoutes = Object.fromEntries(
+      links.map(([from, to], ei) => [
+        ei,
+        [
+          { x: from * 10 + 12, y: 0 },
+          { x: to * 10 - 2, y: 0 },
+        ],
+      ]),
+    )
+    return baseEdgeCurves(
+      positions(),
+      { name: 'site', nodes: backbone, edges },
+      axis,
+      new Map(
+        links.map(([, , bypassed], ei) => [ei, bypassed.map(i => `n${i}+`)]),
+      ),
+      0,
+      routes,
+    )
+  }
+  const points = (curves: BezierCurve[], steps = 64) =>
+    curves.flatMap(c =>
+      Array.from({ length: steps + 1 }, (_, k) => curvePointAt(c, k / steps)),
+    )
+  const heightPx = (curves: BezierCurve[]) =>
+    Math.max(...points(curves).map(p => Math.abs(p.y) * scale))
+  // inside the loop an arc closes with its chord, by ray casting
+  const enclosedBy = (curves: BezierCurve[], q: { x: number; y: number }) => {
+    const loop = points(curves, 1024)
+    let inside = false
+    for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) {
+      const a = loop[i]!
+      const b = loop[j]!
+      if (
+        a.y > q.y !== b.y > q.y &&
+        q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x
+      ) {
+        inside = !inside
+      }
+    }
+    return inside
+  }
+
+  test('two skips from one anchor over different spans rise a stroke apart, the longer higher', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [0, 3, [1, 2]],
+    ])
+    expect(
+      heightPx(curves.get(1)!) - heightPx(curves.get(0)!),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  // pggb chrY's 54 bp and 12 bp skips into node 465726 at 9.3 Mb, whose
+  // skipped nodes the reference first walks elsewhere, so neither lists them
+  test('a skip that lists no bypassed nodes takes its level from the span it skips', () => {
+    const curves = skips([
+      [0, 3, []],
+      [1, 3, []],
+    ])
+    expect(
+      heightPx(curves.get(0)!) - heightPx(curves.get(1)!),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  test('two skips over spans apart on the reference whose feet land on the same pixels both rise, a stroke apart', () => {
+    const backboneLoop = {
+      ...positions(),
+      'n3+': [
+        { x: -10, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'n5+': [
+        { x: 20, y: 0 },
+        { x: 30, y: 0 },
+      ],
+    }
+    const curves = baseEdgeCurves(
+      backboneLoop,
+      {
+        name: 'site',
+        nodes: backbone,
+        edges: [
+          { from: 'n0+', to: 'n2+' },
+          { from: 'n3+', to: 'n5+' },
+        ],
+      },
+      axis,
+      new Map([
+        [0, ['n1+']],
+        [1, ['n4+']],
+      ]),
+      0,
+      {
+        0: [{ x: 15, y: 0 }],
+        1: [{ x: 15, y: 0 }],
+      },
+    )
+    expect(
+      Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+    expect(
+      Math.min(heightPx(curves.get(0)!), heightPx(curves.get(1)!)),
+    ).toBeCloseTo(SKIP_LEVEL_PX, 5)
+  })
+
+  test('two skips whose feet land on the same pixels the other way round rise a stroke apart', () => {
+    const turned = {
+      ...positions(),
+      'n3+': [
+        { x: 30, y: 0 },
+        { x: 20, y: 0 },
+      ],
+      'n5+': [
+        { x: 10, y: 0 },
+        { x: 0, y: 0 },
+      ],
+    }
+    const curves = baseEdgeCurves(
+      turned,
+      {
+        name: 'site',
+        nodes: backbone,
+        edges: [
+          { from: 'n0+', to: 'n2+' },
+          { from: 'n3+', to: 'n5+' },
+        ],
+      },
+      axis,
+      new Map([
+        [0, ['n1+']],
+        [1, ['n4+']],
+      ]),
+      0,
+      {
+        0: [{ x: 15, y: 0 }],
+        1: [{ x: 15, y: 0 }],
+      },
+    )
+    expect(
+      Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  test('two skips whose spans only abut keep the paths their layout gave them', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [1, 3, [2]],
+    ])
+    for (const arc of [curves.get(0)!, curves.get(1)!]) {
+      expect(heightPx(arc)).toBeLessThan(1)
+    }
+  })
+
+  test("the same skips laid out for another graph take that graph's levels", () => {
+    const deletions = new Map([
+      [0, ['n1+']],
+      [1, ['n4+']],
+    ])
+    const routes: DeletionRoutes = {
+      0: [{ x: 15, y: 0 }],
+      1: [{ x: 35, y: 0 }],
+    }
+    const drawn = (edges: Graph['edges']) =>
+      baseEdgeCurves(
+        positions(),
+        { name: 'site', nodes: backbone, edges },
+        axis,
+        deletions,
+        0,
+        routes,
+      )
+    const nested = drawn([
+      { from: 'n0+', to: 'n2+' },
+      { from: 'n0+', to: 'n5+' },
+    ])
+    expect(heightPx(nested.get(1)!)).toBeGreaterThanOrEqual(SKIP_LEVEL_PX)
+    const apart = drawn([
+      { from: 'n0+', to: 'n2+' },
+      { from: 'n3+', to: 'n5+' },
+    ])
+    for (const arc of [apart.get(0)!, apart.get(1)!]) {
+      expect(heightPx(arc)).toBeLessThan(1)
+    }
+  })
+
+  test('a skip inside a longer one draws inside it, whether or not they share an anchor', () => {
+    const curves = skips([
+      [0, 4, [1, 2, 3]],
+      [1, 3, [2]],
+      [0, 2, [1]],
+    ])
+    const outer = curves.get(0)!
+    for (const inner of [curves.get(1)!, curves.get(2)!]) {
+      for (const p of points(inner).slice(1, -1)) {
+        expect(enclosedBy(outer, p)).toBe(true)
+      }
+    }
+  })
+
+  test('a skip over one whose route already rises far rises a stroke above it', () => {
+    const curves = baseEdgeCurves(
+      positions(),
+      {
+        name: 'site',
+        nodes: backbone,
+        edges: [
+          { from: 'n0+', to: 'n4+' },
+          { from: 'n1+', to: 'n3+' },
+        ],
+      },
+      axis,
+      new Map([
+        [0, ['n1+', 'n2+', 'n3+']],
+        [1, ['n2+']],
+      ]),
+      0,
+      {
+        0: [{ x: 25, y: 0 }],
+        1: [{ x: 25, y: -400 }],
+      },
+    )
+    const inner = heightPx(curves.get(1)!)
+    expect(inner).toBeGreaterThan(15 * SKIP_LEVEL_PX)
+    expect(heightPx(curves.get(0)!) - inner).toBeGreaterThanOrEqual(
+      widestSkipPx,
+    )
+  })
+
+  test('two skips over one span between the same anchors rise a stroke apart', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [0, 2, [1]],
+    ])
+    expect(
+      Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
+    ).toBeGreaterThanOrEqual(widestSkipPx)
+  })
+
+  test('two skips over a chord shorter than their rise part along their legs, the higher clear of the lower at its mid-height', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [0, 2, [1]],
+    ])
+    const [low, high] = [curves.get(0)!, curves.get(1)!].sort(
+      (a, b) => heightPx(a) - heightPx(b),
+    )
+    const chordPx = 10 * scale
+    expect(chordPx).toBeLessThan(heightPx(low!))
+    const lows = points(low!, 1024)
+    const clearance = (p: { x: number; y: number }) =>
+      lows.reduce(
+        (near, q) => Math.min(near, Math.hypot(p.x - q.x, p.y - q.y) * scale),
+        Infinity,
+      )
+    const midway = points(high!, 1024).filter(
+      p => Math.abs(p.y) * scale >= heightPx(low!) / 2,
+    )
+    expect(
+      midway.reduce((near, p) => Math.min(near, clearance(p)), Infinity),
+    ).toBeGreaterThan(0.4)
+  })
+
+  test('lifted skips keep their feet on their anchors, a level apart', () => {
+    const curves = skips([
+      [0, 3, [1, 2]],
+      [1, 3, [2]],
+    ])
+    const [outer] = curves.get(0)!
+    const [inner] = curves.get(1)!
+    expect(heightPx([outer!])).toBeCloseTo(2 * SKIP_LEVEL_PX, 5)
+    expect(heightPx([inner!])).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    expect([outer!.x0, outer!.y0, outer!.x1, outer!.y1]).toEqual([10, 0, 30, 0])
+    expect([inner!.x0, inner!.y0, inner!.x1, inner!.y1]).toEqual([20, 0, 30, 0])
+  })
+
+  test('a skip whose span overlaps no other keeps the path its layout gave it', () => {
+    const curves = skips([
+      [0, 2, [1]],
+      [3, 5, [4]],
+    ])
+    for (const arc of [curves.get(0)!, curves.get(1)!]) {
+      expect(arc.length).toBeGreaterThan(1)
+      expect(heightPx(arc)).toBeLessThan(1)
+    }
+  })
+
+  test('two skips over spans that overlap without nesting both rise', () => {
+    const curves = skips([
+      [0, 3, [1, 2]],
+      [1, 4, [2, 3]],
+    ])
+    for (const arc of [curves.get(0)!, curves.get(1)!]) {
+      expect(heightPx(arc)).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    }
+  })
+
+  test('a route that already rises past its level keeps its path', () => {
+    const p = positions()
+    const curves = baseEdgeCurves(
+      p,
+      { name: 'site', nodes: backbone, edges: [{ from: 'n0+', to: 'n3+' }] },
+      axis,
+      new Map([[0, ['n1+', 'n2+']]]),
+      0,
+      { 0: [{ x: 20, y: 200 }] },
+    )
+    expect(curves.get(0)!.length).toBeGreaterThan(1)
+    expect(heightPx(curves.get(0)!)).toBeGreaterThan(30)
+  })
+})
+
+describe('a dashed skip whose route runs along the reference it skips', () => {
+  const backbone: GraphNode[] = [0, 1, 2].map(i => ({
+    id: `n${i}+`,
+    name: `n${i}`,
+    length: 10,
+    depth: 1,
+    stable: { refName: 'chr1', start: i * 10, rank: 0 },
+  }))
+  const positions = Object.fromEntries(
+    backbone.map((n, i) => [
+      n.id,
+      [
+        { x: i * 10, y: 0 },
+        { x: i * 10 + 10, y: 0 },
+      ],
+    ]),
+  )
+  const skipAlong = (scale: number, route: NodeSegment[]) => {
+    const curves = baseEdgeCurves(
+      positions,
+      { name: 'skip', nodes: backbone, edges: [{ from: 'n0+', to: 'n2+' }] },
+      { scaleX: scale, scaleY: scale },
+      new Map([[0, ['n1+']]]),
+      0,
+      { 0: route },
+    ).get(0)!
+    let farthest = 0
+    for (const c of curves) {
+      for (let k = 0; k <= 32; k++) {
+        farthest = Math.max(
+          farthest,
+          Math.abs(curvePointAt(c, k / 32).y) * scale,
+        )
+      }
+    }
+    return farthest
+  }
+  const along = [
+    { x: 12, y: 0.5 },
+    { x: 18, y: 0.5 },
+  ]
+
+  test('arches clear of the stroke of the nodes it skips', () => {
+    expect(skipAlong(4, along)).toBeGreaterThan(12)
+  })
+
+  test('a route laid off the reference keeps its course', () => {
+    expect(skipAlong(4, [{ x: 15, y: -10 }])).toBeGreaterThan(35)
+    expect(skipAlong(4, [{ x: 15, y: -10 }])).toBeLessThan(45)
+  })
+
+  test('a skip too short on screen for its dashes keeps its route', () => {
+    expect(skipAlong(2, along)).toBeLessThan(2)
   })
 })

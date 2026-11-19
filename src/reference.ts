@@ -132,16 +132,16 @@ export function graphBackbone(graph: Graph): Backbone | undefined {
     : undefined
 }
 
-// `GRCh38 chr6`: the window's contig, else the backbone's one contig, after the
-// sample a named backbone lies on. Undefined where there is no one contig, so
-// a range never follows a bare sample.
+// `GRCh38 chr6`: the backbone's one contig, as the graph names it, else the
+// window's, after the sample a named backbone lies on. A host's window may
+// name the contig by an alias, `1` for chr1. Undefined where there is no one
+// contig, so a range never follows a bare sample.
 export function referenceLabel(graph: Graph, region?: { refName: string }) {
   const backbone = graphBackbone(graph)
-  const contig = region
-    ? panSNContig(region.refName)
-    : backbone?.contigs.length === 1
+  const contig =
+    backbone?.contigs.length === 1
       ? backbone.contigs[0]!.contig
-      : undefined
+      : region && panSNContig(region.refName)
   const sample = backbone?.named
     ? panSNSample(backbone.contigs[0]!.refName)
     : undefined

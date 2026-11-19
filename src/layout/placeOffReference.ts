@@ -1,6 +1,6 @@
 import { projectAlleles } from '../alleleProjection/projectAlleles'
 import { buildNeighbors } from '../referenceSpan'
-import { canonicalEdgeOrder } from '../util/edgeOrder'
+import { canonicalEdgeOrder } from '../util/canonicalOrder'
 
 import type { AlleleDeletion, Graph, NodeSegment } from '../types'
 

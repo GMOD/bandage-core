@@ -2,7 +2,7 @@ import { WalkReader } from '@jbrowse/graph-walks'
 import { LocalFile } from 'generic-filehandle2'
 
 import { isOffReference } from './anchoredNodes'
-import { classifyBubble } from './bubbles/classifyBubble'
+import { bubbleLabel } from './bubbles/bubbleLabel'
 import { graphBubbles } from './bubbles/superbubbles'
 import { COLOR_SCHEMES } from './colorSchemes'
 import { serializeEl } from './el'
@@ -43,6 +43,7 @@ import {
   computeColorSchemeRange,
   getNodeColor,
 } from './renderer/GeometryBuilder'
+import { abgrHex } from './renderer/colorBits'
 import { coarsenTubeMap } from './tubeMap/coarsen'
 import { drawTubeMap, notShownCaption, tubeMapPicture } from './tubeMap/draw'
 import { tubeMapNodeColors } from './tubeMap/nodeColors'
@@ -182,13 +183,14 @@ test('a row with a run not loaded reads as the loaded row, saying nothing of loa
   const { row, rows } = await cut('blocks', 'c', 80, 110)
   const loaded = await cut('blocks', 'c', 80, 110, { loaded: true })
   expect(walkRowReadout(row('PARTIAL#1'), rows.reference)).toBe(
-    '0.1 kb (+50 bp)',
+    '80 bp (+50 bp)',
   )
   expect(walkRowReadout(loaded.row('PARTIAL#1'), loaded.rows.reference)).toBe(
-    '0.1 kb (+50 bp)',
+    '80 bp (+50 bp)',
   )
+  // it jumps from right of the window back to its left, which is no pass
   expect(walkRowReadout(row('LOWFIRST#1'), rows.reference)).toBe(
-    '0.0 kb (−20 bp)',
+    '≥ 10 bp · contig ends inside the window',
   )
   for (const each of rows.rows) {
     expect(walkRowReadout(each, rows.reference)).not.toMatch(/≈|estimate/)
@@ -364,6 +366,7 @@ test('a run not loaded stays apart from the loaded steps off the reference besid
       abridgedSteps: Float64Array.of(NaN, 12),
     },
     departures: departureTable(),
+    revisited: 0,
   }
   for (const source of [tables, graphFromTables(tables)]) {
     const e = walkRowsOf(walkRowRuns(source)!).rows[0]!
@@ -459,6 +462,7 @@ function twinTables(): GraphTables {
       abridgedSteps: Float64Array.of(NaN, 40, 60, NaN, NaN),
     },
     departures: departureTable(),
+    revisited: 0,
   }
 }
 
@@ -642,6 +646,7 @@ function besideTableData(placeholders = Uint8Array.of(0, 0, 0, 0, 1)) {
       abridgedSteps: Float64Array.of(NaN, 12, NaN),
     },
     departures: departureTable(),
+    revisited: 0,
   }
   return tables
 }
@@ -796,9 +801,10 @@ test('a node layout draws a placeholder as a hollow node of its bp under every s
   }
   expect(strokesOf(loadedOff.id)).toHaveLength(1)
   const svg = figureSvg(graph, layout, { width: 600 })
+  expect(svg).toContain(
+    `fill="${abgrHex(NOT_LOADED_FILL_COLOR)}" stroke="${abgrHex(NOT_LOADED_COLOR)}"`,
+  )
   expect(svg).toContain('>nodes not shown</text>')
-  expect(svg).toContain(NOT_LOADED_CSS)
-  expect(svg).toContain(NOT_LOADED_FILL_CSS)
   const allLoaded = loadGraph(
     {
       ...twinTables(),
@@ -878,15 +884,15 @@ test('a cut says how many placeholders it returned, each a node of the tables', 
   ).toBe(placeholders)
 })
 
-test('a bubble with a run not loaded inside is called neither insertion nor deletion', () => {
-  const kinds = (tables: GraphTables) =>
-    graphBubbles(loadGraph(tables, 'cut')).map(bubble => classifyBubble(bubble))
-  expect(kinds(twinTables())).toEqual([
-    { kind: 'complex', label: '500 bp–1 kb, 4 routes, some nodes not shown' },
+test('a bubble with a run not loaded inside says some of its nodes are not shown', () => {
+  const labels = (tables: GraphTables) =>
+    graphBubbles(loadGraph(tables, 'cut')).map(bubble => bubbleLabel(bubble))
+  expect(labels(twinTables())).toEqual([
+    '500 bp–1 kb, 4 routes, some nodes not shown',
   ])
-  const loaded = kinds({
+  const loaded = labels({
     ...twinTables(),
     nodes: { ...twinTables().nodes, placeholders: new Uint8Array(6) },
   })
-  expect(loaded.map(c => c.label).join(' ')).not.toContain('not shown')
+  expect(loaded.join(' ')).not.toContain('not shown')
 })

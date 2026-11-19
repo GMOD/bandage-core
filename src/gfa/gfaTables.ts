@@ -1,5 +1,6 @@
 import { Column } from '../pathVisits'
 import { departureTable } from './departures'
+import { revisitedCount } from './graphTables'
 
 import type { GraphTables } from './graphTables'
 
@@ -225,6 +226,13 @@ export function gfaTables(text: string): GraphTables | undefined {
     }
   }
 
+  const rankZero = new Set<string>()
+  refs.forEach((ref, i) => {
+    if (ref >= 0 && ranks[i] === 0) {
+      rankZero.add(refNames[ref]!)
+    }
+  })
+  const walkSteps = steps.nodes.data.slice(0, steps.nodes.length)
   return {
     nodes: {
       names: segments.names,
@@ -244,9 +252,16 @@ export function gfaTables(text: string): GraphTables | undefined {
       starts: Float64Array.from(walkStarts),
       ends: Float64Array.from(walkEnds),
       offsets: Int32Array.from(offsets),
-      steps: steps.nodes.data.slice(0, steps.nodes.length),
+      steps: walkSteps,
       reversed: steps.reversed.data.slice(0, steps.reversed.length),
     },
     departures: departureTable(),
+    revisited: revisitedCount(
+      names.map((name, p) => ({
+        name,
+        segments: walkSteps.subarray(offsets[p], offsets[p + 1]),
+      })),
+      rankZero,
+    ),
   }
 }

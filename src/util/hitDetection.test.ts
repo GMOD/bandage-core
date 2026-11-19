@@ -1,8 +1,10 @@
+import { baseEdgeCurves } from './edgeCurves'
 import {
   distanceToCubicBezier,
   distanceToSegment,
   findHoveredEdge,
   findHoveredNode,
+  otherNodeUnderBox,
 } from './hitDetection'
 
 import type { Graph } from '../types'
@@ -85,20 +87,28 @@ describe('findHoveredNode', () => {
   }
 
   test('finds node when cursor is on segment', () => {
-    expect(findHoveredNode(nodePositions, 5, 0, iso())).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 5, 0, iso(), 0, undefined, undefined),
+    ).toBe('A+')
   })
 
   test('finds node when cursor is near segment', () => {
-    expect(findHoveredNode(nodePositions, 5, 3, iso())).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 5, 3, iso(), 0, undefined, undefined),
+    ).toBe('A+')
   })
 
   test('returns null when cursor is far from nodes', () => {
-    expect(findHoveredNode(nodePositions, 50, 50, iso())).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 50, 50, iso(), 0, undefined, undefined),
+    ).toBeNull()
   })
 
   test('respects scale for threshold', () => {
     // At scale 10, threshold is 5/10 = 0.5, so a point 3 units away should miss
-    expect(findHoveredNode(nodePositions, 5, 3, iso(10))).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 5, 3, iso(10), 0, undefined, undefined),
+    ).toBeNull()
   })
 
   // A node drawn thick by its depth is 18 px across at the defaults, so the
@@ -109,14 +119,22 @@ describe('findHoveredNode', () => {
       halfWidthPx: (id: string) => (id === 'A+' ? 9 : 3),
       maxHalfWidthPx: 9,
     }
-    expect(findHoveredNode(nodePositions, 5, 8, iso())).toBeNull()
-    expect(findHoveredNode(nodePositions, 5, 8, iso(), 0, drawn)).toBe('A+')
-    expect(findHoveredNode(nodePositions, 25, 28, iso(), 0, drawn)).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 5, 8, iso(), 0, undefined, undefined),
+    ).toBeNull()
+    expect(
+      findHoveredNode(nodePositions, 5, 8, iso(), 0, drawn, undefined),
+    ).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 25, 28, iso(), 0, drawn, undefined),
+    ).toBeNull()
   })
 
   test('a thin node keeps the tolerance that makes it catchable', () => {
     const drawn = { halfWidthPx: () => 1, maxHalfWidthPx: 1 }
-    expect(findHoveredNode(nodePositions, 5, 4, iso(), 0, drawn)).toBe('A+')
+    expect(
+      findHoveredNode(nodePositions, 5, 4, iso(), 0, drawn, undefined),
+    ).toBe('A+')
   })
 
   test('of two thick nodes under the pointer, the nearer centreline wins', () => {
@@ -131,8 +149,12 @@ describe('findHoveredNode', () => {
       ],
     }
     const thick = { halfWidthPx: () => 9, maxHalfWidthPx: 9 }
-    expect(findHoveredNode(stacked, 5, 6, iso(), 0, thick)).toBe('B+')
-    expect(findHoveredNode(stacked, 5, 4, iso(), 0, thick)).toBe('A+')
+    expect(findHoveredNode(stacked, 5, 6, iso(), 0, thick, undefined)).toBe(
+      'B+',
+    )
+    expect(findHoveredNode(stacked, 5, 4, iso(), 0, thick, undefined)).toBe(
+      'A+',
+    )
   })
 })
 
@@ -157,24 +179,37 @@ describe('findHoveredEdge', () => {
     ],
     edges: [{ from: 'A+', to: 'B+', pathIds: ['p1', 'p2', 'p3'] }],
   }
+  const hit = (x: number, y: number, drawPaths: boolean) =>
+    findHoveredEdge(
+      nodePositions,
+      graph,
+      x,
+      y,
+      iso(),
+      drawPaths,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      false,
+      undefined,
+    )
 
   test('hits edge on center lane', () => {
-    expect(findHoveredEdge(nodePositions, graph, 100, 0, iso(), true)).toBe(0)
+    expect(hit(100, 0, true)).toBe(0)
   })
 
   test('hits edge on offset path lane', () => {
     // Outer lane sits ~3 units off center; 10/scale threshold easily covers it.
-    expect(findHoveredEdge(nodePositions, graph, 100, 3, iso(), true)).toBe(0)
+    expect(hit(100, 3, true)).toBe(0)
   })
 
   test('misses when far from all lanes', () => {
-    expect(
-      findHoveredEdge(nodePositions, graph, 100, 200, iso(), true),
-    ).toBeNull()
+    expect(hit(100, 200, true)).toBeNull()
   })
 
   test('drawPaths=false still hits on centerline', () => {
-    expect(findHoveredEdge(nodePositions, graph, 100, 0, iso(), false)).toBe(0)
+    expect(hit(100, 0, false)).toBe(0)
   })
 
   // A deletion is drawn bowed off its chord, and the tutorial tells the reader to
@@ -192,7 +227,20 @@ describe('findHoveredEdge', () => {
       ],
     }
     const at = (x: number, y: number, deletions?: Map<number, string[]>) =>
-      findHoveredEdge(withBypassed, graph, x, y, iso(), false, 0, deletions)
+      findHoveredEdge(
+        withBypassed,
+        graph,
+        x,
+        y,
+        iso(),
+        false,
+        0,
+        deletions,
+        undefined,
+        undefined,
+        false,
+        undefined,
+      )
 
     test('is hoverable where it is drawn', () => {
       // 0.35 * 100 = 35 of bulge, so the curve's own midpoint is near y = 26
@@ -215,9 +263,65 @@ describe('findHoveredEdge', () => {
           0,
           bypassing,
           new Set([0]),
+          undefined,
+          false,
+          undefined,
         ),
       ).toBeNull()
     })
+  })
+})
+
+// A+ to B- leaves A's end and enters B's end, B's far side from A, where a
+// force layout draws it; joined at the nearer ends it would stop at B's start
+describe('a hit test on a stranded drawing', () => {
+  const positions = {
+    'A+': [
+      { x: 0, y: 0 },
+      { x: 50, y: 0 },
+    ],
+    'B+': [
+      { x: 100, y: 0 },
+      { x: 150, y: 0 },
+    ],
+  }
+  const stranded: Graph = {
+    name: 't',
+    nodes: [
+      { id: 'A+', name: 'A', length: 50, depth: 1 },
+      { id: 'B+', name: 'B', length: 50, depth: 1 },
+    ],
+    edges: [{ from: 'A+', to: 'B+', fromStrand: '+', toStrand: '-' }],
+  }
+  const hit = (x: number, onEnds: boolean) =>
+    findHoveredEdge(
+      positions,
+      stranded,
+      x,
+      0,
+      iso(),
+      false,
+      0,
+      undefined,
+      undefined,
+      undefined,
+      onEnds,
+      undefined,
+    )
+
+  test('targets the link where it is drawn, into the end its strand names', () => {
+    const drawn = baseEdgeCurves(
+      positions,
+      stranded,
+      iso(),
+      undefined,
+      0,
+      undefined,
+      true,
+    ).get(0)!
+    expect(drawn.at(-1)!.x1).toBeCloseTo(150)
+    expect(hit(125, true)).toBe(0)
+    expect(hit(125, false)).toBeNull()
   })
 })
 
@@ -237,8 +341,12 @@ test('picks the nearest node when several are inside the threshold', () => {
     ],
   }
   // scale 0.008 -> a 625 unit threshold, wide enough to reach both
-  expect(findHoveredNode(positions, 1050, 0, iso(0.008))).toBe('near+')
-  expect(findHoveredNode(positions, 550, 0, iso(0.008))).toBe('far+')
+  expect(
+    findHoveredNode(positions, 1050, 0, iso(0.008), 0, undefined, undefined),
+  ).toBe('near+')
+  expect(
+    findHoveredNode(positions, 550, 0, iso(0.008), 0, undefined, undefined),
+  ).toBe('far+')
 })
 
 // On a row layout x is reference bp and y is screen px, and the hover slack is
@@ -270,6 +378,8 @@ describe('hover on a row layout', () => {
         2,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBe('top')
     expect(
@@ -279,6 +389,8 @@ describe('hover on a row layout', () => {
         18,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBe('next')
   })
@@ -291,6 +403,8 @@ describe('hover on a row layout', () => {
         10,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBeNull()
   })
@@ -304,6 +418,8 @@ describe('hover on a row layout', () => {
         0,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBe('top')
     expect(
@@ -313,7 +429,137 @@ describe('hover on a row layout', () => {
         0,
         { scaleX: scaleX, scaleY: scaleX * yToX },
         0,
+        undefined,
+        undefined,
       ),
     ).toBeNull()
+  })
+})
+
+describe('otherNodeUnderBox', () => {
+  const nodePositions = {
+    line: [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ],
+    crossing: [
+      { x: 50, y: -20 },
+      { x: 50, y: 20 },
+    ],
+  }
+  const under = otherNodeUnderBox(nodePositions, {
+    scaleX: 2,
+    scaleY: 2,
+    translateX: 10,
+    translateY: 10,
+  })
+  const overBoth = { x0: 100, x1: 120, y0: 5, y1: 15 }
+  const overLine = { x0: 20, x1: 60, y0: 5, y1: 15 }
+  const overNeither = { x0: 20, x1: 60, y0: 100, y1: 120 }
+
+  test('a box over two nodes covers another node unless both are its own', () => {
+    expect(under(overBoth, id => id === 'line')).toBe(true)
+    expect(under(overBoth, () => true)).toBe(false)
+  })
+
+  test('a box over its own node alone, or over none, covers no other', () => {
+    expect(under(overLine, id => id === 'line')).toBe(false)
+    expect(under(overLine, id => id === 'crossing')).toBe(true)
+    expect(under(overNeither, () => false)).toBe(false)
+  })
+
+  test('a label box over a drawing zoomed far out looks in the few cells it covers', () => {
+    const chain = Object.fromEntries(
+      Array.from({ length: 5000 }, (_, i) => [
+        `n${i}`,
+        [
+          { x: i * 4, y: 0 },
+          { x: i * 4 + 3, y: 0 },
+        ],
+      ]),
+    )
+    const covered = otherNodeUnderBox(chain, {
+      scaleX: 0.02,
+      scaleY: 0.02,
+      translateX: 0,
+      translateY: 0,
+    })
+    const box = { x0: 100, x1: 250, y0: -9, y1: 10 }
+    expect(covered(box, id => id !== 'n2000')).toBe(true)
+    const lookups = vi.spyOn(Map.prototype, 'get')
+    const coveredOwn = covered(box, () => true)
+    const looked = lookups.mock.calls.length
+    lookups.mockRestore()
+    expect(coveredOwn).toBe(false)
+    expect(looked).toBeLessThan(50)
+  })
+
+  test('the first other node under the box settles it', () => {
+    const fan = Object.fromEntries(
+      Array.from({ length: 1000 }, (_, i) => [
+        `n${i}`,
+        [
+          { x: i / 100, y: 0 },
+          { x: i / 100, y: 10 },
+        ],
+      ]),
+    )
+    const own = vi.fn<(nodeId: string) => boolean>(() => false)
+    const covered = otherNodeUnderBox(fan, {
+      scaleX: 1,
+      scaleY: 1,
+      translateX: 0,
+      translateY: 0,
+    })({ x0: -1, x1: 11, y0: 4, y1: 6 }, own)
+    expect(covered).toBe(true)
+    expect(own).toHaveBeenCalledTimes(1)
+  })
+
+  test('a drawing zoomed out after it was labelled close in is asked of cells a label covers few of', () => {
+    const chain = Object.fromEntries(
+      Array.from({ length: 5000 }, (_, i) => [
+        `n${i}`,
+        [
+          { x: i * 4, y: 0 },
+          { x: i * 4 + 3, y: 0 },
+        ],
+      ]),
+    )
+    const at = (scale: number) => ({
+      scaleX: scale,
+      scaleY: scale,
+      translateX: 0,
+      translateY: 0,
+    })
+    otherNodeUnderBox(chain, at(5))(
+      { x0: 0, x1: 40, y0: -9, y1: 10 },
+      () => true,
+    )
+    const far = otherNodeUnderBox(chain, at(0.02))
+    const lookups = vi.spyOn(Map.prototype, 'get')
+    const covered = far({ x0: 100, x1: 250, y0: -9, y1: 10 }, () => true)
+    const looked = lookups.mock.calls.length
+    lookups.mockRestore()
+    expect(covered).toBe(false)
+    expect(looked).toBeLessThan(50)
+  })
+
+  test('after a drag moves a node in place, a label box is asked of where the node is now', () => {
+    const drawn = {
+      moved: [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ],
+    }
+    const identity = { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0 }
+    const where = { x0: 40, x1: 60, y0: -5, y1: 5 }
+    const draggedTo = { x0: 40, x1: 60, y0: 495, y1: 505 }
+    expect(otherNodeUnderBox(drawn, identity, 0)(where, () => false)).toBe(true)
+    for (const point of drawn.moved) {
+      point.y = 500
+    }
+    const dragged = otherNodeUnderBox(drawn, identity, 1)
+    expect(dragged(where, () => false)).toBe(false)
+    expect(dragged(draggedTo, () => false)).toBe(true)
   })
 })

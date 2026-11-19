@@ -15,28 +15,30 @@ Decompress a `.gfa.gz` before passing its text to `loadGraph`.
 
 ## Layouts
 
-| Export                                       | What it does                                                                                                              |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `forceLayout(graph, settings, layoutEngine)` | Bandage's force-directed layout, or with `engine: 'stress'` a stress layout that keeps the reference in a straight line   |
-| `ENGINE_DEFAULTS`                            | the default `settings`: engine, quality, spacing, bubble spread and deletion edges                                        |
-| `layoutModeByValue(mode).run(graph, region)` | a layout along the reference, or `undefined` when that layout cannot draw the graph                                       |
-| `LAYOUT_MODES`                               | every layout, with its label: `auto` (anchored), `ordered`, `samplerows`, `walkrows`, `tubemap`, `tubemapref` and `force` |
-| `loadBandage()`                              | loads the WebAssembly module of Bandage's layout ahead of time; otherwise the first force layout loads it                 |
+| Export                                            | What it does                                                                                                                                                                  |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `forceLayout(graph, settings, layoutEngine, fit)` | Bandage's force-directed layout, or with `engine: 'stress'` a stress layout that keeps the reference in a straight line. `fit` is the pane size the drawing will be fitted to |
+| `ENGINE_DEFAULTS`                                 | the default `settings`: engine, quality, spacing, bubble spread and deletion edges                                                                                            |
+| `layoutModeByValue(mode).run(graph, region)`      | a layout along the reference, or `undefined` when that layout cannot draw the graph                                                                                           |
+| `LAYOUT_MODES`                                    | every layout, with its label: `auto` (anchored), `ordered`, `samplerows`, `walkrows`, `tubemap`, `tubemapref` and `force`                                                     |
+| `loadBandage()`                                   | loads the WebAssembly module of Bandage's layout ahead of time; otherwise the first force layout loads it                                                                     |
 
 ## Drawing to a canvas
 
-| Export                                  | What it does                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------------- |
-| `buildGeometry(options)`                | turns a layout into the shapes to draw                                                |
-| `layoutGeometryInputs(layout, drawing)` | the options to `buildGeometry` that come from the layout                              |
-| `Canvas2DRenderer`                      | draws those shapes to a canvas, with `uploadGeometry`, `updateTransform` and `render` |
-| `drawingBounds(layout)`, `fitTransform` | the size of the drawing, and the zoom and offset that fit it to a canvas              |
-| `findHoveredNode`, `findHoveredEdge`    | the node or link under the mouse pointer                                              |
-| `tubeMapPicture`, `drawTubeMap`         | draw a tube map, which does not go through `buildGeometry`                            |
+| Export                                  | What it does                                                                                                                                  |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildGeometry(options)`                | turns a layout into the shapes to draw                                                                                                        |
+| `layoutGeometryInputs(layout, drawing)` | the options to `buildGeometry` that come from the layout                                                                                      |
+| `Canvas2DRenderer`                      | draws those shapes to a canvas, with `uploadGeometry`, `updateTransform` and `render`                                                         |
+| `drawingBounds(layout)`, `fitTransform` | the size of the drawing, and the zoom and offset that fit it to a canvas                                                                      |
+| `findHoveredNode`, `findHoveredEdge`    | the node or link under the mouse pointer; pass them the batch's `collapsed`, so a point on a small site that is not drawn finds the reference |
+| `tubeMapPicture`, `drawTubeMap`         | draw a tube map, which does not go through `buildGeometry`                                                                                    |
 
 BandageJS's
 [`src/view.ts`](https://github.com/GMOD/BandageJS/blob/main/src/view.ts)
-connects these to panning, zooming and hover.
+connects these to panning, zooming and hover. [Drawing reference](drawing.md)
+covers fitting the drawing to a pane, labels with `layoutLabels`, the key with
+`graphKey`, and small sites.
 
 ## Figures
 

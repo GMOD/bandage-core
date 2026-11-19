@@ -33,6 +33,7 @@ export type FigureSceneOptions = Pick<
   | 'fitToDrawing'
   | 'walkRows'
   | 'walkRowPitch'
+  | 'smallSites'
 >
 
 // What figureSvg and figureData both draw from: the fit's bounds, the colors,
@@ -110,9 +111,10 @@ export function figureScene(
     facets,
     labelOf: (name: string) => labels.get(name) ?? name,
     referenceName,
+    walkReference: reference,
     keyText: (walk: LiftedWalk) => {
       const key = walkKey(walk, reference)
-      return { note: key.delta + key.gaps + key.reversed, scale: key.scale }
+      return { note: key.gaps, scale: key.scale }
     },
     contigThickness,
     nodeWidth,
@@ -132,6 +134,7 @@ export function figureScene(
         highlight,
         axis,
         referenceRamp,
+        smallSites: o.smallSites ?? FIGURE_DEFAULTS.smallSites,
       }),
   }
 }

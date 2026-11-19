@@ -64,5 +64,9 @@ test("a cut's typed arrays are the tables of the GFA it writes", () => {
     'W\tGRCh38\t0\tchr6\t100\t107\t>10>11<13',
     'W\tHG002\t1\tCM1.1\t5\t20\t>10>12<99>12<99\tWT:i:3',
   ].join('\n')
-  expect(compactTables(cut)).toEqual(gfaTables(gfa))
+  // a cut cannot count what the reference passes beyond it
+  expect(compactTables(cut)).toEqual({
+    ...gfaTables(gfa),
+    revisited: Number.NaN,
+  })
 })

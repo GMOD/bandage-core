@@ -4,23 +4,48 @@
 // of its own (github.com/cmdcolin/BandageJS) can draw exactly what the plugin
 // draws.
 
+export { FIT_PADDING } from './layout/fitAssumptions'
+export type { FitSize } from './layout/fitAssumptions'
 export {
-  FIT_PADDING,
   clampZoom,
   drawingBounds,
   engineRequest,
+  cutScale,
   fitTransform,
+  followTransform,
   forceLayout,
   layoutExtent,
   loadGraph,
+  referenceProfile,
+  referenceReach,
+  referenceScale,
+  shownBounds,
+  windowScale,
 } from './pipeline'
 export type {
   Bounds,
   EngineRequest,
   EngineSettings,
   LayoutEngine,
+  ReferencePiece,
+  ReferenceProfile,
 } from './pipeline'
 export { ENGINE_DEFAULTS, engineSettingsOf } from './pipeline'
+export {
+  DEFAULT_TRACK_FIT,
+  TRACK_FITS,
+  TRACK_FIT_LABELS,
+  drawEdgeMarks,
+  drawnSegments,
+  edgeOverruns,
+  grownHeight,
+  isTrackFit,
+  reachOver,
+  referenceSegments,
+  scalesByWindow,
+  windowTranslateY,
+} from './trackFit'
+export type { EdgeOverruns, TrackFit } from './trackFit'
 export { createForceLayoutCache } from './layout/forceCache'
 export { cutsWholeWalks, walkStripApplies } from './layout/walkStrip'
 export type { ForceLayoutCache } from './layout/forceCache'
@@ -40,6 +65,7 @@ export { COLOR_SCHEMES, resolveColorScheme } from './colorSchemes'
 export type { ColorScheme, ResolvedColorScheme } from './colorSchemes'
 export {
   NODE_WIDTHS,
+  depthKey,
   frequencyKey,
   haplotypeCount,
   maxNodeWidthPx,
@@ -53,7 +79,7 @@ export {
 export type { NodeWidth } from './nodeWidths'
 export { EDGE_WIDTHS, busiestEdge, edgeWidthFactor } from './edgeWidths'
 export type { EdgeWidth } from './edgeWidths'
-export { BUBBLE_SPREADS } from './bubbleSpreads'
+export { BUBBLE_SPREADS, COMPRESSED_KEY } from './bubbleSpreads'
 export { LAYOUT_QUALITIES } from './layoutQualities'
 export type { LayoutQuality } from './layoutQualities'
 export type { BubbleSpread } from './bubbleSpreads'
@@ -74,6 +100,8 @@ export { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 // handed to it has to be multiplied by
 export { getDpr } from './renderer/canvas'
 export type { Renderer } from './renderer/types'
+export { SMALL_SITE_PX, nodesNotDrawn } from './levelOfDetail'
+export type { Fold, Site, SmallSites } from './levelOfDetail'
 export { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 export type { NodeInk } from './util/hitDetection'
 export type { AxisScale } from './util/geometry'
@@ -125,12 +153,61 @@ export type { Connector } from './tubeMap/connectors'
 export { bundleRoutes } from './tubeMap/bundle'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
-export { deletionDrawing, deletionEdges, deletionKey } from './deletionEdges'
+export {
+  SHORT_SKIP_KEY,
+  deletionDrawing,
+  deletionEdges,
+  deletionKey,
+} from './deletionEdges'
 export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
+export {
+  MOST_PASS_THREADS,
+  liftedPasses,
+  passInk,
+  passesOf,
+  statedPasses,
+  walkPassesOf,
+} from './walkPasses'
+export type { LiftedPasses, WalkPass, WalkPasses } from './walkPasses'
+export { PASS_BAR_HEIGHT, passBarTree, passBars } from './passBar'
+export type { PassBar } from './passBar'
+export { passLabelCandidates, passLeader } from './passLabels'
+export type { PassLabelItem } from './passLabels'
+export {
+  LANE_HEADS_AGAINST_KEY,
+  LANE_HEADS_KEY,
+  LANE_HEAD_MIN_PX,
+  LANE_HEAD_SPACING_PX,
+  LANE_HEAD_TURNS,
+} from './renderer/laneHeads'
+export {
+  MIN_THREAD_PITCH_PX,
+  threadsFuse,
+  threadsPasses,
+} from './renderer/walkLanes'
+export {
+  EXON_INK,
+  FADED_KEY_INK,
+  RAMP_KEY_STOPS,
+  drawnMarks,
+  graphKey,
+  unlabelledText,
+  walkKeyEntry,
+} from './graphKey'
+export type {
+  DrawnMarks,
+  GraphKey,
+  GraphKeyEntry,
+  GraphKeyOptions,
+  GraphKeySection,
+  GraphKeySectionId,
+  GraphKeySwatch,
+  KeyStop,
+} from './graphKey'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
-export { figureData, gfaFigureData } from './figureData'
+export { figureData, gfaFigureData, walkRowInks } from './figureData'
 export type { FigureDataOptions, GfaFigureSpec } from './figureData'
 export {
   genesFromBed,
@@ -150,6 +227,7 @@ export type { GbzSource } from './gbzCut'
 export { version } from './version'
 export type { FigureOptions } from './figure'
 export { svgCanvas } from './renderer/svgCanvas'
+export { abgrHex, abgrToCssRgba } from './renderer/colorBits'
 export {
   FACET_FIELDS,
   FACET_GAP_PX,
@@ -166,10 +244,12 @@ export {
   WALK_SCHEMES,
   encodingStops,
   encodingSwatchCss,
+  passPalette,
   resolveEncoding,
   schemeCss,
 } from './walkEncoding'
 export type {
+  PassSpan,
   WalkEncoding,
   WalkField,
   WalkLayer,
@@ -181,14 +261,18 @@ export { graphBubbles, superbubblesFromGraph } from './bubbles/superbubbles'
 export { bubbleHalos } from './bubbles/bubbleHalos'
 export type { BubbleHalo } from './bubbles/bubbleHalos'
 export {
-  BUBBLE_KIND_COLORS,
-  BUBBLE_KIND_NAMES,
+  BUBBLE_HALO_COLOR,
+  bubbleLabel,
   bubbleSegmentIds,
-  classifyBubble,
-} from './bubbles/classifyBubble'
+} from './bubbles/bubbleLabel'
 export { bubbleSubgraph } from './bubbles/popBubble'
 export type { MinigraphBubble } from './bubbles/bubbleLine'
-export { filterSamples, walkRows } from './layout/walkRows'
+export {
+  alongRow,
+  filterSamples,
+  rowHaplotype,
+  walkRows,
+} from './layout/walkRows'
 export { runAt, walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
 export type {
   WalkRowMeta,
@@ -222,7 +306,7 @@ export {
   OUTSIDE_CUT as WALK_OUTSIDE_CUT,
   NOT_COMPARED_TEXT as WALK_NOT_COMPARED_TEXT,
   UNBACKED_TICK as WALK_UNBACKED_TICK,
-  alongRow,
+  ON_PATH_STRIP_INK as WALK_ON_PATH_STRIP_INK,
   barEnd,
   callTickInk,
   coalesceRuns,
@@ -252,6 +336,15 @@ export type {
   WalkRowsFrame,
   WalkRowsWithCalls,
 } from './layout/walkRowDraw'
+export {
+  liftedRowInks,
+  rowInkAlong,
+  rowInkAt,
+  rowInkOf,
+  rowInkStops,
+  walkNamesRow,
+} from './layout/rowInks'
+export type { RowInk } from './layout/rowInks'
 export {
   LABELLED_ROW_PX,
   WALK_STRIP_CEILING_PX,
@@ -287,16 +380,25 @@ export {
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
-export { inkUnder, legendBox, legendCorner } from './legendCorner'
-export type {
-  LegendCorner,
-  LegendCornerSource,
-  LegendFrame,
-} from './legendCorner'
-export { formatBp } from './graphLabels'
+export {
+  fitBesideKey,
+  keyColumnBox,
+  keyColumnPx,
+  keyHeightPx,
+} from './keyColumn'
+export type { KeyFrame } from './keyColumn'
+export {
+  LABEL_DEFAULTS,
+  formatBp,
+  labelledNodeLengths,
+  sizeLeader,
+} from './graphLabels'
+export type { UnlabelledPlaceholders } from './graphLabels'
 export { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 export type { ExonStretch } from './genes/exonOutline'
 export { genePins } from './genes/genePins'
+export { genesOverNode, hasGeneSymbol, namedGenePins } from './genes/geneNames'
+export type { NamedGenePin } from './genes/geneNames'
 export type { GeneModel, GenePin } from './genes/genePins'
 export {
   WELL_KNOWN_SAMPLES,
@@ -338,6 +440,7 @@ export {
 } from './gfa/graphTables'
 export type { DepartureTable, GraphTables } from './gfa/graphTables'
 export {
+  FROM_ELSEWHERE_TEXT,
   GAP_CAUSE_TEXT,
   NOT_LOADED_TEXT,
   OUTSIDE_TEXT,
@@ -357,11 +460,14 @@ export type {
   GapPart,
 } from './gfa/departures'
 export { PathVisits, PathVisitsBuilder } from './pathVisits'
+export { walksThrough } from './walksThrough'
+export type { WalkThrough } from './walksThrough'
 
 export { engineKey } from './pipeline'
 export {
   axisScaleOf,
   contains,
+  keyedView,
   padded,
   screenToLayout,
   viewportOf,

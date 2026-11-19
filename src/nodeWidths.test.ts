@@ -1,4 +1,5 @@
 import {
+  depthKey,
   frequencyKey,
   haplotypeCount,
   nodeInk,
@@ -7,6 +8,7 @@ import {
   widthNorm,
   withFrequencies,
 } from './nodeWidths'
+import { buildGeometry } from './renderer/GeometryBuilder'
 
 import type { Graph, GraphNode } from './types'
 
@@ -96,4 +98,47 @@ test('the frequency key shows the widths nodes draw at', () => {
   const key = frequencyKey(6)
   expect(key.map(k => k.label)).toEqual(['100%', '50%', '10%'])
   expect(key.map(k => k.widthPx)).toEqual([6, 3, expect.closeTo(0.6)])
+})
+
+// GSTM1's key read 9, 6 and 1 walks, its middle bar the mean depth, which no
+// node need have
+test('the depth key shows the thickest and thinnest nodes at the widths they draw', () => {
+  const nodes = [
+    { id: 'r+', name: 'r', length: 900, depth: 9 },
+    { id: 'g+', name: 'g', length: 300, depth: 6 },
+    { id: 'p+', name: 'p', length: 5, depth: 1 },
+  ]
+  const graph = graphOf(nodes, [])
+  const batch = buildGeometry({
+    nodePositions: Object.fromEntries(
+      nodes.map((n, i) => [
+        n.id,
+        [
+          { x: i * 20, y: 0 },
+          { x: i * 20 + 10, y: 0 },
+        ],
+      ]),
+    ),
+    graph,
+    nodeById: new Map(nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth: 'depth',
+    axis: { scaleX: 1, scaleY: 1 },
+  })
+  const drawnPx = (id: string) =>
+    batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!.thickness * 2
+  expect(depthKey(graph, 6)).toEqual([
+    { depth: 9, widthPx: drawnPx('r+') },
+    { depth: 1, widthPx: drawnPx('p+') },
+  ])
+  expect(depthKey(graphOf([nodes[0]!], []), 6)).toEqual([
+    { depth: 9, widthPx: 6 },
+  ])
+  expect(depthKey(graph, 6, new Set(['p+']))).toEqual([
+    { depth: 1, widthPx: drawnPx('p+') },
+  ])
+  expect(depthKey(graph, 6, new Set())).toEqual([])
 })

@@ -4,6 +4,7 @@ import { walkLift } from '../walkHighlight'
 import { buildGeometry } from './GeometryBuilder'
 import {
   MAX_BAND_PX,
+  MIN_LANE_STROKE_PX,
   PASSES_KEY,
   liftLanes,
   passesKey,
@@ -124,7 +125,7 @@ test('every pass through a node draws one thread, however the walk runs', () => 
   }
 })
 
-test('walks lifted together that never repeat slide each link whole by its lane where it leaves', () => {
+test('walks lifted together that never repeat join each link to its own lane at both nodes', () => {
   const bent: Record<string, NodeSegment[]> = {
     ...flat,
     'v2+': [
@@ -137,22 +138,22 @@ test('walks lifted together that never repeat slide each link whole by its lane 
     ],
   }
   const gfa = `${LINE}\n${walk('alt', '>v1>v2>v3')}`
-  const alone = drawn(gfa, ['ref#0#chr'], bent)
   const both = drawn(gfa, ['ref#0#chr', 'alt#1#chr'], bent)
-  for (const edge of [0, 1]) {
-    const [base] = alone.links(edge)
+  const laneOf = (id: string, walkIndex: number | undefined) =>
+    both.strokes(id).find(s => s.walk === walkIndex)!.points
+  for (const [edge, from, to] of [
+    [0, 'v1+', 'v2+'],
+    [1, 'v2+', 'v3+'],
+  ] as const) {
     for (const lane of both.links(edge)) {
-      const [c] = lane.curves
-      const [b] = base!.curves
-      const dx = c!.x0 - b!.x0
-      const dy = c!.y0 - b!.y0
-      for (const k of ['cx0', 'cx1', 'x1'] as const) {
-        expect(c![k] - b![k]).toBeCloseTo(dx, 9)
-      }
-      for (const k of ['cy0', 'cy1', 'y1'] as const) {
-        expect(c![k] - b![k]).toBeCloseTo(dy, 9)
-      }
-      expect(lane.endOffsetX).toBe(lane.offsetX)
+      const first = lane.curves[0]!
+      const last = lane.curves.at(-1)!
+      const leaves = laneOf(from, lane.walk).at(-1)!
+      const enters = laneOf(to, lane.walk)[0]!
+      expect(first.x0).toBeCloseTo(leaves.x, 9)
+      expect(first.y0).toBeCloseTo(leaves.y, 9)
+      expect(last.x1).toBeCloseTo(enters.x, 9)
+      expect(last.y1).toBeCloseTo(enters.y, 9)
     }
   }
   for (const s of both.strokes('v1+')) {
@@ -166,7 +167,7 @@ const bandAt = (strokes: { offsetX?: number; thickness: number }[]) =>
   Math.max(...strokes.map(s => s.offsetX! + s.thickness)) -
   Math.min(...strokes.map(s => s.offsetX! - s.thickness))
 
-test('a band of threads never grows wider than MAX_BAND_PX, and its key says when it thins', () => {
+test('a band of threads never grows wider than MAX_BAND_PX, but for the floor under its outer threads, and its key says when it thins', () => {
   const names = Array.from({ length: 19 }, (_, i) => `d${i}`)
   const lines = names.map((name, i) =>
     walk(name, i % 3 ? '>v1>v2>v3' : '>v1>v2>v1>v2>v1>v2>v3'),
@@ -175,7 +176,9 @@ test('a band of threads never grows wider than MAX_BAND_PX, and its key says whe
     'ref#0#chr',
     ...names.map(n => `${n}#1#chr`),
   ])
-  expect(bandAt(crowd.strokes('v1+'))).toBeLessThanOrEqual(MAX_BAND_PX + 1e-9)
+  expect(bandAt(crowd.strokes('v1+'))).toBeLessThanOrEqual(
+    MAX_BAND_PX + MIN_LANE_STROKE_PX,
+  )
   expect(bandAt(crowd.strokes('v1+'))).toBeGreaterThan(MAX_BAND_PX - 1)
   expect(passesKey(crowd.highlight.walks)).toBe(`${PASSES_KEY}, thinned to fit`)
 
@@ -645,5 +648,44 @@ test('flat lanes of walks that never repeat share one normal at each node', () =
     for (const s of strokes) {
       expect(s.normals).toEqual(strokes[0]!.normals)
     }
+  }
+})
+
+test('a walk that never repeats, lifted beside one that does, joins each link to its lane where the lane is shifted onto the smoothed walk', () => {
+  const gfa = `${ZIGZAG}\n${walk('a', chain(upTo(20)))}\n${walk('b', chain([...upTo(10), ...upTo(20)]))}`
+  const { highlight, strokes, links } = drawn(
+    gfa,
+    ['a#1#chr', 'b#1#chr'],
+    zigzag,
+  )
+  expect(highlight.walks[0]!.mostPasses).toBe(1)
+  const laneOf = (id: string) => strokes(id).find(s => s.walk === 0)!
+  const shifted = (id: string) => {
+    const lane = laneOf(id)
+    return lane.points.some((p, k) => {
+      const n = lane.normals![k]!
+      const own = zigzag[id]![k]!
+      return (
+        Math.hypot(
+          p.x - n.nx * lane.offsetX! - own.x,
+          p.y - n.ny * lane.offsetX! - own.y,
+        ) > 0.1
+      )
+    })
+  }
+  const graph = convertGFAToGraph(parseGFA(gfa))
+  const ids = upTo(8).map(i => `n${i + 6}+`)
+  expect(ids.some(shifted)).toBe(true)
+  for (let k = 1; k < ids.length; k++) {
+    const from = ids[k - 1]!
+    const to = ids[k]!
+    const edge = graph.edges.findIndex(e => e.from === from && e.to === to)
+    const lane = links(edge).find(c => c.walk === 0)!
+    const leaves = laneOf(from).points.at(-1)!
+    const enters = laneOf(to).points[0]!
+    expect(lane.curves[0]!.x0).toBeCloseTo(leaves.x, 6)
+    expect(lane.curves[0]!.y0).toBeCloseTo(leaves.y, 6)
+    expect(lane.curves.at(-1)!.x1).toBeCloseTo(enters.x, 6)
+    expect(lane.curves.at(-1)!.y1).toBeCloseTo(enters.y, 6)
   }
 })

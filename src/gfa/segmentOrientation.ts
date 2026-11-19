@@ -6,8 +6,8 @@
 // how the file happens to be written: not the order of its L lines, and not
 // which of a link's two spellings it uses (`L a + b -` is `L b + a -`).
 //
-// - A backbone segment reads forward: its stable coordinate is on the
-//   reference's own strand.
+// - A backbone segment reads as the reference walks it: forward, unless the
+//   reference steps it backwards, as pggb's can.
 // - Orientation spreads out through links, a round at a time from the segments
 //   oriented so far. A link from an oriented segment says which way the walk
 //   along the reference reads the other end, and a segment takes the reading
@@ -38,9 +38,10 @@ export interface SegmentLinks {
 export const FORWARD = 1
 export const REVERSED = 2
 
-// `names` index every segment the links and walks name; `backbone[i]` is 1 for
-// a rank-0 segment; `walkReversals[i]` is how many more walk steps read
-// segment i reversed than forward
+// `names` index every segment the links and walks name; `backbone[i]` is how
+// the reference reads a rank-0 segment, FORWARD or REVERSED, and 0 for any
+// other; `walkReversals[i]` is how many more walk steps read segment i
+// reversed than forward
 export function orientSegments(
   names: readonly string[],
   backbone: ArrayLike<number>,
@@ -112,7 +113,7 @@ export function orientSegments(
   const seeds: number[] = []
   for (let i = 0; i < count; i++) {
     if (backbone[i]) {
-      orient[i] = FORWARD
+      orient[i] = backbone[i] === REVERSED ? REVERSED : FORWARD
       seeds.push(i)
     }
   }

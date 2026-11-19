@@ -1,7 +1,11 @@
+import type { Fold } from '../levelOfDetail'
 import type { BezierCurve } from '../util/geometry'
 
 // Everything the renderer draws is a stroke or a triangle stated in layout
 // units plus a screen-px weight, and the renderer projects it at draw time.
+// A `faded` item is off the lifted walks: it carries its ink opaque, and the
+// renderer paints every faded item into one layer under the rest and lays that
+// down at FADED_ALPHA, so where faded strokes overlap they keep one tone.
 // Nodes used to arrive as a triangle mesh with per-vertex normals, built for a
 // GPU backend that was never wired; stroking the polyline instead is 20-40x
 // faster on Canvas2D and needs no mesh at all (agent-docs/GRAPH_SCALE_AND_LOD.md).
@@ -13,11 +17,25 @@ export interface EdgeCurveBatch {
   thickness: number
   color: number
   walk?: number
+  // a slot across the band, at the node it leaves
   pass?: number
+  visit?: number
+  walkPass?: number
   normal?: LaneSlide['normal']
   offsetX?: number
   endNormal?: LaneSlide['normal']
   endOffsetX?: number
+  // a stroke of a link that skips reference sequence (deletionEdges())
+  skip?: boolean
+  // a skip's span on screen as built, 0 where it falls back to a plain link;
+  // skips paint longest first
+  span?: number
+  // a stroke of a link between two reference nodes reading one as the
+  // reference does and the other against it
+  turn?: boolean
+  // a stroke of a link the nodes would hide (linksAlongNodes)
+  along?: boolean
+  faded?: true
 }
 
 export interface LaneSlide {
@@ -32,11 +50,16 @@ export interface NodeStroke {
   thickness: number
   color: number
   walk?: number
+  // a slot across the band
   pass?: number
+  visit?: number
+  walkPass?: number
   normals?: { nx: number; ny: number }[]
   offsetX?: number
   // a lane offset at each point, where it varies along the node
   offsets?: number[]
+  placeholder?: true
+  faded?: true
 }
 
 // One head per edge: its tip at (x, y) in layout units and its screen angle,
@@ -49,6 +72,15 @@ export interface Arrowhead {
   length: number
   halfWidth: number
   color: number
+  walk?: number
+  pass?: number
+  node?: string
+  against?: boolean
+  halo?: boolean
+  // a tab past a node's free end: the graph runs on from there past what the
+  // drawing holds
+  runsOn?: true
+  faded?: true
 }
 
 // A contiguous run of one batch array.
@@ -68,6 +100,14 @@ export interface RenderBatch {
   // graph edge index -> its run of `edgeCurves`, so a renderer can find the
   // strokes belonging to one edge without re-deriving the path fan-out
   edgeCurveRuns: Map<number, Run>
+  // the small sites folded at this scale, which draw nothing
+  collapsed?: Fold
+  // the reference nodes and links inside a folded site that, with walks
+  // lifted, are drawn only by the lanes crossing it
+  laneOnly?: { nodes: ReadonlySet<string>; edges: ReadonlySet<number> }
+  // whether the node strokes, hollow ones aside, differ in thickness across
+  // the whole drawing, those of nodes a viewport culled included
+  nodeThicknessesVary?: boolean
 }
 
 export interface TransformUniform {

@@ -1,7 +1,9 @@
 import { fmmmLayout } from '@jbrowse/graph-fmmm-layout'
 import { stressLayout } from '@jbrowse/graph-stress-layout'
 
-import type { LayoutEngine } from './pipeline'
+import { readAlongReference } from './layout/referenceReading'
+
+import type { EngineRequest, LayoutEngine } from './pipeline'
 
 export const LAYOUT_ENGINES = [
   {
@@ -26,12 +28,18 @@ export function isLayoutEngineKind(value: unknown): value is LayoutEngineKind {
   return LAYOUT_ENGINE_VALUES.some(v => v === value)
 }
 
+function stressAlongReference(request: EngineRequest) {
+  const read = readAlongReference(request)
+  const result = stressLayout(read.request)
+  return { ...result, nodePositions: read.turnedBack(result.nodePositions) }
+}
+
 // Runs whichever engine a request names: the Bandage wasm module, or the stress layout. What a worker or a CLI hands `forceLayout`.
 export const layoutEngine: LayoutEngine = async request => {
   const start = performance.now()
   const result =
     request.options.engine === 'stress'
-      ? stressLayout(request)
+      ? stressAlongReference(request)
       : await fmmmLayout(request)
   return { result, duration: performance.now() - start }
 }

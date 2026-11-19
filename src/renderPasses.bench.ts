@@ -1,10 +1,12 @@
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import { deletionEdges } from './deletionEdges'
+import { labelledNodeLengths } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { EdgeSpatialIndex, SpatialIndex } from './util/SpatialIndex'
 
+import type { LabelLayoutSource } from './labelLayout'
 import type { Graph, GraphNode, NodeSegment } from './types'
 
 // `pnpm bench`. Not part of `pnpm test`: these assert nothing, they report the
@@ -76,6 +78,9 @@ function benchLayout(graph: Graph) {
 }
 
 const AXIS = { scaleX: 0.01, scaleY: 1 }
+// zoomed in to where a backbone node holds its length, so the label pass
+// places labels rather than turning every node away as too short
+const LABEL_AXIS = { scaleX: 0.1, scaleY: 1 }
 const VIEWPORT = {
   translateX: 40,
   translateY: 40,
@@ -87,7 +92,7 @@ for (const backbone of [1000, 5000]) {
   const graph = benchGraph(backbone)
   const nodePositions = benchLayout(graph)
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const nodeLengths = new Map(graph.nodes.map(n => [n.id, n.length]))
+  const nodeLengths = labelledNodeLengths(graph.nodes, true)
   const deletions = deletionEdges(graph)
   const bypassed = new Map(deletions.map(d => [d.edgeIndex, d.bypassed]))
   const referenceRamp = computeReferenceRamp(graph, {
@@ -100,7 +105,7 @@ for (const backbone of [1000, 5000]) {
     // can reuse is reused, so this is the number that has to stay small.
     const labelSource = {
       ...VIEWPORT,
-      axisScale: AXIS,
+      axisScale: LABEL_AXIS,
       contigThickness: 6,
       legendSize: { width: 170, height: 40 },
       drawnRowLabels: [],
@@ -109,10 +114,16 @@ for (const backbone of [1000, 5000]) {
       nodePositions,
       labelsNodeSizes: true,
       nodeLengths,
-      deletions,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      graph,
+      drawnInk: undefined,
       alleleDeletions: [],
       positionsVersion: 0,
-    }
+      folded: undefined,
+    } satisfies LabelLayoutSource
+    test('the label pass writes node lengths', () => {
+      expect(layoutLabels(labelSource).sizes.length).toBeGreaterThan(0)
+    })
     let tx = VIEWPORT.translateX
     test('layoutLabels (pan)', async ({ bench }) => {
       await bench('layoutLabels (pan)', () => {

@@ -1,4 +1,8 @@
-import type { DepartureTable, GapTable } from './graphTables'
+import { isBackbone } from '../anchoredNodes'
+import { pathOrigin } from '../pathAnchoring'
+
+import type { Graph } from '../types'
+import type { DepartureTable, GapTable, GraphTables } from './graphTables'
 
 // One departure from a walk-file cut's tables, as @jbrowse/graph-walks'
 // WalkDeparture states it less its own steps: where a haplotype's consecutive
@@ -129,7 +133,11 @@ export function roughBp(bp: number) {
  * writer's choice. `no step on GRCh38 across 54 kb · 120 kb of its own, 3 kb
  * left out of graph`
  */
-export function departureText(d: Departure, reference = 'the reference') {
+export function departureText(
+  d: Departure,
+  reference = 'the reference',
+  revisited?: number,
+) {
   const { start, end } = departureSpan(d)
   const apart = roughBp(end - start)
   const kind = departureKind(d)
@@ -143,7 +151,7 @@ export function departureText(d: Departure, reference = 'the reference') {
           : `between adjacent steps on ${reference}`
   return [
     ends,
-    `${roughBp(d.ownBp)} of its own${d.missingBp > 0 ? `, ${d.missingBp >= d.ownBp ? 'all' : roughBp(d.missingBp)} ${GAP_CAUSE_TEXT.missing}` : ''}`,
+    `${ownAmount(roughBp(d.ownBp), reference, revisited)}${d.missingBp > 0 ? `, ${d.missingBp >= d.ownBp ? 'all' : roughBp(d.missingBp)} ${GAP_CAUSE_TEXT.missing}` : ''}`,
     ...(placementChoice(d) ? [PLACEMENT_CHOICE_TEXT] : []),
   ].join(' · ')
 }
@@ -171,10 +179,43 @@ export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
   departure: 'no step on the reference',
 }
 
+// Where a walk file's header counts no node the reference passes more than
+// once (`revisited` 0), a walk's bp off the reference are sequence the
+// reference lacks, its own. Where it counts some they may be a copy of a
+// repeat the reference holds elsewhere, and are only off the reference's
+// path, and so are they where the source states no count (NaN, or none).
+export const ownIsExact = (revisited: number | undefined) => revisited === 0
+
+export const offPathText = (reference = 'the reference') =>
+  `off ${reference}'s path`
+
+// `120 kb of its own`, or `120 kb off GRCh38's path`
+export const ownAmount = (
+  amount: string,
+  reference: string | undefined,
+  revisited: number | undefined,
+) =>
+  ownIsExact(revisited)
+    ? `${amount} of its own`
+    : `${amount} ${offPathText(reference)}`
+
+// the words for an `own` gap
+export const ownGapText = (
+  reference: string | undefined,
+  revisited: number | undefined,
+) =>
+  ownIsExact(revisited)
+    ? GAP_CAUSE_TEXT.own
+    : `${offPathText(reference)} and not drawn`
+
 // a gap with no cause: graph sequence the cut did not keep
 export const OUTSIDE_TEXT = 'out of view'
 
 export const NOT_LOADED_TEXT = 'nodes not shown'
+
+// steps the source states on the reference at passes the cut does not hold,
+// after an amount and the reference's name: `0.9 kb GRCh38 from elsewhere`
+export const FROM_ELSEWHERE_TEXT = 'from elsewhere'
 
 export interface GapPart {
   bp: number
@@ -196,6 +237,8 @@ export interface GapSegment {
   before: number
   after: number
   nodes: number[]
+  // whether each step reads its node reversed
+  reversed: boolean[]
 }
 
 export interface GraphGap {
@@ -240,8 +283,10 @@ export function stretchSegments<T>(
   const out = []
   for (let k = t.segmentOffsets[g]!; k < t.segmentOffsets[g + 1]!; k++) {
     const nodes = []
+    const reversed = []
     for (let j = s.stepOffsets[k]!; j < s.stepOffsets[k + 1]!; j++) {
       nodes.push(node(s.steps[j]!))
+      reversed.push(s.reversed[j] === 1)
     }
     out.push({
       kind: GAP_KINDS[s.kinds[k]!]!,
@@ -250,6 +295,7 @@ export function stretchSegments<T>(
       before: s.before[k]!,
       after: s.after[k]!,
       nodes,
+      reversed,
     })
   }
   return out
@@ -311,4 +357,202 @@ function splitGap(
     { bp: right },
   ]
   return parts.filter(part => part.bp > 0)
+}
+
+/**
+ * The steps a walk takes through its departures' own steps that none of its
+ * fragments counts, for node depth and the walks on links: each departure's
+ * own steps as one run, or two where `breakAt` breaks them, with the
+ * fragment step it leaves from before the first and the one it rejoins at
+ * after the last where a fragment holds those beside an own step it lacks.
+ * A step a fragment of the walk holds at the same place on its contig, or
+ * that an earlier departure of the walk gave, is `held`: it counts once, so a
+ * departure repeating its fragment's steps adds nothing. A departure of a walk
+ * with no fragment is of a haplotype not shown and gives no run. `walk` is a
+ * fragment of the walk, which names it; each step's `starts` is where it
+ * starts on the walk's contig and `reversed` how the walk reads it.
+ */
+export function ownStepRuns({
+  nodes: n,
+  walks: w,
+  departures: d,
+}: Pick<GraphTables, 'nodes' | 'walks' | 'departures'>) {
+  const runs: {
+    walk: number
+    steps: number[]
+    held: boolean[]
+    starts: number[]
+    reversed: boolean[]
+  }[] = []
+  const lengthOf = (node: number) =>
+    node < n.lengths.length ? n.lengths[node]! : 0
+  const stepStarts = new Float64Array(d.steps.length > 0 ? w.steps.length : 0)
+  const fragments = new Map<string, number[]>()
+  if (d.steps.length > 0) {
+    for (let p = 0; p < w.names.length; p++) {
+      let pos = w.starts[p]!
+      for (let s = w.offsets[p]!; s < w.offsets[p + 1]!; s++) {
+        stepStarts[s] = pos
+        pos += lengthOf(w.steps[s]!)
+      }
+      if (w.offsets[p + 1]! > w.offsets[p]!) {
+        const name = pathOrigin(w.names[p]!).name
+        const list = fragments.get(name)
+        if (list) {
+          list.push(p)
+        } else {
+          fragments.set(name, [p])
+        }
+      }
+    }
+  }
+  // the first of fragment p's steps starting past `at`, or at it if `from`
+  const stepAt = (p: number, at: number, from: boolean) => {
+    let lo = w.offsets[p]!
+    let hi = w.offsets[p + 1]!
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (from ? stepStarts[mid]! >= at : stepStarts[mid]! > at) {
+        hi = mid
+      } else {
+        lo = mid + 1
+      }
+    }
+    return lo
+  }
+  const holds = (walk: number[], at: number, node: number) =>
+    walk.some(p => {
+      let s = stepAt(p, at, true)
+      while (s < w.offsets[p + 1]! && stepStarts[s] === at) {
+        if (w.steps[s] === node) {
+          return true
+        }
+        s++
+      }
+      return false
+    })
+  const endingAt = (walk: number[], at: number) => {
+    for (const p of walk) {
+      let s = stepAt(p, at, false) - 1
+      while (
+        s >= w.offsets[p]! &&
+        stepStarts[s] === at &&
+        lengthOf(w.steps[s]!) > 0
+      ) {
+        s--
+      }
+      if (s >= w.offsets[p]! && stepStarts[s]! + lengthOf(w.steps[s]!) === at) {
+        return s
+      }
+    }
+    return -1
+  }
+  const startingAt = (walk: number[], at: number) => {
+    for (const p of walk) {
+      const s = stepAt(p, at, true)
+      if (s < w.offsets[p + 1]! && stepStarts[s] === at) {
+        return s
+      }
+    }
+    return -1
+  }
+  const given = new Set<string>()
+  for (let k = 0; k < d.names.length; k++) {
+    const name = pathOrigin(d.names[k]!).name
+    const walk = fragments.get(name)
+    const first = d.offsets[k]!
+    const last = d.offsets[k + 1]!
+    if (walk && last > first) {
+      const breakAt = d.breakAt?.[k] ?? -1
+      const split = breakAt < 0 ? last : first + breakAt
+      const places = new Float64Array(last - first)
+      let ahead = d.hapStarts[k]!
+      for (let j = first; j < split; j++) {
+        places[j - first] = ahead
+        ahead += lengthOf(d.steps[j]!)
+      }
+      let behind = d.hapStarts[k]! + d.ownBp[k]!
+      for (let j = last - 1; j >= split; j--) {
+        behind -= lengthOf(d.steps[j]!)
+        places[j - first] = behind
+      }
+      const parts: [number, number][] =
+        breakAt < 0
+          ? [[first, last]]
+          : [
+              [first, split],
+              [split, last],
+            ]
+      parts.forEach(([from, to], part) => {
+        if (to > from) {
+          const steps: number[] = []
+          const held: boolean[] = []
+          const starts: number[] = []
+          const reversed: boolean[] = []
+          for (let j = from; j < to; j++) {
+            const node = d.steps[j]!
+            const at = places[j - first]!
+            const key = `${name}\t${at}\t${node}`
+            steps.push(node)
+            held.push(holds(walk, at, node) || given.has(key))
+            starts.push(at)
+            reversed.push(d.reversed[j] === 1)
+            given.add(key)
+          }
+          const leave =
+            part === 0 && !held[0] ? endingAt(walk, d.hapStarts[k]!) : -1
+          const rejoin =
+            part === parts.length - 1 && !held.at(-1)
+              ? startingAt(walk, d.hapStarts[k]! + d.ownBp[k]!)
+              : -1
+          if (leave >= 0) {
+            steps.unshift(w.steps[leave]!)
+            held.unshift(true)
+            starts.unshift(stepStarts[leave]!)
+            reversed.unshift(w.reversed[leave] === 1)
+          }
+          if (rejoin >= 0) {
+            steps.push(w.steps[rejoin]!)
+            held.push(true)
+            starts.push(stepStarts[rejoin]!)
+            reversed.push(w.reversed[rejoin] === 1)
+          }
+          runs.push({ walk: walk[0]!, steps, held, starts, reversed })
+        }
+      })
+    }
+  }
+  return runs
+}
+
+// The own steps no walk carries of each departure that leaves or rejoins the
+// reference past the cut's ends: a haplotype's sequence on its way to a place
+// the cut does not hold. They are drawn at their length like any node, and
+// the fit leaves them to run off the pane, as the reference runs on past the
+// cut.
+export function departureTails(graph: Graph) {
+  const tails = new Set<string>()
+  const d = graph.departures
+  const backbone = graph.nodes.filter(isBackbone)
+  if (d && backbone.length > 0) {
+    let start = Infinity
+    let end = -Infinity
+    for (const node of backbone) {
+      start = Math.min(start, node.stable.start)
+      end = Math.max(end, node.stable.start + node.length)
+    }
+    const off = (pos: number) => pos < start || pos > end
+    const carried = new Set(graph.paths?.flatMap(p => p.nodeIds))
+    for (let k = 0; k < d.names.length; k++) {
+      if (off(d.leavePos[k]!) || off(d.rejoinPos[k]!)) {
+        for (let j = d.offsets[k]!; j < d.offsets[k + 1]!; j++) {
+          const id = graph.nodes[d.steps[j]!]?.id
+          if (id !== undefined && !carried.has(id)) {
+            tails.add(id)
+          }
+        }
+      }
+    }
+  }
+  return tails
 }

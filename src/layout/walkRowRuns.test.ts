@@ -1,14 +1,21 @@
+import fs from 'node:fs'
+
+import { bubbleSubgraph } from '../bubbles/popBubble'
+import { deletionEdges } from '../deletionEdges'
 import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
-import { walkRowReadout } from './walkRowDraw'
+import { trimToWindow } from './trimToWindow'
+import { walkRowReadout, walkRowsKey } from './walkRowDraw'
+import { walkRowLinks } from './walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
 
 import type { Departure } from '../gfa/departures'
 import type { GraphTables } from '../gfa/graphTables'
+import type { Graph } from '../types'
 import type { WalkRow } from './walkRows'
 
 // GRCh38 runs 0..4 over chr1:0-5000, a kb a node, with node 5 (300 bp) an
@@ -58,6 +65,7 @@ const tables: GraphTables = {
     ),
   },
   departures: departureTable(),
+  revisited: 0,
 }
 const repeat = { start: 2000, end: 3000 }
 
@@ -419,14 +427,14 @@ test("a stated gap's readout gives a mixed part's amounts and where an unread wa
   const rows = Object.fromEntries(
     rowsOf(statedCut(), { start: 1000, end: 6000 }).rows.map(r => [r.label, r]),
   )
-  const reference = { bp: 7000, name: 'GRCh38#0#chr1' }
+  const reference = { bp: 7000, name: 'GRCh38#0#chr1', revisited: 0 }
   expect(walkRowReadout(rows['A#1']!, reference)).toContain(
-    '0.6 kb left out of graph',
+    '600 bp left out of graph',
   )
   const b = walkRowReadout(rows['B#1']!, reference)
-  expect(b).toContain('0.3 kb left out of graph')
-  expect(b).toContain('0.1 kb own sequence not drawn')
-  expect(b).toContain('0.6 kb not drawn (last seen near')
+  expect(b).toContain('300 bp left out of graph')
+  expect(b).toContain('100 bp own sequence not drawn')
+  expect(b).toContain('600 bp not drawn (last seen near')
 })
 
 // GRCh38 over five 1 kb nodes; A on node 0 at 0, then the stated stretch,
@@ -475,6 +483,7 @@ function statedTables(
       trimmedAfter: new Float64Array(all.length),
     },
     departures: departureTable(),
+    revisited: 0,
     gaps: {
       names: ['A#1#a'],
       walks: Int32Array.of(1),
@@ -610,7 +619,7 @@ test("a partial row draws its stated row end past its last fragment, and its rea
   ])
   expect(row.stop?.goesOn).toMatchObject({ near: 9000, drawn: true })
   expect(
-    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' }),
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1', revisited: 0 }),
   ).not.toContain('of its own')
 })
 
@@ -627,9 +636,9 @@ test('a row states its departures outside it in the readout, and draws none of t
   const t = rowEndCut(3, { steps: [0, 1, 2, 3, 4], end: 5000 })
   const row = rowsOf(t, region).rows[0]!
   expect(row.outsideRow).toEqual({ count: 1, stepsBp: 400 })
-  expect(walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' })).toContain(
-    '1 departure outside the row, 0.4 kb of its own in the graph',
-  )
+  expect(
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1', revisited: 0 }),
+  ).toContain('1 departure outside the row, 400 bp of its own in the graph')
   expect(row.runs).toEqual(
     rowsOf({ ...t, gaps: undefined }, region).rows[0]!.runs,
   )
@@ -688,7 +697,7 @@ test('a walk with no fragment lifts from its stated departures, and another walk
       },
       'GRCh38',
     ),
-  ).toBe('only in other haplotypes')
+  ).toBe('other haplotypes')
 })
 
 test('a complete row with no flanks keeps its bar to its fragments, whatever its stated ends', () => {
@@ -719,7 +728,7 @@ test('a stepless row does not count its own departures as outside it', () => {
   expect(row.stepless).toBe(true)
   expect(row.outsideRow).toBeUndefined()
   expect(
-    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1' }),
+    walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1', revisited: 0 }),
   ).not.toContain('outside the row')
 })
 
@@ -796,6 +805,49 @@ test('a haplotype with no step in the window draws its departure under it', () =
   expect(a).toHaveLength(1)
   expect(a[0]!.stepless).toBeUndefined()
   expect(a[0]!.departures).toEqual([rejoinsA])
+})
+
+test("a haplotype that walks the window counts its other contigs' departures over it on its row, and draws no row of them", () => {
+  const { rows, reference } = rowsOf({
+    ...tables,
+    departures: departureTable([
+      jumpF,
+      departure('A#1#b', { leavePos: 0, rejoinPos: 5000 }),
+      departure('A#1#b', { hapStart: 10, leavePos: 5000, rejoinPos: 0 }),
+      departure('GRCh38#0#alt', { leavePos: 0, rejoinPos: 5000 }),
+    ]),
+  })
+  expect(rows.map(r => r.name)).not.toContain('A#1#b')
+  expect(rows.map(r => r.name)).not.toContain('GRCh38#0#alt')
+  expect(rows.find(r => r.name === 'F#1#f')!.stepless).toBe(true)
+  const a = rows.find(r => r.name === 'A#1#a')!
+  expect(a.otherContigs).toEqual({ contigs: 1, departures: 2 })
+  expect(walkRowReadout(a, reference)).toMatch(
+    / · 2 departures on another contig$/,
+  )
+  expect(reference.otherContigs).toEqual({ contigs: 1, departures: 1 })
+})
+
+test("a walked contig's own departures are not counted as another contig's", () => {
+  const { rows } = rowsOf({
+    ...tables,
+    departures: departureTable([
+      departure('A#1#a', { leavePos: 0, rejoinPos: 5000 }),
+    ]),
+  })
+  const a = rows.find(r => r.name === 'A#1#a')!
+  expect(a.otherContigs).toBeUndefined()
+})
+
+test('two haplotypes of one sample stay separate rows', () => {
+  const { rows } = rowsOf({
+    ...tables,
+    departures: departureTable([
+      departure('A#2#a', { leavePos: 0, rejoinPos: 5000 }),
+    ]),
+  })
+  expect(rows.find(r => r.name === 'A#2#a')?.stepless).toBe(true)
+  expect(rows.find(r => r.name === 'A#1#a')!.otherContigs).toBeUndefined()
 })
 
 // The window starts and ends inside the repeat's node, so the reference's bar
@@ -893,3 +945,721 @@ test('a cut whose only other haplotypes have no step in it still has rows', () =
     walkRowRuns({ ...reference, departures: departureTable() }, repeat),
   ).toBeUndefined()
 })
+
+// Cuts of the HPRC v2.1 GRCh38 walk file (gfa-to-tabix 5.0.0, format 8) for
+// eight haplotypes, read by graph-walks with its default 1 kb of context and
+// written out as GFA. Every row is measured over the window itself, so an
+// allele on a flank outside it, which a haplotype takes in place of the
+// reference's flank node, counts for neither.
+describe('a walk row measures its length against the reference over the window', () => {
+  const readout = (
+    file: string,
+    refName: string,
+    start: number,
+    end: number,
+  ) => {
+    const graph = loadGraph(
+      fs.readFileSync(`test_data/${file}`, 'utf8'),
+      file,
+      { referencePath: `GRCh38#0#${refName}` },
+    )
+    const rows = walkRows(graph, { start, end })!
+    expect(rows.reference.windowBp).toBe(end - start)
+    expect(walkRowReadout(rows.reference, undefined)).toBe(
+      `${((end - start) / 1000).toFixed(1)} kb`,
+    )
+    return Object.fromEntries(
+      rows.rows.map(row => [row.label, walkRowReadout(row, rows.reference)]),
+    )
+  }
+
+  // chr11:5,226,500-5,227,500: SNVs only, one 40 bp right of the window that
+  // all eight carry, and one 3 bp left of it on HG00128#1
+  test('HBB, where every haplotype is as long as the reference', () => {
+    expect(readout('hprc_hbb.gfa', 'chr11', 5_226_499, 5_227_500)).toEqual(
+      Object.fromEntries(HAPLOTYPES.map(h => [h, '1.0 kb'])),
+    )
+  })
+
+  // chr1:27,853,000-27,855,000: seven skip 571 bp; HG02055#1 also has a 50 bp
+  // deletion, a 1 bp and a 49 bp insertion inside the window, and three carry
+  // a 1 bp insertion 31 bp left of it
+  test('the 571 bp gap, which seven skip and HG01123#1 walks', () => {
+    expect(readout('hprc_gap571.gfa', 'chr1', 27_852_999, 27_855_000)).toEqual(
+      Object.fromEntries(
+        HAPLOTYPES.map(h => [
+          h,
+          h === 'HG01123#1' ? '2.0 kb' : '1.4 kb (−571 bp)',
+        ]),
+      ),
+    )
+  })
+})
+
+// Five 1 kb reference nodes and a 2 kb window from 1.5 kb, with walks the
+// reviews of S5 drew: own sequence across a window edge, a window inside a
+// replacement, a walk passing twice, and one reaching a single flank
+describe('a walk row over a window between 1 kb nodes', () => {
+  const reference = [0, 1, 2, 3, 4].map(
+    i =>
+      `S\tr${i + 1}\t*\tLN:i:1000\tSN:Z:GRCh38#0#chr1\tSO:i:${i * 1000}\tSR:i:0`,
+  )
+  const readouts = (walks: string[], nodes: string[], links: string[]) => {
+    const gfa = [
+      'H\tVN:Z:1.1',
+      ...reference,
+      ...nodes,
+      ...['r1 r2', 'r2 r3', 'r3 r4', 'r4 r5', ...links].map(
+        l => `L\t${l.split(' ')[0]}\t+\t${l.split(' ')[1]}\t+\t0M`,
+      ),
+      'W\tGRCh38\t0\tchr1\t0\t5000\t>r1>r2>r3>r4>r5',
+      ...walks,
+    ].join('\n')
+    const graph = loadGraph(gfa, 'cut', { referencePath: 'GRCh38#0#chr1' })
+    const rows = walkRows(graph, { start: 1500, end: 3500 })!
+    expect(walkRowReadout(rows.reference, undefined)).toBe('2.0 kb')
+    return Object.fromEntries(
+      rows.rows.map(row => [row.label, walkRowReadout(row, rows.reference)]),
+    )
+  }
+
+  test('own sequence across a window edge, or around the whole window, has no length over it', () => {
+    expect(
+      readouts(
+        [
+          'W\tA\t1\ta\t0\t5000\t>r1>a>r3>r4>r5',
+          'W\tB\t1\tb\t0\t5000\t>r1>b>r5',
+          'W\tG\t1\tg\t0\t5000\t>r1>r2>r3>g>r5',
+          'W\tI\t1\ti\t0\t5000\t>r1>r2>i>r3>r4>r5',
+          'W\tC\t1\tc\t0\t3000\t>r1>r4>r5',
+        ],
+        [
+          'S\ta\t*\tLN:i:1000\tSN:Z:A#1#a\tSO:i:1000\tSR:i:1',
+          'S\tb\t*\tLN:i:3000\tSN:Z:B#1#b\tSO:i:1000\tSR:i:1',
+          'S\tg\t*\tLN:i:1000\tSN:Z:G#1#g\tSO:i:3000\tSR:i:1',
+          'S\ti\t*\tLN:i:300\tSN:Z:I#1#i\tSO:i:2000\tSR:i:1',
+        ],
+        [
+          'r1 a',
+          'a r3',
+          'r1 b',
+          'b r5',
+          'r3 g',
+          'g r5',
+          'r2 i',
+          'i r3',
+          'r1 r4',
+        ],
+      ),
+    ).toEqual({
+      'A#1': "its own 1.0 kb and 2.0 kb on GRCh38 in place of GRCh38's 3.0 kb",
+      'B#1': "its own 3.0 kb in place of GRCh38's 3.0 kb",
+      'G#1': "its own 1.0 kb and 2.0 kb on GRCh38 in place of GRCh38's 3.0 kb",
+      'I#1': '2.3 kb (+300 bp)',
+      'C#1': '500 bp (−1.5 kb)',
+    })
+  })
+
+  test('a walk passing twice reads each pass between its own flanks, the reversed one so marked', () => {
+    expect(
+      readouts(
+        [
+          'W\tT\t1\tt\t0\t10300\t>r1>r2>r3>r4>r5>x<r5<r4<i<r3<r2<r1',
+          'W\tR\t1\tr\t0\t5000\t<r5<r4<r3<r2<r1',
+        ],
+        [
+          'S\tx\t*\tLN:i:100\tSN:Z:T#1#t\tSO:i:5000\tSR:i:1',
+          'S\ti\t*\tLN:i:35\tSN:Z:T#1#t\tSO:i:6100\tSR:i:1',
+        ],
+        ['r5 x', 'r3 i', 'i r4'],
+      ),
+    ).toEqual({
+      'T#1': '2.0 kb · passes again, reversed: 2.0 kb (+35 bp)',
+      'R#1': '2.0 kb',
+    })
+  })
+
+  test('a walk reaching one flank reads at least its bp inside the window, up to where it turns back', () => {
+    expect(
+      readouts(
+        [
+          'W\tO\t1\to\t0\t3000\t>r1>r2>r3',
+          'W\tH\t1\th\t0\t5100\t>r1>r2>y<r2<r1',
+        ],
+        ['S\ty\t*\tLN:i:100\tSN:Z:H#1#h\tSO:i:2000\tSR:i:1'],
+        ['r2 y'],
+      ),
+    ).toEqual({
+      'O#1': '≥ 1.5 kb · contig ends inside the window',
+      'H#1': '≥ 1.1 kb · turns back out of the window',
+    })
+  })
+})
+
+// The reference walks node 1 twice, at chr:0-10 and chr:30-40, filed as two
+// pieces out of order. `hap` walks every step of it, `late` starts on node 3
+// and `second` on node 1's second pass, and `short` ends on that pass.
+describe('a reference that passes one node twice', () => {
+  const rowsIn = (lines: string[], start: number, end: number) => {
+    const graph = loadGraph(lines.join('\n'), 'twice.gfa', {
+      referencePath: 'ref#0#chr',
+    })
+    const rows = walkRows(graph, { start, end }, undefined, { visits: true })!
+    return Object.fromEntries(
+      [rows.reference, ...rows.rows].map((row, i) => [
+        row.label,
+        {
+          row,
+          readout: walkRowReadout(row, i === 0 ? undefined : rows.reference),
+          placement: {
+            complete: row.complete,
+            windowBp: row.windowBp,
+            visits: row.visits?.map(v => v.node),
+            runs: row.runs.map(r => [r.start, r.bp, r.referenceStart]),
+          },
+        },
+      ]),
+    )
+  }
+  const links = (pairs: string[]) =>
+    pairs.map(l => `L\t${l.split(' ')[0]}\t+\t${l.split(' ')[1]}\t+\t0M`)
+  const over = (start: number, end: number) =>
+    rowsIn(
+      [
+        ...[1, 2, 3, 4, 5].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+        ...links(['1 2', '2 3', '3 1', '1 4', '4 5']),
+        'W\tref\t0\tchr\t20\t60\t>3>1>4>5',
+        'W\tref\t0\tchr\t0\t20\t>1>2',
+        'W\thap\t1\tc\t0\t60\t>1>2>3>1>4>5',
+        'W\tlate\t1\tl\t0\t30\t>3>1>4',
+        'W\tsecond\t1\ts\t0\t20\t>1>4',
+        'W\tshort\t1\tq\t0\t20\t>3>1',
+      ],
+      start,
+      end,
+    )
+
+  test('the node between its two passes is flanked by the second, and the rows link', () => {
+    const rows = over(20, 30)
+    const between = {
+      complete: true,
+      windowBp: 10,
+      visits: ['3+'],
+      runs: [[0, 10, 20]],
+    }
+    expect(rows['ref#0']!.placement).toEqual(between)
+    expect(rows['hap#1']!.placement).toEqual(between)
+    expect(walkRowLinks([rows['ref#0']!.row, rows['hap#1']!.row])).toEqual([
+      { row: 0, a0: 0, a1: 10, b0: 0, b1: 10 },
+    ])
+  })
+
+  test('its second pass inside the window follows the node before it in one run', () => {
+    const rows = over(20, 40)
+    const both = {
+      complete: true,
+      windowBp: 20,
+      visits: ['3+', '1+'],
+      runs: [[0, 20, 20]],
+    }
+    expect(rows['ref#0']!.placement).toEqual(both)
+    expect(rows['hap#1']!.placement).toEqual(both)
+    expect(walkRowLinks([rows['ref#0']!.row, rows['hap#1']!.row])).toEqual([
+      { row: 0, a0: 0, a1: 20, b0: 0, b1: 20 },
+    ])
+  })
+
+  test('a window inside its second pass counts the bp of that pass inside it', () => {
+    const rows = over(32, 38)
+    expect(rows['ref#0']!.row.windowBp).toBe(6)
+    expect(rows['hap#1']!.row.windowBp).toBe(6)
+    expect(rows['hap#1']!.row.complete).toBe(true)
+  })
+
+  test('a walk starting in the window reaches its second pass as its right flank', () => {
+    const { row, readout } = over(20, 30)['late#1']!
+    expect(readout).toBe('≥ 10 bp · contig ends inside the window')
+    expect(row.visits?.map(v => v.node)).toEqual(['3+'])
+    expect(row.axis).toEqual({ contig: 'l', start: 0, reversed: false })
+  })
+
+  test('a walk starting on its second pass is placed from the node after it', () => {
+    const { row, readout } = over(20, 30)['second#1']!
+    expect(readout).toBe('contig ends at the window')
+    expect(row.complete).toBe(false)
+  })
+
+  test('a contig ending on its second pass ends at the window after it', () => {
+    const { row, readout } = over(40, 50)['short#1']!
+    expect(readout).toBe('contig ends at the window')
+    expect(row.stop).toEqual({ contigEnds: true, shortBp: 0 })
+  })
+
+  // the reference walks b twice in a row, chr:10-20 and chr:20-30
+  test('each copy of a tandem repeat takes its own pass, whichever way the walk runs', () => {
+    const rows = rowsIn(
+      [
+        ...['a', 'b', 'c'].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+        ...links(['a b', 'b b', 'b c']),
+        'W\tref\t0\tchr\t0\t40\t>a>b>b>c',
+        'W\thap\t1\tc\t0\t40\t>a>b>b>c',
+        'W\trev\t1\tr\t0\t40\t<c<b<b<a',
+      ],
+      20,
+      30,
+    )
+    for (const label of ['ref#0', 'hap#1', 'rev#1']) {
+      expect(rows[label]!.row.complete).toBe(true)
+      expect(rows[label]!.row.windowBp).toBe(10)
+      expect(rows[label]!.row.visits?.map(v => v.node)).toHaveLength(1)
+    }
+    expect(rows['rev#1']!.row.axis?.reversed).toBe(true)
+  })
+
+  // the reference walks a at chr:0-10 and chr:20-30, with b between
+  describe('with one node on both sides of another', () => {
+    const lines = [
+      ...['a', 'b'].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+      ...links(['a b', 'b a']),
+      'W\tref\t0\tchr\t0\t30\t>a>b>a',
+      'W\thap\t1\tc\t0\t30\t>a>b>a',
+      'W\tshort\t1\ts\t0\t20\t>a>b',
+    ]
+
+    test('its second pass is the flank on the right of the node between', () => {
+      const rows = rowsIn(lines, 10, 20)
+      for (const label of ['ref#0', 'hap#1']) {
+        expect(rows[label]!.placement).toEqual({
+          complete: true,
+          windowBp: 10,
+          visits: ['b+'],
+          runs: [[0, 10, 10]],
+        })
+      }
+    })
+
+    test('a cut that ends on its second pass has it as its outermost node', () => {
+      const t = gfaTables(lines.join('\n'))!
+      const rows = walkRowsOf(
+        walkRowRuns(
+          {
+            ...t,
+            walks: {
+              ...t.walks,
+              trimmedBefore: new Float64Array(3),
+              trimmedAfter: new Float64Array(3),
+            },
+          },
+          { start: 0, end: 30 },
+          { referencePath: 'ref#0#chr' },
+        )!,
+      )
+      expect(
+        Object.fromEntries(
+          rows.rows.map(row => [
+            row.label,
+            walkRowReadout(row, rows.reference),
+          ]),
+        ),
+      ).toEqual({
+        'hap#1': '30 bp',
+        'short#1': '≥ 20 bp · contig ends inside the window',
+      })
+    })
+  })
+
+  // the reference is two pieces 80 bp apart, each with a pass of r:
+  // chr:0-10 and chr:100-110
+  test('a piece of the reference that starts on the node keeps its own pass of it', () => {
+    const rows = rowsIn(
+      [
+        ...['r', 'x', 'z'].map(n => `S\t${n}\t${'A'.repeat(10)}`),
+        ...links(['r x', 'r z']),
+        'W\tref\t0\tchr\t0\t20\t>r>x',
+        'W\tref\t0\tchr\t100\t120\t>r>z',
+        'W\thap\t1\tc\t0\t20\t>r>z',
+      ],
+      100,
+      110,
+    )
+    expect(rows['ref#0']!.row.windowBp).toBe(10)
+    expect(rows['ref#0']!.row.visits?.map(v => v.node)).toEqual(['r+'])
+    expect(rows['hap#1']!.readout).toBe(
+      '≥ 10 bp · contig ends inside the window',
+    )
+  })
+})
+
+// The reference walks r at chr:1000-2000 and chr:3000-4000, a kb a node. `hap`
+// walks x, 2.5 kb of its own, r once and z: the pass of r nearest x is its
+// first, and a walk file's tables state which one the step takes.
+describe("tables that state each step's pass", () => {
+  const referenceStarts = [0, 1000, 2000, 3000, 4000]
+  const stating = (hap?: number[]) => {
+    const t = gfaTables(
+      [
+        ...['x', 'r', 'y', 'z'].map(
+          (n, i) => `S\t${n}\t*\tLN:i:1000\tSN:Z:chr\tSO:i:${i * 1000}\tSR:i:0`,
+        ),
+        'S\ti\t*\tLN:i:2500',
+        'W\tref\t0\tchr\t0\t5000\t>x>r>y>r>z',
+        'W\thap\t1\tc\t0\t5500\t>x>i>r>z',
+      ].join('\n'),
+    )!
+    return hap
+      ? {
+          ...t,
+          walks: {
+            ...t.walks,
+            refStarts: Float64Array.from([...referenceStarts, ...hap]),
+          },
+        }
+      : t
+  }
+  const onSecond = [0, Number.NaN, 3000, 4000]
+  const onFirst = [0, Number.NaN, 1000, 4000]
+  const firstPass = { start: 1000, end: 2000 }
+  const secondPass = { start: 3000, end: 4000 }
+  const hapOver = (t: GraphTables, region: { start: number; end: number }) => {
+    const rows = walkRowsOf(walkRowRuns(t, region)!)
+    const row = rows.rows[0]!
+    return {
+      readout: walkRowReadout(row, rows.reference),
+      runs: row.runs.map(r => [r.start, r.bp, r.referenceStart]),
+    }
+  }
+
+  test('a step lies at the pass stated, not at the nearest', () => {
+    expect(hapOver(stating(onSecond), firstPass)).toEqual({
+      readout: "2.5 kb off ref's path in place of ref's 2.0 kb",
+      runs: [[0, 2500, undefined]],
+    })
+    expect(hapOver(stating(onSecond), secondPass)).toEqual({
+      readout: '1.0 kb',
+      runs: [
+        [0, 2500, undefined],
+        [2500, 1000, 3000],
+      ],
+    })
+    expect(hapOver(stating(onFirst), firstPass)).toEqual({
+      readout: '3.5 kb (+2.5 kb)',
+      runs: [
+        [0, 2500, undefined],
+        [2500, 1000, 1000],
+      ],
+    })
+    expect(hapOver(stating(onFirst), secondPass).readout).toBe('0 bp (−1.0 kb)')
+  })
+
+  test('tables that state none take the nearest pass', () => {
+    expect(hapOver(stating(), firstPass)).toEqual(
+      hapOver(stating(onFirst), firstPass),
+    )
+  })
+
+  const classesOver = (
+    t: GraphTables,
+    region: { start: number; end: number },
+  ) => {
+    const rows = walkRowsOf(walkRowRuns(t, region)!)
+    const row = rows.rows[0]!
+    return {
+      readout: walkRowReadout(row, rows.reference),
+      runs: row.runs.map(r => [
+        r.start,
+        r.bp,
+        r.onReference ? 'on' : r.fromElsewhere ? 'elsewhere' : 'own',
+      ]),
+    }
+  }
+  const across = { start: 1000, end: 4000 }
+
+  test('a step stated off the reference is its own', () => {
+    expect(
+      classesOver(stating([0, Number.NaN, Number.NaN, 4000]), firstPass),
+    ).toEqual({
+      readout: "3.5 kb off ref's path in place of ref's 3.0 kb",
+      runs: [[0, 3500, 'own']],
+    })
+    expect(
+      classesOver(stating([0, Number.NaN, Number.NaN, 4000]), across),
+    ).toEqual({
+      readout: '3.5 kb (+500 bp)',
+      runs: [[0, 3500, 'own']],
+    })
+  })
+
+  test('a step stated at a pass the cut lacks is off it, and reads as the reference from elsewhere beside its own', () => {
+    expect(
+      classesOver(stating([0, Number.NaN, 7000, 4000]), firstPass),
+    ).toEqual({
+      readout:
+        "2.5 kb off ref's path and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
+      runs: [
+        [0, 2500, 'own'],
+        [2500, 1000, 'elsewhere'],
+      ],
+    })
+    expect(classesOver(stating([0, Number.NaN, 7000, 4000]), across)).toEqual({
+      readout: '3.5 kb (+500 bp), of which 1.0 kb ref from elsewhere',
+      runs: [
+        [0, 2500, 'own'],
+        [2500, 1000, 'elsewhere'],
+      ],
+    })
+  })
+
+  test("the key names the reference from elsewhere beside what is off the reference's path, where a row holds any", () => {
+    const offLabel = (stated: number) =>
+      walkRowsKey(
+        walkRowsOf(
+          walkRowRuns(stating([0, Number.NaN, stated, 4000]), firstPass)!,
+        ),
+      )[1]!.label
+    expect(offLabel(7000)).toBe("off ref#0's path, or ref#0 from elsewhere")
+    expect(offLabel(Number.NaN)).toBe("off ref#0's path")
+  })
+
+  test('a walk row reads the count its tables or Graph state, and the option overrides it', () => {
+    const off = [0, Number.NaN, Number.NaN, 4000]
+    const readout = (
+      source: GraphTables | Graph,
+      o: { revisited?: number } = {},
+    ) => {
+      const rows = walkRowsOf(walkRowRuns(source, firstPass, o)!)
+      return {
+        revisited: rows.reference.revisited,
+        readout: walkRowReadout(rows.rows[0]!, rows.reference),
+      }
+    }
+    const offPath = "3.5 kb off ref's path in place of ref's 3.0 kb"
+    const own = "its own 3.5 kb in place of ref's 3.0 kb"
+    expect(readout(stating(off))).toEqual({ revisited: 1, readout: offPath })
+    expect(readout(stating(off), { revisited: 0 })).toEqual({
+      revisited: 0,
+      readout: own,
+    })
+    expect(readout({ ...stating(off), revisited: 0 })).toEqual({
+      revisited: 0,
+      readout: own,
+    })
+    expect(readout(graphFromTables(stating(off)))).toEqual({
+      revisited: 1,
+      readout: offPath,
+    })
+    expect(readout(graphFromTables({ ...stating(off), revisited: 0 }))).toEqual(
+      { revisited: 0, readout: own },
+    )
+  })
+
+  test("a source that cannot count the reference's revisits reads a walk's bp off the reference as off its path", () => {
+    const off = [0, Number.NaN, Number.NaN, 4000]
+    const rows = walkRowsOf(
+      walkRowRuns({ ...stating(off), revisited: Number.NaN }, firstPass)!,
+    )
+    expect(walkRowReadout(rows.rows[0]!, rows.reference)).toBe(
+      "3.5 kb off ref's path in place of ref's 3.0 kb",
+    )
+  })
+
+  test("a walk file that counts nodes the reference passes twice says a walk's bp off the reference are off its path, and one that counts none says they are its own", () => {
+    const readout = (hap: number[], revisited: number) => {
+      const rows = walkRowsOf(
+        walkRowRuns(stating(hap), firstPass, { revisited })!,
+      )
+      return walkRowReadout(rows.rows[0]!, rows.reference)
+    }
+    const off = [0, Number.NaN, Number.NaN, 4000]
+    const elsewhere = [0, Number.NaN, 7000, 4000]
+    expect(readout(off, 0)).toBe("its own 3.5 kb in place of ref's 3.0 kb")
+    expect(readout(off, 2)).toBe(
+      "3.5 kb off ref's path in place of ref's 3.0 kb",
+    )
+    expect(readout(elsewhere, 0)).toBe(
+      "its own 2.5 kb and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
+    )
+    expect(readout(elsewhere, 2)).toBe(
+      "2.5 kb off ref's path and 1.0 kb ref from elsewhere in place of ref's 3.0 kb",
+    )
+  })
+
+  test('a lone flank beside a step at a pass the cut lacks reads its walk as partial', () => {
+    const t = gfaTables(
+      [
+        ...['x', 'r', 'y', 'z'].map(
+          (n, i) => `S\t${n}\t*\tLN:i:1000\tSN:Z:chr\tSO:i:${i * 1000}\tSR:i:0`,
+        ),
+        'S\ti\t*\tLN:i:2500',
+        'S\tj\t*\tLN:i:300',
+        'W\tref\t0\tchr\t0\t5000\t>x>r>y>r>z',
+        'W\tlone\t1\tl\t0\t4800\t>x>i>r>j',
+        'W\tlone2\t1\tm\t0\t4800\t>j>r>i>z',
+      ].join('\n'),
+    )!
+    const n = Number.NaN
+    const lones = {
+      ...t,
+      walks: {
+        ...t.walks,
+        refStarts: Float64Array.from([
+          ...referenceStarts,
+          0,
+          n,
+          7000,
+          n,
+          n,
+          7000,
+          n,
+          4000,
+        ]),
+      },
+    }
+    const rows = walkRowsOf(walkRowRuns(lones, firstPass)!)
+    expect(
+      rows.rows.map(row => [
+        row.label,
+        walkRowReadout(row, rows.reference),
+        row.runs.map(r => [
+          r.start,
+          r.bp,
+          r.referenceStart,
+          ...(r.fromElsewhere ? ['elsewhere'] : []),
+        ]),
+      ]),
+    ).toEqual([
+      [
+        'lone2#1',
+        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
+        [
+          [0, 300, undefined],
+          [300, 1000, undefined, 'elsewhere'],
+          [1300, 2500, undefined],
+          [3800, 1000, 4000],
+        ],
+      ],
+      [
+        'lone#1',
+        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
+        [
+          [0, 1000, 0],
+          [1000, 2500, undefined],
+          [3500, 1000, undefined, 'elsewhere'],
+          [4500, 300, undefined],
+        ],
+      ],
+    ])
+  })
+
+  // the same with its links, over the whole reference or cut to its pieces
+  // chr:0-3000 and chr:4000-5000, which hold r's first pass and not its second
+  const linked = (reference: string[], hap?: number[]) => {
+    const t = gfaTables(
+      [
+        ...[
+          ['x', 0],
+          ['r', 1000],
+          ['y', 2000],
+          ['z', 4000],
+        ].map(
+          ([n, at]) =>
+            `S\t${n}\t*\tLN:i:1000\tSN:Z:ref#0#chr\tSO:i:${at}\tSR:i:0`,
+        ),
+        'S\ti\t*\tLN:i:2500',
+        ...['x r', 'r y', 'y r', 'r z', 'x i', 'i r'].map(pair => {
+          const [from, to] = pair.split(' ')
+          return `L\t${from}\t+\t${to}\t+\t0M`
+        }),
+        ...reference,
+        'W\thap\t1\tc\t0\t5500\t>x>i>r>z',
+      ].join('\n'),
+    )!
+    const starts =
+      reference.length > 1 ? [0, 1000, 2000, 4000] : referenceStarts
+    return hap
+      ? {
+          ...t,
+          walks: {
+            ...t.walks,
+            refStarts: Float64Array.from([...starts, ...hap]),
+          },
+        }
+      : t
+  }
+  const whole = ['W\tref\t0\tchr\t0\t5000\t>x>r>y>r>z']
+  const pieces = [
+    'W\tref\t0\tchr\t0\t3000\t>x>r>y',
+    'W\tref\t0\tchr\t4000\t5000\t>z',
+  ]
+  const skipsOf = (t: GraphTables) =>
+    deletionEdges(graphFromTables(t)).map(d => [d.from, d.to, d.start, d.end])
+  const offReference = [0, Number.NaN, Number.NaN, 4000]
+  const passLacked = [0, Number.NaN, 7000, 4000]
+
+  test("the graph's link from r to z skips nothing where the reference takes it, whichever pass hap states", () => {
+    for (const hap of [
+      undefined,
+      onFirst,
+      onSecond,
+      offReference,
+      passLacked,
+    ]) {
+      expect(skipsOf(linked(whole, hap))).toEqual([])
+    }
+  })
+
+  test("the graph's link from r to z skips between the passes hap's steps state", () => {
+    expect(skipsOf(linked(pieces, onFirst))).toEqual([['r+', 'z+', 2000, 4000]])
+    expect(skipsOf(linked(pieces, onSecond))).toEqual([])
+  })
+
+  test("the graph's link from a step stated off the reference, or at a pass the cut lacks, skips nothing", () => {
+    expect(skipsOf(linked(pieces, offReference))).toEqual([])
+    expect(skipsOf(linked(pieces, passLacked))).toEqual([])
+  })
+
+  test("tables that state no pass measure the graph's link from the pass the cut holds", () => {
+    expect(skipsOf(linked(pieces))).toEqual([['r+', 'z+', 2000, 4000]])
+  })
+
+  test('a Graph whose walk states a position count other than its steps is refused', () => {
+    const graph = graphFromTables(stating(onSecond))
+    const paths = graph.paths!.map((path, i) =>
+      i === 1 ? { ...path, refStarts: path.refStarts!.subarray(1) } : path,
+    )
+    expect(() => walkRows({ ...graph, paths }, firstPass)).toThrow(
+      'walk hap#1#c states 3 reference positions for 4 steps',
+    )
+  })
+
+  test('the Graph of the tables reads the same rows, cut to a bubble or a window too', () => {
+    const t = stating(onSecond)
+    const graph = graphFromTables(t)
+    for (const region of [firstPass, secondPass]) {
+      expect(walkRows(graph, region)).toEqual(
+        walkRowsOf(walkRowRuns(t, region)!),
+      )
+    }
+    const stepsOf = (g: Graph) =>
+      g.paths!.map(path =>
+        path.nodeIds.map((id, k) => `${id}@${path.refStarts![k]}`).join(' '),
+      )
+    expect(stepsOf(bubbleSubgraph(graph, ['r', 'y', 'z']))).toEqual([
+      'r+@1000 y+@2000 r+@3000 z+@4000',
+      'r+@3000 z+@4000',
+    ])
+    expect(stepsOf(trimToWindow(graph, { start: 2000, end: 3000 }))).toEqual([
+      'y+@2000',
+    ])
+  })
+})
+
+const HAPLOTYPES = [
+  'HG00097#1',
+  'HG00099#1',
+  'HG00128#1',
+  'HG00133#1',
+  'HG01109#1',
+  'HG01123#1',
+  'HG01960#1',
+  'HG02055#1',
+]

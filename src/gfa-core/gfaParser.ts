@@ -45,9 +45,6 @@ export interface StableCoordinate {
   refName: string
   start: number
   rank: number
-  // How the anchoring path reads this segment. Only path-derived coordinates
-  // set it: an rGFA segment is by construction forward on the sequence SN
-  // names, so there is nothing there for it to say.
   strand?: '+' | '-'
 }
 

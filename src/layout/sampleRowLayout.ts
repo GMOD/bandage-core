@@ -5,6 +5,7 @@ import {
   referenceSpan,
 } from '../anchoredNodes'
 import { panSNSample } from '../pansn'
+import { compareIds } from '../util/canonicalOrder'
 import { placeOffReference } from './placeOffReference'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 
@@ -75,7 +76,7 @@ function contributingSamples(graph: Graph, keep: readonly string[]) {
     (a, b) =>
       (held.get(a) ?? Infinity) - (held.get(b) ?? Infinity) ||
       carried.get(b)! - carried.get(a)! ||
-      a.localeCompare(b),
+      compareIds(a, b),
   )
 }
 

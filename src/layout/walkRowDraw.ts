@@ -1,11 +1,17 @@
-import { el } from '../el'
+import { el, elOf } from '../el'
+import { nameable } from '../genes/geneNames'
 import {
+  FROM_ELSEWHERE_TEXT,
   GAP_CAUSE_TEXT,
   NOT_LOADED_TEXT,
   OUTSIDE_TEXT,
   PLACEMENT_CHOICE_TEXT,
   departureSpan,
   departureText,
+  offPathText,
+  ownAmount,
+  ownGapText,
+  ownIsExact,
   placementChoice,
   roughBp,
 } from '../gfa/departures'
@@ -23,13 +29,16 @@ import {
   NOT_LOADED_RIM_PX,
   REFERENCE_RAMP_ALT_CSS,
 } from '../renderer/GeometryBuilder'
+import { rowInkOf, rowInkStops } from './rowInks'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 import { rowsNeedingRoutes } from './walkRowLinks'
+import { alongRow } from './walkRows'
 
 import type { El, ElAttrs } from '../el'
 import type { GeneModel } from '../genes/genePins'
 import type { GapCause } from '../gfa/departures'
-import type { WalkAxis, WalkRow, WalkRows, WalkRun } from './walkRows'
+import type { RowInk } from './rowInks'
+import type { WalkAxis, WalkPass, WalkRow, WalkRows, WalkRun } from './walkRows'
 
 // What walk rows draw, shared by the hosts: walkRowsTree is the drawing as an
 // element tree, which the plugin renders as React elements, BandageJS as DOM
@@ -45,6 +54,11 @@ export const GENE_INK = '#1c1c22'
 export const BAR_PX = 12
 export const GAP_PX = 4
 export const MISSING_PX = 1
+// the strip over a row in its lifted walk's colours where it runs on the
+// reference's path, which its colours no longer say
+export const ON_PATH_STRIP_INK = '#8c8c8c'
+export const ON_PATH_STRIP_PX = 2
+const ON_PATH_STRIP_GAP_PX = 1
 // rows thinner than this go unlabelled, their names and readouts on hover
 export const LABELLED_ROW_PX = 12
 // a unit separator over a thinner bar would cut it into dashes
@@ -79,22 +93,40 @@ export interface ReadoutCall {
 const near = (refName: string | undefined, pos: number) =>
   `${refName === undefined ? '' : `${panSNContig(refName)}:`}${pos < 1e6 ? `${Math.round(pos / 1000)} kb` : `${(pos / 1e6).toFixed(1)} Mb`}`
 
-// What of a row's bp the cut left out, as parts of it, by the cause its gaps
-// state: `, of which 19 kb left out of graph, 34 kb near chr22:20.3 Mb`, where
-// the departure out of the gap rejoins the reference, or for gaps stating
-// none `, of which 19 kb out of view`
-function gapsText(
+// Parts of a row's bp: `drawn` ones first, then what the cut left out, by the
+// cause its gaps state: `, of which 19 kb left out of graph, 34 kb near
+// chr22:20.3 Mb`, where the departure out of the gap rejoins the reference,
+// or for gaps stating none `, of which 19 kb out of view`
+function partsText(
+  drawn: string[],
   gapBp: number,
   runs: WalkRun[] | undefined,
   refName: string | undefined,
+  ownGap: string,
 ) {
-  if (gapBp <= 0) {
-    return ''
-  }
+  const stated = [...drawn, ...gapsParts(gapBp, runs, refName, ownGap)]
+  return stated.length > 0 ? `, of which ${stated.join(', ')}` : ''
+}
+
+function gapsParts(
+  gapBp: number,
+  runs: WalkRun[] | undefined,
+  refName: string | undefined,
+  ownGap: string,
+) {
   const gaps = (runs ?? []).filter(r => r.gap)
-  if (!gaps.some(g => g.cause)) {
-    return `, of which ${kb(gapBp)} ${OUTSIDE_TEXT}`
-  }
+  return gapBp <= 0
+    ? []
+    : !gaps.some(g => g.cause)
+      ? [`${sized(gapBp)} ${OUTSIDE_TEXT}`]
+      : causesParts(gaps, refName, ownGap)
+}
+
+function causesParts(
+  gaps: WalkRun[],
+  refName: string | undefined,
+  ownGap: string,
+) {
   const bpOf = (cause: GapCause | undefined) =>
     gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
   const mixedMissing = gaps
@@ -118,24 +150,29 @@ function gapsText(
   const parts = [
     [bpOf('missing') + mixedMissing, GAP_CAUSE_TEXT.missing],
     [bpOf('elsewhere'), `near ${placesOf('elsewhere')}`],
-    [bpOf('own') + bpOf('mixed') - mixedMissing, GAP_CAUSE_TEXT.own],
+    [bpOf('own') + bpOf('mixed') - mixedMissing, ownGap],
     [
       bpOf('unread'),
       `${GAP_CAUSE_TEXT.unread}${lastSeen ? ` (last seen near ${lastSeen})` : ''}`,
     ],
     [bpOf(undefined), OUTSIDE_TEXT],
   ] as const
-  const stated = parts
+  return parts
     .filter(([bp]) => bp > 0)
-    .map(([bp, text]) => `${kb(bp)} ${text}`)
-  return stated.length > 0 ? `, of which ${stated.join(', ')}` : ''
+    .map(([bp, text]) => `${sized(bp)} ${text}`)
 }
+
+const otherContigsText = (counted: WalkRow['otherContigs']) =>
+  counted
+    ? ` · ${counted.departures} departure${counted.departures > 1 ? 's' : ''} on ${counted.contigs > 1 ? `${counted.contigs} other contigs` : 'another contig'}`
+    : ''
 
 // A stepless row's departures in words: the widest stretch's facts, how many
 // more, and a placement choice among the others
 function steplessText(
   departures: NonNullable<WalkRow['departures']>,
   reference: string | undefined,
+  revisited: number | undefined,
 ) {
   const widest = [...departures].sort((a, b) => {
     const x = departureSpan(a)
@@ -145,7 +182,7 @@ function steplessText(
   const more = departures.length - 1
   return widest
     ? [
-        departureText(widest, reference),
+        departureText(widest, reference, revisited),
         ...(more > 0 ? [`${more} more departure${more > 1 ? 's' : ''}`] : []),
         ...(!placementChoice(widest) && departures.some(placementChoice)
           ? [PLACEMENT_CHOICE_TEXT]
@@ -154,23 +191,36 @@ function steplessText(
     : ''
 }
 
+type Crossing = Pick<
+  WalkPass,
+  'bp' | 'onReferenceBp' | 'fromElsewhereBp' | 'gapBp' | 'reversed'
+>
+
 // The text at the end of a bar: its length, what it carries against the
-// reference row, and what the cut left out, by cause where its gaps state
-// one. A walk reaching one flank states a lower bound, none where it has no
-// bp in the window, and why it stops, or where on the reference and by how
-// much of its own it goes on by a departure, and a stepless row its
-// departures' facts. A row with a departure the writer placed says so.
+// reference row, the reference from elsewhere it carries, and what the cut
+// left out, by cause where its gaps state one. A walk reaching one flank
+// states a lower bound, none where it has no bp in the window, and why it
+// stops, or where on the reference and by how much of its own it goes on by
+// a departure, and a stepless row its departures' facts. A row with a
+// departure the writer placed says so.
 export function walkRowReadout(
   row: Pick<
     WalkRow,
     | 'bp'
     | 'gapBp'
     | 'complete'
+    | 'windowBp'
+    | 'replacedBp'
+    | 'fromElsewhereBp'
+    | 'onReferenceBp'
+    | 'axis'
+    | 'morePasses'
     | 'stop'
     | 'departures'
     | 'placementChoice'
     | 'stepless'
     | 'outsideRow'
+    | 'otherContigs'
   > & {
     runs?: WalkRun[]
   },
@@ -179,41 +229,121 @@ export function walkRowReadout(
   call?: ReadoutCall,
 ) {
   const { bp, gapBp, complete, stop } = row
+  const others = otherContigsText(row.otherContigs)
   if (!reference) {
-    return `${kb(bp)}${units(bp, unit)}`
+    const length = row.windowBp ?? bp
+    return `${sized(length)}${units(length, unit)}${others}`
   }
-  const beyond = row.outsideRow
-    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${kb(row.outsideRow.stepsBp)} of its own in the graph` : ''}`
+  const { revisited } = reference
+  const name = reference.sample ?? 'the reference'
+  const outside = row.outsideRow
+    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${ownAmount(sized(row.outsideRow.stepsBp), name, revisited)} in the graph` : ''}`
     : ''
+  const beyond = `${outside}${others}`
   if (row.stepless) {
-    return `${steplessText(row.departures ?? [], reference.sample)}${beyond}`
+    return `${steplessText(row.departures ?? [], reference.sample, revisited)}${beyond}`
   }
-  const parts = gapsText(gapBp, row.runs, reference.name)
+  const elsewhereText = (stretchBp: number) =>
+    `${sized(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
+  const elsewhere = row.fromElsewhereBp ?? 0
+  const parts = partsText(
+    row.replacedBp === undefined && elsewhere > 0
+      ? [elsewhereText(elsewhere)]
+      : [],
+    gapBp,
+    row.runs,
+    reference.name,
+    ownGapText(name, revisited),
+  )
   const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   const called = call
-    ? ` · called ${kb(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
+    ? ` · called ${sized(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
   if (complete) {
-    const delta = bp - reference.bp
-    const against = delta === 0 ? '' : ` (${signedLength(delta)})`
-    return `${kb(bp)}${units(bp, unit)}${against}${parts}${after}${called}`
+    const of = reference.windowBp ?? reference.bp
+    // A pass across a window edge by what it holds: its own bp off the
+    // reference, its bp on the reference, the reference's from elsewhere, and
+    // for a pass the row does not draw, or one holding nothing else, its bp
+    // in gaps, which the row's parts state for the pass it draws
+    const replacing = (pass: Crossing, replacedBp: number, drawn: boolean) => {
+      const on = pass.onReferenceBp ?? 0
+      const from = pass.fromElsewhereBp ?? 0
+      const gaps = pass.gapBp ?? 0
+      const own = pass.bp - on - from - gaps
+      const alone = own <= 0 && on === 0 && from === 0
+      const inPlace =
+        own > 0 || from > 0 || gaps > 0
+          ? ` in place of ${name}'s ${sized(replacedBp)}`
+          : ''
+      const held = [
+        ...(own > 0 || pass.bp === 0
+          ? [
+              ownIsExact(revisited)
+                ? `its own ${sized(own)}`
+                : `${sized(own)} ${offPathText(name)}`,
+            ]
+          : []),
+        ...(on > 0 ? [`${sized(on)} on ${name}`] : []),
+        ...(from > 0 ? [elsewhereText(from)] : []),
+        ...(gaps > 0 && (!drawn || alone)
+          ? [`${sized(gaps)} ${GAP_CAUSE_TEXT.unread}`]
+          : []),
+      ]
+      const onAt = held.findIndex(text => text.endsWith(` on ${name}`))
+      return `${held
+        .map((text, i) =>
+          i === onAt && pass.reversed
+            ? `${text}, reversed${i < held.length - 1 || inPlace ? ',' : ''}`
+            : text,
+        )
+        .join(' and ')}${inPlace}`
+    }
+    const lengthOf = (
+      pass: Crossing & Pick<WalkPass, 'replacedBp'>,
+      length: number,
+      drawn: boolean,
+    ) => {
+      const delta = length - of
+      return pass.replacedBp !== undefined
+        ? replacing(pass, pass.replacedBp, drawn)
+        : `${sized(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
+    }
+    const length =
+      row.windowBp !== undefined && reference.windowBp !== undefined
+        ? row.windowBp
+        : bp
+    const again = (row.morePasses ?? [])
+      .map(
+        pass =>
+          ` · passes again${pass.reversed ? ', reversed' : ''}: ${lengthOf({ ...pass, reversed: false }, pass.windowBp, false)}`,
+      )
+      .join('')
+    const first = {
+      ...row,
+      gapBp,
+      reversed: row.axis?.reversed ?? false,
+    }
+    return `${lengthOf(first, length, true)}${again}${parts}${after}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   if (stop?.contigEnds && bp === 0) {
-    const where = stop.shortBp > 0 ? `${kb(stop.shortBp)} before` : 'at'
+    const where = stop.shortBp > 0 ? `${sized(stop.shortBp)} before` : 'at'
     return `contig ends ${where} the ${region}${called}`
   }
   const why = !stop
     ? 'partial walk'
     : stop.contigEnds
       ? `contig ends inside the ${region}`
-      : stop.goesOn
-        ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${roughBp(stop.goesOn.departure.ownBp)} of its own`}`
-        : 'does not rejoin the reference in view'
+      : stop.turnsBack
+        ? `turns back out of the ${region}`
+        : stop.goesOn
+          ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${ownAmount(roughBp(stop.goesOn.departure.ownBp), name, revisited)}`}`
+          : 'does not rejoin the reference in view'
+  const least = row.windowBp ?? bp
   const stated =
     bp === 0
       ? `${why}${parts}`
-      : `≥ ${kb(bp)}${units(bp, unit)}${parts} · ${why}`
+      : `≥ ${sized(least)}${units(least, unit)}${parts} · ${why}`
   return `${stated}${after}${called}`
 }
 
@@ -286,33 +416,18 @@ export function readoutTextPx(text: string) {
   return (em * READOUT_FONT_PX * 1.02) / 2048
 }
 
-// A readout right of its bar's end and of `left`, or inside the bar where it
-// would leave the pane and fits right of `left`
-function readoutPlacement(
-  text: string,
-  endX: number,
-  width: number,
-  left: number,
-  measure: (text: string) => number,
-) {
-  const textPx = measure(text)
-  const beside = Math.max(endX + READOUT_GAP_PX, left)
-  const inside = endX - READOUT_GAP_PX
-  return beside + textPx < width || inside - textPx < left
-    ? { x: beside, anchor: 'start' as const, halo: false }
-    : { x: inside, anchor: 'end' as const, halo: true }
-}
-
 const ELLIPSIS = '…'
 
-// A readout cut to `roomPx` by whole parts of its breakdown from the end,
-// closed with an ellipsis; its total and change against the reference stay
+// A readout cut to `roomPx` by whole parts from the end, closed with an
+// ellipsis: its breakdown's items, then the parts after its first, then the
+// first's own clauses and the amounts it joins with "and", so its total and
+// change against the reference stay longest. Where not even an ellipsis fits,
+// nothing is drawn.
 function fitReadout(
   text: string,
   roomPx: number,
   measure: (text: string) => number,
 ) {
-  const fits = (candidate: string) => measure(candidate) <= roomPx
   const [first = '', ...rest] = text.split(' · ')
   const tail = rest.map(part => ` · ${part}`).join('')
   const at = first.indexOf(', of which ')
@@ -332,7 +447,37 @@ function fitReadout(
       : rest
           .map((_, k) => rest.length - 1 - k)
           .map(k => `${[first, ...rest.slice(0, k)].join(' · ')} · ${ELLIPSIS}`)
-  return fits(text) ? text : (cuts.find(fits) ?? cuts.at(-1) ?? text)
+  const clauseCuts = [...head.matchAll(/, | and /g)]
+    .reverse()
+    .map(m => `${head.slice(0, m.index)}${m[0]}${ELLIPSIS}`)
+  return (
+    [text, ...cuts, ...clauseCuts, ELLIPSIS].find(
+      candidate => measure(candidate) <= roomPx,
+    ) ?? ''
+  )
+}
+
+// A wrapped readout's two lines, this far apart and centred on the row, keep
+// clear of the rows above and below at the walk-rows layout's own pitch
+const READOUT_LINE_PX = 10
+
+// A readout too long for `roomPx` as two lines, broken between two of its
+// parts, the break that leaves the longer line shortest; none where no break
+// fits both lines
+function wrapReadout(
+  text: string,
+  roomPx: number,
+  measure: (text: string) => number,
+) {
+  return [...text.matchAll(/ · |, /g)]
+    .map(m => {
+      const first = `${text.slice(0, m.index)}${m[0] === ', ' ? ',' : ''}`
+      const second = text.slice(m.index + m[0].length)
+      const lines: [string, string] = [first, second]
+      return { lines, px: Math.max(measure(first), measure(second)) }
+    })
+    .filter(({ px }) => px <= roomPx)
+    .sort((a, b) => a.px - b.px)[0]?.lines
 }
 
 const rowNameEnd = (label: string) =>
@@ -342,22 +487,25 @@ export const NOT_COMPARED_TEXT = 'not compared'
 
 /**
  * Row `i`'s readout (0 the reference) as a pane of `frame` draws it: `text`
- * in full, `shown` as drawn, cut to the room beside the bar where it would
- * leave the pane, `cut` whether it was, and where it sits. Beside the bar
- * means right of its end and of the row's name; inside, only over solid bar
- * past its last gap, its width by `frame.measure` or else readoutTextPx.
- * While `comparing`, a row the comparison leaves out ends
- * `· not compared`, which no cut drops.
+ * in full, `lines` as drawn, `shown` those lines as one string, `cut` whether
+ * they leave any of `text` out, and `x`, where they start: right of the bar's
+ * end and of the row's name, never over a bar. Every line ends inside
+ * `frame.width`, measured by `frame.measure` or else readoutTextPx. A readout
+ * too long for the room wraps onto two lines where rows are at their full
+ * pitch and two lines fit, and is cut by whole parts where not. While
+ * `comparing`, a row the comparison leaves out ends `· not compared`, which
+ * only a readout cut to nothing drops.
  */
 export function walkRowReadoutAt(
   bars: WalkRowsWithCalls,
   i: number,
-  frame: Pick<WalkRowsFrame, 'scaleX' | 'translateX' | 'width' | 'measure'>,
+  frame: Pick<
+    WalkRowsFrame,
+    'scaleX' | 'translateX' | 'width' | 'measure' | 'rowPx'
+  >,
   o: { comparing?: boolean } = {},
 ) {
   const row = i === 0 ? bars.reference : bars.rows[i - 1]!
-  const along = (offset: number) =>
-    (bars.origin + offset) * frame.scaleX + frame.translateX
   const base = walkRowReadout(
     row,
     i === 0 ? undefined : bars.reference,
@@ -370,18 +518,25 @@ export function walkRowReadoutAt(
       : ''
   const text = `${base}${suffix}`
   const measure = frame.measure ?? readoutTextPx
-  const at = readoutPlacement(
+  const endX = (bars.origin + barEnd(row)) * frame.scaleX + frame.translateX
+  const x = Math.max(endX + READOUT_GAP_PX, rowNameEnd(row.label))
+  const roomPx = frame.width - x
+  const wrapped =
+    measure(text) > roomPx &&
+    (frame.rowPx ?? ROW_HEIGHT_PX) >= 2 * READOUT_LINE_PX
+      ? wrapReadout(text, roomPx, measure)
+      : undefined
+  const kept = fitReadout(base, roomPx - measure(suffix), measure)
+  const lines: [string] | [string, string] = wrapped ?? [
+    kept === '' ? '' : `${kept}${suffix}`,
+  ]
+  return {
+    x,
     text,
-    along(barEnd(row)),
-    frame.width,
-    Math.max(rowNameEnd(row.label), along(lastGapEnd(row.runs))),
-    measure,
-  )
-  const shown =
-    at.anchor === 'start'
-      ? `${fitReadout(base, frame.width - at.x - measure(suffix), measure)}${suffix}`
-      : text
-  return { ...at, text, shown, cut: shown !== text }
+    lines,
+    shown: lines.join('\n'),
+    cut: wrapped === undefined && lines[0] !== text,
+  }
 }
 
 // Where a row's bar ends: past its runs, since a stepless row has no bp
@@ -409,7 +564,10 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
 // a band, bases the graph lacks as a hairline the walk jumps along, and its
 // own sequence the cut did not read as a pale band. The stretch between a
 // stepless row's departure's ends is a hairline too.
-export function gapStyle(cause: GapCause | undefined) {
+export function gapStyle(
+  cause: GapCause | undefined,
+  ownGap: string = GAP_CAUSE_TEXT.own,
+) {
   return cause === 'missing'
     ? {
         fill: MISSING_INK,
@@ -422,7 +580,7 @@ export function gapStyle(cause: GapCause | undefined) {
         ? {
             fill: OWN_GAP,
             px: GAP_PX,
-            label: `${GAP_CAUSE_TEXT.own}: in the graph off the reference, between two stretches drawn here`,
+            label: `${ownGap}: in the graph off the reference, between two stretches drawn here`,
           }
         : cause === 'mixed'
           ? {
@@ -475,13 +633,6 @@ export function runPaint(
           : stops.length === 1
             ? { fill: rampHueCss(stops[0]!) }
             : { stops: stops.map(rampHueCss) }
-}
-
-// A contig span as offsets along a row's bar
-export function alongRow(axis: WalkAxis, start: number, end: number) {
-  return axis.reversed
-    ? { start: axis.start - end, end: axis.start - start }
-    : { start: start - axis.start, end: end - axis.start }
 }
 
 // The contig span a row's bar covers
@@ -542,7 +693,6 @@ export function placeRowGenes(
 }
 
 const GENE_FONT_PX = 9
-const GENE_CHAR_PX = 5.2
 const MIN_LETTERED_BAR_PX = 8
 
 const genePad = (rowPx: number, barPx: number) =>
@@ -561,24 +711,120 @@ export interface GeneBox {
   w: number
   h: number
   exons: { x: number; w: number }[]
-  // the name inside the box where it fits and lands on no other name, shorter
-  // genes taking their room first
-  label?: { x: number; y: number; size: number }
+  // the name centred on the box where it lands on no other name, names that
+  // fit their boxes first; or, on a row that names genes above it, over the
+  // box with a leader down to it where it cannot stand inside
+  label?: {
+    x: number
+    y: number
+    size: number
+    leader?: { x1: number; y1: number; x2: number; y2: number }
+  }
+}
+
+// From a name set above a row down to its box's top
+const GENE_LEADER_PX = 6
+// below a name's baseline, and above it, at GENE_FONT_PX
+const GENE_DESCENT_PX = 2
+const GENE_ASCENT_PX = 7
+const GENE_NAME_GAP_PX = 6
+// how far a name may run past its box, or past the bar's ends, half the gap
+// before a row's readout
+const NAME_OVERRUN_PX = READOUT_GAP_PX / 2
+// DejaVu Sans Bold's capitals over its Book face's, which readoutTextPx
+// measures: A 1585/1401, M 1995/1767
+const BOLD_WIDENING = 1.13
+
+// A gene name's width at GENE_FONT_PX bold, a little over
+function geneNamePx(name: string) {
+  return (readoutTextPx(name) * GENE_FONT_PX * BOLD_WIDENING) / READOUT_FONT_PX
+}
+
+// Where a name too long for its box goes above it: centred over its box, or
+// as near that as the names placed before it leave room for, within its own
+// width, on the line over the box or the one above that; none where neither
+// has room in the frame
+function nameAbove(
+  name: string,
+  centre: number,
+  top: number,
+  lines: [number, number][][],
+  maxX: number,
+) {
+  const w = geneNamePx(name)
+  const wanted = centre - w / 2
+  for (const [line, taken] of lines.entries()) {
+    const baseline =
+      top -
+      GENE_LEADER_PX -
+      GENE_DESCENT_PX -
+      line * (GENE_ASCENT_PX + GENE_DESCENT_PX + GENE_NAME_GAP_PX)
+    const free = (x0: number) =>
+      x0 >= 0 &&
+      x0 + w <= maxX &&
+      taken.every(
+        ([a, b]) =>
+          x0 + w + GENE_NAME_GAP_PX <= a || x0 >= b + GENE_NAME_GAP_PX,
+      )
+    const x0 =
+      baseline - GENE_ASCENT_PX < 0
+        ? undefined
+        : [
+            wanted,
+            ...taken.flatMap(([a, b]) => [
+              a - GENE_NAME_GAP_PX - w,
+              b + GENE_NAME_GAP_PX,
+            ]),
+          ]
+            .filter(x => Math.abs(x - wanted) <= w && free(x))
+            .sort((p, q) => Math.abs(p - wanted) - Math.abs(q - wanted))[0]
+    if (x0 !== undefined) {
+      taken.push([x0, x0 + w])
+      return labelAbove(x0 + w / 2, baseline, centre, top)
+    }
+  }
+  return undefined
+}
+
+function labelAbove(x: number, baseline: number, centre: number, top: number) {
+  return {
+    x,
+    y: baseline,
+    size: GENE_FONT_PX,
+    leader: { x1: x, y1: baseline + GENE_DESCENT_PX, x2: centre, y2: top },
+  }
 }
 
 // A row's genes as boxes in screen px around its bar at `y`, at the rows'
 // pitch, named where the bar is tall enough to letter; none where the rows
-// leave no room to box them
+// leave no room to box them. A name that fits its box is centred on it where
+// it meets no other name, narrowest gene first. Then, on a row that does not
+// name genes above it, a name wider than its box is centred on it where it
+// meets no other name, crosses no other gene's box and stays about within the
+// bar's `ends`, the least overflowing first, so a copy too short for its name
+// is still named on a haplotype's row. With `namesAbove`, the frame's right
+// edge, a name that does not fit its box is set above the row.
 export function rowGeneBoxes(
   genes: RowGene[],
   X: (offset: number) => number,
   y: number,
-  { rowPx = ROW_HEIGHT_PX, barPx = BAR_PX } = {},
+  {
+    rowPx = ROW_HEIGHT_PX,
+    barPx = BAR_PX,
+    namesAbove,
+    ends,
+  }: {
+    rowPx?: number
+    barPx?: number
+    namesAbove?: number
+    ends?: { x0: number; x1: number }
+  } = {},
 ): GeneBox[] {
   if (!boxesGenes(rowPx, barPx)) {
     return []
   }
   const pad = genePad(rowPx, barPx)
+  const top = y - barPx / 2 - pad
   const boxes = genes.map(g => {
     const x = X(g.start)
     return {
@@ -587,27 +833,62 @@ export function rowGeneBoxes(
       w: Math.max(2, X(g.end) - x),
     }
   })
+  const lettered = new Set(nameable(genes, g => g.name))
+  const narrowestFirst = boxes
+    .filter(box => lettered.has(box.g))
+    .sort((a, b) => a.w - b.w)
+  const overflow = (box: (typeof boxes)[number]) =>
+    geneNamePx(box.g.name) - box.w - 2 * NAME_OVERRUN_PX
+  const fitting = narrowestFirst.filter(box => overflow(box) <= 0)
+  const overflowing = narrowestFirst
+    .filter(box => overflow(box) > 0)
+    .sort((a, b) => overflow(a) - overflow(b))
   const taken: [number, number][] = []
   const named = new Set(
-    (barPx >= MIN_LETTERED_BAR_PX ? [...boxes] : [])
-      .sort((a, b) => a.w - b.w)
-      .filter(({ g, x, w }) => {
-        const half = (g.name.length * GENE_CHAR_PX) / 2
-        const at: [number, number] = [x + w / 2 - half, x + w / 2 + half]
-        if (
-          2 * half > w + 6 ||
-          taken.some(([a, b]) => at[0] < b + 2 && at[1] > a - 2)
-        ) {
-          return false
-        }
-        taken.push(at)
-        return true
-      }),
+    (barPx >= MIN_LETTERED_BAR_PX
+      ? [...fitting, ...(namesAbove === undefined ? overflowing : [])]
+      : []
+    ).filter(box => {
+      const { g, x, w } = box
+      const half = geneNamePx(g.name) / 2
+      const at: [number, number] = [x + w / 2 - half, x + w / 2 + half]
+      const crosses = (other: { x: number; w: number }) =>
+        at[0] < other.x + other.w &&
+        at[1] > other.x &&
+        (at[0] < other.x || at[1] > other.x + other.w)
+      const fits = overflow(box) <= 0
+      const onBar =
+        ends === undefined ||
+        (at[0] >= ends.x0 - NAME_OVERRUN_PX &&
+          at[1] <= ends.x1 + NAME_OVERRUN_PX)
+      const clearOfBoxes = !boxes.some(other => other !== box && crosses(other))
+      if (
+        !(fits || (onBar && clearOfBoxes)) ||
+        taken.some(([a, b]) => at[0] < b + 2 && at[1] > a - 2)
+      ) {
+        return false
+      }
+      taken.push(at)
+      return true
+    }),
   )
+  // the widest genes' names first, as a graph names its longest genes first
+  const lines: [number, number][][] = [[], []]
+  const above = new Map<(typeof boxes)[number], GeneBox['label']>()
+  if (namesAbove !== undefined) {
+    for (const box of [...narrowestFirst].reverse()) {
+      const label = named.has(box)
+        ? undefined
+        : nameAbove(box.g.name, box.x + box.w / 2, top, lines, namesAbove)
+      if (label) {
+        above.set(box, label)
+      }
+    }
+  }
   return boxes.map(box => ({
     name: box.g.name,
     x: box.x,
-    y: y - barPx / 2 - pad,
+    y: top,
     w: box.w,
     h: barPx + 2 * pad,
     exons: box.g.exons.map(e => ({
@@ -616,7 +897,7 @@ export function rowGeneBoxes(
     })),
     label: named.has(box)
       ? { x: box.x + box.w / 2, y: y + 3, size: GENE_FONT_PX }
-      : undefined,
+      : above.get(box),
   }))
 }
 
@@ -664,25 +945,51 @@ export function walkRowsKey(
     comparing?: { fetchLimit: number }
     // runs not loaded are drawn hollow, as under a node layout
     markUnloaded?: boolean
+    // the lifted walks' colours, which the rows they name take
+    inks?: readonly RowInk[]
   } = {},
 ): KeyEntry[] {
   const noun = o.annotation ?? 'gene'
-  const entries: KeyEntry[] = [
-    {
-      swatch: o.ramp
-        ? { kind: 'bar', fill: o.rampCss ?? RAMP_GRADIENT_CSS, ramp: true }
-        : { kind: 'bar', fill: ON_REFERENCE },
-      label: `on ${bars.reference.label}'s path`,
-    },
-    {
-      swatch: {
-        kind: 'bar',
-        fill: o.ramp ? REFERENCE_RAMP_ALT_CSS : OFF_REFERENCE,
-      },
-      label: `off ${bars.reference.label}'s path`,
-    },
-  ]
   const rows = [bars.reference, ...bars.rows]
+  const reference = bars.reference.label
+  const elsewhere = rows.some(row => row.runs.some(run => run.fromElsewhere))
+  const ownGap = ownGapText(reference, bars.reference.revisited)
+  const inks = o.inks ?? []
+  const inked = rows.filter(row => rowInkOf(row, inks))
+  const entries: KeyEntry[] =
+    inked.length < rows.length
+      ? [
+          {
+            swatch: o.ramp
+              ? {
+                  kind: 'bar',
+                  fill: o.rampCss ?? RAMP_GRADIENT_CSS,
+                  ramp: true,
+                }
+              : { kind: 'bar', fill: ON_REFERENCE },
+            label: `on ${bars.reference.label}'s path`,
+          },
+          {
+            swatch: {
+              kind: 'bar',
+              fill: o.ramp ? REFERENCE_RAMP_ALT_CSS : OFF_REFERENCE,
+            },
+            label: `off ${reference}'s path${elsewhere ? `, or ${reference} ${FROM_ELSEWHERE_TEXT}` : ''}`,
+          },
+        ]
+      : []
+  if (
+    inked.some(
+      row =>
+        row !== bars.reference &&
+        row.runs.some(run => run.onReference && !run.gap),
+    )
+  ) {
+    entries.push({
+      swatch: { kind: 'bar', fill: ON_PATH_STRIP_INK },
+      label: onPathStripText(reference),
+    })
+  }
   if (o.markUnloaded && rows.some(row => row.runs.some(run => run.unloaded))) {
     entries.push({
       swatch: { kind: 'bar', fill: NOT_LOADED_FILL_CSS, rim: NOT_LOADED_CSS },
@@ -693,7 +1000,7 @@ export function walkRowsKey(
   for (const row of rows) {
     for (const run of row.runs) {
       if (run.gap) {
-        labels.add(gapStyle(run.cause).label)
+        labels.add(gapStyle(run.cause, ownGap).label)
       }
     }
   }
@@ -706,7 +1013,7 @@ export function walkRowsKey(
     'mixed',
     'unread',
   ] as const) {
-    const { fill, px, label } = gapStyle(cause)
+    const { fill, px, label } = gapStyle(cause, ownGap)
     if (labels.has(label)) {
       entries.push({ swatch: { kind: 'gap', fill, px }, label })
     }
@@ -764,6 +1071,9 @@ export function walkRowsKey(
   }
   return entries
 }
+
+export const onPathStripText = (reference: string) =>
+  `grey above: on ${reference}'s path`
 
 // walk rows whose rows may carry the allele a repeat genotype called
 export type WalkRowsWithCalls = Omit<WalkRows, 'reference' | 'rows'> & {
@@ -844,14 +1154,14 @@ export function walkRowsKeyTree(
   })
   return {
     width: at,
-    tree: el(
+    tree: elOf(
       'g',
       {
         transform: `translate(${x} ${y})`,
         'font-family': 'Helvetica, Arial, sans-serif',
         'font-size': 11,
       },
-      ...parts,
+      parts,
     ),
   }
 }
@@ -995,9 +1305,7 @@ export function coalesceRuns(runs: WalkRun[], pxPerBp: number, marked = false) {
 }
 
 function geneTree(box: GeneBox, y: number, barPx: number) {
-  return el(
-    'g',
-    { class: 'row-gene', 'data-testid': 'graph-walk-gene' },
+  return elOf('g', { class: 'row-gene', 'data-testid': 'graph-walk-gene' }, [
     el('title', {}, box.name),
     ...box.exons.map(e =>
       el('rect', {
@@ -1018,6 +1326,13 @@ function geneTree(box: GeneBox, y: number, barPx: number) {
       stroke: GENE_INK,
       'stroke-width': 1.5,
     }),
+    box.label?.leader &&
+      el('line', {
+        ...box.label.leader,
+        stroke: GENE_INK,
+        'stroke-width': 0.8,
+        'stroke-opacity': 0.6,
+      }),
     box.label &&
       el(
         'text',
@@ -1035,7 +1350,7 @@ function geneTree(box: GeneBox, y: number, barPx: number) {
         },
         box.name,
       ),
-  )
+  ])
 }
 
 // Walk rows over a pane: each row's runs, unit separators, its genes, the
@@ -1052,12 +1367,17 @@ export function walkRowsTree(
     markUnloaded?: boolean
     // set while ribbons, shared blocks or the shared order are on
     comparing?: boolean
+    // the lifted walks' colours, which the rows they name take, each but the
+    // reference's under a strip where it runs on the reference's path
+    inks?: readonly RowInk[]
   } = {},
 ) {
   const marked = o.markUnloaded ?? false
   const X = (bp: number) => bp * frame.scaleX + frame.translateX
   const rowPx = frame.rowPx ?? ROW_HEIGHT_PX
   const barPx = frame.barPx ?? BAR_PX
+  const stripRoom =
+    (rowPx - barPx) / 2 >= ON_PATH_STRIP_GAP_PX + ON_PATH_STRIP_PX
   const overhang = Math.min(3, Math.max(0, (rowPx - barPx) / 2))
   const Y = (row: number) => row * rowPx * frame.scaleY + frame.translateY
   const { origin, unit, reference, rows } = bars
@@ -1072,8 +1392,36 @@ export function walkRowsTree(
       return undefined
     }
     const drawn = frame.bars === false ? [] : row.runs
-    const runs = coalesceRuns(drawn, frame.scaleX, marked).flatMap(run => {
-      const paint = runPaint(run, o.ramp, marked)
+    const coalesced = coalesceRuns(drawn, frame.scaleX, marked)
+    const ink = o.inks && rowInkOf(row, o.inks)
+    const inkStops = ink && rowInkStops(ink, row, 1 / frame.scaleX)
+    const inkId = `${prefix}-${i}-ink`
+    const inkGradient =
+      inkStops &&
+      inkStops.length > 1 &&
+      elOf(
+        'linearGradient',
+        {
+          id: inkId,
+          gradientUnits: 'userSpaceOnUse',
+          x1: along(0),
+          x2: along(row.bp),
+          y1: 0,
+          y2: 0,
+        },
+        inkStops.map(s =>
+          el('stop', { offset: s.offset, 'stop-color': s.color }),
+        ),
+      )
+    const inkFill =
+      inkStops && (inkStops.length > 1 ? `url(#${inkId})` : inkStops[0]!.color)
+    const inked = (run: WalkRun) => !run.gap && !(marked && run.unloaded)
+    const pieces = inkFill ? joined(coalesced, inked) : coalesced
+    const runs = pieces.flatMap(run => {
+      const paint =
+        inkFill && inked(run)
+          ? { fill: inkFill }
+          : runPaint(run, o.ramp, marked)
       const h = run.gap ? Math.min(gapStyle(run.cause).px, barPx) : barPx
       const id = `${prefix}-${i}-${run.start}`
       const w = Math.max(1, run.bp * frame.scaleX)
@@ -1095,10 +1443,10 @@ export function walkRowsTree(
       })
       return 'stops' in paint
         ? [
-            el(
+            elOf(
               'linearGradient',
               { id },
-              ...paint.stops.map((color, k) =>
+              paint.stops.map((color, k) =>
                 el('stop', {
                   offset: k / (paint.stops.length - 1),
                   'stop-color': color,
@@ -1109,6 +1457,21 @@ export function walkRowsTree(
           ]
         : [rect]
     })
+    const strip =
+      ink && i > 0 && stripRoom
+        ? joined(coalesced, onPath)
+            .filter(onPath)
+            .map(span =>
+              el('rect', {
+                'data-testid': 'graph-walk-on-path',
+                x: along(span.start),
+                y: y - barPx / 2 - ON_PATH_STRIP_GAP_PX - ON_PATH_STRIP_PX,
+                width: Math.max(1, span.bp * frame.scaleX),
+                height: ON_PATH_STRIP_PX,
+                fill: ON_PATH_STRIP_INK,
+              }),
+            )
+        : []
     const ticks =
       unit && barPx >= MIN_TILED_BAR_PX
         ? unitTicks(row.bp, unit, frame.scaleX).map(k =>
@@ -1132,11 +1495,15 @@ export function walkRowsTree(
         'data-testid': i === 0 ? 'graph-walk-reference' : 'graph-walk-row',
       },
       [readout?.cut === true && el('title', {}, readout.text)],
+      [inkGradient],
       runs,
+      strip,
       ticks,
       rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y, {
         rowPx,
         barPx,
+        namesAbove: i === 0 ? frame.width : undefined,
+        ends: { x0: along(0), x1: along(barEnd(row)) },
       }).map(box => geneTree(box, y, barPx)),
       [
         call &&
@@ -1148,21 +1515,26 @@ export function walkRowsTree(
             height: barPx + 2 * overhang,
             fill: callTickInk(call),
           }),
-        readout &&
+        readout !== undefined &&
+          readout.shown !== '' &&
           el(
             'text',
             {
               x: readout.x,
-              y: y + 4,
+              y: y + 4 - ((readout.lines.length - 1) * READOUT_LINE_PX) / 2,
               'font-family': 'sans-serif',
               'font-size': 11,
               fill: call?.agrees === false ? DISAGREES : '#333',
-              stroke: readout.halo ? 'white' : undefined,
-              'stroke-width': readout.halo ? 3 : undefined,
-              'paint-order': 'stroke',
-              'text-anchor': readout.anchor,
             },
-            readout.shown,
+            readout.lines[1] === undefined
+              ? readout.lines[0]
+              : el('tspan', { x: readout.x }, readout.lines[0]),
+            readout.lines[1] !== undefined &&
+              el(
+                'tspan',
+                { x: readout.x, dy: READOUT_LINE_PX },
+                readout.lines[1],
+              ),
           ),
       ],
     )
@@ -1172,6 +1544,28 @@ export function walkRowsTree(
     [rowTree(reference, 0)],
     rows.map((row, k) => rowTree(row, k + 1)),
   )
+}
+
+const onPath = (run: WalkRun) => run.onReference && !run.gap
+
+// Runs with the touching ones `joins` holds made one, so a bar of one paint
+// draws no seams between its runs
+function joined(runs: readonly WalkRun[], joins: (run: WalkRun) => boolean) {
+  const out: WalkRun[] = []
+  for (const run of runs) {
+    const last = out.at(-1)
+    if (
+      last &&
+      joins(last) &&
+      joins(run) &&
+      last.start + last.bp === run.start
+    ) {
+      out[out.length - 1] = { ...last, bp: last.bp + run.bp }
+    } else {
+      out.push(run)
+    }
+  }
+  return out
 }
 
 // An element of `parts`' elements, which may be too many to pass one by one
@@ -1185,13 +1579,4 @@ function group(attrs: ElAttrs, ...parts: (El | undefined | false)[][]): El {
     }
   }
   return { tag: 'g', attrs, children }
-}
-
-// Where a row's last gap ends, so a readout drawn inside the bar sits over
-// solid bar alone
-function lastGapEnd(runs: WalkRun[]) {
-  return runs.reduce(
-    (end, run) => (run.gap ? Math.max(end, run.start + run.bp) : end),
-    Number.NEGATIVE_INFINITY,
-  )
 }

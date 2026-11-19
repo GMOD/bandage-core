@@ -20,6 +20,7 @@ import { walkRows } from '../layout/walkRows'
 import { loadGraph } from '../pipeline'
 import { walkLift } from '../walkHighlight'
 import { walkKey } from '../walkKey'
+import { walksThrough } from '../walksThrough'
 import {
   departureAt,
   departureKind,
@@ -166,6 +167,20 @@ test("departureKind and placementChoice say what graph-walks' do", () => {
   expect(placementChoice(departure({ rejoinPasses: 2 }))).toBe(true)
 })
 
+test('a departure in a walk file that counts nodes the reference passes twice states its bp off the reference path, not as its own', () => {
+  const d = departure({
+    leavePos: 160_620_000,
+    rejoinPos: 160_674_000,
+    ownBp: 120_000,
+  })
+  expect(departureText(d, 'GRCh38', 0)).toBe(
+    'no step on GRCh38 across 54 kb · 120 kb of its own',
+  )
+  expect(departureText(d, 'GRCh38', 2)).toBe(
+    "no step on GRCh38 across 54 kb · 120 kb off GRCh38's path",
+  )
+})
+
 test('a departure in words states its stretch, ends and own bp, and makes no call', () => {
   const texts = [
     departureText(
@@ -175,15 +190,19 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
         ownBp: 120_000,
       }),
       'GRCh38',
+      0,
     ),
     departureText(
       departure({ leavePos: 3000, rejoinPos: 2000, ownBp: 0 }),
       'GRCh38',
+      0,
     ),
     departureText(
       departure({ rejoinReversed: true, missingBp: 400, rejoinPasses: 2 }),
+      undefined,
+      0,
     ),
-    departureText(departure({ rejoinPos: 2000, ownBp: 300 }), 'GRCh38'),
+    departureText(departure({ rejoinPos: 2000, ownBp: 300 }), 'GRCh38', 0),
   ]
   expect(texts).toEqual([
     'no step on GRCh38 across 54 kb · 120 kb of its own',
@@ -280,7 +299,7 @@ test('a gap past a trimmed walk splits into what the cut left out and what the g
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 0.6 kb left out of graph, 0.4 kb out of view',
+    '5.0 kb, of which 600 bp left out of graph, 400 bp out of view',
   )
   expect(
     parts(
@@ -339,7 +358,7 @@ test("own sequence the cut did not read is the rest of the departure's own bp", 
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 0.4 kb left out of graph, 0.6 kb own sequence not drawn',
+    '5.0 kb, of which 400 bp left out of graph, 600 bp own sequence not drawn',
   )
 })
 
@@ -414,17 +433,27 @@ test('a row walked backwards meets the parts of a gap last first', () => {
   ])
 })
 
-test('a lifted walk states the bp its departures say the graph lacks', () => {
-  const graph = loadGraph(
-    twoFragments([departure({ missingBp: 300 })], { after: 400 }),
-    'cut',
-    { referencePath: REFERENCE },
-  )
-  const [walk] = walkLift(graph, [{ walk: 'HG002#1#chr1' }])!.walks
-  expect(walk).toMatchObject({ missingBp: 300, ownBp: 300 })
-  expect(walkKey(walk!).gaps).toBe(
+test('a lifted walk states the bp its departures say the graph lacks, and its bp off the reference as its own only where the walk file counts no node the reference passes twice', () => {
+  const keyOf = (revisited: number) => {
+    const graph = loadGraph(
+      {
+        ...twoFragments([departure({ missingBp: 300 })], { after: 400 }),
+        revisited,
+      },
+      'cut',
+      { referencePath: REFERENCE },
+    )
+    const [walk] = walkLift(graph, [{ walk: 'HG002#1#chr1' }])!.walks
+    expect(walk).toMatchObject({ missingBp: 300, ownBp: 300 })
+    return walkKey(walk!).gaps
+  }
+  expect(keyOf(0)).toBe(
     ', 300 bp left out of graph, 300 bp own sequence not drawn, 400 bp out of view',
   )
+  expect(keyOf(2)).toBe(
+    ", 300 bp left out of graph, 300 bp off GRCh38#0's path and not drawn, 400 bp out of view",
+  )
+  expect(keyOf(Number.NaN)).toBe(keyOf(2))
 })
 
 test('a gap with no departure in it is out of view', () => {
@@ -436,4 +465,128 @@ test('a gap with no departure in it is out of view', () => {
   expect(walkRowsKey(rows).map(e => e.label)).toContain(
     'out of view: in the graph, beyond the part drawn here',
   )
+})
+
+// HG002 and HG003 leave the reference after node 2 for node 6 and rejoin at
+// node 4, each in two fragments with node 6 a departure's own step alone;
+// HG004 takes node 6 in its one fragment and its departure repeats it; HG005
+// has no walk in the cut
+function departedThroughSix(): GraphTables {
+  const tables = gfaTables(
+    gfa(
+      'H\tVN:Z:1.1',
+      ...S(1, 2, 3, 4, 5, 6),
+      ...L([1, 2], [2, 3], [3, 4], [4, 5], [2, 6], [6, 4]),
+      W(REFERENCE, 0, 5000, '>1>2>3>4>5'),
+      W('HG002#1#chr1', 0, 2000, '>1>2'),
+      W('HG002#1#chr1', 3000, 5000, '>4>5'),
+      W('HG003#1#chr1', 0, 2000, '>1>2'),
+      W('HG003#1#chr1', 3000, 5000, '>4>5'),
+      W('HG004#1#chr1', 0, 5000, '>1>2>6>4>5'),
+    ),
+  )!
+  const six = tables.nodes.names.indexOf('6')
+  const names = ['HG002#1#chr1', 'HG003#1#chr1', 'HG004#1#chr1', 'HG005#1#chr1']
+  return {
+    ...tables,
+    departures: {
+      ...departureTable(
+        names.map(name =>
+          departure({ name, fromSteps: name === 'HG004#1#chr1' }),
+        ),
+      ),
+      offsets: Int32Array.of(0, 1, 2, 3, 4),
+      steps: Int32Array.of(six, six, six, six),
+      reversed: new Uint8Array(4),
+    },
+  }
+}
+
+test("a node counts each shown walk that takes it as a departure's own step, once, and no walk not shown", () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  expect(graph.nodes.find(node => node.name === '6')?.depth).toBe(3)
+  expect(
+    graph.edges
+      .filter(e => e.from === '6+' || e.to === '6+')
+      .map(e => [e.from, e.to, e.pathIds]),
+  ).toEqual([
+    ['2+', '6+', ['HG004#1#chr1', 'HG002#1#chr1', 'HG003#1#chr1']],
+    ['6+', '4+', ['HG004#1#chr1', 'HG002#1#chr1', 'HG003#1#chr1']],
+  ])
+  expect(graph.nodes.find(node => node.name === '2')?.depth).toBe(4)
+})
+
+test('a node on fragments lists the walks that step on it', () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  const two = graph.nodes.find(node => node.name === '2')!
+  expect(walksThrough(graph, two)).toEqual([
+    { name: REFERENCE, passes: 1 },
+    { name: 'HG002#1#chr1', passes: 1 },
+    { name: 'HG003#1#chr1', passes: 1 },
+    { name: 'HG004#1#chr1', passes: 1 },
+  ])
+})
+
+test('a node reached through departures lists each shown walk once, where its own step lies on its contig, and no walk not shown', () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  const six = graph.nodes.find(node => node.name === '6')!
+  expect(walksThrough(graph, six)).toEqual([
+    { name: 'HG004#1#chr1', passes: 1 },
+    { name: 'HG002#1#chr1', passes: 1 },
+    { name: 'HG003#1#chr1', passes: 1 },
+  ])
+  expect(six.departureVisits).toEqual([
+    { path: 'HG002#1#chr1', sample: 'HG002', start: 2000, strand: '+' },
+    { path: 'HG003#1#chr1', sample: 'HG003', start: 2000, strand: '+' },
+  ])
+})
+
+test("every node's walks are as many as its depth", () => {
+  const graph = graphFromTables(departedThroughSix(), 'cut')
+  for (const node of graph.nodes) {
+    expect([node.name, walksThrough(graph, node).length]).toEqual([
+      node.name,
+      node.depth,
+    ])
+  }
+})
+
+// HG002's own steps 6 and 7 break after 6: 6 follows its leave step, 2, and 7
+// leads to its rejoin step, 4, and the cut has no link that takes it from 6
+// to 7
+test("a departure's broken own steps take the links either side of the break, not one across it", () => {
+  const tables = gfaTables(
+    gfa(
+      'H\tVN:Z:1.1',
+      ...S(1, 2, 3, 4, 5, 6, 7),
+      ...L([1, 2], [2, 3], [3, 4], [4, 5], [2, 6], [6, 7], [7, 4]),
+      W(REFERENCE, 0, 5000, '>1>2>3>4>5'),
+      W('HG002#1#chr1', 0, 2000, '>1>2'),
+      W('HG002#1#chr1', 4000, 6000, '>4>5'),
+    ),
+  )!
+  const { names } = tables.nodes
+  const graph = graphFromTables(
+    {
+      ...tables,
+      departures: {
+        ...departureTable([departure({ ownBp: 2000 })]),
+        offsets: Int32Array.of(0, 2),
+        steps: Int32Array.of(names.indexOf('6'), names.indexOf('7')),
+        reversed: new Uint8Array(2),
+        breakAt: Int32Array.of(1),
+      },
+    },
+    'cut',
+  )
+  expect(
+    graph.edges
+      .filter(e => ['6+', '7+'].includes(e.from))
+      .concat(graph.edges.filter(e => e.from === '2+' && e.to === '6+'))
+      .map(e => [e.from, e.to, e.pathIds]),
+  ).toEqual([
+    ['6+', '7+', undefined],
+    ['7+', '4+', ['HG002#1#chr1']],
+    ['2+', '6+', ['HG002#1#chr1']],
+  ])
 })

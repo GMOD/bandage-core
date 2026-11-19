@@ -1,3 +1,5 @@
+import { panSNHaplotype } from '../pansn'
+import { compareIds } from '../util/canonicalOrder'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 
 import type { Departure, GapCause } from '../gfa/departures'
@@ -48,6 +50,10 @@ export interface WalkRun {
   // for a `mixed` gap, its bp left out of graph
   missingBp?: number
   unloaded?: true
+  // off the reference in the cut, the source stating its steps on the
+  // reference at passes the cut does not hold: reference sequence from
+  // elsewhere, not the walk's own
+  fromElsewhere?: true
 }
 
 // Where a row's bar lies on the walk's own contig: the contig position at the
@@ -56,6 +62,13 @@ export interface WalkAxis {
   contig: string
   start: number
   reversed: boolean
+}
+
+// A contig span as offsets along a row's bar
+export function alongRow(axis: WalkAxis, start: number, end: number) {
+  return axis.reversed
+    ? { start: axis.start - end, end: axis.start - start }
+    : { start: start - axis.start, end: end - axis.start }
 }
 
 // How a walk that reaches one flank stops past its last step inside. Its
@@ -69,11 +82,30 @@ export interface WalkStop {
   contigEnds: boolean
   shortBp: number
   goesOn?: { departure: Departure; near: number; drawn?: true }
+  // the walk comes back to the reference on the side it came in from, which
+  // ends its pass
+  turnsBack?: true
+}
+
+// One pass of a walk over the window, from a flank on one side to the next on
+// the other: its bp, its bp over the window or, where its own sequence crosses
+// a window edge, the reference's bp it replaces, and whether it runs against
+// the reference
+export interface WalkPass {
+  bp: number
+  windowBp: number
+  replacedBp?: number
+  reversed: boolean
+  // of `bp`, the bp of steps on the reference from elsewhere
+  fromElsewhereBp?: number
+  // where it has `replacedBp`, its bp on the reference in the cut, and its bp
+  // in gaps
+  onReferenceBp?: number
+  gapBp?: number
 }
 
 // A step of a row's bar through a graph node: its bp offset from the bar's
-// start, its bp, and whether the reference walk visits the node anywhere in
-// the cut
+// start, its bp, and whether the step lies on the reference in the cut
 export interface WalkVisit {
   node: string
   start: number
@@ -93,11 +125,26 @@ export interface WalkRow {
   // bar of
   offReferenceBp: number
   unloadedBp?: number
+  // of `offReferenceBp`, the bp of `fromElsewhere` runs
+  fromElsewhereBp?: number
   // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
   gapBp: number
   // false when the walk does not reach both flanking reference nodes; one
   // that reaches one flank is measured from it, a lower bound
   complete: boolean
+  // bp of the walk over the window alone, where it reaches a flank: its bp
+  // from them less what lies between a flank and the window, so every row is
+  // measured over the same reference interval
+  windowBp?: number
+  // in place of windowBp where the walk's own sequence crosses a window edge,
+  // which leaves it no length over the window: the reference's bp between the
+  // walk's flanks, which its `bp` replaces
+  replacedBp?: number
+  // with `replacedBp`, the bp of the pass on the reference in the cut
+  onReferenceBp?: number
+  // each further pass the walk makes over the window, in its contig's order,
+  // where it passes more than once; the row draws its first
+  morePasses?: WalkPass[]
   stop?: WalkStop
   // the steps of the walk's pieces the cut did not load, on a row that
   // holds any of them, for a host to offer to load
@@ -114,6 +161,9 @@ export interface WalkRow {
   // the walk's departures a walk-file cut states outside the row, and the bp
   // of their own steps it holds
   outsideRow?: { count: number; stepsBp: number }
+  // the departures over the cut of its haplotype's contigs with no walk in it,
+  // on the haplotype's first row
+  otherContigs?: { contigs: number; departures: number }
   runs: WalkRun[]
   // walkRows fills it only when asked, since an object per step costs a big
   // cut far more than its runs
@@ -121,6 +171,10 @@ export interface WalkRow {
   // undefined where a piece states no start or overlaps the one before, so
   // bar offsets don't map linearly onto the contig
   axis?: WalkAxis
+  // on the reference row, the count of nodes the reference passes more than
+  // once that its tables or Graph state, or the host passes (gfa/departures.ts
+  // ownIsExact)
+  revisited?: number
 }
 
 export interface WalkRows {
@@ -133,19 +187,33 @@ export interface WalkRows {
   rows: WalkRow[]
 }
 
-// The rows a sample filter keeps, in the order it names them
-export function filterSamples<R extends { sample: string; label: string }>(
+interface NamedRow {
+  name: string
+  sample: string
+  haplotype?: number
+}
+
+// What a sample filter names a row's haplotype by: `sample#haplotype`, from
+// its W line or a P line's PanSN name, or the sample where neither states one
+export const rowHaplotype = (row: NamedRow) =>
+  row.haplotype === undefined
+    ? (panSNHaplotype(row.name) ?? row.sample)
+    : `${row.sample}#${row.haplotype}`
+
+// The rows a sample filter keeps, in the order it names them: each names a
+// sample, every haplotype of it, or one haplotype as rowHaplotype does
+export function filterSamples<R extends NamedRow & { label: string }>(
   rows: R[],
   samples: string[] | undefined,
 ) {
+  const named = (r: R) => {
+    const at = samples?.indexOf(rowHaplotype(r)) ?? -1
+    return at >= 0 ? at : (samples?.indexOf(r.sample) ?? -1)
+  }
   return samples
     ? rows
-        .filter(r => samples.includes(r.sample))
-        .sort(
-          (a, b) =>
-            samples.indexOf(a.sample) - samples.indexOf(b.sample) ||
-            a.label.localeCompare(b.label),
-        )
+        .filter(r => named(r) >= 0)
+        .sort((a, b) => named(a) - named(b) || compareIds(a.label, b.label))
     : rows
 }
 
@@ -153,7 +221,7 @@ export function walkRows(
   graph: Graph,
   region?: { start: number; end: number },
   unit?: number,
-  o: { visits?: boolean } = {},
+  o: { visits?: boolean; revisited?: number } = {},
 ): WalkRows | undefined {
   const runs = walkRowRuns(graph, region, o)
   return runs && walkRowsOf(runs, unit)

@@ -1,5 +1,6 @@
 import { pathSteps } from '../layout/tubeMapLayout'
 import { pathOrigin } from '../pathAnchoring'
+import { compareIds } from '../util/canonicalOrder'
 import { pushTo } from '../util/groups'
 
 import type { Graph } from '../types'
@@ -48,7 +49,7 @@ export function bundleRoutes(
     return graph
   }
   const ordered = [...bundles.values()].sort(
-    (a, b) => a.rank - b.rank || a.group.localeCompare(b.group),
+    (a, b) => a.rank - b.rank || compareIds(a.group, b.group),
   )
   if (!merge) {
     return {

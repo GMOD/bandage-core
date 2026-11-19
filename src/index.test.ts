@@ -1,5 +1,9 @@
 // @vitest-environment node
-import { fileURLToPath } from 'node:url'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { build } from 'esbuild'
 
@@ -16,9 +20,9 @@ const ALLOWED = [
 // What BandageJS imports. Dropping one breaks that page at its next upgrade,
 // which the plugin would not notice: it imports these through deep paths.
 const PUBLISHED = [
-  'BUBBLE_KIND_COLORS',
-  'BUBBLE_KIND_NAMES',
+  'BUBBLE_HALO_COLOR',
   'BUBBLE_SPREADS',
+  'COMPRESSED_KEY',
   'COLOR_SCHEMES',
   'Canvas2DRenderer',
   'EXON_COLOR',
@@ -30,6 +34,7 @@ const PUBLISHED = [
   'HALO_FACTOR',
   'HPRC_GBZ',
   'LABEL_CHAR_PX',
+  'LABEL_DEFAULTS',
   'LABEL_PAD',
   'LABEL_PX',
   'LAYOUT_MODES',
@@ -39,14 +44,15 @@ const PUBLISHED = [
   'ROW_HEIGHT_PX',
   'WALK_FIELDS',
   'WALK_SCHEMES',
+  'abgrToCssRgba',
   'axisScaleOf',
   'backboneAssembly',
   'bubbleHalos',
   'bubbleSegmentIds',
   'bubbleSubgraph',
   'bubblesFromGraph',
+  'bubbleLabel',
   'buildGeometry',
-  'classifyBubble',
   'computeReferenceRamp',
   'contains',
   'createForceLayoutCache',
@@ -54,6 +60,8 @@ const PUBLISHED = [
   'cutWindowGFA',
   'cutsWholeWalks',
   'deletionEdges',
+  'depthKey',
+  'drawnMarks',
   'drawTubeMap',
   'drawingBounds',
   'edgeHoverText',
@@ -81,8 +89,10 @@ const PUBLISHED = [
   'genesFromText',
   'getDpr',
   'graphBackbone',
+  'graphKey',
   'haplotypeWanted',
   'layoutGeometryInputs',
+  'labelledNodeLengths',
   'layoutLabels',
   'layoutModeByValue',
   'loadBandage',
@@ -109,6 +119,7 @@ const PUBLISHED = [
   'viewportOf',
   'walkHighlight',
   'walkKey',
+  'walkKeyEntry',
   'walkLabelsOf',
   'walkLift',
   'walkRowLabels',
@@ -150,4 +161,30 @@ test('the core entry still exports what BandageJS imports', async () => {
     )?.[1].exports,
   )
   expect(PUBLISHED.filter(name => !exported.has(name))).toEqual([])
+})
+
+// R's V8 has no Intl, so anything that reaches for it as a module loads stops
+// the whole library loading there
+test('the core entry loads where there is no Intl', async () => {
+  const { outputFiles } = await bundleCore()
+  const dir = mkdtempSync(join(tmpdir(), 'core-no-intl-'))
+  const entry = join(dir, 'index.mjs')
+  try {
+    writeFileSync(
+      entry,
+      outputFiles.find(f => f.path.endsWith('index.js'))!.text,
+    )
+    const loaded = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `delete globalThis.Intl; const core = await import(${JSON.stringify(pathToFileURL(entry).href)}); console.log(typeof Intl, typeof core.graphBubbles)`,
+      ],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    expect(loaded.trim()).toBe('undefined function')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

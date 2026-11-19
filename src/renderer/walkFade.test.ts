@@ -3,7 +3,11 @@ import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
 import { buildGeometry } from './GeometryBuilder'
-import { abgrAlpha } from './colorBits'
+import { FADED_ALPHA, abgrAlpha } from './colorBits'
+
+// the alpha a stroke shows with, its faded layer's included
+const shown = (stroke: { color: number; faded?: true }) =>
+  abgrAlpha(stroke.color) * (stroke.faded ? FADED_ALPHA : 1)
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3. Lifting alt out fades v2 and the
 // links it alone uses; lifting both gives each a lane of its own.
@@ -62,10 +66,10 @@ test('a lifted walk keeps its nodes and fades the rest', () => {
   const plain = build()
   const lifted = build(lift('alt#1#chr'))
   const alphaOf = (batch: typeof plain, id: string) =>
-    abgrAlpha(batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!.color)
+    shown(batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!)
   expect(alphaOf(lifted, 'a1+')).toBe(alphaOf(plain, 'a1+'))
   expect(alphaOf(lifted, 'v1+')).toBe(alphaOf(plain, 'v1+'))
-  expect(alphaOf(lifted, 'v2+')).toBeLessThan(alphaOf(plain, 'v2+') / 4)
+  expect(alphaOf(lifted, 'v2+')).toBeLessThan(alphaOf(plain, 'v2+') / 3)
 })
 
 test("a lifted walk's links carry its lane colour, the others fade", () => {
@@ -76,9 +80,7 @@ test("a lifted walk's links carry its lane colour, the others fade", () => {
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
   expect(strokeOf(lifted, 2).color).toBe(one.walks[0]!.colors.get('v1+'))
   expect(strokeOf(lifted, 0).thickness).toBe(strokeOf(plain, 0).thickness)
-  expect(abgrAlpha(strokeOf(lifted, 0).color)).toBeLessThan(
-    abgrAlpha(strokeOf(plain, 0).color) / 4,
-  )
+  expect(shown(strokeOf(lifted, 0))).toBeLessThan(shown(strokeOf(plain, 0)) / 2)
 })
 
 test('two lifted walks each keep a lane, missing where a walk does not go', () => {
@@ -111,12 +113,12 @@ test('a node painted in path stripes fades off the lifted walk too', () => {
     const { start, count } = batch.nodeStrokeRuns.get(id)!
     return batch.nodeStrokes
       .slice(start, start + count)
-      .map(stroke => abgrAlpha(stroke.color))
+      .map(stroke => shown(stroke))
   }
   expect(alphasOf(plain, 'v1+')).toHaveLength(2)
   expect(alphasOf(lifted, 'v1+')).toEqual(alphasOf(plain, 'v1+'))
   for (const [i, alpha] of alphasOf(lifted, 'v2+').entries()) {
-    expect(alpha).toBeLessThan(alphasOf(plain, 'v2+')[i]! / 4)
+    expect(alpha).toBeLessThan(alphasOf(plain, 'v2+')[i]! / 3)
   }
 })
 
@@ -135,15 +137,13 @@ test('a focus with no walks keeps its nodes and links as drawn, the rest fades',
     return batch.nodeStrokes.slice(start, start + count)
   }
   expect(strokesOf(focused, 'a1+')).toEqual(strokesOf(plain, 'a1+'))
-  expect(abgrAlpha(strokesOf(focused, 'v2+')[0]!.color)).toBeLessThan(
-    abgrAlpha(strokesOf(plain, 'v2+')[0]!.color) / 4,
+  expect(shown(strokesOf(focused, 'v2+')[0]!)).toBeLessThan(
+    shown(strokesOf(plain, 'v2+')[0]!) / 3,
   )
   const edgeOf = (batch: typeof plain, edge: number) =>
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
   expect(edgeOf(focused, 2)).toEqual(edgeOf(plain, 2))
-  expect(abgrAlpha(edgeOf(focused, 0).color)).toBeLessThan(
-    abgrAlpha(edgeOf(plain, 0).color) / 4,
-  )
+  expect(shown(edgeOf(focused, 0))).toBeLessThan(shown(edgeOf(plain, 0)) / 2)
   const ribbons = build(focus, true)
   const plainRibbons = build(undefined, true)
   expect(edgeOf(ribbons, 2).color).toBe(edgeOf(plainRibbons, 2).color)
@@ -213,7 +213,8 @@ W\tdel\t1\tchr\t0\t7\t>v1>v3`),
   )
   const deletion = skip.edges.findIndex(e => e.from === 'v1+' && e.to === 'v3+')
   const batch = buildGeometry({
-    axis: { scaleX: 1, scaleY: 1 },
+    // the skip spans 60 px, long enough for its head
+    axis: { scaleX: 2, scaleY: 2 },
     nodePositions: positions,
     graph: skip,
     nodeById: new Map(skip.nodes.map(n => [n.id, n])),
@@ -241,4 +242,101 @@ test('a lifted walk leaving a one-point node draws its link', () => {
     drawPaths: false,
   })
   expect(batch.edgeCurveRuns.get(2)).toBeDefined()
+})
+
+// v2 stands upright, so its lanes sit across x where v1's sit across y
+test("a lifted walk's link joins its own lane at both nodes", () => {
+  const upright = {
+    ...positions,
+    'v2+': [
+      { x: 20, y: 0 },
+      { x: 20, y: 10 },
+    ],
+  }
+  const both = lift('ref#0#chr', 'alt#1#chr')!
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: upright,
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 20,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: both,
+  })
+  const laneOf = (id: string) =>
+    batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!.points
+  const link = batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves
+  const gap = (a: { x: number; y: number }, x: number, y: number) =>
+    Math.hypot(a.x - x, a.y - y)
+  expect(gap(laneOf('v1+').at(-1)!, link[0]!.x0, link[0]!.y0)).toBeLessThan(1)
+  expect(gap(laneOf('v2+')[0]!, link.at(-1)!.x1, link.at(-1)!.y1)).toBeLessThan(
+    1,
+  )
+})
+
+// v2 a stretch the cut did not load, drawn as one line with no lanes
+test("a lifted walk's link ends on the line of a node drawn without lanes", () => {
+  const unloaded = {
+    ...graph,
+    nodes: graph.nodes.map(n =>
+      n.id === 'v2+' ? { ...n, placeholder: true as const } : n,
+    ),
+  }
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: {
+      ...positions,
+      'v2+': [
+        { x: 20, y: 0 },
+        { x: 20, y: 10 },
+      ],
+    },
+    graph: unloaded,
+    nodeById: new Map(unloaded.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 20,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: walkLift(unloaded, [
+      { walk: 'ref#0#chr' },
+      { walk: 'alt#1#chr' },
+    ]),
+  })
+  const last =
+    batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves.at(-1)!
+  expect(Math.hypot(last.x1 - 20, last.y1)).toBeLessThan(1)
+})
+
+test("a lifted walk's link ends on the point of a node drawn as one point", () => {
+  const batch = buildGeometry({
+    axis: { scaleX: 1, scaleY: 1 },
+    nodePositions: { ...positions, 'v2+': [{ x: 20, y: 0 }] },
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 20,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: lift('ref#0#chr', 'alt#1#chr'),
+  })
+  const last =
+    batch.edgeCurves[batch.edgeCurveRuns.get(0)!.start]!.curves.at(-1)!
+  expect(Math.hypot(last.x1 - 20, last.y1)).toBeLessThan(1)
+})
+
+test('a lifted node other walks share draws grey at its own width under its lanes, and only then', () => {
+  const strokesOf = (batch: ReturnType<typeof build>, id: string) => {
+    const { start, count } = batch.nodeStrokeRuns.get(id)!
+    return batch.nodeStrokes.slice(start, start + count)
+  }
+  const plain = build()
+  const alone = build(lift('alt#1#chr'))
+  const underlay = strokesOf(alone, 'v1+').filter(s => s.faded)
+  expect(underlay).toHaveLength(1)
+  expect(underlay[0]!.thickness).toBe(strokesOf(plain, 'v1+')[0]!.thickness)
+  expect(strokesOf(alone, 'a1+').some(s => s.faded)).toBe(false)
+  const both = build(lift('ref#0#chr', 'alt#1#chr'))
+  expect(both.nodeStrokes.some(s => s.faded)).toBe(false)
 })

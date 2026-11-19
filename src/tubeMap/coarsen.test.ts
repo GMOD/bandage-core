@@ -75,6 +75,24 @@ test('SNPs fold into one node of the whole reference, each at its bp', () => {
   expect(coarse.coarseOf.get('xa+')).toBe('0-502+')
 })
 
+test('a coarsened walk states no pass for its steps', () => {
+  const graph = gfa({ alt: 'b0+,xa+,b1+,y+,b2+,za+,b3+' }, { xa: 1, za: 1 })
+  const coarse = coarsenTubeMap(
+    {
+      ...graph,
+      paths: graph.paths!.map(stated => ({
+        ...stated,
+        refStarts: new Float64Array(stated.nodeIds.length),
+      })),
+    },
+    50,
+  )!
+  expect(coarse.graph.paths!.map(coarsened => coarsened.refStarts)).toEqual([
+    undefined,
+    undefined,
+  ])
+})
+
 test('a deletion of sigma or more keeps its reference allele, which the deleting walk bypasses', () => {
   const coarse = conserved(gfa({ del: 'b0+,x+,b1+,b2+,z+,b3+' }), 50)
   expect(names(coarse.graph, 'ref')).toEqual(['0-201+', '201-301+', '301-502+'])

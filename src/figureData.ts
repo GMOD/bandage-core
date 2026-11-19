@@ -1,17 +1,26 @@
 import { isBackbone } from './anchoredNodes'
-import { dashedDeletions, deletionKey } from './deletionEdges'
 import { figureScene } from './figureScene'
-import { FIGURE_DEFAULTS } from './figureSettings'
+import { FIGURE_DEFAULTS, figureFit } from './figureSettings'
 import { parseRegion } from './gbzCut'
+import { EXON_COLOR } from './genes/exonOutline'
+import { namedGenePins } from './genes/geneNames'
 import { genePins } from './genes/genePins'
+import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnMarks, graphKey } from './graphKey'
+import { labelledNodeLengths, sizeLeader } from './graphLabels'
+import { geneLeader, layoutLabels } from './labelLayout'
+import { rowInkAlong, rowInkOf } from './layout/rowInks'
 import { layoutEngine } from './layoutEngines'
 import { layoutModeByValue } from './layoutModes'
 import {
-  frequencyKey,
-  haplotypeCount,
-  nodeFrequency,
-  withFrequencies,
-} from './nodeWidths'
+  NO_FOLD,
+  SMALL_SITE_PX,
+  foldedUnderBp,
+  nodesNotDrawn,
+} from './levelOfDetail'
+import { haplotypeCount, nodeFrequency, withFrequencies } from './nodeWidths'
+import { LABEL_PX } from './overlayLabels'
+import { passBars } from './passBar'
+import { passLabelCandidates, passLeader } from './passLabels'
 import { referenceVisitStarts } from './pathAnchoring'
 import {
   engineSettingsOf,
@@ -20,18 +29,26 @@ import {
   loadGraph,
 } from './pipeline'
 import { referencePositions } from './referenceSpan'
-import { abgrAlpha, abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
+import {
+  EDGE_DELETION_COLOR,
+  NOT_LOADED_COLOR,
+  NOT_LOADED_FILL_COLOR,
+  REFERENCE_RAMP_ALT_COLOR,
+} from './renderer/GeometryBuilder'
+import { FADED_ALPHA, abgrAlpha, abgrHex } from './renderer/colorBits'
 import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
 import { encodingStops } from './walkEncoding'
-import { fadedKey } from './walkHighlight'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
+import type { GraphKeySection } from './graphKey'
+import type { RowInk } from './layout/rowInks'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { LayoutModeValue } from './layoutModes'
-import type { LaneSlide } from './renderer/types'
+import type { Fold } from './levelOfDetail'
+import type { LaneSlide, RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
 import type { WalkLayer } from './walkEncoding'
 import type { LiftedWalk, WalkLift } from './walkHighlight'
@@ -60,6 +77,8 @@ export type FigureDataOptions = Pick<
   | 'colorDomain'
   | 'fitToDrawing'
   | 'genes'
+  | 'nodeLengths'
+  | 'smallSites'
 >
 
 type Columns<T> = { [K in keyof T]: T[K][] }
@@ -72,9 +91,13 @@ interface NodeRow {
   y: number
   color: string
   alpha: number
+  faded: boolean
   width: number
   walk: number | null
+  // pass is a slot across the band, not a visit; walkPass -1 for none
   pass: number | null
+  walkPass: number | null
+  visit: number | null
   nx: number
   ny: number
   offset: number
@@ -94,10 +117,20 @@ interface EdgeRow {
   y1: number
   color: string
   alpha: number
+  faded: boolean
   width: number
   deletion: boolean
+  // a link reading one reference node as the reference does and the other
+  // against it, which the canvas paints over the nodes, as a skip
+  turn: boolean
+  // a plain link the nodes would hide, its ends laid apart along them, which
+  // the canvas paints over them, as a skip
+  along: boolean
   walk: number | null
+  // at the node the link leaves
   pass: number | null
+  walkPass: number | null
+  visit: number | null
   nx: number
   ny: number
   offset: number
@@ -106,8 +139,9 @@ interface EdgeRow {
   offset1: number
 }
 
-// a lifted walk's key: its colour stops as hex, the field they run over, and
-// the note and scale its bar is labelled with
+// a lifted walk's key: its colour stops as hex, the field they run over, the
+// note and scale its bar is labelled with, and the stretch of its contig a
+// progress ramp runs over
 interface KeyRow {
   panel: string
   walk: string
@@ -117,6 +151,9 @@ interface KeyRow {
   scale: string
   stops: string
   field: string
+  contig: string | null
+  start: number | null
+  end: number | null
 }
 
 interface ThreadKeyRow {
@@ -126,6 +163,8 @@ interface ThreadKeyRow {
 
 interface PinRow {
   gene: string
+  // what the drawing names the gene, null where namedGenePins names it nowhere
+  label: string | null
   x: number
   y: number
   covered: number
@@ -141,9 +180,89 @@ interface ExonRow {
   y: number
 }
 
+// a label the figure places, as the canvas places it: a node's length, a
+// placeholder's first, a gene's name, a bubble's, at the middle of its text,
+// `size` px tall, with the leader to what it names where it stands off
+interface LabelRow {
+  kind: 'placeholder' | 'length' | 'gene' | 'bubble' | 'pass'
+  item: string
+  text: string
+  size: number
+  x: number
+  y: number
+  x1: number | null
+  y1: number | null
+  x2: number | null
+  y2: number | null
+  // a pass's colour, '' for the rest
+  color: string
+}
+
+interface PassRow {
+  walk: string
+  pass: number
+  start: number
+  end: number
+  repeatBp: number
+  againBp: number
+  reversedBp: number
+  text: string
+  color: string
+  reversed: boolean
+}
+
+interface PassRunRow {
+  walk: string
+  pass: number
+  start: number
+  end: number
+  color: string
+}
+
+// an entry of the graph's key, its colours as hex with their alpha
+interface GraphKeyRow {
+  section: string
+  group: string
+  key: string
+  text: string
+  strong: string
+  under: string
+  swatch: string
+  color: string
+  alpha: number
+  stops: string
+  px: number | null
+  dashed: boolean
+  rim: string
+  rimPx: number | null
+}
+
+// a site folded as too small to draw: where it attaches to the reference,
+// the nodes and links it folds, and how many of the shown haplotypes step it
+interface SiteRow {
+  site: number
+  refName: string
+  start: number
+  end: number
+  bp: number
+  x: number
+  y: number
+  count: number
+  total: number
+  nodes: string
+  links: string
+  // the reference nodes and links inside the site that, with walks lifted,
+  // are drawn only by the lanes crossing it
+  laneNodes: string
+  laneLinks: string
+}
+
 interface ArrowRow {
   panel: string
-  edge: number
+  edge: number | null
+  walk: number | null
+  node: string | null
+  against: boolean
   x: number
   y: number
   angle: number
@@ -151,6 +270,12 @@ interface ArrowRow {
   halfWidth: number
   color: string
   alpha: number
+  faded: boolean
+  // a head the canvas strokes a white halo under, LANE_HEAD_HALO_PX each side
+  halo: boolean
+  // a tab past `node`'s free end, drawn without the notch: the graph runs on
+  // from there past what the drawing holds
+  runsOn: boolean
 }
 
 function columns<T extends object>(out: Columns<T>) {
@@ -164,10 +289,123 @@ function columns<T extends object>(out: Columns<T>) {
   }
 }
 
-const hex = (v: number) => v.toString(16).padStart(2, '0')
-const cssHex = (c: number) =>
-  `#${hex(abgrRed(c))}${hex(abgrGreen(c))}${hex(abgrBlue(c))}`
-const alphaOf = (c: number) => abgrAlpha(c) / 255
+// a faded row's alpha is the one it shows with, alone, and `faded` says it is
+// laid down as one layer with the rest
+const alphaOf = (c: number, faded?: true) =>
+  (abgrAlpha(c) / 255) * (faded ? FADED_ALPHA : 1)
+
+// a name's baseline lies about this many of its px under its middle; a
+// length's label is placed by its middle already, in 10 px text
+const BASELINE_TO_MIDDLE = 0.35
+const SIZE_LABEL_PX = 10
+
+function siteTable(
+  fold: Fold,
+  laneOnly: RenderBatch['laneOnly'],
+  edgeEnds: (edge: number) => { from: string; to: string } | undefined,
+) {
+  const index = new Map(fold.sites.map((s, site) => [s, site]))
+  const siteOfNode = (id: string) => {
+    const s = fold.within.get(id) ?? fold.siteOf.get(id)
+    return s ? index.get(s) : undefined
+  }
+  const laneNodes = fold.sites.map((): string[] => [])
+  const laneLinks = fold.sites.map((): number[] => [])
+  for (const id of laneOnly?.nodes ?? []) {
+    const site = siteOfNode(id)
+    if (site !== undefined) {
+      laneNodes[site]!.push(id)
+    }
+  }
+  for (const edge of laneOnly?.edges ?? []) {
+    const { from = '', to = '' } = edgeEnds(edge) ?? {}
+    const site = siteOfNode(from) ?? siteOfNode(to)
+    if (site !== undefined) {
+      laneLinks[site]!.push(edge)
+    }
+  }
+  const sites = columns<SiteRow>({
+    site: [],
+    refName: [],
+    start: [],
+    end: [],
+    bp: [],
+    x: [],
+    y: [],
+    count: [],
+    total: [],
+    nodes: [],
+    links: [],
+    laneNodes: [],
+    laneLinks: [],
+  })
+  fold.sites.forEach((s, site) => {
+    sites.push({
+      site,
+      refName: s.refName,
+      start: s.start,
+      end: s.end,
+      bp: s.bp,
+      x: s.x,
+      y: s.y,
+      count: s.count,
+      total: s.total,
+      nodes: s.nodes.join(','),
+      links: s.edges.join(','),
+      laneNodes: laneNodes[site]!.join(','),
+      laneLinks: laneLinks[site]!.join(','),
+    })
+  })
+  return sites.out
+}
+
+function graphKeyTable(sections: GraphKeySection[]) {
+  const table = columns<GraphKeyRow>({
+    section: [],
+    group: [],
+    key: [],
+    text: [],
+    strong: [],
+    under: [],
+    swatch: [],
+    color: [],
+    alpha: [],
+    stops: [],
+    px: [],
+    dashed: [],
+    rim: [],
+    rimPx: [],
+  })
+  for (const { id, group, entries } of sections) {
+    for (const entry of entries) {
+      const swatch = entry.swatch
+      const ink =
+        swatch && swatch.kind !== 'scale' && swatch.kind !== 'overhang'
+          ? swatch.ink
+          : undefined
+      table.push({
+        section: id,
+        group: group ?? '',
+        key: entry.key,
+        text: entry.text,
+        strong: entry.strong ?? '',
+        under: entry.under ?? '',
+        swatch: swatch?.kind ?? '',
+        color: ink === undefined ? '' : abgrHex(ink),
+        alpha: ink === undefined ? 1 : alphaOf(ink),
+        stops:
+          swatch?.kind === 'scale'
+            ? swatch.stops.map(s => abgrHex(s.ink)).join(',')
+            : '',
+        px: swatch?.kind === 'width' ? swatch.px : null,
+        dashed: swatch?.kind === 'line' && swatch.dashed,
+        rim: swatch?.kind === 'hollow' ? abgrHex(swatch.rim) : '',
+        rimPx: swatch?.kind === 'hollow' ? swatch.rimPx : null,
+      })
+    }
+  }
+  return table.out
+}
 
 export function figureData(
   graph: Graph,
@@ -190,6 +428,9 @@ export function figureData(
     labelOf,
     referenceName,
     keyText,
+    contigThickness,
+    nodeWidth,
+    nodeById,
     geometry,
   } = figureScene(graph, layout, o)
   const fit = fitTransform(bounds, width, height, pixelRows)
@@ -214,11 +455,14 @@ export function figureData(
     scale: [],
     stops: [],
     field: [],
+    contig: [],
+    start: [],
+    end: [],
   })
   const threadKeys = columns<ThreadKeyRow>({ panel: [], note: [] })
   const pushKey = (walk: LiftedWalk, panel: string) => {
     const key = keyText(walk)
-    const stops = encodingStops(walk.encoding).map(s => cssHex(s.abgr))
+    const stops = encodingStops(walk.encoding).map(s => abgrHex(s.abgr))
     keys.push({
       panel,
       walk: labelOf(walk.name),
@@ -228,6 +472,9 @@ export function figureData(
       scale: key.scale ?? '',
       stops: stops.join(','),
       field: walk.encoding.field,
+      contig: walk.range?.contig ?? null,
+      start: walk.range?.start ?? null,
+      end: walk.range?.end ?? null,
     })
     return key
   }
@@ -264,7 +511,14 @@ export function figureData(
     })
   }
 
-  const pins = columns<PinRow>({ gene: [], x: [], y: [], covered: [], bp: [] })
+  const pins = columns<PinRow>({
+    gene: [],
+    label: [],
+    x: [],
+    y: [],
+    covered: [],
+    bp: [],
+  })
   const exons = columns<ExonRow>({
     gene: [],
     node: [],
@@ -273,12 +527,21 @@ export function figureData(
     y: [],
   })
   let stretch = 0
-  for (const pin of o.genes?.length
-    ? genePins(graph, o.genes, layout.nodePositions)
-    : []) {
+  const exonRows: ExonRow[] = []
+  const pinned = o.genes?.length
+    ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
+    : []
+  const names = new Map(
+    namedGenePins(
+      pinned,
+      lift?.walks.map(w => w.name),
+    ).map(({ pin, name }) => [pin, name]),
+  )
+  for (const pin of pinned) {
     const gene = pin.gene.name
     pins.push({
       gene,
+      label: names.get(pin) ?? null,
       x: pin.at.x,
       y: pin.at.y,
       covered: pin.covered,
@@ -288,7 +551,7 @@ export function figureData(
       for (const points of stretches) {
         stretch++
         for (const { x, y } of points) {
-          exons.push({ gene, node: nodeId, stretch, x, y })
+          exonRows.push({ gene, node: nodeId, stretch, x, y })
         }
       }
     }
@@ -302,9 +565,12 @@ export function figureData(
     y: [],
     color: [],
     alpha: [],
+    faded: [],
     width: [],
     walk: [],
     pass: [],
+    walkPass: [],
+    visit: [],
     nx: [],
     ny: [],
     offset: [],
@@ -323,10 +589,15 @@ export function figureData(
     y1: [],
     color: [],
     alpha: [],
+    faded: [],
     width: [],
     deletion: [],
+    turn: [],
+    along: [],
     walk: [],
     pass: [],
+    walkPass: [],
+    visit: [],
     nx: [],
     ny: [],
     offset: [],
@@ -337,6 +608,9 @@ export function figureData(
   const arrows = columns<ArrowRow>({
     panel: [],
     edge: [],
+    walk: [],
+    node: [],
+    against: [],
     x: [],
     y: [],
     angle: [],
@@ -344,10 +618,15 @@ export function figureData(
     halfWidth: [],
     color: [],
     alpha: [],
+    faded: [],
+    halo: [],
+    runsOn: [],
   })
 
+  const batches: RenderBatch[] = []
   for (const { highlight, name: panel, firstKeyRow } of panels) {
     const batch = geometry(highlight, axis)
+    batches.push(batch)
     const keyRowOf = (walk?: number) =>
       walk === undefined ? null : firstKeyRow + walk
     const screen = ({ normal, offsetX }: LaneSlide) => ({
@@ -365,11 +644,14 @@ export function figureData(
             stroke: i,
             x: p.x,
             y: p.y,
-            color: cssHex(s.color),
-            alpha: alphaOf(s.color),
+            color: abgrHex(s.color),
+            alpha: alphaOf(s.color, s.faded),
+            faded: s.faded === true,
             width: s.thickness * 2,
             walk: keyRowOf(s.walk),
             pass: s.pass ?? null,
+            walkPass: s.walkPass ?? null,
+            visit: s.visit ?? null,
             nx: s.normals?.[k]?.nx ?? 0,
             ny: s.normals?.[k]?.ny ?? 0,
             offset: (s.offsets?.[k] ?? s.offsetX ?? 0) * axis.scaleX,
@@ -397,12 +679,17 @@ export function figureData(
             edge,
             curve: i,
             ...c,
-            color: cssHex(b.color),
-            alpha: alphaOf(b.color),
+            color: abgrHex(b.color),
+            alpha: alphaOf(b.color, b.faded),
+            faded: b.faded === true,
             width: b.thickness * 2,
             deletion: drawnDeletions.bypassed.has(edge),
+            turn: b.turn === true,
+            along: b.along === true,
             walk: keyRowOf(b.walk),
             pass: b.pass ?? null,
+            walkPass: b.walkPass ?? null,
+            visit: b.visit ?? null,
             ...slideAlong(k / n),
             nx1: end.nx,
             ny1: end.ny,
@@ -411,21 +698,215 @@ export function figureData(
         })
       }
     }
+    const edgeOf = new Map<number, number>()
     for (const [edge, run] of batch.arrowRuns) {
       for (let i = run.start; i < run.start + run.count; i++) {
-        const a = batch.arrows[i]!
+        edgeOf.set(i, edge)
+      }
+    }
+    batch.arrows.forEach((a, i) => {
+      const edge = edgeOf.get(i)
+      if (edge !== undefined || a.walk !== undefined || a.runsOn) {
         arrows.push({
           panel,
-          edge,
+          edge: edge ?? null,
+          walk: keyRowOf(a.walk),
+          node: a.node ?? null,
+          against: !!a.against,
           x: a.x,
           y: a.y,
           angle: a.angle,
           length: a.length,
           halfWidth: a.halfWidth,
-          color: cssHex(a.color),
-          alpha: alphaOf(a.color),
+          color: abgrHex(a.color),
+          alpha: alphaOf(a.color, a.faded),
+          faded: a.faded === true,
+          halo: a.halo === true,
+          runsOn: a.runsOn === true,
         })
       }
+    })
+  }
+
+  const fold =
+    (o.smallSites ?? FIGURE_DEFAULTS.smallSites) === 'hidden'
+      ? (batches[0]?.collapsed ?? NO_FOLD)
+      : undefined
+  const notDrawn = new Set<string>()
+  for (const batch of batches) {
+    for (const id of nodesNotDrawn(batch)) {
+      notDrawn.add(id)
+    }
+  }
+  for (const row of exonRows) {
+    if (!notDrawn.has(row.node)) {
+      exons.push(row)
+    }
+  }
+
+  const placed = layoutLabels({
+    paneWidth: width,
+    canvasHeight: height,
+    axisScale: axis,
+    translateX: fit.translateX,
+    translateY: fit.translateY,
+    contigThickness,
+    legendSize: { width: 0, height: 0 },
+    drawnRowLabels: layout.rowLabels ?? [],
+    bubbleHalos: [],
+    genePins: pinned,
+    liftedWalks: lift?.walks.map(w => w.name),
+    nodePositions: layout.nodePositions,
+    labelsNodeSizes: !lift,
+    nodeLengths: labelledNodeLengths(
+      graph.nodes,
+      o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
+    ),
+    nodeById,
+    graph,
+    drawnInk: batches[0],
+    alleleDeletions: layout.alleleDeletions ?? [],
+    positionsVersion: 0,
+    folded: fold?.nodes,
+    passLabels:
+      facets || !batches[0]
+        ? []
+        : passLabelCandidates(
+            batches[0],
+            lift,
+            {
+              scaleX: axis.scaleX,
+              scaleY: axis.scaleY,
+              translateX: fit.translateX,
+              translateY: fit.translateY,
+            },
+            { width, height },
+          ),
+  })
+  const toX = (x: number) => (x - fit.translateX) / axis.scaleX
+  const toY = (y: number) => (y - fit.translateY) / axis.scaleY
+  const labels = columns<LabelRow>({
+    kind: [],
+    item: [],
+    text: [],
+    size: [],
+    x: [],
+    y: [],
+    x1: [],
+    y1: [],
+    x2: [],
+    y2: [],
+    color: [],
+  })
+  const pushLabel = (
+    kind: LabelRow['kind'],
+    item: string,
+    text: string,
+    at: { x: number; y: number },
+    leader?: { x1: number; y1: number; x2: number; y2: number },
+    color = '',
+  ) => {
+    labels.push({
+      kind,
+      item,
+      text,
+      size: kind === 'gene' || kind === 'bubble' ? LABEL_PX : SIZE_LABEL_PX,
+      x: toX(at.x),
+      y: toY(at.y),
+      x1: leader ? toX(leader.x1) : null,
+      y1: leader ? toY(leader.y1) : null,
+      x2: leader ? toX(leader.x2) : null,
+      y2: leader ? toY(leader.y2) : null,
+      color,
+    })
+  }
+  for (const label of placed.sizes) {
+    pushLabel(
+      nodeById.get(label.node)?.placeholder ? 'placeholder' : 'length',
+      label.node,
+      label.text,
+      label,
+      sizeLeader(label),
+    )
+  }
+  for (const {
+    item: { pin },
+    x,
+    y,
+    text,
+  } of placed.genes) {
+    const at = {
+      x: pin.at.x * axis.scaleX + fit.translateX,
+      y: pin.at.y * axis.scaleY + fit.translateY,
+    }
+    pushLabel(
+      'gene',
+      pin.gene.name,
+      text,
+      { x, y: y - LABEL_PX * BASELINE_TO_MIDDLE },
+      geneLeader({ x, y }, at, contigThickness),
+    )
+  }
+  for (const { item, x, y, text } of placed.passes) {
+    pushLabel(
+      'pass',
+      item.walk,
+      text,
+      { x, y: y - LABEL_PX * BASELINE_TO_MIDDLE },
+      passLeader({ x, y }, item.at),
+      abgrHex(item.ink),
+    )
+  }
+  for (const { item: halo, x, y, text } of placed.bubbles) {
+    pushLabel('bubble', halo.label, text, {
+      x,
+      y: y - LABEL_PX * BASELINE_TO_MIDDLE,
+    })
+  }
+
+  const key = graphKey(graph, layout, {
+    region: o.region,
+    referenceName,
+    referenceRamp,
+    lift,
+    panels: facets?.panels,
+    walkLabel: labelOf,
+    nodeWidth,
+    contigThickness,
+    edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
+    connectorThickness:
+      o.connectorThickness ?? FIGURE_DEFAULTS.connectorThickness,
+    marks: drawnMarks(batches),
+    genePins: pinned,
+    unlabelled: placed.unlabelled,
+  })
+
+  const passes = columns<PassRow>({
+    walk: [],
+    pass: [],
+    start: [],
+    end: [],
+    repeatBp: [],
+    againBp: [],
+    reversedBp: [],
+    text: [],
+    color: [],
+    reversed: [],
+  })
+  const passRuns = columns<PassRunRow>({
+    walk: [],
+    pass: [],
+    start: [],
+    end: [],
+    color: [],
+  })
+  for (const bar of facets ? [] : passBars(lift)) {
+    const walk = labelOf(bar.walk)
+    for (const { ink, ...pass } of bar.passes) {
+      passes.push({ walk, ...pass, color: abgrHex(ink) })
+    }
+    for (const { ink, ...run } of bar.runs) {
+      passRuns.push({ walk, ...run, color: abgrHex(ink) })
     }
   }
 
@@ -450,26 +931,27 @@ export function figureData(
           }
         : null,
       deletions: drawnDeletions.shown.length,
-      deletionKey: panels.some(
-        p => dashedDeletions(drawnDeletions.shown, p.highlight).length > 0,
-      )
-        ? deletionKey(referenceName)
-        : null,
-      // what the key for the drawing a lift fades says
-      fadedKey: lift
-        ? fadedKey(
-            graph,
-            lift,
-            lift.walks.length === 1
-              ? labelOf(lift.walks[0]!.name)
-              : 'these walks',
-          )
-        : null,
-      // the widths a key shows where nodes are as wide as their frequency
-      frequencyKey:
-        o.nodeWidth === 'frequency'
-          ? frequencyKey(o.contigThickness ?? FIGURE_DEFAULTS.contigThickness)
-          : null,
+      // the inks the drawing paints what the key names with
+      inks: {
+        exon: EXON_COLOR,
+        ramp: RAMP_KEY_STOPS.map(s => abgrHex(s.ink)),
+        offReference: abgrHex(REFERENCE_RAMP_ALT_COLOR),
+        placeholderFill: abgrHex(NOT_LOADED_FILL_COLOR),
+        placeholderRim: abgrHex(NOT_LOADED_COLOR),
+        deletion: abgrHex(EDGE_DELETION_COLOR),
+        faded: abgrHex(FADED_KEY_INK),
+      },
+      // the graph's key, as every reader draws it (graphKey.ts)
+      graphKey: graphKeyTable(key),
+      ...(fold
+        ? {
+            smallSites: {
+              mode: 'hidden',
+              px: SMALL_SITE_PX,
+              bp: foldedUnderBp(fold) || null,
+            },
+          }
+        : {}),
     },
     panels: {
       panel: panels.map(p => p.name),
@@ -478,12 +960,24 @@ export function figureData(
     },
     keys: keys.out,
     threadKeys: threadKeys.out,
+    passes: passes.out,
+    passRuns: passRuns.out,
     pins: pins.out,
     exons: exons.out,
+    labels: labels.out,
     walkNames: [...new Set((graph.paths ?? []).map(p => p.name))],
     nodes: nodes.out,
     edges: edges.out,
     arrows: arrows.out,
+    ...(fold
+      ? {
+          sites: siteTable(
+            fold,
+            batches[0]?.laneOnly,
+            edge => graph.edges[edge],
+          ),
+        }
+      : {}),
     nodeInfo: {
       node: graph.nodes.map(n => n.id),
       name: graph.nodes.map(n => n.name),
@@ -500,6 +994,74 @@ export function figureData(
       label: (layout.rowLabels ?? []).map(r => r.label),
       y: (layout.rowLabels ?? []).map(r => r.y),
     },
+  }
+}
+
+type KeyColumns = Pick<
+  Columns<KeyRow>,
+  'name' | 'stops' | 'field' | 'contig' | 'start' | 'end'
+>
+
+interface WalkRowColumns {
+  name: string[]
+  bp: number[]
+  contig: (string | null)[]
+  contigStart: (number | null)[]
+  backward: boolean[]
+}
+
+// For a host that tiles walk rows itself: the key row naming each walk row's
+// walk, or null, and each tile's colour `offset` bp along its row's bar, as
+// walk rows draw it (layout/rowInks.ts), null on a row no lifted walk inks.
+// `passRuns` are the figure's passRuns with `key` the key row of their walk
+export function walkRowInks(
+  keys: KeyColumns,
+  rows: WalkRowColumns,
+  tiles: { row: number[]; offset: number[] },
+  passRuns?: { key: number[]; start: number[]; end: number[]; color: string[] },
+) {
+  const inks = keys.name.map((walk, k): RowInk => {
+    const contig = keys.contig[k]
+    const start = keys.start[k]
+    const end = keys.end[k]
+    const passes = (passRuns?.key ?? []).flatMap((key, i) =>
+      key === k
+        ? [
+            {
+              start: passRuns!.start[i]!,
+              end: passRuns!.end[i]!,
+              color: passRuns!.color[i]!,
+            },
+          ]
+        : [],
+    )
+    return {
+      walk,
+      stops: keys.stops[k]!.split(','),
+      range:
+        contig != null && start != null && end != null
+          ? { contig, start, end }
+          : undefined,
+      ...(passes.length ? { passes } : {}),
+    }
+  })
+  const named = rows.name.map(name => rowInkOf({ name }, inks))
+  const inkAt = named.map((ink, r) => {
+    const contig = rows.contig[r]
+    const start = rows.contigStart[r]
+    return ink && keys.field[inks.indexOf(ink)] !== 'reference'
+      ? rowInkAlong(ink, {
+          bp: rows.bp[r]!,
+          axis:
+            contig != null && start != null
+              ? { contig, start, reversed: rows.backward[r]! }
+              : undefined,
+        })
+      : undefined
+  })
+  return {
+    key: named.map(ink => (ink ? inks.indexOf(ink) : null)),
+    color: tiles.row.map((r, t) => inkAt[r]?.(tiles.offset[t]!) ?? null),
   }
 }
 
@@ -537,7 +1099,14 @@ export async function laidOutGraph(
   )
   const layout =
     layoutModeByValue(spec.layout ?? 'force').run(graph, region) ??
-    (await forceLayout(graph, engineSettingsOf(spec), layoutEngine)).result
+    (
+      await forceLayout(
+        graph,
+        engineSettingsOf(spec),
+        layoutEngine,
+        figureFit(spec),
+      )
+    ).result
   return { graph, layout }
 }
 

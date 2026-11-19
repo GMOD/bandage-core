@@ -1,0 +1,10 @@
+{
+  "gfa": "kiv2_walks.gfa.gz",
+  "layout": "force",
+  "walks": [
+    "GRCh38#0#chr6",
+    "HG00097#1#JBIRDD010000043.1",
+    "HG00133#1#CM090050.1"
+  ],
+  "width": 1000
+}

@@ -1,6 +1,12 @@
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { anchorGraph } from '../pathAnchoring'
+import { walkLift } from '../walkHighlight'
 import { Canvas2DRenderer, arrowheadOutline } from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
+import { FADED_ALPHA, abgrToCssRgba, packAbgr } from './colorBits'
 import { recordingCanvas } from './recordingCanvas'
+import { svgCanvas } from './svgCanvas'
 
 import type { TransformUniform } from './types'
 
@@ -183,6 +189,417 @@ test('renderHighlights strokes only what is lit, over a clear', () => {
   expect(strokes).toEqual([litEdge, litNode])
 })
 
+test('a thin shallow node over a wide deep one is painted after it', () => {
+  const shallow = { id: 'S+', name: 'S', length: 2, depth: 1 }
+  const deep = { id: 'D+', name: 'D', length: 10, depth: 40 }
+  const { renderer, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(
+    buildGeometry({
+      nodePositions: {
+        'S+': [
+          { x: 4, y: 0 },
+          { x: 6, y: 0 },
+        ],
+        'D+': [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+      },
+      graph: { name: 'test', nodes: [shallow, deep], edges: [] },
+      nodeById: new Map([shallow, deep].map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      contigThickness: 6,
+      connectorThickness: 2,
+      drawPaths: false,
+      nodeWidth: 'depth',
+      axis: iso(),
+    }),
+  )
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  const [wide = 0, thin = 0] = lineWidths
+  expect(lineWidths).toHaveLength(2)
+  expect(thin).toBeLessThan(wide)
+})
+
+function depthBatch(
+  drawn: {
+    id: string
+    name: string
+    length: number
+    depth: number
+    placeholder?: true
+  }[],
+) {
+  return buildGeometry({
+    nodePositions: Object.fromEntries(
+      drawn.map(n => [
+        n.id,
+        [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+      ]),
+    ),
+    graph: { name: 'test', nodes: drawn, edges: [] },
+    nodeById: new Map(drawn.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth: 'depth',
+    axis: iso(),
+  })
+}
+
+test('a wide hovered node is painted after a thin plain one', () => {
+  const { renderer, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(
+    depthBatch([
+      { id: 'S+', name: 'S', length: 2, depth: 1 },
+      { id: 'D+', name: 'D', length: 10, depth: 40 },
+    ]),
+  )
+  renderer.updateTransform(TRANSFORM)
+  renderer.setNodeHighlights(new Map([['D+', 1.4]]))
+  renderer.render([1, 1, 1, 1])
+
+  const [thin = 0, wide = 0] = lineWidths
+  expect(lineWidths).toHaveLength(2)
+  expect(thin).toBeLessThan(wide)
+})
+
+test('a placeholder is painted under every loaded node, however wide they are', () => {
+  const { renderer, strokes, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(
+    depthBatch([
+      { id: 'A+', name: 'A', length: 2, depth: 1 },
+      { id: 'P+', name: 'P', length: 10, depth: 10, placeholder: true },
+      { id: 'R+', name: 'R', length: 10, depth: 40 },
+    ]),
+  )
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  const [rim = 0, fill = 0, reference = 0, allele = 0] = lineWidths
+  expect(strokes).toEqual([
+    'rgba(128,128,128,1)',
+    'rgba(244,244,244,1)',
+    expect.any(String),
+    expect.any(String),
+  ])
+  expect(fill).toBeLessThan(rim)
+  expect(rim).toBeLessThan(reference)
+  expect(allele).toBeLessThan(reference)
+})
+
+function skipBatch(scale: number) {
+  return buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 40, y: 0 },
+        { x: 50, y: 0 },
+      ],
+      'C+': [
+        { x: 80, y: 0 },
+        { x: 90, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes,
+      edges: [
+        { from: 'A+', to: 'B+' },
+        { from: 'B+', to: 'C+' },
+        { from: 'A+', to: 'C+' },
+      ],
+    },
+    nodeById: new Map(nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(scale),
+    deletions: new Map([[2, ['B+']]]),
+  })
+}
+
+function paintsOf(batch: ReturnType<typeof skipBatch>) {
+  const css = (edge: number) =>
+    abgrToCssRgba(batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.color)
+  return {
+    link: css(0),
+    skip: css(2),
+    node: abgrToCssRgba(batch.nodeStrokes[0]!.color),
+  }
+}
+
+describe('a link that skips the reference is painted over the nodes it skips', () => {
+  test.each([
+    ['dashed', 1],
+    ['too short to dash', 0.3],
+  ])('%s', (_, scale) => {
+    const { renderer, strokes } = makeRenderer()
+    const batch = skipBatch(scale)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+
+    const { link, node, skip } = paintsOf(batch)
+    expect(skip).not.toBe(link)
+    expect(strokes).toEqual([link, node, skip])
+  })
+
+  test('a hovered node is painted over the skip', () => {
+    const { renderer, strokes } = makeRenderer()
+    const batch = skipBatch(1)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.setNodeHighlights(new Map([['B+', 1.4]]))
+    renderer.render([1, 1, 1, 1])
+
+    const { link, node, skip } = paintsOf(batch)
+    expect(strokes).toEqual([link, node, skip, expect.any(String)])
+    expectBrighter(strokes[3]!, node)
+  })
+})
+
+describe('a link turning strand against the reference is painted over the nodes it joins', () => {
+  // the reference steps >A<B>C, so its own links join the same end of B as
+  // it reads B; the link from A's end into C's end reads C against it
+  const onReference = (id: string, start: number, strand: '+' | '-') => ({
+    id,
+    name: id.slice(0, -1),
+    length: 10,
+    depth: 1,
+    stable: { refName: 'chr', start, rank: 0, strand },
+  })
+  const anchored = [
+    onReference('A+', 0, '+'),
+    onReference('B+', 10, '-'),
+    onReference('C+', 20, '+'),
+  ]
+  const turning = buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 40, y: 0 },
+        { x: 30, y: 0 },
+      ],
+      'C+': [
+        { x: 60, y: 0 },
+        { x: 70, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes: anchored,
+      edges: [
+        { from: 'A+', to: 'B+', fromStrand: '+', toStrand: '-' },
+        { from: 'B+', to: 'C+', fromStrand: '-', toStrand: '+' },
+        { from: 'A+', to: 'C+', fromStrand: '+', toStrand: '-' },
+      ],
+    },
+    nodeById: new Map(anchored.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    stranded: true,
+  })
+  const turnOf = (edge: number) =>
+    turning.edgeCurves[turning.edgeCurveRuns.get(edge)!.start]!.turn
+
+  test('only the link reading one reference node as the reference does and the other against it is a turn', () => {
+    expect([0, 1, 2].map(turnOf)).toEqual([undefined, undefined, true])
+  })
+
+  test("it is painted after the nodes, the reference's own links before them", () => {
+    const { renderer, strokes } = makeRenderer()
+    renderer.uploadGeometry(turning)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+    const link = abgrToCssRgba(turning.edgeCurves[0]!.color)
+    const node = abgrToCssRgba(turning.nodeStrokes[0]!.color)
+    expect(strokes).toEqual([link, node, link])
+  })
+})
+
+test("a lifted walk's lane on a link turning strand against the reference is a turn, which the renderer paints over the nodes", () => {
+  // the reference steps >r1>r2>r3, the lifted walk >r1<r2>r3
+  const graph = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(
+        [
+          'S\tr1\tAAAAAAAAAA',
+          'S\tr2\tCCCCCCCCCC',
+          'S\tr3\tGGGGGGGGGG',
+          'L\tr1\t+\tr2\t+\t0M',
+          'L\tr2\t+\tr3\t+\t0M',
+          'L\tr1\t+\tr2\t-\t0M',
+          'L\tr2\t-\tr3\t+\t0M',
+          'W\tref\t0\tchr\t0\t30\t>r1>r2>r3',
+          'W\talt\t1\tchr\t0\t*\t>r1<r2>r3',
+        ].join('\n'),
+      ),
+    ),
+    'ref',
+  )
+  const batch = buildGeometry({
+    nodePositions: {
+      'r1+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'r2+': [
+        { x: 40, y: 0 },
+        { x: 50, y: 0 },
+      ],
+      'r3+': [
+        { x: 80, y: 0 },
+        { x: 90, y: 0 },
+      ],
+    },
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    stranded: true,
+    highlight: walkLift(graph, [{ walk: 'alt#1#chr' }]),
+  })
+  const turning = graph.edges.flatMap((e, i) =>
+    e.fromStrand !== e.toStrand ? [i] : [],
+  )
+  const lanes = turning.flatMap(edge => {
+    const run = batch.edgeCurveRuns.get(edge)
+    return run ? batch.edgeCurves.slice(run.start, run.start + run.count) : []
+  })
+  expect(lanes.length).toBe(2)
+  expect(lanes.every(lane => lane.walk === 0 && lane.turn)).toBe(true)
+})
+
+test('a short skip is painted after a long one it crosses', () => {
+  const four = [...nodes, { id: 'D+', name: 'D', length: 10, depth: 1 }]
+  const batch = buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 12, y: 0 },
+        { x: 14, y: 0 },
+      ],
+      'C+': [
+        { x: 16, y: 0 },
+        { x: 26, y: 0 },
+      ],
+      'D+': [
+        { x: 100, y: 0 },
+        { x: 110, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes: four,
+      edges: [
+        { from: 'A+', to: 'B+' },
+        { from: 'B+', to: 'C+' },
+        { from: 'C+', to: 'D+' },
+        { from: 'A+', to: 'C+' },
+        { from: 'A+', to: 'D+' },
+      ],
+    },
+    nodeById: new Map(four.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    deletions: new Map([
+      [3, ['B+']],
+      [4, ['B+', 'C+']],
+    ]),
+  })
+  const widthOf = (edge: number) =>
+    batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness * 2
+  const { renderer, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(batch)
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  expect(widthOf(3)).not.toBe(widthOf(4))
+  expect(lineWidths.slice(-2)).toEqual([widthOf(4), widthOf(3)])
+})
+
+test('a skip drawn as its plain link is painted after a dashed skip it crosses', () => {
+  const four = [...nodes, { id: 'D+', name: 'D', length: 10, depth: 1 }]
+  const batch = buildGeometry({
+    nodePositions: {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      'B+': [
+        { x: 10.1, y: 0 },
+        { x: 10.3, y: 0 },
+      ],
+      'C+': [
+        { x: 10.5, y: 0 },
+        { x: 20, y: 0 },
+      ],
+      'D+': [
+        { x: 100, y: 0 },
+        { x: 110, y: 0 },
+      ],
+    },
+    graph: {
+      name: 'test',
+      nodes: four,
+      edges: [
+        { from: 'A+', to: 'B+' },
+        { from: 'B+', to: 'C+' },
+        { from: 'C+', to: 'D+' },
+        { from: 'A+', to: 'C+' },
+        { from: 'A+', to: 'D+' },
+      ],
+    },
+    nodeById: new Map(four.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 10,
+    connectorThickness: 4,
+    drawPaths: false,
+    axis: iso(),
+    deletions: new Map([
+      [3, ['B+']],
+      [4, ['B+', 'C+']],
+    ]),
+  })
+  const strokeOf = (edge: number) =>
+    batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!
+  const { renderer, lineWidths } = makeRenderer()
+  renderer.uploadGeometry(batch)
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  expect(strokeOf(3)).toMatchObject({ skip: true, span: 0 })
+  expect(strokeOf(4).span).toBeGreaterThan(0)
+  expect(strokeOf(3).thickness).not.toBe(strokeOf(4).thickness)
+  expect(lineWidths.at(-1)).toBe(strokeOf(3).thickness * 2)
+})
+
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it
 // is the one term the dpr-scaled transform does not reach. Left alone, every
 // tube, connector and arrowhead came out 1/dpr of its weight on a hidpi
@@ -283,4 +700,34 @@ describe('arrowheadOutline', () => {
     expect(tip).toEqual({ x: 100, y: 0 })
     expect(left).toEqual({ x: 80, y: 8 })
   })
+})
+
+test('faded strokes paint opaque in one layer under the rest, laid down once', () => {
+  const grey = packAbgr(160, 160, 160, 255)
+  const blue = packAbgr(0, 0, 255, 255)
+  const line = (x: number) => [
+    { x, y: 0 },
+    { x: x + 10, y: 0 },
+  ]
+  const { canvas, markup } = svgCanvas(100, 100)
+  const renderer = new Canvas2DRenderer(canvas)
+  renderer.updateTransform(TRANSFORM)
+  renderer.uploadGeometry({
+    nodeStrokes: [
+      { points: line(0), thickness: 3, color: blue },
+      { points: line(5), thickness: 2, color: grey, faded: true },
+      { points: line(10), thickness: 4, color: grey, faded: true },
+    ],
+    nodeStrokeRuns: new Map(),
+    edgeCurves: [],
+    edgeCurveRuns: new Map(),
+    arrows: [],
+    arrowRuns: new Map(),
+  })
+  renderer.render([1, 1, 1, 0])
+  const svg = markup()
+  const layer = new RegExp(`<g opacity="${FADED_ALPHA}">(.*?)</g>`).exec(svg)
+  expect(layer?.[1]?.match(/stroke="rgb\(160,160,160\)"/g)).toHaveLength(2)
+  expect(layer?.[1]).not.toContain('stroke-opacity')
+  expect(svg.indexOf('</g>')).toBeLessThan(svg.indexOf('rgb(0,0,255)'))
 })

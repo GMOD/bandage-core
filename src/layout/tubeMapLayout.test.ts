@@ -192,6 +192,21 @@ test('a merged run is one node of the drawn graph, as long as its members', () =
   expect(boxOf(snp('1+,2+,3+,5+,6+'), '5+')).toEqual({ start: 30, end: 31 })
 })
 
+test('a walk through merged boxes states no pass for its steps', () => {
+  const graph = snp('1+,2+,3+,5+,6+')
+  const { tubeMap } = tubeMapLayout({
+    ...graph,
+    paths: graph.paths!.map(stated => ({
+      ...stated,
+      refStarts: new Float64Array(stated.nodeIds.length),
+    })),
+  })!
+  expect(tubeMap!.graph.paths!.map(boxed => boxed.refStarts)).toEqual([
+    undefined,
+    undefined,
+  ])
+})
+
 test('a run walked backwards merges into the same box', () => {
   const { tubeMap } = tubeMapLayout(snp('6-,5-,3-,2-,1-'))!
   expect(tubeMap!.members).toEqual(new Map([['1+', ['1+', '2+', '3+']]]))

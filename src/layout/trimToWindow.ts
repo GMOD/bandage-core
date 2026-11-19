@@ -60,7 +60,13 @@ export function trimToWindow(
       for (const id of nodeIds) {
         kept.add(id)
       }
-      trimmed.push({ ...path, nodeIds })
+      trimmed.push({
+        ...path,
+        nodeIds,
+        ...(path.refStarts
+          ? { refStarts: path.refStarts.subarray(span.first, span.last + 1) }
+          : {}),
+      })
       stretches.set(path.name, { first: span.first, nodeIds })
     }
   })

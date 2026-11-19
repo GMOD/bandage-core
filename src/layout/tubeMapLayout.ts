@@ -247,7 +247,10 @@ function boxGraph(graph: Graph, { members, flipped }: BoxRuns): Graph {
       {
         ...node,
         length: parts.reduce((sum, p) => sum + p.length, 0),
-        stable: node.stable && { ...node.stable, start: Math.min(...starts) },
+        stable: node.stable && {
+          ...node.stable,
+          start: starts.reduce((least, s) => Math.min(least, s), Infinity),
+        },
       },
     ]
   })
@@ -294,6 +297,7 @@ function boxGraph(graph: Graph, { members, flipped }: BoxRuns): Graph {
     paths: graph.paths?.map(path => ({
       ...path,
       nodeIds: path.nodeIds.filter(id => !absorbed.has(id)),
+      refStarts: undefined,
     })),
     pathVisits: graph.pathVisits?.filter(
       () => true,
@@ -461,8 +465,11 @@ function tubeMapColumns(graph: Graph, layout: TubeMapLayout): TubeMapColumn[] {
     end = Math.max(end, bp1)
     columns.push({
       order,
-      x0: Math.min(...nodes.map(n => n.x)),
-      x1: Math.max(...nodes.map(n => n.x + n.pixelWidth)),
+      x0: nodes.reduce((least, n) => Math.min(least, n.x), Infinity),
+      x1: nodes.reduce(
+        (most, n) => Math.max(most, n.x + n.pixelWidth),
+        -Infinity,
+      ),
       bp0,
       bp1,
     })

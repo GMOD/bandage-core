@@ -18,13 +18,12 @@ function labelsOn(width: number, height: number) {
   return graphLabels({
     nodePositions,
     nodeLengths,
-    deletions: [],
     axis: { scaleX: 1, scaleY: 1 },
     translateX: 0,
     translateY: 0,
     width,
     height,
-  }).filter(l => l.kind === 'node')
+  })
 }
 
 test('node labels are rationed to the pane, biggest sequence first', () => {

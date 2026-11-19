@@ -28,6 +28,10 @@ export interface GraphNode {
   // only through the links into it: graph-walks tags it `mv:i:1`
   moved?: true
   placeholder?: true
+  // the visits shown walks make to this segment through their departures'
+  // own steps that no fragment of theirs holds there, which `depth` counts
+  // beside the fragments' steps (gfa/departures.ts ownStepRuns)
+  departureVisits?: PathVisit[]
 }
 
 export interface GraphEdge {
@@ -66,6 +70,9 @@ export interface GraphPath {
   trimmedAfter?: number
   // the steps of the walk's pieces a walk-file cut did not load
   abridgedSteps?: number
+  // set on a walk-file cut's walk from its tables: where each step lies on
+  // the reference at the pass its row names, NaN off it
+  refStarts?: Float64Array
 }
 
 // One P or W record, named the way a coordinate is named: the range suffix
@@ -106,6 +113,9 @@ export interface Graph {
   anchoredBy?: 'tags' | 'paths'
   // the path `anchoredBy: 'paths'` put on x
   referencePath?: string
+  // how many nodes the reference's paths pass more than once, from the
+  // tables the graph was built of (GraphTables.revisited)
+  revisited?: number
   // reads aligned to the graph, which the tube map draws under its paths
   reads?: GafRecord[]
   // every departure from the reference over a walk-file cut, which
@@ -183,6 +193,9 @@ export interface LayoutResult {
   // renderer has no node for (walk rows, the tube map). The fit and the pane
   // height take the wider of this and the nodes.
   extent?: { minX?: number; minY?: number; maxX?: number; maxY?: number }
+  // What the fit frames in place of every node, where some reach off toward a
+  // place the cut does not hold (gfa/departures.ts departureTails)
+  frame?: { minX: number; minY: number; maxX: number; maxY: number }
   // The tube map's shapes, which TubeMapOverlay draws in place of the canvas's
   // nodes and edges.
   tubeMap?: TubeMapDrawing
@@ -191,4 +204,7 @@ export interface LayoutResult {
   // Set by the layouts that draw every node from its start to its end (the
   // force layout), so a link joins the ends its strands name
   stranded?: boolean
+  // Set by a force layout whose drawn lengths a spread compresses towards the
+  // mean, so a node's drawn length is not to scale (bubbleSpreads.ts)
+  compressed?: boolean
 }

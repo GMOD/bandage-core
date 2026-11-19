@@ -1,3 +1,6 @@
+import { isBackbone } from '../anchoredNodes'
+import { pushTo } from '../util/groups'
+
 import type { Graph, GraphNode } from '../types'
 
 export interface BandageScaleOpts {
@@ -98,7 +101,7 @@ export interface DrawnLengthLaw {
 
 export const PROPORTIONAL_LENGTH: DrawnLengthLaw = { power: 1, effect: 1 }
 
-function isProportional(law: DrawnLengthLaw) {
+export function isProportional(law: DrawnLengthLaw) {
   return law.power === 1 && law.effect === 1
 }
 
@@ -162,9 +165,73 @@ export interface LayoutScaling {
   opts: BandageScaleOpts
 }
 
+// The nodes off the reference that links join to one another, where any of
+// them links to the reference: a bubble's arm, or a loop that variation inside
+// it cuts into many runs.
+export function loopsOf(graph: Graph) {
+  const byId = new Map(graph.nodes.map(node => [node.id, node]))
+  const neighbours = new Map<string, string[]>()
+  for (const { from, to } of graph.edges) {
+    pushTo(neighbours, from, to)
+    pushTo(neighbours, to, from)
+  }
+  const seen = new Set<string>()
+  const loops: GraphNode[][] = []
+  for (const start of graph.nodes) {
+    if (!isBackbone(start) && !seen.has(start.id)) {
+      seen.add(start.id)
+      const members = [start]
+      let anchored = false
+      for (const member of members) {
+        for (const id of neighbours.get(member.id) ?? []) {
+          const node = byId.get(id)
+          if (node && isBackbone(node)) {
+            anchored = true
+          } else if (node && !seen.has(id)) {
+            seen.add(id)
+            members.push(node)
+          }
+        }
+      }
+      if (anchored) {
+        loops.push(members)
+      }
+    }
+  }
+  return loops
+}
+
+// The shortest take their floor first, so the shares sum to `total` wherever
+// it holds the floor for every one of them.
+function shareOut(total: number, bps: number[]) {
+  const shares = bps.map(() => BANDAGE_MINIMUM_NODE_LENGTH)
+  let budget = total
+  let rest = bps.reduce((sum, bp) => sum + bp, 0)
+  let left = bps.length
+  for (const k of bps.map((_, i) => i).sort((a, b) => bps[a]! - bps[b]!)) {
+    const share = rest > 0 ? (budget * bps[k]!) / rest : budget / left
+    const given = Math.max(share, BANDAGE_MINIMUM_NODE_LENGTH)
+    shares[k] = given
+    budget -= given
+    rest -= bps[k]!
+    left -= 1
+  }
+  return shares
+}
+
+// `loopFloor` is the share of the reference's drawn length below which a law
+// may not pull a loop off the reference, unless the loop is shorter than that
+// at proportional length. Past the floor a loop grows as the law does, lifted
+// to meet it, so rank holds in the lengths requested from the engine until the
+// 5-unit minimum per run dominates.
+//
+// The law and the floor take a loop's whole bp, and its runs split what it
+// draws by bp. Run by run, a loop of many short runs outdraws one long run, as
+// the law is concave and each run is floored on its own.
 export function layoutScaling(
   graph: Graph,
   spread: NodeLengthSpread = PROPORTIONAL_SPREAD,
+  loopFloor = 0,
 ): LayoutScaling {
   const { law, minNodeLength } = spread
   const opts = bandageAutoScale(graph, minNodeLength)
@@ -177,10 +244,30 @@ export function layoutScaling(
     return { nodes: graph.nodes, opts }
   }
   const drawn = drawnLengthFor(graph, law)
+  const floor =
+    loopFloor *
+    graph.nodes
+      .filter(isBackbone)
+      .reduce((sum, node) => sum + drawn(node.length), 0)
+  const lift = floor / drawn((floor * 1_000_000) / opts.nodeLengthPerMegabase)
+  const held = (bp: number) =>
+    Math.max(drawn(bp), Math.min(drawnNodeLength(opts, bp), lift * drawn(bp)))
+  const inLoops = new Map<string, number>()
+  for (const loop of loopsOf(graph)) {
+    const bps = loop.map(node => node.length)
+    const shares = shareOut(held(bps.reduce((sum, bp) => sum + bp, 0)), bps)
+    loop.forEach((node, k) => {
+      inLoops.set(node.id, shares[k]!)
+    })
+  }
+  const lengthOf = (node: GraphNode) =>
+    isBackbone(node)
+      ? drawn(node.length)
+      : (inLoops.get(node.id) ?? held(node.length))
   return {
     nodes: graph.nodes.map(node => ({
       ...node,
-      length: Math.round(drawn(node.length) * LAYOUT_LENGTH_PRECISION),
+      length: Math.round(lengthOf(node) * LAYOUT_LENGTH_PRECISION),
     })),
     opts: {
       ...opts,

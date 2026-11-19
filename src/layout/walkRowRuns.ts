@@ -6,9 +6,10 @@ import {
   segmentPart,
   stretchSegments,
 } from '../gfa/departures'
-import { tableNodeIds, tablePath } from '../gfa/graphTables'
+import { referenceOf, tableNodeIds, tablePath } from '../gfa/graphTables'
 import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
+import { compareIds } from '../util/canonicalOrder'
 import { groupBy } from '../util/groups'
 
 import type {
@@ -21,6 +22,7 @@ import type { DepartureTable, GraphTables } from '../gfa/graphTables'
 import type { Graph, GraphPath } from '../types'
 import type {
   WalkAxis,
+  WalkPass,
   WalkRow,
   WalkRows,
   WalkRun,
@@ -44,6 +46,7 @@ const GAP_CAUSES = [
 const CAUSE_SHIFT = 3
 const RUN_UNLOADED =
   1 << (CAUSE_SHIFT + Math.ceil(Math.log2(GAP_CAUSES.length)))
+const RUN_FROM_ELSEWHERE = RUN_UNLOADED << 1
 
 const causeFlags = (cause: GapCause | undefined) =>
   GAP_CAUSES.indexOf(cause) << CAUSE_SHIFT
@@ -53,7 +56,7 @@ export type WalkRowMeta = Omit<WalkRow, 'runs' | 'visits'>
 /**
  * Each row's visits, row i's at `offsets[i]` up to `offsets[i + 1]`: the
  * node as an index into `names`, its bp offset from the bar's start, its bp,
- * and 1 where the reference walk visits it anywhere in the cut
+ * and 1 where the step lies on the reference in the cut
  */
 export interface WalkVisitColumns {
   offsets: Uint32Array
@@ -96,11 +99,14 @@ interface Pieces {
   from: Int32Array
   to: Int32Array
   steps: Int32Array
+  // where the source states each step lies on the reference, NaN off it
+  refStarts: Float64Array | undefined
   lengths: Int32Array
   names: ArrayLike<string>
   reference: string | undefined
   placeholder: (node: number) => boolean
   departures: DepartureTable | undefined
+  revisited: number | undefined
   stretches: Stretches
 }
 
@@ -149,19 +155,6 @@ function stretchIndex(all: Stretch[]) {
 
 type Stretches = ReturnType<typeof stretchIndex>
 
-// The reference walk's name, stripped of the range suffix odgi leaves on a P
-// record's name: `referencePath`, else the walk a rank 0 segment's tag names,
-// else the first walk, where gbz-base and walk-file cuts write it
-function referenceOf(
-  names: string[],
-  referencePath: string | undefined,
-  rankZero: Set<string>,
-) {
-  return referencePath !== undefined && names.includes(referencePath)
-    ? referencePath
-    : (names.find(n => rankZero.has(n)) ?? names[0])
-}
-
 export function referenceWalkName(
   graph: Pick<Graph, 'nodes' | 'paths' | 'referencePath'>,
 ) {
@@ -209,16 +202,33 @@ function graphPieces(graph: Graph): Pieces {
     }
     to[p] = steps.length
   })
+  for (const path of heads) {
+    if (path.refStarts && path.refStarts.length !== path.nodeIds.length) {
+      throw new Error(
+        `walk ${path.name} states ${path.refStarts.length} reference positions for ${path.nodeIds.length} steps`,
+      )
+    }
+  }
+  const refStarts = heads.every(path => path.refStarts)
+    ? new Float64Array(steps.length)
+    : undefined
+  heads.forEach((path, p) => {
+    if (path.refStarts) {
+      refStarts?.set(path.refStarts, from[p])
+    }
+  })
   return {
     heads,
     from,
     to,
     steps: Int32Array.from(steps),
+    refStarts,
     lengths: Int32Array.from(lengths),
     names,
     reference: referenceWalkName(graph),
     placeholder: node => placeholders.has(node),
     departures: graph.departures,
+    revisited: graph.revisited,
     stretches: stretchIndex(
       (graph.gaps ?? []).map(gap => ({
         ...gap,
@@ -261,6 +271,7 @@ function tablePieces(
     from: Int32Array.from(kept, p => w.offsets[p]!),
     to: Int32Array.from(kept, p => w.offsets[p + 1]!),
     steps: w.steps,
+    refStarts: w.refStarts,
     lengths: n.lengths,
     // a visit names its node as the Graph does, which costs a pass over the
     // steps
@@ -268,6 +279,7 @@ function tablePieces(
     reference,
     placeholder: node => n.placeholders?.[node] === 1,
     departures: tables.departures,
+    revisited: tables.revisited,
     stretches: stretchIndex(
       gaps
         ? gaps.names.map((name, g) => ({
@@ -285,6 +297,8 @@ function tablePieces(
 function sampleOf(path: PieceHead) {
   return path.sample ?? panSNSample(path.name)
 }
+
+const haplotypeOf = (name: string) => panSNHaplotype(name) ?? name
 
 function labelOf(path: PieceHead) {
   return path.haplotype !== undefined && path.sample !== undefined
@@ -383,6 +397,13 @@ const steplessMeta = (
  * steps, as `walkRows` reads them. Tables name their reference by
  * `referencePath`, as loadGraph does.
  *
+ * A step lies on the reference where the cut's reference walk holds the pass
+ * the source states for it, as a walk file's tables do; one stated at a pass
+ * the cut lacks is reference from elsewhere, off it here but not the walk's
+ * own. A source that states
+ * none, GFA text or a gbz-base extract, has a step on a node the reference
+ * passes more than once take the pass nearest the step beside it.
+ *
  * Each walk is cut at the nearest reference nodes IT visits on either side of
  * the region, so a walk that skips one flanking node at a SNP is still
  * measured between flanks rather than whole. A walk with one flank is the
@@ -409,22 +430,28 @@ const steplessMeta = (
  * source that states no trimmed bp, GFA text or a gbz-base extract, clips its
  * paths at the subgraph's edge, so where they end says nothing and each walk
  * is the slice whole.
+ *
+ * The reference row carries the source's `revisited`, which `o.revisited`
+ * overrides, and which says whether a run off the reference reads as the
+ * walk's own (gfa/departures.ts ownIsExact).
  */
 export function walkRowRuns(
   source: Graph | GraphTables,
   region?: { start: number; end: number },
-  o: { visits?: boolean; referencePath?: string } = {},
+  o: { visits?: boolean; referencePath?: string; revisited?: number } = {},
 ): WalkRowRuns | undefined {
   const {
     heads,
     from,
     to,
     steps: all,
+    refStarts: stated,
     lengths,
     names,
     reference,
     placeholder,
     departures,
+    revisited,
     stretches,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
@@ -460,9 +487,9 @@ export function walkRowRuns(
   // a cut hands a walk back as one record per piece inside its nodes
   const walks = groupBy(others, nameOf)
 
-  // each node's span on the reference's first visit, NaN where it never visits
+  // where each node starts on the reference's first visit, NaN where it never
+  // visits
   const spanStart = new Float64Array(names.length).fill(Number.NaN)
-  const spanEnd = new Float64Array(names.length)
   // every visit's start for a node the reference walks more than once, as a
   // collapsed repeat makes it
   const revisits = new Map<number, number[]>()
@@ -488,16 +515,15 @@ export function walkRowRuns(
         }
       } else {
         spanStart[node] = pos
-        spanEnd[node] = pos + len
-        referenceLo = Math.min(referenceLo, pos)
-        referenceHi = Math.max(referenceHi, pos + len)
-        if (cut) {
-          if (pos + len <= cut.start) {
-            flankEnd = Math.max(flankEnd, pos + len)
-          }
-          if (pos >= cut.end) {
-            flankStart = Math.min(flankStart, pos)
-          }
+      }
+      referenceLo = Math.min(referenceLo, pos)
+      referenceHi = Math.max(referenceHi, pos + len)
+      if (cut) {
+        if (pos + len <= cut.start) {
+          flankEnd = Math.max(flankEnd, pos + len)
+        }
+        if (pos >= cut.end) {
+          flankStart = Math.min(flankStart, pos)
         }
       }
       pos += len
@@ -506,6 +532,39 @@ export function walkRowRuns(
   // a cut that stops at the window carries no flanking reference for anyone
   const flanked =
     cut === undefined || (flankEnd > -Infinity && flankStart < Infinity)
+  // A node the reference walks more than once takes the visit nearest
+  // `cursor`, where the walk left the reference, so a copy of a collapsed
+  // repeat follows the reference copy it continues; the first visit where
+  // nothing precedes it
+  const placeNear = (
+    id: number,
+    cursor: number,
+    abutting?: 'start' | 'end',
+  ) => {
+    const starts = revisits.get(id)
+    if (!starts || Number.isNaN(cursor)) {
+      return spanStart[id]!
+    }
+    const len = lengthOf(id)
+    let best = starts[0]!
+    let bestGap = Infinity
+    for (const start of starts) {
+      const gap = Math.min(
+        Math.abs(start - cursor),
+        Math.abs(start + len - cursor),
+      )
+      const abuts =
+        abutting !== undefined &&
+        (abutting === 'start' ? start : start + len) === cursor
+      if (gap < bestGap || (gap === bestGap && abuts)) {
+        best = start
+        bestGap = gap
+      }
+    }
+    return best
+  }
+  const referenceHolds = (id: number, start: number) =>
+    spanStart[id] === start || revisits.get(id)?.includes(start) === true
 
   const runs = new Columns(6)
   const visits = o.visits ? new Columns(5) : undefined
@@ -513,6 +572,8 @@ export function walkRowRuns(
   // across rows
   let steps = new Int32Array(0)
   let stepStart = new Float64Array(0)
+  let stepStated = new Float64Array(0)
+  let stepPlace = new Float64Array(0)
 
   // Each of a stepless row's departures as a hairline under the stretch of
   // the reference row's bar between its ends; the bp of those runs
@@ -569,6 +630,7 @@ export function walkRowRuns(
     if (count > steps.length) {
       steps = new Int32Array(count * 2)
       stepStart = new Float64Array(count * 2)
+      stepStated = new Float64Array(count * 2)
     }
     let length = 0
     // a piece with no start, or one overlapping the last, leaves bar offsets
@@ -582,10 +644,13 @@ export function walkRowRuns(
       if (length + need > steps.length) {
         const grownSteps = new Int32Array((length + need) * 2)
         const grownStarts = new Float64Array((length + need) * 2)
+        const grownStated = new Float64Array((length + need) * 2)
         grownSteps.set(steps.subarray(0, length))
         grownStarts.set(stepStart.subarray(0, length))
+        grownStated.set(stepStated.subarray(0, length))
         steps = grownSteps
         stepStart = grownStarts
+        stepStated = grownStated
       }
       let at = fromBp
       let parts: GapPart[] = []
@@ -594,6 +659,7 @@ export function walkRowRuns(
         if (partsBp > 0) {
           partsAt.set(length, parts)
           steps[length] = -partsBp
+          stepStated[length] = Number.NaN
           stepStart[length++] = at - partsBp
         }
         parts = []
@@ -604,6 +670,7 @@ export function walkRowRuns(
           flush()
           for (const node of x.nodes) {
             steps[length] = node
+            stepStated[length] = Number.NaN
             stepStart[length++] = at
             at += lengthOf(node)
           }
@@ -655,12 +722,14 @@ export function walkRowRuns(
           ),
         )
         steps[length] = -gap
+        stepStated[length] = Number.NaN
         stepStart[length++] = end!
       }
       let pos = start ?? 0
       for (let s = from[piece]!, stop = to[piece]!; s < stop; s++) {
         const node = all[s]!
         steps[length] = node
+        stepStated[length] = stated ? stated[s]! : Number.NaN
         stepStart[length++] = pos
         pos += lengthOf(node)
       }
@@ -680,10 +749,7 @@ export function walkRowRuns(
       emit(tail.segments, tail.start)
     }
     const onReference = (i: number) =>
-      i >= 0 &&
-      i < length &&
-      steps[i]! >= 0 &&
-      !Number.isNaN(spanStart[steps[i]!]!)
+      i >= 0 && i < length && !Number.isNaN(stepPlace[i]!)
     const stepEnd = (i: number) => {
       const id = steps[i]!
       return stepStart[i]! + (id < 0 ? -id : lengthOf(id))
@@ -715,7 +781,7 @@ export function walkRowRuns(
       const tailEnd = endOf(true)
       const leadEnd = endOf(false)
       return near >= 0
-        ? near > flank === spanStart[steps[near]!]! > spanStart[steps[flank]!]!
+        ? near > flank === stepPlace[near]! > stepPlace[flank]!
         : fragHi > fragLo
           ? undefined
           : tailEnd.departure
@@ -738,8 +804,8 @@ export function walkRowRuns(
         shortBp: contigEnds
           ? Math.max(
               0,
-              cut!.start - spanEnd[steps[last]!]!,
-              spanStart[steps[last]!]! - cut!.end,
+              cut!.start - stepPlace[last]! - lengthOf(steps[last]!),
+              stepPlace[last]! - cut!.end,
             )
           : 0,
         ...(departure
@@ -779,10 +845,61 @@ export function walkRowRuns(
     let flankTo = -1
     let axisStart: number | undefined
     let stop: WalkStop | undefined
-    const placeStart = (i: number) => {
-      const id = steps[i]!
-      return id < 0 || partsAt.has(i) ? Number.NaN : spanStart[id]!
+    if (stepPlace.length < length) {
+      stepPlace = new Float64Array(steps.length)
     }
+    const placeable = (i: number) =>
+      steps[i]! >= 0 && !partsAt.has(i) && !placeholder(steps[i]!)
+    const passedOnce = (i: number) =>
+      placeable(i) &&
+      !Number.isNaN(spanStart[steps[i]!]!) &&
+      !revisits.has(steps[i]!)
+    const placeOutward = (origin: number, toward: 1 | -1) => {
+      let cursor = Number.NaN
+      let abutting: 'start' | 'end' | undefined
+      let neighbour = Number.NaN
+      for (let i = origin; i >= 0 && i < length; i += toward) {
+        const id = steps[i]!
+        const place = placeable(i)
+          ? placeNear(id, cursor, abutting)
+          : Number.NaN
+        stepPlace[i] = place
+        if (!Number.isNaN(place)) {
+          const placeEnd = place + lengthOf(id)
+          const turned =
+            toward > 0 ? placeEnd === neighbour : place === neighbour
+          const leftward = toward > 0 === turned
+          cursor = leftward ? place : placeEnd
+          abutting = leftward ? 'end' : 'start'
+          neighbour = toward > 0 ? place : placeEnd
+        }
+      }
+    }
+    if (walkName === reference) {
+      for (let i = 0; i < length; i++) {
+        stepPlace[i] = placeable(i) ? stepStart[i]! : Number.NaN
+      }
+    } else if (stated) {
+      for (let i = 0; i < length; i++) {
+        stepPlace[i] =
+          placeable(i) && referenceHolds(steps[i]!, stepStated[i]!)
+            ? stepStated[i]!
+            : Number.NaN
+      }
+    } else {
+      let firstPassedOnce = 0
+      while (firstPassedOnce < length && !passedOnce(firstPassedOnce)) {
+        firstPassedOnce++
+      }
+      const anchor = firstPassedOnce < length ? firstPassedOnce : 0
+      placeOutward(anchor, 1)
+      placeOutward(anchor, -1)
+    }
+    const placeStart = (i: number) => stepPlace[i]!
+    const fromElsewhere = (i: number) =>
+      placeable(i) &&
+      Number.isNaN(stepPlace[i]!) &&
+      Number.isFinite(stepStated[i]!)
     const stopsInside = (i0: number, i1: number, inside: boolean) => {
       complete = false
       const side = i0 >= 0 || i1 >= 0 ? partialSide(i0, i1, inside) : undefined
@@ -790,6 +907,14 @@ export function walkRowRuns(
         ;({ lo, hi, backward, axisStart, stop } = side)
       }
     }
+    // The walk's steps on the reference outside the window, in walk order,
+    // and its passes over the window: each a step left of it and one right of
+    // it next to each other on the contig, the left one first where the pass
+    // runs along the reference and last where it runs reversed
+    const outside: { i: number; left: boolean }[] = []
+    const passes: { i0: number; i1: number }[] = []
+    let loneFlank = -1
+    let loneLeft = false
     if (cut && flanked) {
       let i0 = -1
       let i1 = -1
@@ -799,6 +924,11 @@ export function walkRowRuns(
         const start = placeStart(i)
         if (!Number.isNaN(start)) {
           const stepEndBp = start + lengthOf(steps[i]!)
+          if (stepEndBp <= cut.start) {
+            outside.push({ i, left: true })
+          } else if (start >= cut.end) {
+            outside.push({ i, left: false })
+          }
           if (stepEndBp <= cut.start && stepEndBp > bestEnd) {
             bestEnd = stepEndBp
             i0 = i
@@ -809,14 +939,52 @@ export function walkRowRuns(
           }
         }
       }
-      if (i0 < 0 || i1 < 0) {
-        stopsInside(i0, i1, false)
+      // A pass reads the way the walk runs at its flanks: one from the right
+      // to the left is the walk reading the reference backwards, not a walk
+      // that went right, out of the window, and jumped back past it
+      const runsOn = (p: number, q: number) => {
+        const before = p > 0 ? placeStart(p - 1) : Number.NaN
+        const after = q + 1 < length ? placeStart(q + 1) : Number.NaN
+        const rightward = placeStart(q) > placeStart(p)
+        return (
+          (Number.isNaN(before) || before < placeStart(p) === rightward) &&
+          (Number.isNaN(after) || after > placeStart(q) === rightward)
+        )
+      }
+      for (let k = 1; k < outside.length; k++) {
+        const a = outside[k - 1]!
+        const b = outside[k]!
+        if (a.left !== b.left && runsOn(a.i, b.i)) {
+          passes.push(a.left ? { i0: a.i, i1: b.i } : { i0: b.i, i1: a.i })
+        }
+      }
+      const pass = passes[0]
+      if (pass) {
+        lo = Math.min(pass.i0, pass.i1) + 1
+        hi = Math.max(pass.i0, pass.i1)
+        backward = pass.i0 > pass.i1
+        flankFrom = pass.i0
+        flankTo = pass.i1
       } else {
-        lo = Math.min(i0, i1) + 1
-        hi = Math.max(i0, i1)
-        backward = i0 > i1
-        flankFrom = i0
-        flankTo = i1
+        stopsInside(i0, i1, false)
+        const sided = stop !== undefined
+        const flank = sided ? (i0 >= 0 ? i0 : i1) : -1
+        loneFlank = flank
+        loneLeft = i0 >= 0
+        const after = outside.find(step => step.i > flank)?.i
+        const before = outside.findLast(step => step.i < flank)?.i
+        if (flank >= 0 && lo > flank && after !== undefined && after < hi) {
+          hi = after
+          stop = { contigEnds: false, shortBp: 0, turnsBack: true }
+        } else if (
+          flank >= 0 &&
+          hi <= flank + 1 &&
+          before !== undefined &&
+          before >= lo
+        ) {
+          lo = before + 1
+          stop = { contigEnds: false, shortBp: 0, turnsBack: true }
+        }
       }
     } else if (
       cut &&
@@ -870,9 +1038,84 @@ export function walkRowRuns(
               ? { contig, start: stepEnd(flankFrom), reversed: false }
               : { contig, start: stepStart[flankFrom]!, reversed: true }
 
+    // A pass's steps from `lo` to `hi`, read from its flank on the left,
+    // measured over the window: on the reference, a step's bp less what lies
+    // between the pass's own flanks (`end`, `start`) and the window, and off
+    // it, a run's bp unless it leaves the reference there, so every pass is
+    // measured over the reference's interval. A step elsewhere, as a
+    // rearranged walk takes, counts whole. A run off the reference that
+    // replaces bp on both sides of a window edge has no share of the window
+    // to count, so the pass `crosses` it.
+    const measurePass = (
+      firstStep: number,
+      pastStep: number,
+      reversed: boolean,
+      leftEnd: number,
+      rightStart: number,
+    ) => {
+      const window = cut ?? { start: -Infinity, end: Infinity }
+      const between = (a: number, b: number) =>
+        Math.max(0, Math.min(b, window.start) - Math.max(a, leftEnd)) +
+        Math.max(0, Math.min(b, rightStart) - Math.max(a, window.end))
+      const outsideWindow = (at: number) =>
+        Number.isFinite(at) &&
+        ((at >= leftEnd && at < window.start) ||
+          (at >= window.end && at <= rightStart))
+      const across = (a: number, b: number) => {
+        const l = Math.min(a, b)
+        const r = Math.max(a, b)
+        return (
+          (l < window.start && r > window.start) ||
+          (l < window.end && r > window.end)
+        )
+      }
+      let measured = 0
+      let total = 0
+      let elsewhereBp = 0
+      let onBp = 0
+      let unreadBp = 0
+      let crosses = false
+      let away = false
+      let left = Number.NaN
+      let lastPlace = Number.NaN
+      for (let k = firstStep; k < pastStep; k++) {
+        const index = reversed ? pastStep - 1 - (k - firstStep) : k
+        const id = steps[index]!
+        const at = Number.isNaN(left) ? leftEnd : left
+        const len = id < 0 ? -id : lengthOf(id)
+        const place = stepPlace[index]!
+        total += len
+        if (Number.isNaN(place)) {
+          measured += outsideWindow(at) ? 0 : len
+          elsewhereBp += fromElsewhere(index) ? len : 0
+          unreadBp += id < 0 ? len : 0
+          away = true
+        } else {
+          crosses ||= away && across(at, place)
+          away = false
+          measured += len - between(place, place + len)
+          onBp += len
+          left = place + len === lastPlace ? place : place + len
+          lastPlace = place
+        }
+      }
+      crosses ||=
+        away && across(Number.isNaN(left) ? leftEnd : left, rightStart)
+      return {
+        bp: total,
+        windowBp: measured,
+        crosses,
+        reversed,
+        fromElsewhereBp: elsewhereBp,
+        onReferenceBp: onBp,
+        gapBp: unreadBp,
+      }
+    }
+
     let bp = 0
     let offReferenceBp = 0
     let unloadedBp = 0
+    let fromElsewhereBp = 0
     let gapBp = 0
     // which way the last run steps through the reference, 0 while it holds
     // one node
@@ -880,31 +1123,6 @@ export function walkRowRuns(
     let last = -1
     let lastFlags = 0
     let lastRef = Number.NaN
-    // where the walk last left the reference, kept across the runs off it
-    let cursor = Number.NaN
-    // A node the reference walks more than once takes the visit nearest where
-    // the walk left the reference, so a copy of a collapsed repeat follows the
-    // reference copy it continues; the first visit where nothing precedes it
-    const placeOf = (id: number) => {
-      const starts = revisits.get(id)
-      if (!starts || Number.isNaN(cursor)) {
-        return spanStart[id]!
-      }
-      const len = lengthOf(id)
-      let best = starts[0]!
-      let bestGap = Infinity
-      for (const start of starts) {
-        const gap = Math.min(
-          Math.abs(start - cursor),
-          Math.abs(start + len - cursor),
-        )
-        if (gap < bestGap) {
-          best = start
-          bestGap = gap
-        }
-      }
-      return best
-    }
     const runBp = runs.values[1]!
     const runRef = runs.values[2]!
     const runFlags = runs.values[3]!
@@ -934,14 +1152,21 @@ export function walkRowRuns(
       }
       const len = lengthOf(id)
       const unloaded = placeholder(id)
-      const at = unloaded ? Number.NaN : placeOf(id)
+      const at = stepPlace[index]!
       const on = !Number.isNaN(at)
       visits?.push(id, bp, len, on ? 1 : 0, unloaded ? 1 : 0)
       const placed = last >= 0 && !Number.isNaN(lastRef)
       const forward =
         on && placed && step >= 0 && lastRef + (runBp[last] ?? 0) === at
       const back = on && placed && step <= 0 && at + len === lastRef
-      const flags = on ? RUN_ON_REFERENCE : unloaded ? RUN_UNLOADED : 0
+      const elsewhere = fromElsewhere(index)
+      const flags = on
+        ? RUN_ON_REFERENCE
+        : unloaded
+          ? RUN_UNLOADED
+          : elsewhere
+            ? RUN_FROM_ELSEWHERE
+            : 0
       if (!on && last >= 0 && lastFlags === flags) {
         runBp[last]! += len
       } else if (forward || back) {
@@ -961,14 +1186,56 @@ export function walkRowRuns(
         step = 0
       }
       bp += len
-      if (on) {
-        cursor = step < 0 ? at : at + len
-      } else if (unloaded) {
+      if (unloaded) {
         unloadedBp += len
-      } else {
+      } else if (!on) {
         offReferenceBp += len
+        fromElsewhereBp += elsewhere ? len : 0
       }
     }
+    const placedEnd = (i: number) => placeStart(i) + lengthOf(steps[i]!)
+    const passOf = (p: { i0: number; i1: number }) =>
+      measurePass(
+        Math.min(p.i0, p.i1) + 1,
+        Math.max(p.i0, p.i1),
+        p.i0 > p.i1,
+        placedEnd(p.i0),
+        placeStart(p.i1),
+      )
+    // a pass whose own sequence crosses a window edge has no length over the
+    // window, only the reference's bp between its flanks that it replaces
+    const passMeta = (p: { i0: number; i1: number }): WalkPass => {
+      const m = passOf(p)
+      return {
+        bp: m.bp,
+        windowBp: m.windowBp,
+        reversed: m.reversed,
+        ...(m.crosses
+          ? {
+              replacedBp: placeStart(p.i1) - placedEnd(p.i0),
+              onReferenceBp: m.onReferenceBp,
+              gapBp: m.gapBp,
+            }
+          : {}),
+        ...(m.fromElsewhereBp > 0
+          ? { fromElsewhereBp: m.fromElsewhereBp }
+          : {}),
+      }
+    }
+    const measured:
+      | Pick<WalkPass, 'windowBp' | 'replacedBp' | 'onReferenceBp'>
+      | undefined =
+      flankFrom >= 0
+        ? passMeta({ i0: flankFrom, i1: flankTo })
+        : loneFlank >= 0
+          ? measurePass(
+              lo,
+              hi,
+              backward,
+              loneLeft ? placedEnd(loneFlank) : -Infinity,
+              loneLeft ? Infinity : placeStart(loneFlank),
+            )
+          : undefined
     const departureGapBp = stepless ? departureRuns(own, bar) : 0
     runs.endRow()
     visits?.endRow()
@@ -988,10 +1255,22 @@ export function walkRowRuns(
           offReferenceBp,
           gapBp,
           complete,
+          ...(measured?.replacedBp !== undefined
+            ? {
+                replacedBp: measured.replacedBp,
+                onReferenceBp: measured.onReferenceBp ?? 0,
+              }
+            : measured
+              ? { windowBp: measured.windowBp }
+              : {}),
+          ...(passes.length > 1
+            ? { morePasses: passes.slice(1).map(passMeta) }
+            : {}),
           stop,
           axis,
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
           ...(unloadedBp > 0 ? { unloadedBp } : {}),
+          ...(fromElsewhereBp > 0 ? { fromElsewhereBp } : {}),
           ...(undrawn.length > 0 ? { departures: undrawn } : {}),
           ...outsideOf(walkName),
           ...(own.some(placementChoice)
@@ -1022,7 +1301,11 @@ export function walkRowRuns(
     )
   }
 
-  const referenceRow = rowOf(referencePieces)
+  const revisitCount = o.revisited ?? revisited
+  const referenceRow = {
+    ...rowOf(referencePieces),
+    ...(revisitCount === undefined ? {} : { revisited: revisitCount }),
+  }
   const { axis } = referenceRow
   const bar = axis
     ? {
@@ -1034,12 +1317,27 @@ export function walkRowRuns(
     meta: rowOf(pieces, bar),
     row: i + 1,
   }))
-  const drawn = new Set(walks.keys())
+  // a haplotype with a walk in the cut is drawn by it; its other contigs'
+  // departures over the window are counted on its first row, not drawn
+  const drawnHaplotypes = new Set(
+    [nameOf(first), ...walks.keys()].map(haplotypeOf),
+  )
+  const otherContigs = new Map<
+    string,
+    { contigs: number; departures: number }
+  >()
   for (const [name, own] of departuresOf) {
-    if (!drawn.has(name)) {
+    const haplotype = haplotypeOf(name)
+    if (!drawnHaplotypes.has(haplotype)) {
       rows.push({
         meta: steplessRowOf(name, own, bar),
         row: rows.length + 1,
+      })
+    } else if (!walks.has(name)) {
+      const counted = otherContigs.get(haplotype)
+      otherContigs.set(haplotype, {
+        contigs: (counted?.contigs ?? 0) + 1,
+        departures: (counted?.departures ?? 0) + own.length,
       })
     }
   }
@@ -1055,8 +1353,16 @@ export function walkRowRuns(
     (a, b) =>
       Number(b.meta.complete) - Number(a.meta.complete) ||
       b.meta.bp - a.meta.bp ||
-      a.meta.label.localeCompare(b.meta.label),
+      compareIds(a.meta.label, b.meta.label),
   )
+  for (const meta of [referenceRow, ...rows.map(r => r.meta)]) {
+    const haplotype = haplotypeOf(meta.name)
+    const counted = otherContigs.get(haplotype)
+    if (counted) {
+      meta.otherContigs = counted
+      otherContigs.delete(haplotype)
+    }
+  }
   const order = [0, ...rows.map(r => r.row)]
   const offsets = runs.rowOffsets(order)
   const start = runs.reorder(order, 0, float64)
@@ -1171,6 +1477,9 @@ export function runAt(t: WalkRowRuns, k: number): WalkRun {
   }
   if (f & RUN_UNLOADED) {
     run.unloaded = true
+  }
+  if (f & RUN_FROM_ELSEWHERE) {
+    run.fromElsewhere = true
   }
   return run
 }

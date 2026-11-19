@@ -1,5 +1,8 @@
 import { parseGFA } from './gfa-core/index'
+import { departureTable } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
+import { gfaTables } from './gfa/gfaTables'
+import { graphFromTables } from './gfa/graphTables'
 import { anchorGraph } from './pathAnchoring'
 import { computeReferenceRamp } from './renderer/GeometryBuilder'
 import {
@@ -11,6 +14,8 @@ import {
 } from './walkEncoding'
 import { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 import { walkKey, walkPosition } from './walkKey'
+
+import type { Graph } from './types'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3, taking a1 in place of v2. The a1->v3
 // link is written the other way round in the file, so the walk's step has to
@@ -32,11 +37,11 @@ test('a walk lifts its nodes, its links either way round, and its bp', () => {
   const h = walkHighlight(graph, 'alt#1#chr')!
   expect([...h.nodeIds]).toEqual(['v1+', 'a1+', 'v3+'])
   expect([...h.edgeIndexes].sort((a, b) => a - b)).toEqual([2, 3])
-  expect(h).toMatchObject({ steps: 3, bp: 13, referenceBp: 9 })
+  expect(h).toMatchObject({ steps: 3, bp: 13 })
 })
 
-test('the reference walk compares to nothing, and a stranger is undefined', () => {
-  expect(walkHighlight(graph, 'ref#0#chr')!.referenceBp).toBeUndefined()
+test('the reference walk is marked, and a stranger is undefined', () => {
+  expect(walkHighlight(graph, 'ref#0#chr')!.reference).toBe(true)
   expect(walkHighlight(graph, 'nobody')).toBeUndefined()
 })
 
@@ -53,13 +58,11 @@ L\ta1\t+\tv3\t+\t0M
 P\tK12#1#chr:1000-1009\tv1+,v2+,v3+\t*
 P\tSakai#1#chr:2000-2013\tv1+,a1+,v3+\t*`
 
-test('a walk is measured against a reference path whose name carries a range', () => {
+test('a reference path whose name carries a range is the reference walk', () => {
   const extracted = anchorGraph(convertGFAToGraph(parseGFA(ODGI)), 'K12')
   const h = walkHighlight(extracted, 'Sakai#1#chr:2000-2013')!
-  expect(h).toMatchObject({ bp: 13, referenceBp: 9 })
-  expect(
-    walkHighlight(extracted, 'K12#1#chr:1000-1009')!.referenceBp,
-  ).toBeUndefined()
+  expect(h).toMatchObject({ bp: 13, reference: false })
+  expect(walkHighlight(extracted, 'K12#1#chr:1000-1009')!.reference).toBe(true)
 })
 
 // vg names each piece of a cut walk `sample#hap#contig#start[from-to]`, and the
@@ -125,6 +128,51 @@ test('a walk lifted alone shades light to dark along itself', () => {
   expect(inv!.colors.get('v1+')).toBe(schemeColor('blue', 7 / 9))
 })
 
+test('a stated value paints a walk that colour, the reference too, and its key', () => {
+  const lift = walkLift(
+    walks,
+    [
+      { walk: 'ref#0#chr', color: { value: '#5c5c5c' } },
+      { walk: 'alt#1#chr', color: { value: '#2a9fd0', field: 'progress' } },
+      { walk: 'inv#1#chr', color: { value: 'teal' } },
+    ],
+    ramp,
+  )!
+  expect(lift.walks.map(w => [w.name, w.encoding])).toEqual([
+    ['ref#0#chr', { field: 'walk', scheme: 'grey', value: '#5c5c5c' }],
+    ['alt#1#chr', { field: 'walk', scheme: 'blue', value: '#2a9fd0' }],
+    ['inv#1#chr', { field: 'walk', scheme: 'red' }],
+  ])
+  const [ref, alt] = lift.walks
+  expect(new Set(ref!.colors.values())).toEqual(
+    new Set([
+      encodedColor({ field: 'walk', scheme: 'grey', value: '#5c5c5c' }),
+    ]),
+  )
+  expect(new Set(alt!.colors.values()).size).toBe(1)
+  expect(encodingStops(alt!.encoding)).toEqual([
+    {
+      offset: 0,
+      color: 'rgb(42, 159, 208)',
+      abgr: [...alt!.colors.values()][0],
+    },
+  ])
+})
+
+test('a walk lifted alone with a stated value is that one colour', () => {
+  const [ref] = walkLift(
+    walks,
+    [{ walk: 'ref#0#chr', color: { value: '#abc' } }],
+    ramp,
+  )!.walks
+  expect(ref!.encoding).toEqual({
+    field: 'walk',
+    scheme: 'grey',
+    value: '#abc',
+  })
+  expect(encodingStops(ref!.encoding)[0]!.color).toBe('rgb(170, 187, 204)')
+})
+
 test('a walk states where its stretch sits on its own contig, from its record', () => {
   const lift = walkLift(walks, [{ walk: 'alt#1#chr' }], ramp)!
   expect(lift.walks[0]!.range).toEqual({ contig: 'chr', start: 0, end: 13 })
@@ -181,19 +229,6 @@ test('the rainbow is only for reference position', () => {
   expect(alt!.encoding).toEqual({ field: 'progress', scheme: 'blue' })
 })
 
-test('a walk crossing the reference backwards says where it does', () => {
-  const lift = walkLift(walks, [
-    { walk: 'ref#0#chr' },
-    { walk: 'alt#1#chr' },
-    { walk: 'inv#1#chr' },
-  ])!
-  const [ref, alt, inv] = lift.walks
-  expect(ref!.reversed.size).toBe(0)
-  expect(alt!.reversed.size).toBe(0)
-  expect(inv!.reversed).toEqual(new Set(['v3+', 'v2+', 'v1+']))
-  expect(inv!.reversedBp).toBe(9)
-})
-
 test('reference position is charcoal off the reference, and may take the rainbow', () => {
   const [alt, inv] = walkLift(
     walks,
@@ -225,12 +260,10 @@ test('a facet lifts each walk alone on the shared scale, unless its layer states
   expect(alt!.walks[0]!.colors.get('a1+')).toBe(schemeColor('green', 7 / 13))
 })
 
-test('a walk key writes the stretch a shading lane runs over, and leaves a flat one to hover', () => {
+test('a walk key states no length against the reference and no reversed bp, writes the stretch a shading lane runs over, and leaves a flat one to hover', () => {
   const [inv] = walkLift(walks, [{ walk: 'inv#1#chr' }], ramp)!.walks
   expect(walkKey(inv!)).toEqual({
-    delta: '',
     gaps: '',
-    reversed: ', 9 bp reversed',
     shades: true,
     scale: 'chr:1-9 (9 bp)',
     hover: undefined,
@@ -238,8 +271,8 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
   const [alt] = walkLift(walks, [
     { walk: 'alt#1#chr', color: { field: 'walk' } },
   ])!.walks
-  expect(walkKey(alt!)).toMatchObject({
-    delta: ' +4 bp',
+  expect(walkKey(alt!)).toEqual({
+    gaps: '',
     shades: false,
     scale: undefined,
     hover: 'chr:1-13 (13 bp)',
@@ -254,27 +287,6 @@ test('a walk key writes the stretch a shading lane runs over, and leaves a flat 
   )
 })
 
-// A cut hands a reference back in pieces too, so it is measured over the gap
-// between them, as the walk is
-test('a walk identical to a reference cut in two pieces keys no delta', () => {
-  const cut = anchorGraph(
-    convertGFAToGraph(
-      parseGFA(`S\tv1\tAAAA
-S\tv2\tCC
-S\tv3\tGGG
-L\tv1\t+\tv2\t+\t0M
-W\tref\t0\tchr\t0\t6\t>v1>v2
-W\tref\t0\tchr\t10\t13\t>v3
-W\talt\t1\tchr\t0\t6\t>v1>v2
-W\talt\t1\tchr\t10\t13\t>v3`),
-    ),
-    'ref',
-  )
-  expect(walkHighlight(cut, 'alt#1#chr')!.referenceBp).toBe(13)
-  const [alt] = walkLift(cut, [{ walk: 'alt#1#chr' }])!.walks
-  expect(walkKey(alt!).delta).toBe('')
-})
-
 test("a node's position on a walk is its stretch on the walk's own contig", () => {
   const [alt, inv] = walkLift(walks, [
     { walk: 'alt#1#chr' },
@@ -285,7 +297,7 @@ test("a node's position on a walk is its stretch on the walk's own contig", () =
   expect(walkPosition(inv!, 'a1+', 6)).toBeUndefined()
 })
 
-test('a walk in a tagged walk cut measures itself against the reference walk', () => {
+test('a walk in a tagged walk cut is not the reference walk', () => {
   const gfa = [
     'S\t1\t*\tLN:i:10\tSN:Z:GRCh38#0#chr1\tSO:i:100\tSR:i:0',
     'S\t2\t*\tLN:i:5',
@@ -300,7 +312,6 @@ test('a walk in a tagged walk cut measures itself against the reference walk', (
   const name = looped.paths!.find(p => p.name.startsWith('HG1'))!.name
   const walk = walkHighlight(looped, name)!
   expect(walk.reference).toBe(false)
-  expect(walk.referenceBp).toBe(20)
 })
 
 const REPEAT = `${GFA}
@@ -419,4 +430,137 @@ test('ramps past the fourth walk split their family, the first taking the pale e
   expect(stops(first)[0]).toBe(stops(lifted(4)[0])[0])
   expect(stops(first).filter(c => stops(fifth).includes(c))).toEqual([])
   expect(stops(first).at(-1)).not.toBe(stops(fifth)[0])
+})
+
+// GRCh38 reads r4 r5 r6 forward; HAPA reads r5 inverted between them, on the
+// links r4+ r5- and r5- r6+ that join the same nodes as GRCh38's
+const SELFIES = [
+  'S\tr1\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:0\tSR:i:0',
+  'S\tr2\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:2000\tSR:i:0',
+  'S\tr3\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:4000\tSR:i:0',
+  'S\tr4\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:6000\tSR:i:0',
+  'S\tr5\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:8000\tSR:i:0',
+  'S\tr6\t*\tLN:i:2000\tSN:Z:GRCh38#0#chrS\tSO:i:10000\tSR:i:0',
+  'S\ta\t*\tLN:i:2000',
+  'S\tg\t*\tLN:i:2000',
+  'S\th\t*\tLN:i:2000',
+  'L\tr1\t+\tr2\t+\t0M',
+  'L\tr2\t+\tr3\t+\t0M',
+  'L\tr3\t+\tr4\t+\t0M',
+  'L\tr4\t+\tr5\t+\t0M',
+  'L\tr5\t+\tr6\t+\t0M',
+  'L\tr1\t+\ta\t+\t0M',
+  'L\ta\t+\ta\t+\t0M',
+  'L\ta\t+\tr2\t+\t0M',
+  'L\tr3\t+\tg\t-\t0M',
+  'L\tg\t-\tg\t+\t0M',
+  'L\tg\t+\tr4\t+\t0M',
+  'L\tr4\t+\tr5\t-\t0M',
+  'L\tr5\t-\tr6\t+\t0M',
+  'L\tr2\t+\th\t+\t0M',
+  'L\th\t+\th\t-\t0M',
+  'W\tGRCh38\t0\tchrS\t0\t12000\t>r1>r2>r3>r4>r5>r6',
+  'W\tHAPA\t1\tctgA\t0\t20000\t>r1>a>a>r2>r3<g>g>r4<r5>r6',
+  'W\tHAPB\t1\tctgB\t0\t12000\t>r1>r2>h<h<r2<r1',
+].join('\n')
+
+const linksOf = (g: Graph, edges: Set<number>) =>
+  [...edges]
+    .map(i => g.edges[i]!)
+    .map(
+      e =>
+        `${e.from.slice(0, -1)}${e.fromStrand} ${e.to.slice(0, -1)}${e.toStrand}`,
+    )
+    .sort()
+
+test("a lifted walk's lane lies on the links it steps, not on another orientation's between the same nodes", () => {
+  const selfies = anchorGraph(convertGFAToGraph(parseGFA(SELFIES)), 'GRCh38')
+  const [reference, inverted] = walkLift(selfies, [
+    { walk: 'GRCh38#0#chrS' },
+    { walk: 'HAPA#1#ctgA' },
+  ])!.walks
+  const referenceLinks = linksOf(selfies, reference!.edgeIndexes)
+  expect(referenceLinks).toEqual(expect.arrayContaining(['r4+ r5+', 'r5+ r6+']))
+  expect(referenceLinks).not.toContain('r4+ r5-')
+  expect(referenceLinks).not.toContain('r5- r6+')
+  expect(linksOf(selfies, inverted!.edgeIndexes)).toEqual(
+    expect.arrayContaining(['r4+ r5-', 'r5- r6+']),
+  )
+  expect(linksOf(selfies, inverted!.edgeIndexes)).not.toContain('r4+ r5+')
+})
+
+// up reads b after a, down reads them both reversed, b first: two links join
+// a and b, a's end to b's start and b's end to a's start
+const BOTH_WAYS = `S\ta\tAAAA
+S\tb\tCC
+L\ta\t+\tb\t+\t0M
+L\tb\t+\ta\t+\t0M
+W\tup\t0\tchr\t0\t6\t>a>b
+W\tdown\t1\tchr\t0\t6\t<b<a
+W\tround\t2\tchr\t0\t6\t>b>a`
+
+test('two links between one pair of nodes each carry the walks that step them', () => {
+  const both = anchorGraph(convertGFAToGraph(parseGFA(BOTH_WAYS)), 'up')
+  const forward = both.edges.findIndex(e => e.from === 'a+' && e.to === 'b+')
+  const back = both.edges.findIndex(e => e.from === 'b+' && e.to === 'a+')
+  const lift = walkLift(both, [
+    { walk: 'up#0#chr' },
+    { walk: 'down#1#chr' },
+    { walk: 'round#2#chr' },
+  ])!
+  expect(lift.walks.map(w => [...w.edgeIndexes])).toEqual([
+    [forward],
+    [forward],
+    [back],
+  ])
+})
+
+// GRCh38 reads 1 2 3; A reads 1, then leaves for 8, which its departure
+// steps reversed, and rejoins at 3. Two links join 1 and 8, and two join 8
+// and 3, one for each way 8 can be read; the graph holds 8- 3+ as 3- 8+
+function reversedDeparture() {
+  const t = gfaTables(
+    [
+      'H\tVN:Z:1.1',
+      ...[1, 2, 3, 8].map(id => `S\t${id}\t*\tLN:i:1000`),
+      'L\t1\t+\t2\t+\t0M',
+      'L\t2\t+\t3\t+\t0M',
+      'L\t1\t+\t8\t+\t0M',
+      'L\t1\t+\t8\t-\t0M',
+      'L\t8\t+\t3\t+\t0M',
+      'L\t8\t-\t3\t+\t0M',
+      'W\tGRCh38\t0\tchr1\t0\t3000\t>1>2>3',
+      'W\tA\t1\ta\t0\t1000\t>1',
+      'W\tA\t1\ta\t2000\t3000\t>3',
+    ].join('\n'),
+  )!
+  return graphFromTables({
+    ...t,
+    departures: departureTable(),
+    gaps: {
+      names: ['A#1#a'],
+      walks: Int32Array.of(1),
+      edges: Uint8Array.of(0),
+      starts: Float64Array.of(1000),
+      ends: Float64Array.of(2000),
+      segmentOffsets: Int32Array.of(0, 1),
+      segments: {
+        kinds: Uint8Array.of(0),
+        bp: Float64Array.of(1000),
+        missingBp: Float64Array.of(0),
+        before: Float64Array.of(NaN),
+        after: Float64Array.of(NaN),
+        stepOffsets: Int32Array.of(0, 1),
+        steps: Int32Array.of(t.nodes.names.indexOf('8')),
+        reversed: Uint8Array.of(1),
+      },
+    },
+  })
+}
+
+test("a lifted walk's departure takes the links its steps read their nodes on, where another link joins the same nodes the other way", () => {
+  const departed = reversedDeparture()
+  expect(
+    linksOf(departed, walkHighlight(departed, 'A#1#a')!.edgeIndexes),
+  ).toEqual(['1+ 8-', '3- 8+'])
 })

@@ -1,3 +1,4 @@
+import { curvePointAt } from '../util/geometry'
 import {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
@@ -167,7 +168,8 @@ test('a deletion drawn by walks widens with them, no thinner than a link', () =>
       graph,
       nodeById: new Map(graph.nodes.map(n => [n.id, n])),
       colorScheme: 'uniform',
-      axis: iso(),
+      // A to B spans 40 px, long enough to dash
+      axis: iso(4),
       contigThickness: 5,
       connectorThickness: 2,
       drawPaths: false,
@@ -912,6 +914,102 @@ describe('arrowhead placement', () => {
     const deletion = headOf(simplePositions, 4, 2, new Map([[0, []]]))!
     expect(deletion.length).toBe(plain.length)
     expect(deletion.halfWidth).toBe(plain.halfWidth)
+  })
+
+  // A skip at its true span: B starts 10 layout units past A's end, and a
+  // bowed one rises over what it bypasses between them
+  const skipAt = (scale: number, bypassed?: string[]) => {
+    const batch = buildGeometry({
+      nodePositions: {
+        ...simplePositions,
+        'M+': [
+          { x: 12, y: -8 },
+          { x: 18, y: -8 },
+        ],
+      },
+      graph: simpleGraph,
+      nodeById: simpleNodeById,
+      colorScheme: 'uniform',
+      contigThickness: 6,
+      connectorThickness: 2,
+      drawPaths: false,
+      axis: iso(scale),
+      deletions: bypassed && new Map([[0, bypassed]]),
+    })
+    const run = batch.edgeCurveRuns.get(0)
+    return {
+      strokes: run
+        ? batch.edgeCurves.slice(run.start, run.start + run.count)
+        : [],
+      heads: batch.arrowRuns.get(0)?.count ?? 0,
+    }
+  }
+
+  test('a skip three dashes long on screen is dashed, with a head', () => {
+    const { strokes, heads } = skipAt(4, [])
+    expect(strokes.length).toBeGreaterThanOrEqual(2)
+    expect(strokes.every(s => s.skip)).toBe(true)
+    expect(heads).toBe(1)
+  })
+
+  // HG02055's 50 bp skip at chr1:27,853,212, about 27 px there, drew as two
+  // or three heavy dashes under a head: a black dart on the backbone
+  test('a skip shorter than three dashes on screen is one plain stroke with no head', () => {
+    for (const scale of [0.6, 2.7, 3.2]) {
+      const { strokes, heads } = skipAt(scale, [])
+      expect(strokes).toHaveLength(1)
+      expect(strokes[0]!.thickness).toBe(1)
+      expect(strokes[0]!.skip).toBe(true)
+      expect(heads).toBe(0)
+    }
+  })
+
+  // dashes on the legs a short skip rises and falls on are dots under a head
+  test('a bowed skip is dashed by the span it jumps, not its length along the bow', () => {
+    const bowed = skipAt(2.7, ['M+'])
+    expect(bowed.strokes).toHaveLength(1)
+    expect(bowed.heads).toBe(0)
+    let alongPx = 0
+    for (const c of bowed.strokes[0]!.curves) {
+      for (let i = 1; i <= 16; i++) {
+        const a = curvePointAt(c, (i - 1) / 16)
+        const b = curvePointAt(c, i / 16)
+        alongPx += Math.hypot(b.x - a.x, b.y - a.y) * 2.7
+      }
+    }
+    expect(alongPx).toBeGreaterThan(33)
+    expect(skipAt(4, ['M+']).strokes.length).toBeGreaterThanOrEqual(2)
+  })
+
+  // the 1-5 bp skips at the amylase locus, at 240 kb across the pane, drew
+  // as loops along the backbone; dropping them left pggb chrY's 88,829 bp
+  // skip at 9.3 Mb, which seven haplotypes carry, drawn nowhere
+  test("a skip under a pixel on screen is drawn as the plain link it is, over the nodes in a skip's ink", () => {
+    const link = skipAt(0.05)
+    expect(link.strokes).toHaveLength(1)
+    expect(link.strokes[0]!.skip).toBeUndefined()
+    const overNodes = {
+      ...link,
+      strokes: [
+        {
+          ...link.strokes[0]!,
+          color: skipAt(0.2, []).strokes[0]!.color,
+          skip: true,
+          span: 0,
+        },
+      ],
+    }
+    expect(skipAt(0.05, [])).toEqual(overNodes)
+    expect(skipAt(0.05, ['M+'])).toEqual(overNodes)
+  })
+
+  test('a skip a twentieth of a px across is stroked in the ink of one 2 px across', () => {
+    const arc = skipAt(0.2, []).strokes[0]!
+    const fallback = skipAt(0.005, []).strokes[0]!
+    expect(arc.span).toBeCloseTo(2, 5)
+    expect(fallback).toMatchObject({ skip: true, span: 0 })
+    expect(fallback.color).toBe(arc.color)
+    expect(fallback.color).not.toBe(skipAt(0.005).strokes[0]!.color)
   })
 
   // a head is 10 px on a plain link, so it waits for 30 px of link

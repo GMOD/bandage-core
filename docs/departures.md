@@ -18,12 +18,12 @@ In the HPRC graph, HG002#2, HG00097#1, HG00097#2 and HG01960#2 lack 18 kb of
 GRCh38 around GSTM1, from chr1:109,683,912 to 109,702,357.
 
 In the region chr1:109,680,000-109,700,000, the deletion starts inside the
-region and ends 2.4 kb past it. The four bars stop after 4 kb, and the text
-beside each reads `≥ 4.0 kb · goes on near chr1:109.7 Mb · 0 bp of its own`. At
-least 4 kb of the haplotype is in view, it follows the reference again near
+region and ends 2.4 kb past it. The four bars stop after 3.9 kb, and the text
+beside each reads `≥ 3.9 kb · goes on near chr1:109.7 Mb · 0 bp of its own`. At
+least 3.9 kb of the haplotype is in view, it follows the reference again near
 109.7 Mb, and it has no sequence of its own in between, so this is a deletion.
 
-![Walk rows for chr1:109,680,000-109,700,000. GRCh38, HG01960#1 and HG002#1 run the full 20 kb. HG00097#1, HG00097#2, HG002#2 and HG01960#2 stop after 4 kb, each labelled "≥ 4.0 kb · goes on near chr1:109.7 Mb · 0 bp of its own"](../img/departure_gstm1_cut.svg)
+![Walk rows for chr1:109,680,000-109,700,000. GRCh38, HG01960#1 and HG002#1 run the full 20 kb. HG00097#1, HG00097#2, HG002#2 and HG01960#2 stop after 3.9 kb, each labelled "≥ 3.9 kb · goes on near chr1:109.7 Mb · 0 bp of its own"](../img/departure_gstm1_cut.svg)
 
 In the wider region chr1:109,680,000-109,720,000, both ends of the deletion are
 inside the region, and the four bars are drawn 18 kb shorter than GRCh38:
@@ -32,18 +32,24 @@ inside the region, and the four bars are drawn 18 kb shorter than GRCh38:
 
 ## The text beside a bar
 
-| Text                                   | Meaning                                                                                                                |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `≥ 4.0 kb`                             | at least this much of the haplotype is in view, and it continues past the edge of the region                           |
-| `goes on near chr1:109.7 Mb`           | where the haplotype follows the reference again, outside the region                                                    |
-| `0 bp of its own`, `120 kb of its own` | the haplotype's sequence between leaving the reference and following it again; 0 bp is a deletion                      |
-| `no step on GRCh38 across 54 kb`       | the haplotype skips the whole region, so it is drawn as a thin line between where it leaves and returns                |
-| `left out of graph`                    | sequence of the haplotype that is missing from the graph                                                               |
-| `out of view`                          | sequence past the edge of the region                                                                                   |
-| `near chr22:20.3 Mb`, inside a gap     | sequence the haplotype spends on another part of the reference, returning near that position                           |
-| `own sequence not drawn`               | sequence of the haplotype that was not loaded with the region                                                          |
-| `placement choice`                     | the haplotype leaves or returns at a node the reference passes more than once, and the file's writer picked which pass |
-| `nodes not shown`, `· not compared`    | part of the haplotype was loaded as a length only (see below)                                                          |
+In a bar, the rainbow colors are positions on the reference, and charcoal is
+sequence off the reference.
+
+| Text                                   | Meaning                                                                                                                                                                                                                                                                                         |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `≥ 3.9 kb`                             | at least this much of the haplotype is in view, and it continues past the edge of the region                                                                                                                                                                                                    |
+| `goes on near chr1:109.7 Mb`           | where the haplotype follows the reference again, outside the region                                                                                                                                                                                                                             |
+| `0 bp of its own`, `120 kb of its own` | the haplotype's sequence between leaving the reference and following it again; 0 bp is a deletion                                                                                                                                                                                               |
+| `no step on GRCh38 across 54 kb`       | the haplotype skips the whole region, so it is drawn as a thin line between where it leaves and returns                                                                                                                                                                                         |
+| `left out of graph`                    | sequence of the haplotype that is missing from the graph                                                                                                                                                                                                                                        |
+| `out of view`                          | sequence past the edge of the region                                                                                                                                                                                                                                                            |
+| `near chr22:20.3 Mb`, inside a gap     | sequence the haplotype spends on another part of the reference, returning near that position                                                                                                                                                                                                    |
+| `own sequence not drawn`               | sequence of the haplotype that was not loaded with the region                                                                                                                                                                                                                                   |
+| `off GRCh38's path`                    | replaces `of its own` and `own sequence not drawn` when the walk file counts reference nodes the reference passes more than once, as in a collapsed repeat; sequence off the reference may then be a copy of that repeat. `walkRows` takes a `revisited` option that overrides the file's count |
+| `1.0 kb GRCh38 from elsewhere`         | reference sequence the haplotype follows at another pass of the reference, outside the region; it is drawn off the path, and counted as reference sequence                                                                                                                                      |
+| `· 20 departures on 4 other contigs`   | on a haplotype's first row: departures in the region from its other contigs, which are not given separate rows                                                                                                                                                                                  |
+| `placement choice`                     | the haplotype leaves or returns at a node the reference passes more than once, and the file's writer picked which pass                                                                                                                                                                          |
+| `nodes not shown`, `· not compared`    | part of the haplotype was loaded as a length only (see below)                                                                                                                                                                                                                                   |
 
 ## Parts loaded as a length only
 
