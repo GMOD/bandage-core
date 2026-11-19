@@ -1,0 +1,16 @@
+digraph fit {
+  rankdir=LR; node [shape=box, style=rounded, fontname="Helvetica", fontsize=11]; edge [fontname="Helvetica", fontsize=10];
+  pane [label="pane size", shape=ellipse];
+  key [label="fitBesideKey\n(key on right)"];
+  layout [label="forceLayout"];
+  q [label="track pans\nacross a cut?", shape=diamond];
+  fit [label="fitTransform"];
+  cut [label="cutScale"];
+  follow [label="followTransform"];
+  ty [label="trackFit\nfit | fixed | grow"];
+  pane -> key [style=dashed, label="optional"];
+  pane -> layout; key -> layout;
+  layout -> q;
+  q -> fit [label="no"];
+  q -> cut [label="yes"]; cut -> follow -> ty;
+}

@@ -1,0 +1,10 @@
+digraph hidden {
+  rankdir=LR; node [shape=box, style=rounded, fontname="Helvetica", fontsize=11];
+  bg [label="buildGeometry\nsmallSites: 'hidden'"];
+  c [label="batch.collapsed", shape=note];
+  bg -> c;
+  c -> hover [label=" required", fontname="Helvetica", fontsize=10]; hover [label="findHoveredNode\nfindHoveredEdge"];
+  c -> labels; labels [label="layoutLabels\n(folded)"];
+  c -> exons; exons [label="exonStretches\n(nodesNotDrawn)"];
+  c -> fd; fd [label="figureData\nsites, meta.smallSites"];
+}
