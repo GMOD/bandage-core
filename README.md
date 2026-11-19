@@ -97,8 +97,9 @@ npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 -o fold.gf
 ## Docs
 
 - [Figures from a spec](docs/figures.md): `bandage-figure` and its JSON spec
-- [Walk rows and departures](docs/departures.md): what a walk row's readout
-  means, and what a host passes through and loads
+- [Walk rows and departures](docs/departures.md): where a haplotype leaves the
+  reference, what a walk row's readout means, and what a host passes through and
+  loads
 - [Folding a graph](docs/fold.md): `bandage-fold`, the coarse tier, and
   `gfa-to-tabix fold` for a whole human pangenome
 

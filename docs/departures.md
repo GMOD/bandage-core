@@ -1,24 +1,45 @@
 # Walk rows and departures
 
-A walk-file cut shows one window of the reference, but a haplotype's sequence
-does not always stay in it. The haplotype can leave the reference and rejoin it
-far away, run past the edge of the window, or hold sequence the graph left out.
-The cut lists each such place as a departure, so bandage-core can label each
-walk row with the haplotype's full length and where the bp it does not draw are.
-A short bar then does not read as a deletion.
+A departure is a place where a haplotype leaves the reference and rejoins it.
+Seen from the reference, each deletion, insertion, inversion and duplication is
+a departure. A walk-file cut returns every departure over its window, with the
+two breakpoints on the reference and the bp of the haplotype's own sequence
+between them.
+
+- Where both ends of a departure lie in the window, bandage-core draws it in the
+  walk row
+- Where an end lies outside the window, bandage-core uses the departure in the
+  row's readout to give where the walk goes and how long it is
+
+## The GSTM1 deletion
+
+In the HPRC graph, HG002#2, HG00097#1, HG00097#2 and HG01960#2 have the GSTM1
+deletion, 18 kb from chr1:109,683,912 to 109,702,357. A cut of
+chr1:109,680,000-109,700,000 ends before the deletion rejoins the reference, so
+those rows stop after 4 kb. bandage-core labels each one `≥ 4.0 kb`, a lower
+bound, and `goes on near chr1:109.7 Mb · 0 bp of its own`: the walk rejoins the
+reference near 109.7 Mb with no sequence between, which is a deletion.
+
+![Walk rows over chr1:109,680,000-109,700,000. GRCh38, HG01960#1 and HG002#1 run the full 20 kb. HG00097#1, HG00097#2, HG002#2 and HG01960#2 stop after 4 kb, each labelled "≥ 4.0 kb · goes on near chr1:109.7 Mb · 0 bp of its own"](../img/departure_gstm1_cut.svg)
+
+A cut to 109,720,000 holds both ends of the deletion, so bandage-core draws the
+same rows 18 kb shorter than GRCh38:
+
+![Walk rows over chr1:109,680,000-109,720,000. GRCh38, HG01960#1 and HG002#1 run 40 kb. The four other rows run 22 kb, reading "22 kb (−18 kb)", their color jumping from orange to cyan where they skip the deleted stretch](../img/departure_gstm1_whole.svg)
 
 ## Readout words
 
-| Readout                             | Meaning                                                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `out of view`                       | bp the cut trimmed at the edge of the window                                                         |
-| `left out of graph`                 | bp of the haplotype that the graph lacks                                                             |
-| `near chr22:20.3 Mb`                | bp the walk spends back on the reference, rejoining it near that position                            |
-| `own sequence not drawn`            | bp of the haplotype's sequence that the cut did not read                                             |
-| `no step on GRCh38 across 54 kb`    | the haplotype has no step in the window, so the row is a hairline between its departure's ends       |
-| `≥ 0.5 kb · goes on near chr1:4 kb` | the walk runs past a flank, so its length is a lower bound                                           |
-| `placement choice`                  | a departure ends on a node the reference passes more than once, and the file's writer chose the pass |
-| `nodes not shown`, `· not compared` | the row holds a piece the cut did not load                                                           |
+| Readout                                 | Meaning                                                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `≥ 4.0 kb · goes on near chr1:109.7 Mb` | the walk leaves the window at a departure that rejoins the reference near that position                |
+| `0 bp of its own`, `120 kb of its own`  | the haplotype's own sequence between a departure's ends; 0 bp is a deletion                            |
+| `no step on GRCh38 across 54 kb`        | a departure spans the whole window, so the row is a hairline between its ends                          |
+| `left out of graph`                     | bp of the haplotype's own sequence that the graph lacks                                                |
+| `out of view`                           | bp the cut trimmed at the edge of the window                                                           |
+| `near chr22:20.3 Mb`, in a gap          | bp the walk spends on the reference elsewhere, rejoining it near that position                         |
+| `own sequence not drawn`                | bp of the haplotype's own sequence that the cut did not read                                           |
+| `placement choice`                      | a departure ends on a node the reference passes more than once, and the file's writer chose which pass |
+| `nodes not shown`, `· not compared`     | the row holds a piece the cut did not load                                                             |
 
 ## Pieces not loaded
 
