@@ -1,4 +1,15 @@
-# Figures from a spec
+# Command-line tools
+
+```bash
+npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg
+npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 -o fold.gfa
+```
+
+- `bandage-figure` draws a figure from a JSON spec, with no browser
+- `bandage-fold` folds every variant under `--below` bp into the reference, for
+  the coarse tier a graph track draws when zoomed out
+
+## bandage-figure
 
 `bandage-figure`, in
 [@jbrowse/bandage-core](https://www.npmjs.com/package/@jbrowse/bandage-core),
@@ -46,7 +57,7 @@ same layout, so the panels show which loops each walk takes. GRCh38 takes the
 small ones; HG00097 adds one (+22.2 kb); HG01960 skips most of GRCh38's for the
 big one (+49.9 kb); HG00133 takes both (+116 kb).
 
-## The spec
+### The spec
 
 | Field                      | What it sets                                                                                                                                                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -86,3 +97,40 @@ layout that draws no nodes, such as walk rows or a tube map (`checkLayout`).
 
 After `pnpm build`, `node scripts/render-figures.mjs` renders every spec in
 [figures/](../figures) to `img/figure_<name>.svg`.
+
+## bandage-fold
+
+`bandage-fold` writes an rGFA with every variant under `--below` bp folded into
+the reference. Indexed by gfa-to-tabix, the output is the coarse tier a graph
+track draws once zoomed out past the fine index, so a whole chromosome fits.
+[`gfa-to-tabix fold`](https://github.com/GMOD/gfa-to-tabix/blob/main/docs/subcommands.md#fold)
+documents the fold and the handover from the fine index.
+
+```console
+npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 \
+  | gfa-to-tabix - -o graph.fold10000
+```
+
+- The input is a GFA or rGFA, plain or gzipped, or `-` for stdin. `-o out.gfa`
+  writes a file in place of stdout
+- `--reference PATH` names a plain GFA's backbone path. In an rGFA, the segments
+  tagged `SR:i:0` form the backbone
+- The fold keeps the backbone, every allele whose own length or the reference it
+  replaces reaches `--below`, and the shortest way from each one's ends back to
+  the backbone. It joins the reference between kept alleles into one segment
+- `bandage-fold` drops paths and walks from the output. It writes forward a
+  segment that a plain GFA's path reads reversed, and flips its links to match,
+  so the output re-reads as the graph that was folded
+- gfa-to-tabix's `--layout anchored|contig` should match the fine index's. An
+  anchored window inside a large bubble then returns the whole bubble in both
+  tiers, and a contig one only what links reach from it
+- The graph track folds each cut it draws at ten pixels (`FOLD_PX` in
+  jbrowse-plugin-graphgenomeviewer), and folding a fold again at a larger size
+  closely matches folding the original at that size. A tier folded at N and
+  handed over at N / 10 bp per pixel, such as
+  `coarse: { uri: "graph.fold10000", aboveBpPerPx: 1000 }`, therefore draws
+  nearly what the fine cut drew
+- Node caps a string at 512 MB, and `bandage-fold` reads the whole graph into
+  one, so it cannot fold a whole human pangenome. `gfa-to-tabix fold`, a port of
+  the same fold, writes the index in one pass:
+  `gfa-to-tabix fold graph.rgfa.gz --below 10000 -o graph.fold10000`

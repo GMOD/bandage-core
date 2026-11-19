@@ -63,45 +63,24 @@ const svg = figureSvg(graph, result, {
 
 ## API
 
-- **Reading:** `loadGraph` also reads GFA or rGFA text, which the caller
-  decompresses first, and `graphTablesGFA` writes a walk-file cut as GFA
-- **Layouts:** `forceLayout` runs Bandage's FMMM engine, compiled to wasm in
-  [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout), or,
-  with `engine: 'stress'`,
-  [@jbrowse/graph-stress-layout](https://github.com/GMOD/graph-stress-layout),
-  which draws the reference straight. `layoutModeByValue(mode).run` runs the
-  layouts along the reference: anchored, ordered, sample rows, walk rows and
-  tube map
+- **Layouts:** `forceLayout` runs Bandage's force-directed engine, or with
+  `engine: 'stress'` a stress layout that draws the reference straight.
+  `layoutModeByValue(mode).run` runs the layouts along the reference: anchored,
+  ordered, sample rows, walk rows and tube map
 - **Canvas:** `buildGeometry` and `Canvas2DRenderer` draw a layout, and
-  `findHoveredNode` and `findHoveredEdge` hit-test it. BandageJS's
-  [`src/view.ts`](https://github.com/GMOD/BandageJS/blob/main/src/view.ts) wires
-  them to panning and hover
-- **Walks:** `walkLift` lifts a walk out of the drawing, `facetLifts` draws a
-  panel per walk, and `walkKey` describes each walk in words
-- **Genes:** `featuresOnBackbone` renames an assembly's genes onto the
-  backbone's refNames, and `genePins` pins those
+  `findHoveredNode` and `findHoveredEdge` hit-test it, as in BandageJS's
+  [`src/view.ts`](https://github.com/GMOD/BandageJS/blob/main/src/view.ts)
 - **Figures:** `figureSvg` draws a standalone SVG, and `figureData` returns the
-  same drawing as columnar tables, which ggbandage draws in ggplot2
-
-## Command-line tools
-
-```bash
-npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg
-npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 -o fold.gfa
-```
-
-- `bandage-figure` draws a figure from a JSON spec, with no browser
-- `bandage-fold` folds every variant under `--below` bp into the reference, for
-  the coarse tier a graph track draws when zoomed out
+  same drawing as tables, which ggbandage draws in ggplot2
 
 ## Docs
 
-- [Figures from a spec](docs/figures.md): `bandage-figure` and its JSON spec
 - [Walk rows and departures](docs/departures.md): where a haplotype leaves the
   reference, what a walk row's readout means, and what a host passes through and
   loads
-- [Folding a graph](docs/fold.md): `bandage-fold`, the coarse tier, and
-  `gfa-to-tabix fold` for a whole human pangenome
+- [Command-line tools](docs/cli.md): `bandage-figure` draws a figure from a JSON
+  spec, and `bandage-fold` folds small variants into the reference for a zoomed
+  out graph track
 
 ## See also
 
@@ -119,10 +98,8 @@ Similar project for tubemaps
 
 JBrowse tutorials;
 
-- The HPRC tutorials on jbrowse.org:
-  [graph alleles and haplotypes](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc/)
-  and
-  [repeat lengths](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc_repeats/)
+- [HPRC part 1: graph alleles and haplotypes](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc/)
+- [HPRC part 3: repeat lengths](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc_repeats/)
 
 ## License
 
