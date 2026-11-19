@@ -25,8 +25,8 @@ importers:
         version: 2.0.0
     devDependencies:
       '@jbrowse/graph-walks':
-        specifier: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-730e752.tgz
-        version: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-730e752.tgz
+        specifier: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-b0d8378.tgz
+        version: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-b0d8378.tgz
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -294,8 +294,8 @@ packages:
     resolution: {integrity: sha512-Yw0aMopfOIvHftmHnTP+jPL0uINCt+fdWxHQvrGeektL5KOAvrMBrUyBB1FcNizQZCSnAtYplIoXCL5K0qN7og==}
     engines: {node: '>=20'}
 
-  '@jbrowse/graph-walks@file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-730e752.tgz':
-    resolution: {integrity: sha512-bbmxqwngJiHC/ZaS/mpFJm+cyIIFCjIlF65vfGILVwnUnBoIvnpmynbSNvDpVVAPpOhBBCZV/42Qu7hfmG13dg==, tarball: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-730e752.tgz}
+  '@jbrowse/graph-walks@file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-b0d8378.tgz':
+    resolution: {integrity: sha512-RvkcoubzeWZ8bLajwbRHlKaq9uUmBo7i9fC8cSq3Q/YusNAZ/um+6Vm5gvdVfP8unlEt8wwq/xa9x3W97jCNzg==, tarball: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-b0d8378.tgz}
     version: 7.0.0
     engines: {node: '>=20'}
 
@@ -1408,7 +1408,7 @@ snapshots:
 
   '@jbrowse/graph-stress-layout@1.0.0': {}
 
-  '@jbrowse/graph-walks@file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-730e752.tgz':
+  '@jbrowse/graph-walks@file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0-b0d8378.tgz':
     dependencies:
       '@gmod/bgzf-filehandle': 6.8.2
       generic-filehandle2: 2.5.1
