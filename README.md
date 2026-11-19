@@ -6,7 +6,7 @@
 [ggbandage](https://github.com/GMOD/ggbandage) all draw with it.
 
 - **In:** GFA or rGFA text, or a region of a
-  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file cut by
+  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file, read with
   [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks)
 - **Out:** Bandage's force-directed layout or a layout along the reference
 
@@ -22,8 +22,8 @@ Reading walk files also needs `@jbrowse/graph-walks`.
 
 ## Usage
 
-The example below draws LPA's KIV-2 repeat from the HPRC release 2.1 walk file
-on jbrowse.org, one panel per walk:
+The example below reads LPA's KIV-2 repeat from the HPRC release 2.1 walk file
+on jbrowse.org and draws it with one panel per haplotype:
 
 ```ts
 import {
@@ -39,13 +39,13 @@ const reader = WalkReader.open(
   'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38-f8.GRCh38.walks.gz',
 )
 const refName = 'GRCh38#0#chr6'
-const cut = await reader.cut(
+const kiv2 = await reader.cut(
   refName,
   { start: 160_614_798, end: 160_647_758 },
   { keep: walksKept(['HG00097', 'HG00133'], refName) },
 )
 const graph = loadGraph(
-  cut.graph.tables(cut.kept, cut.fragments, cut.departures),
+  kiv2.graph.tables(kiv2.kept, kiv2.fragments, kiv2.departures),
   'KIV-2',
 )
 const { result } = await forceLayout(graph, ENGINE_DEFAULTS, layoutEngine)
@@ -59,28 +59,17 @@ const svg = figureSvg(graph, result, {
 })
 ```
 
-![GRCh38, HG00097#1 and HG00133#1 at LPA's KIV-2 repeat, a panel each, shaded yellow to red along each walk. HG00097#1 is 22.2 kb longer than GRCh38, and HG00133#1 is 116 kb longer, 106 kb of it in a hollow grey loop whose nodes the cut did not load](img/readme_kiv2.svg)
-
-## API
-
-- **Layouts:** `forceLayout` runs Bandage's force-directed engine, or with
-  `engine: 'stress'` a stress layout that draws the reference straight.
-  `layoutModeByValue(mode).run` runs the layouts along the reference: anchored,
-  ordered, sample rows, walk rows and tube map
-- **Canvas:** `buildGeometry` and `Canvas2DRenderer` draw a layout, and
-  `findHoveredNode` and `findHoveredEdge` hit-test it, as in BandageJS's
-  [`src/view.ts`](https://github.com/GMOD/BandageJS/blob/main/src/view.ts)
-- **Figures:** `figureSvg` draws a standalone SVG, and `figureData` returns the
-  same drawing as tables, which ggbandage draws in ggplot2
+![GRCh38, HG00097#1 and HG00133#1 at LPA's KIV-2 repeat, a panel each, colored yellow to red along each haplotype. HG00097#1 is 22.2 kb longer than GRCh38, and HG00133#1 is 116 kb longer, 106 kb of it in a hollow grey loop whose nodes were not loaded](img/readme_kiv2.svg)
 
 ## Docs
 
+- [API](docs/api.md): the main exports, by task: loading, layouts, drawing to a
+  canvas, figures, haplotypes, and genes and variants
 - [Walk rows and departures](docs/departures.md): where a haplotype leaves the
-  reference, what a walk row's readout means, and what a host passes through and
-  loads
+  reference, what the text beside each walk row means, and what a host app does
 - [Command-line tools](docs/cli.md): `bandage-figure` draws a figure from a JSON
-  spec, and `bandage-fold` folds small variants into the reference for a zoomed
-  out graph track
+  spec, and `bandage-fold` merges small variants into the reference for viewing
+  zoomed out
 
 ## See also
 
