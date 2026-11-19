@@ -28,7 +28,8 @@ Reading walk files also needs `@jbrowse/graph-walks`.
 ## Usage
 
 The example below reads LPA's KIV-2 repeat from the HPRC release 2.1 walk file
-on jbrowse.org and draws it with one panel per haplotype:
+on jbrowse.org and draws it with one panel per haplotype. It keeps three
+haplotypes besides GRCh38 and draws two of them:
 
 ```ts
 import {
@@ -47,7 +48,7 @@ const refName = 'GRCh38#0#chr6'
 const kiv2 = await reader.cut(
   refName,
   { start: 160_614_798, end: 160_647_758 },
-  { keep: walksKept(['HG00097', 'HG00133'], refName) },
+  { keep: walksKept(['HG00097', 'HG01960', 'HG00133'], refName) },
 )
 const graph = loadGraph(
   kiv2.graph.tables(kiv2.kept, kiv2.fragments, kiv2.departures),
@@ -64,19 +65,19 @@ const svg = figureSvg(graph, result, {
 })
 ```
 
-![GRCh38, HG00097#1 and HG00133#1 at LPA's KIV-2 repeat, a panel each, colored yellow to red along each haplotype. HG00097#1 is 22.2 kb longer than GRCh38, and HG00133#1 is 116 kb longer, 106 kb of it in a hollow grey loop whose nodes were not loaded](img/readme_kiv2.svg)
+![GRCh38, HG00097 and HG00133 at LPA's KIV-2 repeat, a panel each, colored yellow to red along each haplotype. HG00097 is 22.2 kb longer than GRCh38, with one extra small loop, and HG00133 is 116 kb longer, with two extra small loops and the large loop](img/figure_kiv2_facets.svg)
 
 ## Haplotype threads
 
-Leave out `facet` in the example above, and `figureSvg` draws all three
-haplotypes on one layout, each in a different color along the nodes it passes
+Leave out `facet` in the example above, and `figureSvg` draws the same three
+haplotypes on the same graph, but on one layout, each in a different color along the nodes it passes
 through. Where haplotypes pass through the same nodes, their threads run side by
 side, so a loop drawn in one color is a loop only that haplotype passes through.
 On a canvas, passing `walkLift(graph, walks)` to `buildGeometry` as `highlight`
 draws the same threads. A haplotype colored by `pass` splits into one thread per
 trip round a repeat; see [Threading by pass](docs/drawing.md#threading-by-pass).
 
-![GRCh38 in grey, HG00097 in blue and HG00133 in orange on one force-directed layout of LPA's KIV-2 repeat. The three run side by side through the shared loops. HG00097 also passes through one small loop that GRCh38 skips, and HG00133 through two other small loops and the large loop below](img/figure_kiv2_threads.svg)
+![The same graph as above with GRCh38 in grey, HG00097 in blue and HG00133 in orange on one layout. The three run side by side through the shared loops. HG00097 also passes through one small loop that GRCh38 skips, and HG00133 through two other small loops and the large loop below](img/figure_kiv2_threads.svg)
 
 ## Docs
 
