@@ -76,7 +76,7 @@ On a canvas, passing `walkLift(graph, walks)` to `buildGeometry` as `highlight`
 draws the same threads. A haplotype colored by `pass` splits into one thread per
 trip round a repeat; see [Threading by pass](docs/drawing.md#threading-by-pass).
 
-![GRCh38 in grey, HG00097 in blue and HG00133 in orange on one force-directed layout of LPA's KIV-2 repeat. The three run side by side through the shared loops. HG00097 also passes through one small loop, and HG00133 through another small loop and the large loop below, which is most of its extra 116 kb](img/figure_kiv2_threads.svg)
+![GRCh38 in grey, HG00097 in blue and HG00133 in orange on one force-directed layout of LPA's KIV-2 repeat. The three run side by side through the shared loops. HG00097 also passes through one small loop that GRCh38 skips, and HG00133 through two other small loops and the large loop below](img/figure_kiv2_threads.svg)
 
 ## Docs
 
