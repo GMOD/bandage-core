@@ -1,16 +1,20 @@
 # @jbrowse/bandage-core
 
-@jbrowse/bandage-core lays out and draws pangenome graphs. The
+@jbrowse/bandage-core is the code that lays out and draws pangenome graphs in
+the
 [JBrowse graph plugin](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer),
 [BandageJS](https://github.com/GMOD/BandageJS) and
-[ggbandage](https://github.com/GMOD/ggbandage) all draw with it.
+[ggbandage](https://github.com/GMOD/ggbandage), packaged so you can build your
+own viewer or figures with it.
 
-- **In:** GFA or rGFA text, or a region of a
-  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file, read with
+- **In:** a pangenome graph as GFA, or a region of one read from a
+  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file with
   [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks)
-- **Out:** Bandage's force-directed layout or a layout along the reference
-
-Can be used to roll-your-own data visualizations
+- **Out:** a drawing of the graph on an HTML canvas or as an SVG file, with each
+  haplotype's path, genes and deletions marked
+- **Layouts:** Bandage's force-directed layout, which shows the graph's loops
+  and bubbles, or layouts along the reference genome, such as one bar per
+  haplotype or a tube map
 
 ## Install
 
