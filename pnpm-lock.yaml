@@ -295,7 +295,7 @@ packages:
     engines: {node: '>=20'}
 
   '@jbrowse/graph-walks@file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0.tgz':
-    resolution: {integrity: sha512-hpTNuBI4y2BGmZXq3H+9l++dQdEUSMq6dHlYETq14wl3gqu5O/Ud1bpLtnu41myke/HWCLslCgDG+y93md1nMg==, tarball: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0.tgz}
+    resolution: {integrity: sha512-GSep65Hb/Zh+AezyM9mJvhgPpwNCSJWUhvYrsCm9Pyucs8jk7OKAuoXVxGNXeiVRiR7Z60kCPPmGn5CIu+eqlw==, tarball: file:../vendor/walks8-pack/jbrowse-graph-walks-7.0.0.tgz}
     version: 7.0.0
     engines: {node: '>=20'}
 

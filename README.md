@@ -1,216 +1,129 @@
 # @jbrowse/bandage-core
 
-TypeScript library that lays out and draws pangenome graphs, used by
-[jbrowse-plugin-graphgenomeviewer](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer)
-and [BandageJS](https://github.com/cmdcolin/BandageJS). It imports no React,
-MobX or JBrowse code. BandageJS's
-[`src/main.ts`](https://github.com/cmdcolin/BandageJS/blob/main/src/main.ts) is
-the worked example.
+@jbrowse/bandage-core lays out and draws pangenome graphs. The
+[JBrowse graph plugin](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer),
+[BandageJS](https://github.com/GMOD/BandageJS) and
+[ggbandage](https://github.com/GMOD/ggbandage) all draw with it.
 
-```
+- **In:** GFA or rGFA text, or a region of a
+  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file cut by
+  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks)
+- **Out:** Bandage's force-directed layout or a layout along the reference
+
+Can be used to roll-your-own data visualizations
+
+## Install
+
+```bash
 npm install @jbrowse/bandage-core
 ```
 
-## Reading a graph
+Reading walk files also needs `@jbrowse/graph-walks`.
 
-- `loadGraph` reads GFA or rGFA text. The caller decompresses a `.gfa.gz` first
-- `loadGraph` also takes `GraphTables`, the typed arrays that
-  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) 7 cuts from a
-  [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) 5 walk file, format 8
-  (`.walks.gz` beside its `.idx` directory), for a region on the reference.
-  graph-walks 7 refuses a format 7 file, which gfa-to-tabix 5 rebuilds. A worker
-  can transfer them without copying, and `graphTablesGFA` writes their nodes,
-  links and walks as GFA
-- A link a GFA states more than once, either way round, is read once, as its
-  first L line states it, as gfa-to-tabix reads it
-- `openGbz` and `cutGbzRegion` cut a window from a
-  [gbz-base](https://github.com/jltsiren/gbz-base) database (`.gbz.db`) to GFA
-  text
+## Usage
 
-### Departures
+The example below draws LPA's KIV-2 repeat from the HPRC release 2.1 walk file
+on jbrowse.org, one panel per walk:
 
-A walk-file cut's tables carry `departures`: every place over the window where a
-haplotype's consecutive steps on the reference are not adjacent there, with the
-breakpoint and strand of each end, the haplotype's own bp between them (`ownBp`,
-from `hapStart` on its contig), the part of that the graph lacks (`missingBp`)
-and how many times the reference passes each end's node. `src/gfa/departures.ts`
-reads them.
+```ts
+import {
+  ENGINE_DEFAULTS,
+  figureSvg,
+  forceLayout,
+  layoutEngine,
+  loadGraph,
+} from '@jbrowse/bandage-core'
+import { WalkReader, walksKept } from '@jbrowse/graph-walks'
 
-- Walk rows draw the facts and make no call on what a departure is. A haplotype
-  with no step in the window is a `stepless` row, a hairline under the reference
-  between its departure's ends:
-  `no step on GRCh38 across 54 kb · 120 kb of its own, 3 kb left out of graph`
-- A gap between two pieces of a walk splits into the bp the cut trimmed
-  (`out of view`), the bp the departures inside it say the graph lacks
-  (`left out of graph`), and the rest: the walk's own sequence the cut did not
-  read (`own sequence not drawn`), or, where the walk goes back to the
-  reference, `near chr22:20.3 Mb`, where it rejoins. The readout states them as
-  parts of the row's bp:
-  `5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb near chr22:12.0 Mb, 86 kb out of view`
-- A walk reaching one flank reads as a lower bound. Its contig ends inside the
-  window only where its last step there is on the reference, with no departure
-  at that step and nothing the cut trimmed past it. A departure there says where
-  the walk goes on: `≥ 0.5 kb · goes on near chr1:4 kb · 4 kb of its own`. A
-  walk whose only step is a flank has no bp in the window and says just how it
-  goes on or that its contig ends at the window. A cut with no context stands
-  the reference's outermost nodes in for the flanks, so a walk that stops inside
-  reads the same way there rather than as a whole walk shorter than the
-  reference
-- A row whose departure has an end on a node the reference passes more than once
-  says `placement choice`: the file's writer chose that pass
-- Each row's `departures` lists those its runs do not draw as steps, for a
-  host's hover
-- A piece of a walk the cut did not load draws exactly as the loaded piece does:
-  its steps on the reference where they lie, and each run of steps off the
-  tile's reference as a bar off the path of its bp, a `WalkRun` with `unloaded`.
-  The row states `unloadedBp`, and `abridgedSteps` the steps of its unloaded
-  pieces, for a host to load or offer to load
-- A bar off the path (charcoal under the reference ramp) is sequence off the
-  reference path as far as the cut has read it
-- Ribbons, shared blocks and the shared row order compare nodes, which a run not
-  loaded does not name, so they leave out a row holding one;
-  `rowsNeedingRoutes(rows)` says how many rows they left out, for a host to load
-  before relying on them. While one is on, such a row's readout ends
-  `· not compared`, and the key says `Fetching node-level detail for N rows`
-  within the host's fetch limit, or that it leaves them out beyond it
-- `walkRowReadoutAt` places a row's readout for every host: its full text, the
-  text drawn, which is cut to the room beside the bar by whole parts with `…`,
-  whether it was cut, and where it sits
-- In a node layout such a run is a node with `placeholder`, drawn hollow in an
-  untinted grey at its bp under every color scheme, so it reads as neither
-  sequence, an exon nor an allele off the reference. A host's key draws it as
-  `NOT_LOADED_CSS` around `NOT_LOADED_FILL_CSS` and names it `NOT_LOADED_TEXT`,
-  as `figureSvg`'s key does. In the tube map, where loading turns one box into
-  its nodes, it is a box with a dashed outline and no tint, captioned
-  `300 bp · nodes not shown`. `loadGraph`'s `maxNodes` counts placeholders,
-  which graph-walks' `nodeLimit` does not, and its refusal says how many there
-  are. `graphTablesGFA` tags a placeholder's S line `nl:i:1`, which only
-  bandage-core reads back: another tool ignores the tag and takes the line for a
-  real segment off the reference. A GFA meant for another tool must be written
-  from a cut with every piece loaded
-- `GraphTables` mirrors graph-walks 7's, and `typecheck/graphWalks.ts` holds the
-  two equal. `departures` is required, so tables from a reader that states none
-  fail to compile; a source with none, such as GFA text or a gbz-base cut,
-  passes `departureTable()`
-
-## Laying out and drawing
-
-- `loadBandage` loads Bandage's FMMM engine, compiled to WASM in
-  [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout), and
-  `forceLayout` runs it. The other layouts are ordered, anchored, sample rows,
-  walk rows and tube map
-- `buildGeometry` and `Canvas2DRenderer` draw to a canvas, with hit testing and
-  label placement. The library also finds bubbles and deletion edges and colors
-  paths
-- `walkLift` lifts a walk out of the drawing, `facetLifts` and `facetGrid` draw
-  one panel per walk, and `walkKey` describes each walk in words
-- `graphBackbone`, `backboneAssembly` and `assemblyWalk` find which assembly a
-  backbone lies on. `featuresOnBackbone` renames that assembly's genes onto the
-  backbone's refNames, and `genePins` pins only those
-
-## Figures
-
-- `figureSvg` draws a graph and its lifted walks to a standalone SVG. The
-  `bandage-figure` CLI makes one from a JSON spec with no browser:
-  `npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg`. See
-  [docs/figures.md](docs/figures.md)
-- `figureData` returns what `figureSvg` would draw as columnar tables, for
-  another graphics system to draw;
-  [ggbandage](https://github.com/GMOD/ggbandage) draws them in ggplot2
-
-## Coarse tier: `bandage-fold`
-
-`bandage-fold` writes an rGFA with every variant under `--below` bp folded into
-the reference. Indexed by gfa-to-tabix, the output is the coarse tier a graph
-track draws once zoomed out past the fine index, so a whole chromosome fits.
-[`gfa-to-tabix fold`](https://github.com/GMOD/gfa-to-tabix/blob/main/docs/subcommands.md#fold)
-documents the fold and the handover from the fine index.
-
-```console
-npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 \
-  | gfa-to-tabix - -o graph.fold10000
+const reader = WalkReader.open(
+  'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38-f8.GRCh38.walks.gz',
+)
+const refName = 'GRCh38#0#chr6'
+const cut = await reader.cut(
+  refName,
+  { start: 160_614_798, end: 160_647_758 },
+  { keep: walksKept(['HG00097', 'HG00133'], refName) },
+)
+const graph = loadGraph(
+  cut.graph.tables(cut.kept, cut.fragments, cut.departures),
+  'KIV-2',
+)
+const { result } = await forceLayout(graph, ENGINE_DEFAULTS, layoutEngine)
+const svg = figureSvg(graph, result, {
+  walks: [
+    { walk: refName },
+    { walk: 'HG00097#1#JBIRDD010000043.1' },
+    { walk: 'HG00133#1#CM090050.1' },
+  ],
+  facet: { field: 'walk', columns: 3 },
+})
 ```
 
-- The input is a GFA or rGFA, plain or gzipped, or `-` for stdin. `-o out.gfa`
-  writes a file in place of stdout
-- `--reference PATH` names a plain GFA's backbone path. In an rGFA, the segments
-  tagged `SR:i:0` form the backbone
-- The fold keeps the backbone, every allele whose own length or the reference it
-  replaces reaches `--below`, and the shortest way from each one's ends back to
-  the backbone. It joins the reference between kept alleles into one segment
-- `bandage-fold` drops paths and walks from the output. It writes forward a
-  segment that a plain GFA's path reads reversed, and flips its links to match,
-  so the output re-reads as the graph that was folded
-- gfa-to-tabix's `--layout anchored|contig` should match the fine index's. An
-  anchored window inside a large bubble then returns the whole bubble in both
-  tiers, and a contig one only what links reach from it
-- The graph track folds each cut it draws at ten pixels (`FOLD_PX` in
-  jbrowse-plugin-graphgenomeviewer), and folding a fold again at a larger size
-  closely matches folding the original at that size. A tier folded at N and
-  handed over at N / 10 bp per pixel, such as
-  `coarse: { uri: "graph.fold10000", aboveBpPerPx: 1000 }`, therefore draws
-  nearly what the fine cut drew
-- Node caps a string at 512 MB, and `bandage-fold` reads the whole graph into
-  one, so it cannot fold a whole human pangenome. `gfa-to-tabix fold`, a port of
-  the same fold, writes the index in one pass:
-  `gfa-to-tabix fold graph.rgfa.gz --below 10000 -o graph.fold10000`
+![GRCh38, HG00097#1 and HG00133#1 at LPA's KIV-2 repeat, a panel each, shaded yellow to red along each walk. HG00097#1 is 22.2 kb longer than GRCh38, and HG00133#1 is 116 kb longer, 106 kb of it in a hollow grey loop whose nodes the cut did not load](img/readme_kiv2.svg)
 
-## Developing
+## API
 
+- **Reading:** `loadGraph` also reads GFA or rGFA text, which the caller
+  decompresses first, and `graphTablesGFA` writes a walk-file cut as GFA
+- **Layouts:** `forceLayout` runs Bandage's FMMM engine, compiled to wasm in
+  [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout), or,
+  with `engine: 'stress'`,
+  [@jbrowse/graph-stress-layout](https://github.com/GMOD/graph-stress-layout),
+  which draws the reference straight. `layoutModeByValue(mode).run` runs the
+  layouts along the reference: anchored, ordered, sample rows, walk rows and
+  tube map
+- **Canvas:** `buildGeometry` and `Canvas2DRenderer` draw a layout, and
+  `findHoveredNode` and `findHoveredEdge` hit-test it. BandageJS's
+  [`src/view.ts`](https://github.com/GMOD/BandageJS/blob/main/src/view.ts) wires
+  them to panning and hover
+- **Walks:** `walkLift` lifts a walk out of the drawing, `facetLifts` draws a
+  panel per walk, and `walkKey` describes each walk in words
+- **Genes:** `featuresOnBackbone` renames an assembly's genes onto the
+  backbone's refNames, and `genePins` pins those
+- **Figures:** `figureSvg` draws a standalone SVG, and `figureData` returns the
+  same drawing as columnar tables, which ggbandage draws in ggplot2
+
+## Command-line tools
+
+```bash
+npx -p @jbrowse/bandage-core bandage-figure spec.json -o figure.svg
+npx -p @jbrowse/bandage-core bandage-fold graph.rgfa.gz --below 10000 -o fold.gfa
 ```
-pnpm install
-pnpm test          # unit tests
-pnpm build         # dist/ with declarations
-```
 
-- The FMMM engine and its wasm build are in
-  [graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout)
-- CI also packs the core and runs the typecheck and tests of
-  [BandageJS](https://github.com/cmdcolin/BandageJS) and
-  [jbrowse-plugin-graphgenomeviewer](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer)
-  against it. For an API change, push the consumer's matching change to a
-  `core-next` branch in that consumer's repo, which CI tests in place of `main`
-  until the release
-- `src/foldParity.test.ts` folds a few hundred random rGFA graphs with
-  `foldVariants` and with the gfa-to-tabix release that
-  `.github/actions/gfa-to-tabix` pins, and fails when they fold differently.
-  Locally the test runs the `gfa-to-tabix` on PATH or named by `GFA_TO_TABIX`,
-  and skips without one. In the other direction, gfa-to-tabix's
-  `scripts/parity-fold.sh` checks that `gfa-to-tabix fold` writes the same bytes
-  as `bandage-fold | gfa-to-tabix -`, and its CI tests the port against a pinned
-  bandage-core
-- Release with `pnpm version patch`: it lints, tests, stamps `src/version.ts`,
-  writes the changelog with git-cliff and pushes the `v*` tag. `publish.yml`
-  then runs CI, consumers included, and publishes to npm with trusted publishing
-  only if it passes. When a consumer fails, push its side to `core-next` and
-  rerun the failed jobs
+- `bandage-figure` draws a figure from a JSON spec, with no browser
+- `bandage-fold` folds every variant under `--below` bp into the reference, for
+  the coarse tier a graph track draws when zoomed out
+
+## Docs
+
+- [Figures from a spec](docs/figures.md): `bandage-figure` and its JSON spec
+- [Walk rows and departures](docs/departures.md): what a walk row's readout
+  means, and what a host passes through and loads
+- [Folding a graph](docs/fold.md): `bandage-fold`, the coarse tier, and
+  `gfa-to-tabix fold` for a whole human pangenome
 
 ## See also
 
-- [jbrowse-plugin-graphgenomeviewer](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer) -
-  JBrowse 2 plugin that browses these graphs by locus
-- [BandageJS](https://github.com/cmdcolin/BandageJS) - browser viewer for GFA
-  files, walk files and gbz-base databases
-- [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) - indexes a GFA by
-  reference position, writing the `.walks.gz` walk files
-- [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks) - range-request
-  reader for walk files
-- [@jbrowse/graph-fmmm-layout](https://github.com/GMOD/graph-fmmm-layout) -
-  Bandage's FMMM layout as wasm
-- [@jbrowse/graph-stress-layout](https://github.com/GMOD/graph-stress-layout) -
-  stress layout that keeps the reference straight
-- [@gmod/gbz-base](https://github.com/GMOD/gbz-base-js) - range-request reader
-  for `.gbz.db` databases
-- [ggbandage](https://github.com/GMOD/ggbandage) - Bandage-style graph figures
-  as ggplot2 layers
-- [@jbrowse/tubemap-core](https://github.com/GMOD/tubemap-core) -
+- [jbrowse-plugin-graphgenomeviewer](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer):
+  browses these graphs by locus in JBrowse 2
+- [BandageJS](https://github.com/GMOD/BandageJS): browses GFA files and walk
+  files in a web browser
+- [ggbandage](https://github.com/GMOD/ggbandage) (R): Bandage-style figures as
+  ggplot2 layers
+
+Similar project for tubemaps
+
+- [@jbrowse/tubemap-core](https://github.com/GMOD/tubemap-core):
   sequenceTubeMap's layout, without the DOM
 
-Tutorials on [jbrowse.org](https://jbrowse.org/jb2/docs/tutorials/):
+JBrowse tutorials;
 
-- [HPRC part 1: graph alleles and haplotypes](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc/)
-- [HPRC part 3: repeat lengths](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc_repeats/)
+- The HPRC tutorials on jbrowse.org:
+  [graph alleles and haplotypes](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc/)
+  and
+  [repeat lengths](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc_repeats/)
 
 ## License
 
-Both Bandage and OGDF are GPL, which is why this package is GPL-3.0-or-later.
+GPL-3.0-or-later, as [Bandage](https://github.com/rrwick/Bandage) and
+[OGDF](https://www.ogdf.uni-osnabrueck.de/) are.
