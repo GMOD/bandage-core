@@ -66,6 +66,7 @@ import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Run as FoldRun, Site, SmallSites } from '../levelOfDetail'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
+import type { EdgeCurves } from '../util/edgeCurves'
 import type { AxisScale, BezierCurve } from '../util/geometry'
 import type { RouteStep, WalkLift } from '../walkHighlight'
 import type {
@@ -1082,6 +1083,9 @@ const walkWideCache = weakMemo<
   WalkLift,
   { heads: Arrowhead[]; strokes: Map<string, NodeStroke[]> }
 >()
+// spread along each whole run of links, so a pan never moves a head either
+const droppedHeadsCache = weakMemo<EdgeCurves, ReadonlySet<number>>()
+const NO_HEADS_DROPPED: ReadonlySet<number> = new Set()
 
 const headInBounds = (
   head: Arrowhead,
@@ -1536,12 +1540,13 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : 0,
     }
   }
+  const bandPx = threaded ? bandWidthPx(lanePasses) * thinned : 0
   const lanesMayShow = (curves: BezierCurve[], fromId: string) => {
     if (!viewportBounds) {
       return true
     }
     const offset = threaded
-      ? bandWidthPx(lanePasses) * thinned
+      ? bandPx
       : ((liftedWalks.length - 1) / 2) * laneWidthOf(fromId)
     const reach = LONGEST_NORMAL * offset * worldPerScreenPx
     return isBezierInBounds(
@@ -1974,62 +1979,99 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       laidLinks.push(ei)
     }
   }
-  const headsDropped = new Set<number>()
-  if (showArrows) {
-    const runs = directedRuns(
-      graph.edges,
-      laidLinks.filter(ei => !collapse.edges.has(ei)),
-      ei =>
-        !sharedCurves.arcs.has(ei) &&
-        !deletions?.has(ei) &&
-        !turnsAgainstReference(graph.edges[ei]!),
-    )
-    for (const run of runs) {
-      const along: number[] = []
-      const drawable: boolean[] = []
-      let total = 0
-      run.forEach((ei, i) => {
-        const edge = graph.edges[ei]!
-        const toNode = nodeById.get(edge.to)
-        const curves = meetingDrawnNodes(
-          sharedCurves.get(ei)!,
-          edge.from,
-          edge.to,
-        )
-        const numPaths = edge.pathIds?.length ?? 0
-        total += curvesPx(curves, axis.scaleX, axis.scaleY)
-        along.push(total)
-        drawable.push(
-          !collapse.bridges.has(ei) &&
-            arrowheadFor({
-              curves,
-              edgeHalfWidth:
-                (connectorThickness / 2) *
-                (drawPaths && numPaths > 0
-                  ? 1
-                  : edgeWidthFactor(numPaths, busiest, edgeWidth)),
-              nodeHalfWidth: (toNode ? widthOf(toNode) : contigThickness) / 2,
-              scale,
-              yToX,
-              color: EDGE_DEFAULT_COLOR,
-              fromSegments: nodePositions[edge.from]!,
-              toSegments: nodePositions[edge.to]!,
-            }) !== undefined,
-        )
-        if (i < run.length - 1) {
-          total += polylinePx(nodePositions[edge.to]!, axis.scaleX, axis.scaleY)
-        }
-      })
-      const kept = spreadHeads(along, drawable, total, LINK_HEAD_SPACING_PX)
-      run.forEach((ei, i) => {
-        if (!kept.has(i)) {
-          headsDropped.add(ei)
-        }
-      })
-    }
-  }
+  const headsDropped = showArrows
+    ? droppedHeadsCache(
+        sharedCurves,
+        [
+          graph,
+          nodeById,
+          nodePositions,
+          version,
+          axis.scaleX,
+          axis.scaleY,
+          stranded,
+          deletions,
+          hiddenEdges,
+          collapse,
+          connectorThickness,
+          contigThickness,
+          nodeWidth,
+          edgeWidth,
+          drawPaths,
+        ],
+        () => {
+          const dropped = new Set<number>()
+          const runs = directedRuns(
+            graph.edges,
+            laidLinks.filter(ei => !collapse.edges.has(ei)),
+            ei =>
+              !sharedCurves.arcs.has(ei) &&
+              !deletions?.has(ei) &&
+              !turnsAgainstReference(graph.edges[ei]!),
+          )
+          for (const run of runs) {
+            const along: number[] = []
+            const drawable: boolean[] = []
+            let total = 0
+            run.forEach((ei, i) => {
+              const edge = graph.edges[ei]!
+              const toNode = nodeById.get(edge.to)
+              const curves = meetingDrawnNodes(
+                sharedCurves.get(ei)!,
+                edge.from,
+                edge.to,
+              )
+              const numPaths = edge.pathIds?.length ?? 0
+              total += curvesPx(curves, axis.scaleX, axis.scaleY)
+              along.push(total)
+              drawable.push(
+                !collapse.bridges.has(ei) &&
+                  arrowheadFor({
+                    curves,
+                    edgeHalfWidth:
+                      (connectorThickness / 2) *
+                      (drawPaths && numPaths > 0
+                        ? 1
+                        : edgeWidthFactor(numPaths, busiest, edgeWidth)),
+                    nodeHalfWidth:
+                      (toNode ? widthOf(toNode) : contigThickness) / 2,
+                    scale,
+                    yToX,
+                    color: EDGE_DEFAULT_COLOR,
+                    fromSegments: nodePositions[edge.from]!,
+                    toSegments: nodePositions[edge.to]!,
+                  }) !== undefined,
+              )
+              if (i < run.length - 1) {
+                total += polylinePx(
+                  nodePositions[edge.to]!,
+                  axis.scaleX,
+                  axis.scaleY,
+                )
+              }
+            })
+            const kept = spreadHeads(
+              along,
+              drawable,
+              total,
+              LINK_HEAD_SPACING_PX,
+            )
+            run.forEach((ei, i) => {
+              if (!kept.has(i)) {
+                dropped.add(ei)
+              }
+            })
+          }
+          return dropped
+        },
+      )
+    : NO_HEADS_DROPPED
   const bridgeStrokes = new Set<number>()
   let pathRibbons = false
+  const inView = (curves: BezierCurve[]) =>
+    !viewportBounds || isBezierInBounds(curves, viewportBounds)
+  const dashesOf = (curves: BezierCurve[]) =>
+    dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
   for (const ei of laidLinks) {
     const edge = graph.edges[ei]!
     const fromSegments = nodePositions[edge.from]!
@@ -2037,6 +2079,38 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const baseCurves = sharedCurves.get(ei)!
 
     const numPaths = edge.pathIds?.length ?? 0
+    const onWalk = highlight?.edgeIndexes.has(ei) ?? false
+    // One stroke per path crossing the edge, fanned off it: the shared curve
+    // slid sideways, which is also what the hit index tests against. Rebuilding
+    // the curve at each offset was 40% of a striped build and differed from a
+    // translation only in a deletion's bow, by the offset's few px.
+    const ribbons = drawPaths && numPaths > 0
+    pathRibbons ||= ribbons
+    // A lifted walk's link carries on its lane from the node it leaves, so a
+    // lane runs unbroken through the joints rather than beside a grey link
+    const laneWalks =
+      highlight?.walks.length && onWalk && !ribbons
+        ? highlight.walks
+        : undefined
+    const collapsed = collapse.edges.has(ei)
+    if (!laneWalks && (collapsed || (!ribbons && !inView(baseCurves)))) {
+      continue
+    }
+    const fromSite = laneSiteOf(edge.from)
+    const toSite = laneSiteOf(edge.to)
+    const across = collapsed || !!fromSite || !!toSite
+    const bridge = collapse.bridges.get(ei)
+    if (laneWalks && fromSite && toSite && !collapsed) {
+      laneOnly.edges.add(ei)
+    }
+    if (
+      laneWalks &&
+      (!lanesMayShow(baseCurves, edge.from) ||
+        (fromSite && toSite && !passageLinks.has(ei)))
+    ) {
+      continue
+    }
+
     const isDeletion = sharedCurves.arcs.has(ei)
     // Dashed where the span a skip jumps on screen holds three dashes, one
     // plain headless stroke where shorter. Its length along the curve would
@@ -2044,7 +2118,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // under a head: a dart
     const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
     const dashed = skipDashes(arcPx)
-    const onWalk = highlight?.edgeIndexes.has(ei) ?? false
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks
     const ribbonThickness =
@@ -2059,12 +2132,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : edgeWidth === 'walks' && busiest > 0
           ? Math.max(1, walkFactor)
           : DELETION_THICKNESS_FACTOR)
-    // One stroke per path crossing the edge, fanned off it: the shared curve
-    // slid sideways, which is also what the hit index tests against. Rebuilding
-    // the curve at each offset was 40% of a striped build and differed from a
-    // translation only in a deletion's bow, by the offset's few px.
-    const ribbons = drawPaths && numPaths > 0
-    pathRibbons ||= ribbons
 
     // An arrowhead states which way a LINK is read, which is a property of the
     // edge and not of each path crossing it. Drawn per ribbon it says one thing
@@ -2089,8 +2156,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const fadedMark = edgeFaded ? { faded: true as const } : {}
     const toNode = nodeById.get(edge.to)
     const intoHalfWidth = (toNode ? widthOf(toNode) : contigThickness) / 2
-    const inView = (curves: BezierCurve[]) =>
-      !viewportBounds || isBezierInBounds(curves, viewportBounds)
     // A deletion is drawn dashed, and that is the only thing in the drawing
     // that is. Weight and darkness were carrying it alone, and they could not:
     // an off-reference node is charcoal rgb(60,65,72) and the arc is near-black
@@ -2104,8 +2169,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // absence from the bypassed nodes already say it.
     const skipMark = deletions?.has(ei) ? { skip: true, span: arcPx } : {}
     const turnMark = turnsAgainstReference(edge) ? { turn: true } : {}
-    const dashesOf = (curves: BezierCurve[]) =>
-      dashSpans(curves, DELETION_DASH_PX / scale, yToX, viewportBounds)
     const stroke = (
       curves: BezierCurve[],
       thickness: number,
@@ -2171,27 +2234,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const edgeCurveStart = edgeCurves.length
     const arrowStart = arrows.length
 
-    // A lifted walk's link carries on its lane from the node it leaves, so a
-    // lane runs unbroken through the joints rather than beside a grey link
-    const laneWalks =
-      highlight?.walks.length && onWalk && !ribbons
-        ? highlight.walks
-        : undefined
-    const collapsed = collapse.edges.has(ei)
-    const fromSite = laneSiteOf(edge.from)
-    const toSite = laneSiteOf(edge.to)
-    const across = collapsed || !!fromSite || !!toSite
-    const bridge = collapse.bridges.get(ei)
-    if (laneWalks && fromSite && toSite && !collapsed) {
-      laneOnly.edges.add(ei)
-    }
-    if (
-      (laneWalks && !lanesMayShow(baseCurves, edge.from)) ||
-      (collapsed && !laneWalks) ||
-      (laneWalks && fromSite && toSite && !passageLinks.has(ei))
-    ) {
-      continue
-    }
     if (laneWalks) {
       const { fromAtStart, toAtStart } = linkSides(ei)!
       const last = baseCurves.at(-1)!
@@ -2336,14 +2378,14 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       }
     } else if (!ribbons) {
       const fromNode = nodeById.get(edge.from)
-      if (inView(baseCurves) && bridge && fromNode) {
+      if (bridge && fromNode) {
         bridgeStrokes.add(edgeCurves.length)
         stroke(
           curvesAlongRun(bridge.run, baseCurves),
           runWidth(bridge.run, fromNode) / 2,
           edgeFaded ? LIFT_BACKDROP_COLOR : nodeInk(fromNode),
         )
-      } else if (inView(baseCurves)) {
+      } else {
         const drawn = meetingDrawnNodes(baseCurves, edge.from, edge.to)
         stroke(drawn, edgeThickness, edgeColor)
         arrowOn(drawn)
