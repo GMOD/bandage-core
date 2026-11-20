@@ -185,7 +185,7 @@ W\tw2\t1\tchr1\t*\t*\t>A>B`)
   expect(edge.pathIds).toContain('w2#1#chr1')
 })
 
-test('a walk annotates its edges read either way, and no step pair without one', () => {
+test('a walk annotates the link it takes read either way, not another link between the same nodes, and no step pair without one', () => {
   const gfa = parseGFA(`S\tA\tACGT
 S\tB\tGGCC
 S\tC\tTT
@@ -197,8 +197,55 @@ W\tw2\t1\tchr1\t*\t*\t<B<A`)
 
   expect(graph.edges.map(e => e.pathIds)).toEqual([
     ['w1#0#chr1', 'w2#1#chr1'],
-    ['w1#0#chr1', 'w2#1#chr1'],
+    undefined,
   ])
+})
+
+test('an inversion link beside a walked link carries no walk of it', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(`S\ta\tACGT
+S\tb\tGG
+S\tc\tTTT
+L\ta\t+\tb\t+\t0M
+L\ta\t+\tb\t-\t0M
+L\tb\t+\tc\t+\t0M
+L\tb\t-\tc\t+\t0M
+W\tref\t0\tchr1\t0\t9\t>a>b>c`),
+  )
+  expect(graph.edges.map(e => e.pathIds)).toEqual([
+    ['ref#0#chr1'],
+    undefined,
+    ['ref#0#chr1'],
+    undefined,
+  ])
+})
+
+test('a self loop carries the walks that take it either way round, and not those that take another loop on the same node', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(`S\tA\tACGT
+L\tA\t+\tA\t+\t0M
+L\tA\t+\tA\t-\t0M
+L\tA\t-\tA\t+\t0M
+W\tw1\t0\tchr1\t*\t*\t>A>A
+W\tw2\t1\tchr1\t*\t*\t<A<A
+W\tw3\t2\tchr1\t*\t*\t>A<A`),
+  )
+  expect(graph.edges.map(e => [e.fromStrand, e.toStrand, e.pathIds])).toEqual([
+    ['+', '+', ['w1#0#chr1', 'w2#1#chr1']],
+    ['+', '-', ['w3#2#chr1']],
+    ['-', '+', undefined],
+  ])
+})
+
+test('a P line takes a link the file writes from its other strand', () => {
+  const graph = convertGFAToGraph(
+    parseGFA(`S\tA\tACGT
+S\tB\tGGCC
+L\tB\t-\tA\t-\t0M
+L\tB\t+\tA\t-\t0M
+P\tp1\tA+,B+\t*`),
+  )
+  expect(graph.edges.map(e => e.pathIds)).toEqual([['p1'], undefined])
 })
 
 test('handles getSubgraph output format (star sequences with LN tags)', () => {

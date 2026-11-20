@@ -558,6 +558,45 @@ test("every node's walks are as many as its depth", () => {
   }
 })
 
+// HG002 departs through 6 forward, so it takes 2+ to 6+ and 6+ to 4+, not
+// the inversion links beside them
+test("a departure's own steps take the links of their strands, not another link between the same nodes", () => {
+  const tables = gfaTables(
+    gfa(
+      'H\tVN:Z:1.1',
+      ...S(1, 2, 3, 4, 5, 6),
+      ...L([1, 2], [2, 3], [3, 4], [4, 5], [2, 6], [6, 4]),
+      'L\t2\t+\t6\t-\t0M',
+      'L\t6\t-\t4\t+\t0M',
+      W(REFERENCE, 0, 5000, '>1>2>3>4>5'),
+      W('HG002#1#chr1', 0, 2000, '>1>2'),
+      W('HG002#1#chr1', 3000, 5000, '>4>5'),
+    ),
+  )!
+  const graph = graphFromTables(
+    {
+      ...tables,
+      departures: {
+        ...departureTable([departure()]),
+        offsets: Int32Array.of(0, 1),
+        steps: Int32Array.of(tables.nodes.names.indexOf('6')),
+        reversed: new Uint8Array(1),
+      },
+    },
+    'cut',
+  )
+  expect(
+    graph.edges
+      .filter(e => e.from === '6+' || e.to === '6+')
+      .map(e => [e.from, e.fromStrand, e.to, e.toStrand, e.pathIds]),
+  ).toEqual([
+    ['2+', '+', '6+', '+', ['HG002#1#chr1']],
+    ['6+', '+', '4+', '+', ['HG002#1#chr1']],
+    ['2+', '+', '6+', '-', undefined],
+    ['4+', '-', '6+', '+', undefined],
+  ])
+})
+
 // HG002's own steps 6 and 7 break after 6: 6 follows its leave step, 2, and 7
 // leads to its rejoin step, 4, and the cut has no link that takes it from 6
 // to 7

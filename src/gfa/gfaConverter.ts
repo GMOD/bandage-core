@@ -8,6 +8,7 @@ import {
   REVERSED,
   orientSegments,
   respelled,
+  respelledStrands,
 } from './segmentOrientation'
 
 import type { GFAGraph, GFANode, GFAPath, GFAWalk } from '../gfa-core/index'
@@ -96,6 +97,10 @@ function surveySegments(gfaGraph: GFAGraph, stepped: PathSteps[]) {
 // offset that can be assumed, and it makes the walk self-relative rather than
 // wrong
 const walkStart = (w: GFAWalk) => (w.start === -1 ? 0 : w.start)
+
+// a link's two strands as the bits GraphTables links state them in
+const strandsOf = (from: string | undefined, to: string | undefined) =>
+  (from === '-' ? 1 : 0) | (to === '-' ? 2 : 0)
 
 // A P body is a comma-joined `<id><strand>` list whose start offset lives in
 // the record's name; a W record arrives split into steps with its start as a
@@ -255,35 +260,43 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
 
   const paths: GraphPath[] = []
 
-  // The paths crossing each edge, found by the node pair either way round: a
-  // path that walks the graph on the reverse strand visits an edge's nodes in
-  // the opposite order to the L line that declared it. Links between the same
-  // two nodes share one set. Looked up through the node id strings already
-  // built, so a step allocates nothing; a key string per step was most of the
-  // conversion of a cut with walks.
-  const pathsByPair = new Map<string, Map<string, Set<string>>>()
-  const pairPaths = (a: string, b: string) => pathsByPair.get(a)?.get(b)
-  function addPair(a: string, b: string, set: Set<string>) {
-    let to = pathsByPair.get(a)
+  // The paths taking each link, read either way along it: `L a + b +` is
+  // taken by a step from a+ to b+ and by one from b- to a-, never by one from
+  // a+ to b-, which is another link between the same two nodes. Looked up
+  // through the node id strings already built, so a step allocates nothing; a
+  // key string per step was most of the conversion of a cut with walks.
+  const pathsByLink = new Map<string, Map<string, Set<string>[]>>()
+  function addSide(a: string, b: string, strands: number, set: Set<string>) {
+    let to = pathsByLink.get(a)
     if (!to) {
       to = new Map()
-      pathsByPair.set(a, to)
+      pathsByLink.set(a, to)
     }
-    to.set(b, set)
+    let sides = to.get(b)
+    if (!sides) {
+      sides = []
+      to.set(b, sides)
+    }
+    sides[strands] = set
   }
   const edgePaths = edges.map(edge => {
-    let set = pairPaths(edge.from, edge.to)
-    if (!set) {
-      set = new Set()
-      addPair(edge.from, edge.to, set)
-      addPair(edge.to, edge.from, set)
-    }
+    const set = new Set<string>()
+    const strands = strandsOf(edge.fromStrand, edge.toStrand)
+    addSide(edge.from, edge.to, strands, set)
+    addSide(edge.to, edge.from, respelledStrands(strands), set)
     return set
   })
 
-  function recordPathEdges(nodeIds: string[], pathName: string) {
+  function recordPathEdges(
+    nodeIds: string[],
+    steps: readonly { strand: string }[],
+    pathName: string,
+  ) {
     for (let i = 0; i < nodeIds.length - 1; i++) {
-      pairPaths(nodeIds[i]!, nodeIds[i + 1]!)?.add(pathName)
+      pathsByLink
+        .get(nodeIds[i]!)
+        ?.get(nodeIds[i + 1]!)
+        ?.[strandsOf(steps[i]!.strand, steps[i + 1]!.strand)]?.add(pathName)
     }
   }
 
@@ -293,7 +306,7 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     const { start, steps } = pathSteps[i]!
     const nodeIds = steps.map(step => nodeId(step.id))
     paths.push({ name: pathName, nodeIds, start } satisfies GraphPath)
-    recordPathEdges(nodeIds, pathName)
+    recordPathEdges(nodeIds, steps, pathName)
   })
 
   gfaGraph.walks.forEach((walk, i) => {
@@ -307,7 +320,7 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
       haplotype: walk.haplotype,
       contig: walk.contig,
     } satisfies GraphPath)
-    recordPathEdges(nodeIds, walkName)
+    recordPathEdges(nodeIds, walk.segments, walkName)
   })
 
   edges.forEach((edge, i) => {

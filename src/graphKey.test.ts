@@ -20,6 +20,7 @@ import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform, loadGraph } from './pipeline'
 import { graphBackbone } from './reference'
 import {
+  EDGE_DEFAULT_COLOR,
   REFERENCE_RAMP_ALT_COLOR,
   buildGeometry,
   computeReferenceRamp,
@@ -573,6 +574,50 @@ test('a link no drawn walk takes keys its own row under link thickness, below th
   const px = rows.map(e => (e.swatch?.kind === 'width' ? e.swatch.px : NaN))
   expect(rows.map(e => e.text)).toEqual(['1 walk', '0 walks'])
   expect(px[1]).toBeLessThan(px[0]!)
+})
+
+// The walk takes a+ to b+ and b+ to c+, and the inversion links between the
+// same nodes took its walks as their own: drawn as thick as the links beside
+// them, with no "0 walks" row to key them
+const INVERSIONS = `S\ta\tACGT
+S\tb\tGG
+S\tc\tTTT
+L\ta\t+\tb\t+\t0M
+L\ta\t+\tb\t-\t0M
+L\tb\t+\tc\t+\t0M
+L\tb\t-\tc\t+\t0M
+W\tref\t0\tchr1\t0\t9\t>a>b>c`
+
+test('an inversion link no walk takes keys the "0 walks" row beside the link the walk takes', () => {
+  const inversions = load(INVERSIONS, 'ref')
+  expect(
+    keyOf(inversions, {}, { edgeWidth: 'walks' })
+      .find(s => s.id === 'link-width')!
+      .entries.map(e => e.text),
+  ).toEqual(['1 walk', '0 walks'])
+})
+
+test('an inversion link no walk takes draws at the floor, under the link the walk takes', () => {
+  const inversions = load(INVERSIONS, 'ref')
+  const { batch } = drawn(inversions, { edgeWidth: 'walks' })
+  const thickness = (edge: number) =>
+    batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
+  expect([0, 1, 2, 3].map(thickness)).toEqual([4, 0.5, 4, 0.5])
+})
+
+test("an inversion link no walk takes draws as a plain link, not in the walk's ribbon colour", () => {
+  const inversions = load(INVERSIONS, 'ref')
+  const { batch } = drawn(inversions, { drawPaths: true })
+  const colors = [0, 1, 2, 3].map(
+    e => batch.edgeCurves[batch.edgeCurveRuns.get(e)!.start]!.color,
+  )
+  expect(colors[0]).not.toBe(EDGE_DEFAULT_COLOR)
+  expect(colors).toEqual([
+    colors[0],
+    EDGE_DEFAULT_COLOR,
+    colors[0],
+    EDGE_DEFAULT_COLOR,
+  ])
 })
 
 // Path colours on with links by walks drew every walked link as ribbons of

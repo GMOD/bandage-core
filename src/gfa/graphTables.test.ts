@@ -302,6 +302,26 @@ test.each([1, 2, 3, 4, 5, 6, 7, 8])(
   },
 )
 
+test('tables give an inversion link beside a walked link no walk of it, as the text does', () => {
+  const text = `S\ta\tACGT
+S\tb\tGG
+S\tc\tTTT
+L\ta\t+\tb\t+\t0M
+L\ta\t+\tb\t-\t0M
+L\tb\t+\tc\t+\t0M
+L\tb\t-\tc\t+\t0M
+W\tref\t0\tchr1\t0\t9\t>a>b>c
+W\talt\t1\tchr1\t0\t9\t<c<b<a`
+  const fromTables = graphFromTables(gfaTables(text)!)
+  expect(fromTables.edges.map(e => e.pathIds)).toEqual([
+    ['ref#0#chr1', 'alt#1#chr1'],
+    undefined,
+    ['ref#0#chr1', 'alt#1#chr1'],
+    undefined,
+  ])
+  expect(fromTables).toStrictEqual(convertGFAToGraph(parseGFA(text)))
+})
+
 test('loadGraph takes tables as it takes their GFA', () => {
   const t = tables({
     names: ['1', '2'],

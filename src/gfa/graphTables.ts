@@ -418,31 +418,19 @@ export function graphFromTables(
     })
   }
 
-  // Links between the same two segments, either way round, share one list of
-  // the walks crossing them, kept per segment as [neighbour, list, ...]
+  // Each link under both its spellings, `L a sa b sb` from a and `L b ~sb a
+  // ~sa` from b, kept per segment as [neighbour, strands, link, ...], so a
+  // step finds the one link it takes whichever way its walk reads it
   const edges: GraphEdge[] = []
   const neighbours = new Array<number[] | undefined>(count)
-  const pairList = (a: number, b: number) => {
+  const addSide = (a: number, b: number, strands: number, link: number) => {
     const near = neighbours[a]
     if (near) {
-      for (let j = 0; j < near.length; j += 2) {
-        if (near[j] === b) {
-          return near[j + 1]
-        }
-      }
-    }
-    return undefined
-  }
-  const addPair = (a: number, b: number, list: number) => {
-    const near = neighbours[a]
-    if (near) {
-      near.push(b, list)
+      near.push(b, strands, link)
     } else {
-      neighbours[a] = [b, list]
+      neighbours[a] = [b, strands, link]
     }
   }
-  const edgeLists: number[] = []
-  let lists = 0
   for (let i = 0; i < l.from.length; i++) {
     const flip = respelled(n.names, orient, l, i)
     const a = flip ? l.to[i]! : l.from[i]!
@@ -454,50 +442,55 @@ export function graphFromTables(
       fromStrand: strands & 1 ? '-' : '+',
       toStrand: strands & 2 ? '-' : '+',
     })
-    let list = pairList(a, b)
-    if (list === undefined) {
-      list = lists++
-      addPair(a, b, list)
-      addPair(b, a, list)
-    }
-    edgeLists.push(list)
+    addSide(a, b, strands, i)
+    addSide(b, a, respelledStrands(strands), i)
   }
   // the same, flattened for the walk steps to look up
   const adjacency = new Int32Array(count + 1)
   for (let a = 0; a < count; a++) {
-    adjacency[a + 1] = adjacency[a]! + (neighbours[a]?.length ?? 0) / 2
+    adjacency[a + 1] = adjacency[a]! + (neighbours[a]?.length ?? 0) / 3
   }
   const adjacentNode = new Int32Array(adjacency[count]!)
-  const adjacentList = new Int32Array(adjacency[count]!)
-  neighbours.forEach((near, a) => {
-    for (let j = 0; j < near!.length; j += 2) {
-      adjacentNode[adjacency[a]! + j / 2] = near![j]!
-      adjacentList[adjacency[a]! + j / 2] = near![j + 1]!
+  const adjacentStrands = new Uint8Array(adjacency[count]!)
+  const adjacentLink = new Int32Array(adjacency[count]!)
+  for (let a = 0; a < count; a++) {
+    const near = neighbours[a] ?? []
+    for (let j = 0; j < near.length; j += 3) {
+      const at = adjacency[a]! + j / 3
+      adjacentNode[at] = near[j]!
+      adjacentStrands[at] = near[j + 1]!
+      adjacentLink[at] = near[j + 2]!
     }
-  })
-  const listOf = (a: number, b: number) => {
+  }
+  const linkOf = (
+    a: number,
+    b: number,
+    aReversed: number | boolean | undefined,
+    bReversed: number | boolean | undefined,
+  ) => {
+    const strands = (aReversed ? 1 : 0) | (bReversed ? 2 : 0)
     for (let j = adjacency[a]!; j < adjacency[a + 1]!; j++) {
-      if (adjacentNode[j] === b) {
-        return adjacentList[j]!
+      if (adjacentNode[j] === b && adjacentStrands[j] === strands) {
+        return adjacentLink[j]!
       }
     }
     return -1
   }
 
-  // Each list holds a walk's name once, in the order walks first cross it.
+  // Each link holds a walk's name once, in the order walks first take it.
   // A crossing is recorded flat, a fragment of a haplotype naming it again,
-  // and grouped by list with repeats dropped once at the end: an array per
-  // list grown at each crossing, searched for the name, was most of AMY1's
+  // and grouped by link with repeats dropped once at the end: an array per
+  // link grown at each crossing, searched for the name, was most of AMY1's
   // load, 1,816 fragments of 233 samples.
   const nameIndex = new Map<string, number>()
   const pathNames: string[] = []
-  // a walk or a departure's run crosses at most a list per step
-  const crossedList = new Int32Array(
+  // a walk or a departure's run crosses at most a link per step
+  const crossedLink = new Int32Array(
     (w.offsets[w.names.length] ?? 0) + departedSteps,
   )
-  const crossedName = new Int32Array(crossedList.length)
+  const crossedName = new Int32Array(crossedLink.length)
   let crossings = 0
-  const lastWalk = new Int32Array(lists).fill(-1)
+  const lastWalk = new Int32Array(edges.length).fill(-1)
   const paths: GraphPath[] = []
   const anchorPaths: PathOrigin[] = []
   // each segment's visits, a block sized by its traversals that is placed at
@@ -549,10 +542,10 @@ export function graphFromTables(
       visitReversed[at] = w.reversed[s]!
       pos += node < declared ? n.lengths[node]! : 0
       if (prev >= 0) {
-        const list = listOf(prev, node)
-        if (list >= 0 && lastWalk[list] !== p) {
-          lastWalk[list] = p
-          crossedList[crossings] = list
+        const link = linkOf(prev, node, w.reversed[s - 1], w.reversed[s])
+        if (link >= 0 && lastWalk[link] !== p) {
+          lastWalk[link] = p
+          crossedLink[crossings] = link
           crossedName[crossings++] = edgeNamed
         }
       }
@@ -567,25 +560,27 @@ export function graphFromTables(
       length: pos - start,
     })
   }
-  for (const { walk, steps, held } of departed) {
+  for (const { walk, steps, held, reversed } of departed) {
     const edgeNamed = edgeNameIndex.get(tablePath(w, walk).name)!
     for (let i = 1; i < steps.length; i++) {
-      const list =
-        held[i - 1] && held[i] ? -1 : listOf(steps[i - 1]!, steps[i]!)
-      if (list >= 0) {
-        crossedList[crossings] = list
+      const link =
+        held[i - 1] && held[i]
+          ? -1
+          : linkOf(steps[i - 1]!, steps[i]!, reversed[i - 1], reversed[i])
+      if (link >= 0) {
+        crossedLink[crossings] = link
         crossedName[crossings++] = edgeNamed
       }
     }
   }
-  const listNames = namesByList(
-    crossedList.subarray(0, crossings),
+  const linkNames = namesByList(
+    crossedLink.subarray(0, crossings),
     crossedName,
-    lists,
+    edges.length,
     edgeNames,
   )
   edges.forEach((edge, i) => {
-    const names = listNames[edgeLists[i]!]!
+    const names = linkNames[i]!
     if (names.length > 0) {
       edge.pathIds = names
     }
