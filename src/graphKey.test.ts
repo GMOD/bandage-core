@@ -558,6 +558,18 @@ test("the thickness keys give the scale's two ends, links only where they widen 
   ).toEqual(['1 walk'])
 })
 
+// A cut can list a link no walk drawn takes, such as another haplotype's skip
+// from v1 to v3, which draws at the floor of the walk thickness scale
+test('a link no drawn walk takes keys its own row under link thickness, below the thinnest walked one', () => {
+  const skipped = load(`${GFA}\nL\tv1\t+\tv3\t+\t0M`, 'GRCh38')
+  const rows = keyOf(skipped, {}, { edgeWidth: 'walks' }).find(
+    s => s.id === 'link-width',
+  )!.entries
+  const px = rows.map(e => (e.swatch?.kind === 'width' ? e.swatch.px : NaN))
+  expect(rows.map(e => e.text)).toEqual(['1 walk', '0 walks'])
+  expect(px[1]).toBeLessThan(px[0]!)
+})
+
 test('the halo, the strip tab and compress are keyed where they are drawn', () => {
   expect(keys(graph, {}, { halos: [{ whole: true }] })).not.toContain('halo')
   expect(keys(graph, {}, { halos: [{ whole: false }] })).toContain('halo')

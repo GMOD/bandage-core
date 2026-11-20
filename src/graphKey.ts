@@ -598,15 +598,17 @@ export function graphKey(
         : []
 
   const busiest = busiestEdge(graph)
+  const unwalked = graph.edges.some(edge => !edge.pathIds?.length)
   const linkWidthEntries: GraphKeyEntry[] =
     drawsNodes && o.edgeWidth === 'walks' && busiest > 0
-      ? (busiest > 1 ? [busiest, 1] : [1]).map(n =>
-          widthEntry(
-            `link-width-${n}`,
-            counted(n, 'walk', 'walks'),
-            connector * edgeWidthFactor(n, busiest, 'walks'),
-            EDGE_DEFAULT_COLOR,
-          ),
+      ? [...(busiest > 1 ? [busiest, 1] : [1]), ...(unwalked ? [0] : [])].map(
+          n =>
+            widthEntry(
+              `link-width-${n}`,
+              counted(n, 'walk', 'walks'),
+              connector * edgeWidthFactor(n, busiest, 'walks'),
+              EDGE_DEFAULT_COLOR,
+            ),
         )
       : []
 
