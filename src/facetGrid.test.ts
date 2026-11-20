@@ -7,6 +7,8 @@ import {
   facetSettingOf,
 } from './facetGrid'
 
+import type { FacetInput } from './facetGrid'
+
 const square = { w: 100, h: 100 }
 
 test('four square drawings go two by two in a tall pane and four across in a wide one', () => {
@@ -113,6 +115,22 @@ test('a facet setting reads a bare field, drops one the pane cannot split on, an
     sort: ['B'],
     columns: 2,
   })
+})
+
+test('a column count that is no finite number of at least one is left unset, as a session or R writes none', () => {
+  const written = (columns: string) =>
+    facetSettingOf(
+      JSON.parse(`{ "field": "walk", "columns": ${columns} }`) as FacetInput,
+    )
+  const unset = { field: 'walk', sort: [] }
+  expect(written('null')).toEqual(unset)
+  expect(written('"two"')).toEqual(unset)
+  expect(written('0')).toEqual(unset)
+  expect(facetSettingOf({ field: 'walk', columns: Number.NaN })).toEqual(unset)
+  expect(
+    facetSettingOf({ field: 'walk', columns: Number.POSITIVE_INFINITY }),
+  ).toEqual(unset)
+  expect(written('3')).toEqual({ ...unset, columns: 3 })
 })
 
 test('a facet written with the 11.x domain reads it as the sort', () => {

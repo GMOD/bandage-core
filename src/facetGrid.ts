@@ -132,10 +132,13 @@ export type FacetInput =
 export function facetSettingOf(facet: FacetInput | undefined): FacetSetting {
   const raw = typeof facet === 'string' ? { field: facet } : (facet ?? {})
   const field = raw.field === 'walk' || raw.field === 'sample' ? raw.field : ''
+  const { columns } = raw
   return {
     field,
     sort: [...(raw.sort ?? raw.domain ?? [])],
-    ...(raw.columns === undefined ? {} : { columns: raw.columns }),
+    ...(typeof columns === 'number' && Number.isFinite(columns) && columns >= 1
+      ? { columns }
+      : {}),
   }
 }
 
