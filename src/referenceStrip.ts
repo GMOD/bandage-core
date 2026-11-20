@@ -142,8 +142,12 @@ export function nodeAnchor(
   segments: readonly NodeSegment[] | undefined,
   toScreen: (p: NodeSegment) => { x: number; y: number },
 ) {
-  const p = segments?.[Math.floor(segments.length / 2)]
-  return p ? toScreen(p) : undefined
+  const last = (segments?.length ?? 0) - 1
+  const a = segments?.[Math.floor(last / 2)]
+  const b = segments?.[Math.ceil(last / 2)]
+  return a && b
+    ? toScreen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
+    : undefined
 }
 
 export interface StripLit {

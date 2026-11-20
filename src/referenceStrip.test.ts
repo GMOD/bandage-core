@@ -148,3 +148,15 @@ test('a node is anchored at the middle of its polyline', () => {
   })
   expect(nodeAnchor(undefined, p => p)).toBeUndefined()
 })
+
+test('a node of two points, or any even number, is anchored between its middle two', () => {
+  const points = [
+    { x: 0, y: 0 },
+    { x: 10, y: 4 },
+    { x: 20, y: 4 },
+    { x: 30, y: 0 },
+  ]
+  expect(nodeAnchor(points.slice(0, 2), p => p)).toEqual({ x: 5, y: 2 })
+  expect(nodeAnchor(points, p => p)).toEqual({ x: 15, y: 4 })
+  expect(nodeAnchor([], p => p)).toBeUndefined()
+})
