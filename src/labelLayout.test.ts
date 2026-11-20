@@ -145,7 +145,7 @@ test('a node length clear of every chip keeps its label', () => {
 
 // amylase's "nodes not shown" loops lost their 75 kb and 116 kb with node
 // lengths turned off, the only cue to how much sequence each one holds
-test('a node writes its length only where the host turns lengths on, a placeholder always', () => {
+test('a node writes its length unless the host turns lengths off, a placeholder always', () => {
   const nodes = [
     { id: 'ref', name: 'ref', length: 700, depth: 1 },
     { id: 'off', name: 'off', length: 900, depth: 1 },
@@ -178,8 +178,8 @@ test('a node writes its length only where the host turns lengths on, a placehold
         nodeById: new Map(nodes.map(n => [n.id, n])),
       }),
     ).sizes.map(l => l.text)
-  expect(LABEL_DEFAULTS.nodeLengths).toBe(false)
-  expect(lengths(undefined)).toEqual(['75 kb'])
+  expect(LABEL_DEFAULTS.nodeLengths).toBe(true)
+  expect(lengths(undefined)).toEqual(['75 kb', '900 bp', '700 bp'])
   expect(lengths(false)).toEqual(['75 kb'])
   expect(lengths(true)).toEqual(['75 kb', '900 bp', '700 bp'])
 })
@@ -731,7 +731,7 @@ test('a loop stepping a node not loaded writes no length of its own, and its pla
     source({
       nodePositions: loopPositions,
       nodeById: nodesById(graph.nodes),
-      nodeLengths: labelledNodeLengths(graph.nodes),
+      nodeLengths: labelledNodeLengths(graph.nodes, false),
       graph,
       drawnInk: inkOf(loopPositions),
     }),

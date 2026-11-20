@@ -535,7 +535,11 @@ test("the labels table places the canvas's labels: a placeholder's length always
       placed.sizes[i]!.y,
     )
   })
-  const plain = figureData(graph, layout, { width, height })
+  const plain = figureData(graph, layout, {
+    width,
+    height,
+    nodeLengths: false,
+  })
   expect(plain.labels.text).toEqual(['75 kb'])
   const hollow = plain.meta.graphKey.key.indexOf('not-shown')
   expect(plain.meta.graphKey.swatch[hollow]).toBe('hollow')
@@ -704,10 +708,13 @@ const smallLoopLayout = {
 
 test('the labels table holds no length for a placeholder the figure folded, and holds it with small sites drawn as nodes', () => {
   const loop = loadGraph(SMALL_LOOP, 'loop', { referencePath: 'R' })
-  const drawn = figureData(loop, smallLoopLayout, { smallSites: 'nodes' })
+  const drawn = figureData(loop, smallLoopLayout, {
+    smallSites: 'nodes',
+    nodeLengths: false,
+  })
   expect(drawn.labels.text).toEqual(['5 bp'])
   expect(drawn.labels.item).toEqual(['p1+'])
-  const folded = figureData(loop, smallLoopLayout)
+  const folded = figureData(loop, smallLoopLayout, { nodeLengths: false })
   expect(listed(folded.sites?.nodes)).toEqual(['p1+'])
   expect(folded.labels.text).toEqual([])
 })

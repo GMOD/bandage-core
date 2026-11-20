@@ -68,12 +68,12 @@ interface Point {
 //
 // Collision is measured in SCREEN pixels, because that is where the text has its
 // size: the same two labels clear each other zoomed in and collide zoomed out,
-// so a wide view sheds labels on its own. A node's length is written only
-// where a host turns lengths on (LABEL_DEFAULTS.nodeLengths), but a
-// placeholder's always is: nothing else says how much sequence the steps it
-// stands in for hold.
+// so a wide view sheds labels on its own. A node's length is written unless
+// a host turns lengths off (LABEL_DEFAULTS.nodeLengths), and a placeholder's
+// always is: nothing else says how much sequence the steps it stands in for
+// hold.
 
-export const LABEL_DEFAULTS = { nodeLengths: false }
+export const LABEL_DEFAULTS = { nodeLengths: true }
 
 export function labelledNodeLengths(
   nodes: readonly GraphNode[],

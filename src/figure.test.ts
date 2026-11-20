@@ -471,7 +471,7 @@ L\tp1\t+\tr3\t+\t0M
 W\tR\t0\tchr\t0\t75000\t>r1>r2>r3
 W\tA\t1\tchr\t0\t120000\t>r1>p1>r3`
 
-test("a figure writes a placeholder's length whether or not node lengths are on, and every node's only when they are", () => {
+test("a figure writes every node's length by default, and a placeholder's alone with node lengths off", () => {
   const unloaded = anchorGraph(convertGFAToGraph(parseGFA(UNLOADED)), 'R')
   const unloadedLayout = layoutModeByValue('auto').run(unloaded, undefined)!
   expect(figureSvg(unloaded, unloadedLayout)).toContain(
@@ -484,7 +484,7 @@ test("a figure writes a placeholder's length whether or not node lengths are on,
         nodeLengths,
       }).matchAll(/>(\d+ kb)<\/text>/g),
     ].map(m => m[1])
-  expect(written()).toEqual(['75 kb'])
+  expect(written()).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
   expect(written(false)).toEqual(['75 kb'])
   expect(written(true)).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
 })
