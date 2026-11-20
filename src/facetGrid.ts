@@ -123,8 +123,6 @@ export type FacetInput =
   | {
       field?: string
       sort?: readonly string[]
-      /** @deprecated `sort` through 11.x */
-      domain?: readonly string[]
       columns?: number
     }
 
@@ -135,7 +133,7 @@ export function facetSettingOf(facet: FacetInput | undefined): FacetSetting {
   const { columns } = raw
   return {
     field,
-    sort: [...(raw.sort ?? raw.domain ?? [])],
+    sort: [...(raw.sort ?? [])],
     ...(typeof columns === 'number' && Number.isFinite(columns) && columns >= 1
       ? { columns }
       : {}),

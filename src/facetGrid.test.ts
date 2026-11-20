@@ -97,7 +97,7 @@ test('walks that do not say their haplotype, or share a cell, wrap', () => {
   expect(facetCells(['A#1#c1', 'B#1#c1'], 'walk')).toEqual(wrapped)
 })
 
-test('a domain puts the walks, or the samples, it lists first', () => {
+test('a sort puts the walks, or the samples, it lists first', () => {
   expect(facetCells(['a', 'b', 'c'], 'walk', ['c', 'a']).cells).toEqual([
     1, 2, 0,
   ])
@@ -131,13 +131,6 @@ test('a column count that is no finite number of at least one is left unset, as 
     facetSettingOf({ field: 'walk', columns: Number.POSITIVE_INFINITY }),
   ).toEqual(unset)
   expect(written('3')).toEqual({ ...unset, columns: 3 })
-})
-
-test('a facet written with the 11.x domain reads it as the sort', () => {
-  expect(facetSettingOf({ field: 'walk', domain: ['c'] }).sort).toEqual(['c'])
-  expect(
-    facetSettingOf({ field: 'walk', sort: ['a'], domain: ['c'] }).sort,
-  ).toEqual(['a'])
 })
 
 test('the fields a picker offers lead with none, as a JBrowse menu does', () => {
