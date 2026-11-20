@@ -86,8 +86,8 @@ export interface FigureOptions {
   edgeWidth?: EdgeWidth
   // true when absent, as for the layout
   showDeletionEdges?: boolean
-  // the layout was laid out for a linear view, which draws strand arrows from
-  // a lower zoom (EngineSettings)
+  // the layout was laid out for a linear view, which draws strand arrows only
+  // from a higher zoom (EngineSettings)
   linearLayout?: boolean
   contigThickness?: number
   connectorThickness?: number

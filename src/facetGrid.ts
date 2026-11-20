@@ -175,7 +175,7 @@ export function facetCells(
   }
   const places = names.map(name => {
     const fields = panSNFields(name)
-    return fields && Number.isInteger(fields.haplotype) && fields.haplotype >= 0
+    return fields
       ? { sample: fields.sample, column: Math.max(0, fields.haplotype - 1) }
       : undefined
   })

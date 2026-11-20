@@ -62,10 +62,8 @@ export interface WalkHighlight {
   // the walk's own sequence or only off that path (gfa/departures.ts ownIsExact)
   referencePath: string | undefined
   revisited: number | undefined
-  // where a walk-file cut states its stretches: bp it read and kept out, and
-  // bp of the contig it did not read
+  // where a walk-file cut states its stretches: bp it read and kept out
   readBp?: number
-  unreadBp?: number
 }
 
 export interface LiftedWalk extends WalkHighlight {
@@ -334,7 +332,6 @@ function highlightOf(
   let missingBp = 0
   let ownBp = 0
   let readBp = 0
-  let unreadBp = 0
   const countOwn = (gap: GraphGap) => {
     let at = gap.start
     for (const x of gap.segments) {
@@ -344,7 +341,6 @@ function highlightOf(
       missingBp += missing
       ownBp += x.kind === 'own' ? keptBp - missing : 0
       readBp += x.kind === 'read' ? keptBp : 0
-      unreadBp += x.kind === 'unread' ? keptBp : 0
       at += x.bp
     }
   }
@@ -367,7 +363,6 @@ function highlightOf(
         missingBp += part.cause === 'missing' ? part.bp : 0
         ownBp += part.cause === 'own' ? part.bp : 0
         readBp += part.cause === undefined ? part.bp : 0
-        unreadBp += part.cause === 'elsewhere' ? part.bp : 0
       }
     }
     end = piece.start === undefined ? undefined : piece.start + bpOf(piece)
@@ -405,7 +400,7 @@ function highlightOf(
     ownBp,
     referencePath: graph.referencePath,
     revisited: graph.revisited,
-    ...(stated.length > 0 ? { readBp, unreadBp } : {}),
+    ...(stated.length > 0 ? { readBp } : {}),
   }
 }
 
