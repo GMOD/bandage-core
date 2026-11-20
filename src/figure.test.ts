@@ -3,12 +3,14 @@ import { SHORT_SKIP_KEY } from './deletionEdges'
 import { FACET_TITLE_PX } from './facetGrid'
 import { figureSvg } from './figure'
 import { figureData } from './figureData'
+import { figureScene } from './figureScene'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'
 import { graphBackbone } from './reference'
+import * as geometryBuilder from './renderer/GeometryBuilder'
 import { LANE_HEADS_AGAINST_KEY } from './renderer/laneHeads'
 import { version } from './version'
 
@@ -59,6 +61,94 @@ test('the faded key calls the faded nodes other haplotypes, or no walk where a p
   expect(figureSvg(loose, looseLayout, { width: 600, walks: ref })).toContain(
     'other haplotypes, or no walk',
   )
+})
+
+test("a lifted walk's scale is keyed by a gradient whose id holds none of its name, so a name with a quote still writes an SVG that parses", () => {
+  const quoted = anchorGraph(
+    convertGFAToGraph(parseGFA(`${GFA}\nP\ta"b\tv1+,a1+,v3+\t*`)),
+    'ref',
+  )
+  const svg = figureSvg(
+    quoted,
+    layoutModeByValue('ordered').run(quoted, undefined)!,
+    { width: 600, walks: [{ walk: 'a"b' }] },
+  )
+  const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml')
+  expect(parsed.querySelector('parsererror')).toBeNull()
+  const gradient = parsed.querySelector('linearGradient')
+  expect(gradient?.id).toMatch(/^[\w-]+$/)
+  expect(svg).toContain(`fill="url(#${gradient?.id})"`)
+  expect(svg).toContain('a&quot;b')
+})
+
+test('a figure lays its drawing out once where the key leaves its pane as it was, and again only where the key takes room from it', () => {
+  const built = vi.spyOn(geometryBuilder, 'buildGeometry')
+  const builds = (
+    drawn: Parameters<typeof figureSvg>[1],
+    o: Parameters<typeof figureSvg>[2],
+  ) => {
+    built.mockClear()
+    const svg = figureSvg(graph, drawn, o)
+    return {
+      builds: built.mock.calls.length,
+      height: Number(/ height="(\d+)"/.exec(svg)?.[1]),
+    }
+  }
+  expect(builds(layout, { width: 600 }).builds).toBe(1)
+  expect(
+    builds(layout, {
+      width: 600,
+      frame: { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0 },
+    }).builds,
+  ).toBe(1)
+  expect(builds(layout, { width: 600, walks, facet: 'walk' }).builds).toBe(
+    walks.length,
+  )
+  const square = {
+    nodePositions: {
+      'v1+': [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ],
+      'v2+': [
+        { x: 100, y: 0 },
+        { x: 100, y: 100 },
+      ],
+      'v3+': [
+        { x: 100, y: 100 },
+        { x: 0, y: 100 },
+      ],
+      'a1+': [
+        { x: 0, y: 100 },
+        { x: 0, y: 50 },
+      ],
+    },
+  }
+  expect(builds(square, { width: 600, height: 400 })).toEqual({
+    builds: 2,
+    height: 400,
+  })
+  built.mockRestore()
+})
+
+test('a scene names the walks it was asked to lift that the graph holds none of, each once', () => {
+  const asked = [
+    { walk: 'ref#0#chr' },
+    { walk: 'alt#1#chrTYPO' },
+    { walk: 'alt#1#chrTYPO' },
+    { walk: 'alt#2#chr' },
+    { walk: 'HG002#1#chr' },
+  ]
+  expect(figureScene(graph, layout, { walks: asked }).unmatchedWalks).toEqual([
+    'alt#1#chrTYPO',
+    'HG002#1#chr',
+  ])
+  expect(figureScene(graph, layout, { walks }).unmatchedWalks).toEqual([])
+  expect(figureScene(graph, layout, {}).unmatchedWalks).toEqual([])
+  expect(
+    figureScene(graph, layout, { walks: [{ walk: 'none#0#chr' }] })
+      .unmatchedWalks,
+  ).toEqual(['none#0#chr'])
 })
 
 test('a key too wide for the figure wraps onto more lines above the drawing', () => {

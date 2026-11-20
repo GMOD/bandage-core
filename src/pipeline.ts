@@ -29,7 +29,7 @@ import { buildNeighbors, nodeReferenceSpan } from './referenceSpan'
 import { MAX_BAND_PX } from './renderer/walkLanes'
 import { canonicalEdgeOrder, canonicalNodeOrder } from './util/canonicalOrder'
 import { ownStrand } from './util/geometry'
-import { MAX_ZOOM, MIN_ZOOM } from './zoomLimits'
+import { clampZoom } from './zoomLimits'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { GraphTables } from './gfa/graphTables'
@@ -127,12 +127,13 @@ export const ENGINE_DEFAULTS: Required<EngineSettings> = {
 
 // Settings from a partial set, which is what a figure spec and a host's own
 // settings both are. An explicit `undefined` reads as absent, so spreading a
-// spec in cannot turn a default off.
+// spec in cannot turn a default off, and an engine no build has reads as the
+// default, so the seeds, the cache key and the run agree on which engine.
 export function engineSettingsOf(
   s: Partial<EngineSettings> = {},
 ): Required<EngineSettings> {
   return {
-    engine: s.engine ?? ENGINE_DEFAULTS.engine,
+    engine: s.engine === 'stress' ? s.engine : ENGINE_DEFAULTS.engine,
     quality: s.quality ?? ENGINE_DEFAULTS.quality,
     linearLayout: s.linearLayout ?? ENGINE_DEFAULTS.linearLayout,
     bubbleSpread: s.bubbleSpread ?? ENGINE_DEFAULTS.bubbleSpread,
@@ -389,9 +390,7 @@ export function loopFloor(fit?: FitSize) {
   return (Math.PI * MAX_BAND_PX) / fitRoom(fitOrAssumed(fit)).width
 }
 
-export function clampZoom(zoom: number) {
-  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
-}
+export { clampZoom }
 
 // Centre the leftover, but only when there IS leftover. A row layout fits on x
 // alone, so its drawing is routinely taller than the pane, and centring an
@@ -700,6 +699,32 @@ export function shownBounds(
   return maxY >= minY ? { minY, h: maxY - minY } : undefined
 }
 
+function stretchInView(
+  profile: ReferenceProfile,
+  cut: { start: number; end: number },
+  viewSpan: number,
+  axis: Axis,
+) {
+  const reach = Math.min(viewSpan, cut.end - cut.start)
+  return widestStretch(
+    profile,
+    cut.start,
+    Math.max(cut.start, cut.end - reach),
+    reach,
+    axis,
+  )
+}
+
+function cappedToHeight(
+  across: number | undefined,
+  tall: number,
+  usableHeight: number,
+) {
+  return across !== undefined && usableHeight > 0
+    ? clampZoom(Math.min(across, tall > 0 ? usableHeight / tall : Infinity))
+    : undefined
+}
+
 // The scale at which the widest stretch of the reference any view-width
 // window in the cut takes in fills the pane's width, so a zoom inside the cut
 // magnifies as a camera does
@@ -711,14 +736,7 @@ export function windowScale(
   { padLeft = FIT_PADDING, padRight = FIT_PADDING } = {},
 ) {
   const usableWidth = paneWidth - padLeft - padRight
-  const reach = Math.min(viewSpan, cut.end - cut.start)
-  const widest = widestStretch(
-    profile,
-    cut.start,
-    Math.max(cut.start, cut.end - reach),
-    reach,
-    'x',
-  )
+  const widest = stretchInView(profile, cut, viewSpan, 'x')
   return usableWidth > 0 && widest > 0
     ? clampZoom(usableWidth / widest)
     : undefined
@@ -742,24 +760,11 @@ export function referenceScale(
     padBottom = FIT_PADDING,
   } = {},
 ) {
-  const usableHeight = paneHeight - padTop - padBottom
-  const across = windowScale(profile, cut, viewSpan, paneWidth, {
-    padLeft,
-    padRight,
-  })
-  const reach = Math.min(viewSpan, cut.end - cut.start)
-  const tallest = widestStretch(
-    profile,
-    cut.start,
-    Math.max(cut.start, cut.end - reach),
-    reach,
-    'y',
+  return cappedToHeight(
+    windowScale(profile, cut, viewSpan, paneWidth, { padLeft, padRight }),
+    stretchInView(profile, cut, viewSpan, 'y'),
+    paneHeight - padTop - padBottom,
   )
-  return across !== undefined && usableHeight > 0
-    ? clampZoom(
-        Math.min(across, tallest > 0 ? usableHeight / tallest : Infinity),
-      )
-    : undefined
 }
 
 // windowScale, capped so the whole cut is no taller than the pane
@@ -777,16 +782,11 @@ export function cutScale(
     padBottom = FIT_PADDING,
   } = {},
 ) {
-  const usableHeight = paneHeight - padTop - padBottom
-  const across = windowScale(profile, cut, viewSpan, paneWidth, {
-    padLeft,
-    padRight,
-  })
-  return across !== undefined && usableHeight > 0
-    ? clampZoom(
-        Math.min(across, bounds.h > 0 ? usableHeight / bounds.h : Infinity),
-      )
-    : undefined
+  return cappedToHeight(
+    windowScale(profile, cut, viewSpan, paneWidth, { padLeft, padRight }),
+    bounds.h,
+    paneHeight - padTop - padBottom,
+  )
 }
 
 // How high and low the reference whose bp lie in the window, ends included,

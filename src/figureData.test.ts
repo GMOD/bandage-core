@@ -12,12 +12,15 @@ import {
 import { EXON_COLOR } from './genes/exonOutline'
 import { genesOverNode } from './genes/geneNames'
 import { genePins } from './genes/genePins'
+import { gfaTables } from './gfa/gfaTables'
 import { labelledNodeLengths } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { liftedRowInks, rowInkAt } from './layout/rowInks'
 import { walkRows } from './layout/walkRows'
 import { layoutEngine } from './layoutEngines'
+import { layoutModeByValue } from './layoutModes'
 import { SMALL_SITE_PX } from './levelOfDetail'
+import { LABEL_PX } from './overlayLabels'
 import {
   drawingBounds,
   engineSettingsOf,
@@ -32,6 +35,8 @@ import { encodingStops } from './walkEncoding'
 import { walkLift } from './walkHighlight'
 
 import type { BubbleSpread } from './bubbleSpreads'
+import type { GfaFigureSpec } from './figureData'
+import type { WalkLayer } from './walkEncoding'
 
 const read = (name: string) =>
   readFileSync(join(__dirname, '..', 'test_data', name), 'utf8')
@@ -261,26 +266,75 @@ test('colours are css hex', async () => {
   }
 })
 
-test('a tube map has no tables yet', async () => {
-  await expect(
-    gfaFigureData(read('ecoli_pggb_subgraph.gfa'), 'ecoli', {
-      layout: 'tubemap',
-    }),
-  ).rejects.toThrow(/tube map/)
+test('a tube map has no tables yet', () => {
+  const graph = loadGraph(read('ecoli_pggb_subgraph.gfa'), 'ecoli')
+  const layout = layoutModeByValue('tubemap').run(graph, undefined)
+  expect(layout?.tubeMap).toBeDefined()
+  expect(() => figureData(graph, layout!)).toThrow(/tube map/)
+})
+
+test('a spec is refused its layout where no mode of that name draws nodes, and its engine where no build has it', async () => {
+  const text = read('ecoli_pggb_subgraph.gfa')
+  const laid = (spec: string) =>
+    gfaFigureData(text, 'ecoli', JSON.parse(spec) as GfaFigureSpec)
+  const noLayout = (layout: string) =>
+    `a figure draws no "${layout}" layout: one of auto, samplerows, ordered, force`
+  await expect(laid('{ "layout": "forse" }')).rejects.toThrow(noLayout('forse'))
+  await expect(laid('{ "layout": "walkrows" }')).rejects.toThrow(
+    noLayout('walkrows'),
+  )
+  await expect(laid('{ "layout": "tubemap" }')).rejects.toThrow(
+    noLayout('tubemap'),
+  )
+  await expect(laid('{ "engine": "Stress" }')).rejects.toThrow(
+    'no "Stress" layout engine: one of fmmm, stress',
+  )
+  const drawn = await laid('{ "layout": "ordered", "engine": "stress" }')
+  expect(drawn.nodes.x.length).toBeGreaterThan(0)
+})
+
+test('a region read from a walk file is laid out from its tables as its GFA text is', async () => {
+  const tables = gfaTables(DUP)
+  expect(tables).toBeDefined()
+  const laid = async (source: Parameters<typeof laidOutGraph>[0]) =>
+    (await laidOutGraph(source, 'dup', undefined, { engine: 'stress' })).layout
+      .nodePositions
+  const fromTables = await laid(tables!)
+  expect(Object.keys(fromTables)).toHaveLength(3)
+  expect(fromTables).toEqual(await laid(DUP))
+})
+
+const DUP = [
+  'S\tv1\tAAAA',
+  'S\tv2\tCC',
+  'S\tv3\tGGG',
+  'L\tv1\t+\tv2\t+\t0M',
+  'L\tv2\t+\tv3\t+\t0M',
+  'L\tv2\t+\tv1\t+\t0M',
+  'W\tref\t0\tchr\t0\t9\t>v1>v2>v3',
+  'W\tdup\t1\tchr\t0\t15\t>v1>v2>v1>v2>v3',
+].join('\n')
+
+test("a pass's name is as tall in the labels table as the figure writes it", async () => {
+  const walks: WalkLayer[] = [{ walk: 'dup#1#chr', color: { field: 'pass' } }]
+  const { graph, layout } = await laidOutGraph(DUP, 'dup', undefined, {
+    engine: 'stress',
+  })
+  const d = figureData(graph, layout, { walks })
+  const passes = d.labels.kind.flatMap((kind, i) =>
+    kind === 'pass' ? [{ text: d.labels.text[i], size: d.labels.size[i] }] : [],
+  )
+  expect(passes).toEqual([
+    { text: 'pass 1', size: LABEL_PX },
+    { text: 'pass 2', size: LABEL_PX },
+  ])
+  expect(figureSvg(graph, layout, { walks })).toContain(
+    `font-size="${LABEL_PX}" font-weight="bold" fill="${d.labels.color[d.labels.kind.indexOf('pass')]}" text-anchor="middle">pass 1<`,
+  )
 })
 
 test('walks lifted together where one repeats key a thread per pass, apart from the walks', async () => {
-  const gfa = [
-    'S\tv1\tAAAA',
-    'S\tv2\tCC',
-    'S\tv3\tGGG',
-    'L\tv1\t+\tv2\t+\t0M',
-    'L\tv2\t+\tv3\t+\t0M',
-    'L\tv2\t+\tv1\t+\t0M',
-    'W\tref\t0\tchr\t0\t9\t>v1>v2>v3',
-    'W\tdup\t1\tchr\t0\t15\t>v1>v2>v1>v2>v3',
-  ].join('\n')
-  const d = await gfaFigureData(gfa, 'dup', {
+  const d = await gfaFigureData(DUP, 'dup', {
     engine: 'stress',
     walks: ['ref#0#chr', 'dup#1#chr'],
   })

@@ -3,3 +3,7 @@
 // ~720 px needs ~3e-6.
 export const MIN_ZOOM = 1e-6
 export const MAX_ZOOM = 100
+
+export function clampZoom(zoom: number) {
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
+}

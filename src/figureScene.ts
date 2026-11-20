@@ -73,6 +73,11 @@ export function figureScene(
     layers.length > 0 && !layout.tubeMap
       ? walkLift(graph, layers, walkRamp)
       : undefined
+  const unmatchedWalks = layout.tubeMap
+    ? []
+    : [...new Set(layers.map(l => l.walk))].filter(
+        name => !lift?.names.has(name),
+      )
   const facet = facetSettingOf(o.facet)
   const panels =
     facet.field && lift && lift.walks.length > 1
@@ -107,6 +112,7 @@ export function figureScene(
     drawnDeletions,
     layers,
     lift,
+    unmatchedWalks,
     facet,
     facets,
     labelOf: (name: string) => labels.get(name) ?? name,

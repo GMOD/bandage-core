@@ -176,7 +176,7 @@ export interface LayoutResult {
   // the region the cut was made for rather than from how far the drawing
   // happens to reach. An allele anchored far outside the window is a fact
   // about the graph, not a reason to redraw the window at 6% of the frame —
-  // see layoutBounds.
+  // see drawingBounds.
   referenceAxis?: boolean
   // Set by the layouts that state y in SCREEN PIXELS rather than in the same
   // units as x. A row layout's y is a row pitch, which is a property of what a

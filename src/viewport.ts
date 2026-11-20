@@ -1,4 +1,4 @@
-import { clampZoom } from './pipeline'
+import { clampZoom } from './zoomLimits'
 
 import type { KeyFrame } from './keyColumn'
 import type { Bounds } from './pipeline'

@@ -9,8 +9,12 @@ import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnMarks, graphKey } from './graphKey'
 import { labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAlong, rowInkOf } from './layout/rowInks'
-import { layoutEngine } from './layoutEngines'
-import { layoutModeByValue } from './layoutModes'
+import {
+  LAYOUT_ENGINE_VALUES,
+  isLayoutEngineKind,
+  layoutEngine,
+} from './layoutEngines'
+import { LAYOUT_MODES, layoutModeByValue } from './layoutModes'
 import {
   NO_FOLD,
   SMALL_SITE_PX,
@@ -43,6 +47,7 @@ import { encodingStops } from './walkEncoding'
 
 import type { BubbleSpread } from './bubbleSpreads'
 import type { FigureOptions } from './figure'
+import type { GraphTables } from './gfa/graphTables'
 import type { GraphKeySection } from './graphKey'
 import type { RowInk } from './layout/rowInks'
 import type { LayoutEngineKind } from './layoutEngines'
@@ -810,7 +815,8 @@ export function figureData(
       kind,
       item,
       text,
-      size: kind === 'gene' || kind === 'bubble' ? LABEL_PX : SIZE_LABEL_PX,
+      size:
+        kind === 'length' || kind === 'placeholder' ? SIZE_LABEL_PX : LABEL_PX,
       x: toX(at.x),
       y: toY(at.y),
       x1: leader ? toX(leader.x1) : null,
@@ -1085,16 +1091,39 @@ export interface GfaFigureSpec extends Omit<
   frequencies?: Record<string, number>
 }
 
+const FIGURE_LAYOUTS: string[] = LAYOUT_MODES.filter(m => m.drawsNodes).map(
+  m => m.value,
+)
+
+function checkLayout(layout: string | undefined) {
+  if (layout !== undefined && !FIGURE_LAYOUTS.includes(layout)) {
+    throw new Error(
+      `a figure draws no "${layout}" layout: one of ${FIGURE_LAYOUTS.join(', ')}`,
+    )
+  }
+}
+
+function checkEngine(engine: string | undefined) {
+  if (engine !== undefined && !isLayoutEngineKind(engine)) {
+    throw new Error(
+      `no "${engine}" layout engine: one of ${LAYOUT_ENGINE_VALUES.join(', ')}`,
+    )
+  }
+}
+
 // A graph laid out as a spec asks: by its layout mode, or by the force engine
-// where the mode leaves the layout to it
+// where the mode leaves the layout to it. The graph is GFA text, or a region
+// read from a walk file as tables.
 export async function laidOutGraph(
-  text: string,
+  source: string | GraphTables,
   name: string,
   region: FigureOptions['region'],
   spec: GfaFigureSpec,
 ) {
+  checkLayout(spec.layout)
+  checkEngine(spec.engine)
   const graph = withFrequencies(
-    loadGraph(text, name, { referencePath: spec.referencePath }),
+    loadGraph(source, name, { referencePath: spec.referencePath }),
     spec.frequencies,
   )
   const layout =
@@ -1114,8 +1143,9 @@ export function walkLayers(walks: GfaFigureSpec['walks']) {
   return walks?.map(w => (typeof w === 'string' ? { walk: w } : w))
 }
 
-// GFA text to tables, the whole way, for a host with no file system: the R
-// package reads the file itself and hands the text in.
+// GFA text to tables, the whole way, for a host that holds the text and a
+// spec. One that holds a loaded graph, as ggbandage does, calls laidOutGraph
+// and figureData itself.
 export async function gfaFigureData(
   text: string,
   name: string,

@@ -1,4 +1,5 @@
 import { curveBounds } from './util/geometry'
+import { pushTo } from './util/groups'
 import { segmentMeetsBox } from './util/hitDetection'
 import { flattenedPx } from './util/strokeCover'
 import { weakMemo } from './util/weakMemo'
@@ -126,13 +127,7 @@ function gridOf(pieces: readonly Piece[], f: Frame) {
     const cy1 = cellOf(Math.max(a.y, b.y) + h, -h, f.height + h)
     for (let cx = cx0; cx <= cx1; cx++) {
       for (let cy = cy0; cy <= cy1; cy++) {
-        const key = cellKey(cx, cy)
-        const cell = cells.get(key)
-        if (cell) {
-          cell.push(piece)
-        } else {
-          cells.set(key, [piece])
-        }
+        pushTo(cells, cellKey(cx, cy), piece)
       }
     }
   }

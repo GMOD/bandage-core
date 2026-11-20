@@ -106,7 +106,6 @@ export { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 export type { NodeInk } from './util/hitDetection'
 export type { AxisScale } from './util/geometry'
 export { wheelZoomFactor } from './util/wheelZoom'
-// the tube map layouts draw their own shapes rather than the batch above
 export {
   REFERENCE_STRIP_ZONE_PX,
   drawReferenceStrip,
@@ -114,6 +113,7 @@ export {
   stripBlockAt,
 } from './referenceStrip'
 export type { StripBlock } from './referenceStrip'
+// the tube map layouts draw their own shapes rather than the batch above
 export {
   drawTubeMap,
   drawTubeMapHighlight,
@@ -207,7 +207,12 @@ export type {
 } from './graphKey'
 export { rangeText, walkKey, walkPosition } from './walkKey'
 export { figureSvg } from './figure'
-export { figureData, gfaFigureData, walkRowInks } from './figureData'
+export {
+  figureData,
+  gfaFigureData,
+  laidOutGraph,
+  walkRowInks,
+} from './figureData'
 export type { FigureDataOptions, GfaFigureSpec } from './figureData'
 export {
   genesFromBed,

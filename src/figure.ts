@@ -262,11 +262,9 @@ function headingSvg(text: string): KeyAt {
 const HEADED = new Set(['Node thickness', 'Link thickness'])
 
 function graphKeySvg(sections: GraphKeySection[], idPrefix: string) {
-  return sections.flatMap(({ group, entries }) => [
+  return sections.flatMap(({ id, group, entries }) => [
     ...(group && HEADED.has(group) ? [headingSvg(group)] : []),
-    ...entries.map((entry, i) =>
-      entrySvg(entry, `${idPrefix}-${entry.key}-${i}`),
-    ),
+    ...entries.map((entry, i) => entrySvg(entry, `${idPrefix}-${id}-${i}`)),
   ])
 }
 
@@ -318,15 +316,19 @@ function sizeChip(x: number, y: number, text: string) {
   return `<rect x="${x - w / 2}" y="${y - SIZE_PX * 0.65}" width="${w}" height="${SIZE_PX * 1.3}" rx="3" fill="#fff" fill-opacity="0.8"/><text x="${x}" y="${y + SIZE_PX * 0.35}" font-family="Helvetica, Arial, sans-serif" font-size="${SIZE_PX}" fill="${SIZE_INK}" text-anchor="middle">${escapeAttr(text)}</text>`
 }
 
-// The key's height sets the room the drawing has, whose fit decides which
-// skips hold their dashes, which the key lists: settled once the key no longer
-// changes height
-function settled<T>(laid: (header: number) => { drawn: T; header: number }) {
-  let header = 0
-  let out = laid(header)
-  for (let i = 0; i < 3 && out.header !== header; i++) {
-    header = out.header
-    out = laid(header)
+// The key's height sets the pane the drawing has, whose fit decides which
+// skips hold their dashes, which the key lists: settled once the key leaves
+// the drawing the pane it was laid out in
+function settled<P, T>(
+  paneUnder: (header: number) => P,
+  samePane: (a: P, b: P) => boolean,
+  laid: (pane: P) => { drawn: T; header: number },
+) {
+  let pane = paneUnder(0)
+  let out = laid(pane)
+  for (let i = 0; i < 3 && !samePane(pane, paneUnder(out.header)); i++) {
+    pane = paneUnder(out.header)
+    out = laid(pane)
   }
   return out
 }
@@ -624,15 +626,19 @@ export function figureSvg(
         room: room - header,
         columns: place.columns ?? facet.columns,
       })
-    const { drawn: laidOut, header } = settled(above => {
-      const grid = gridAt(above)
-      const views = panels.map(panel => view(panel, grid.width, grid.height))
-      const key = keyed(views)
-      return {
-        drawn: { views, key, grid },
-        header: key.markup.length > 0 ? key.height + FACET_GAP_PX : 0,
-      }
-    })
+    const { drawn: laidOut, header } = settled(
+      gridAt,
+      (a, b) =>
+        a.columns === b.columns && a.width === b.width && a.height === b.height,
+      grid => {
+        const views = panels.map(panel => view(panel, grid.width, grid.height))
+        const key = keyed(views)
+        return {
+          drawn: { views, key, grid },
+          header: key.markup.length > 0 ? key.height + FACET_GAP_PX : 0,
+        }
+      },
+    )
     const { grid, key } = laidOut
     for (const line of key.markup) {
       parts.push(line)
@@ -666,20 +672,23 @@ export function figureSvg(
             160,
             Math.min(room - header, Math.ceil(drawn + 2 * FIT_PADDING)),
           )
-    const { drawn: laidOut, header } = settled(above => {
-      const h = hAt(above)
-      const v = view(lift, width, h, frame)
-      const key = keyed(
-        [v],
-        v?.labels.unlabelled,
-        frame && v ? viewportOf(v.t, v.t, width, h) : undefined,
-      )
-      return {
-        drawn: { v, key, h },
-        header:
-          key.markup.length > 0 ? Math.max(FACET_TITLE_PX, key.height) : 0,
-      }
-    })
+    const { drawn: laidOut, header } = settled(
+      hAt,
+      (a, b) => a === b,
+      h => {
+        const v = view(lift, width, h, frame)
+        const key = keyed(
+          [v],
+          v?.labels.unlabelled,
+          frame && v ? viewportOf(v.t, v.t, width, h) : undefined,
+        )
+        return {
+          drawn: { v, key, h },
+          header:
+            key.markup.length > 0 ? Math.max(FACET_TITLE_PX, key.height) : 0,
+        }
+      },
+    )
     const { v, key, h } = laidOut
     for (const line of key.markup) {
       parts.push(line)

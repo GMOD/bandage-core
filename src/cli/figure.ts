@@ -8,6 +8,7 @@ import { TabixIndexedFile } from '@gmod/tabix'
 
 import { figureSvg } from '../figure'
 import { laidOutGraph, walkLayers } from '../figureData'
+import { figureScene } from '../figureScene'
 import {
   cutGbzRegion,
   gbzLocations,
@@ -18,8 +19,6 @@ import {
 import { backboneGenes } from '../genes/backboneGenes'
 import { genesOnRow, placeRowGenes } from '../layout/walkRowDraw'
 import { filterSamples, walkRows } from '../layout/walkRows'
-import { LAYOUT_ENGINE_VALUES, isLayoutEngineKind } from '../layoutEngines'
-import { LAYOUT_MODES } from '../layoutModes'
 import { decodeText } from './decodeText'
 
 import type { FigureOptions } from '../figure'
@@ -165,29 +164,20 @@ async function siblingIndex(db: string) {
   return sibling && (await exists(sibling)) ? sibling : undefined
 }
 
-const DRAWABLE: string[] = LAYOUT_MODES.filter(m => m.drawsNodes).map(
-  m => m.value,
-)
-
-function checkLayout(layout: string | undefined) {
-  if (layout !== undefined && !DRAWABLE.includes(layout)) {
-    throw new Error(
-      `a figure draws no "${layout}" layout: one of ${DRAWABLE.join(', ')}`,
-    )
-  }
-}
-
-function checkEngine(engine: string | undefined) {
-  if (engine !== undefined && !isLayoutEngineKind(engine)) {
-    throw new Error(
-      `no "${engine}" layout engine: one of ${LAYOUT_ENGINE_VALUES.join(', ')}`,
+function warnUnmatchedWalks(unmatched: string[], graph: Graph, name: string) {
+  if (unmatched.length) {
+    const names = [...new Set((graph.paths ?? []).map(p => p.name))]
+    const shown = names.slice(0, 4).join(', ')
+    console.warn(
+      `bandage-figure: no walk in ${name} is named ${unmatched.join(', ')}` +
+        (names.length
+          ? `; it has ${shown}${names.length > 4 ? ', …' : ''}`
+          : '; it has no walks'),
     )
   }
 }
 
 async function renderSpec(spec: FigureSpec, base: string) {
-  checkLayout(spec.layout)
-  checkEngine(spec.engine)
   const resolve = (location: string) =>
     isUrl(location) ? location : path.resolve(base, location)
   let source: {
@@ -241,7 +231,7 @@ async function renderSpec(spec: FigureSpec, base: string) {
           new Map([[reference.name, genesOnRow(reference, genes)]]),
         )
       : undefined
-  return figureSvg(graph, layout, {
+  const options: FigureOptions = {
     ...spec,
     walkStrip: stripRows && {
       rows: stripRows,
@@ -255,7 +245,13 @@ async function renderSpec(spec: FigureSpec, base: string) {
     region: source.region,
     genes,
     spec,
-  })
+  }
+  warnUnmatchedWalks(
+    figureScene(graph, layout, options).unmatchedWalks,
+    graph,
+    source.name,
+  )
+  return figureSvg(graph, layout, options)
 }
 
 const USAGE = 'usage: bandage-figure <spec.json> [-o figure.svg]'
