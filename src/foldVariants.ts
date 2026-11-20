@@ -113,6 +113,20 @@ function bridges(
   keeps: boolean[],
   smallSkips: number[],
 ) {
+  const sets = disjointSets(count)
+  const join = (k: number) => {
+    const [a, b] = ends[k]!
+    return sets.join(a!, b!)
+  }
+  keeps.forEach((keep, k) => {
+    if (keep) {
+      join(k)
+    }
+  })
+  return smallSkips.filter(join)
+}
+
+function disjointSets(count: number) {
   const parent = Array.from({ length: count }, (_, i) => i)
   const find = (i: number) => {
     while (parent[i] !== i) {
@@ -121,18 +135,13 @@ function bridges(
     }
     return i
   }
-  const join = (k: number) => {
-    const [a, b] = ends[k]!
-    const [ra, rb] = [find(a!), find(b!)]
+  const join = (a: number, b: number) => {
+    const ra = find(a)
+    const rb = find(b)
     parent[ra] = rb
     return ra !== rb
   }
-  keeps.forEach((keep, k) => {
-    if (keep) {
-      join(k)
-    }
-  })
-  return smallSkips.filter(join)
+  return { find, join }
 }
 
 type Side = 's' | 'e'
@@ -257,14 +266,7 @@ function alleleOf(
   sides: { from: Side; to: Side }[],
   index: Map<string, number>,
 ) {
-  const parent = nodes.map((_, i) => i)
-  const find = (i: number) => {
-    while (parent[i] !== i) {
-      parent[i] = parent[parent[i]!]!
-      i = parent[i]!
-    }
-    return i
-  }
+  const { find, join } = disjointSets(nodes.length)
   edges.forEach((edge, k) => {
     const a = index.get(edge.from)
     const b = index.get(edge.to)
@@ -273,7 +275,7 @@ function alleleOf(
       b !== undefined &&
       continues(nodes[a]!, sides[k]!.from, nodes[b]!, sides[k]!.to)
     ) {
-      parent[find(a)] = find(b)
+      join(a, b)
     }
   })
   return nodes.map((_, i) => find(i))
@@ -465,6 +467,8 @@ class MinHeap<T> {
   }
 }
 
+const sideKey = (i: number, side: Side) => `${i}${side}`
+
 // Consecutive kept segments of one allele, joined by the one kept link at the
 // junction between them, become one segment over the run, named for the one
 // that starts it and read along the stable sequence
@@ -481,14 +485,12 @@ function mergeAlleleRuns(
     { i: index.get(edge.to)!, side: sides[k]!.to },
   ])
   const degree = new Map<string, number>()
-  const sideKey = (i: number, side: Side) => `${i}${side}`
   for (const pair of ends) {
     for (const { i, side } of pair) {
       degree.set(sideKey(i, side), (degree.get(sideKey(i, side)) ?? 0) + 1)
     }
   }
-  // the next segment along the sequence, and the side each joins it by
-  const next = new Map<number, { j: number; out: Side; in: Side }>()
+  const next = new Map<number, number>()
   const hasPrev = new Set<number>()
   const internal = new Set<number>()
   ends.forEach(([a, b], k) => {
@@ -500,36 +502,24 @@ function mergeAlleleRuns(
       degree.get(sideKey(b!.i, b!.side)) === 1
     ) {
       const [left, right] = a!.side === 'e' ? [a!, b!] : [b!, a!]
-      next.set(left.i, { j: right.i, out: left.side, in: right.side })
+      next.set(left.i, right.i)
       hasPrev.add(right.i)
       internal.add(k)
     }
   })
-  // a run member's outer side, as the merged segment's start or end
   const headOf = nodes.map((_, i) => i)
-  const outer = new Map<string, Side>()
   const merged = new Map<number, GraphNode>()
   nodes.forEach((_, i) => {
-    if (!kept[i] || hasPrev.has(i) || !next.has(i)) {
-      return
+    if (kept[i] && !hasPrev.has(i) && next.has(i)) {
+      const run = [i]
+      for (let j = next.get(i); j !== undefined; j = next.get(j)) {
+        run.push(j)
+      }
+      for (const j of run) {
+        headOf[j] = i
+      }
+      merged.set(i, mergedNode(run.map(j => nodes[j]!)))
     }
-    const run = [i]
-    let into = flip(next.get(i)!.out)
-    outer.set(sideKey(i, into), 's')
-    for (let step = next.get(i); step; step = next.get(step.j)) {
-      run.push(step.j)
-      into = step.in
-    }
-    outer.set(sideKey(run.at(-1)!, flip(into)), 'e')
-    for (const j of run) {
-      headOf[j] = i
-    }
-    merged.set(i, mergedNode(run.map(j => nodes[j]!)))
-  })
-  const endpoint = ({ i, side }: { i: number; side: Side }) => ({
-    id: nodes[headOf[i]!]!.id,
-    side:
-      headOf[i] === i && !merged.has(i) ? side : outer.get(sideKey(i, side))!,
   })
   return {
     ...graph,
@@ -537,30 +527,22 @@ function mergeAlleleRuns(
       !kept[i] || headOf[i] !== i ? [] : [merged.get(i) ?? node],
     ),
     edges: edges.flatMap((edge, k) => {
-      if (internal.has(k)) {
-        return []
-      }
       const [a, b] = ends[k]!
-      if (!merged.has(headOf[a!.i]!) && !merged.has(headOf[b!.i]!)) {
-        return [edge]
-      }
-      const from = endpoint(a!)
-      const to = endpoint(b!)
-      return [
-        {
-          ...edge,
-          from: from.id,
-          to: to.id,
-          fromStrand: from.side === 'e' ? '+' : '-',
-          toStrand: to.side === 's' ? '+' : '-',
-        },
-      ]
+      return internal.has(k)
+        ? []
+        : merged.has(headOf[a!.i]!) || merged.has(headOf[b!.i]!)
+          ? [
+              {
+                ...edge,
+                from: nodes[headOf[a!.i]!]!.id,
+                to: nodes[headOf[b!.i]!]!.id,
+                fromStrand: a!.side === 'e' ? '+' : '-',
+                toStrand: b!.side === 's' ? '+' : '-',
+              },
+            ]
+          : [edge]
     }),
   }
-}
-
-function flip(side: Side): Side {
-  return side === 's' ? 'e' : 's'
 }
 
 function mergedNode(run: GraphNode[]): GraphNode {

@@ -165,6 +165,12 @@ test('a graph with walks, or with no backbone, is left as it is', () => {
   expect(foldVariants(unanchored, 10_000)).toBe(unanchored)
 })
 
+test('a link to a segment the graph does not hold is not written', () => {
+  expect(
+    writeRgfa(rgfa([seg('r1', 'ref#chr', 0, 5, 0), link('r1', 'ghost')])),
+  ).toBe('H\tVN:Z:1.0\nS\tr1\t*\tLN:i:5\tSN:Z:ref#chr\tSO:i:0\tSR:i:0\n')
+})
+
 // The fold as bandage-fold writes it, and the same graph re-read from that
 const written = (graph: Graph, below: number) =>
   writeRgfa(foldVariants(graph, below))

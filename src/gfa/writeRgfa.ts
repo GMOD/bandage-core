@@ -3,18 +3,24 @@ import { NOT_LOADED_TAG } from './graphTables'
 import type { Graph, GraphNode } from '../types'
 
 // A graph as rGFA text: each segment's length and stable coordinate as the
-// LN/SN/SO/SR tags gfa-to-tabix files it by, and every link as its file
-// stated it. Sequence is not carried, so every S line is `*`. A node with no
-// stable coordinate cannot be filed by position and is refused.
+// LN/SN/SO/SR tags gfa-to-tabix files it by, and every link between two of
+// its segments in the spelling the graph holds it in. Sequence is not carried,
+// so every S line is `*`. A node with no stable coordinate cannot be filed by
+// position and is refused.
 export function writeRgfa(graph: Graph) {
   const nameOf = new Map(graph.nodes.map(n => [n.id, n.name]))
   return [
     'H\tVN:Z:1.0',
     ...graph.nodes.map(segmentLine),
-    ...graph.edges.map(
-      e =>
-        `L\t${nameOf.get(e.from)}\t${e.fromStrand ?? '+'}\t${nameOf.get(e.to)}\t${e.toStrand ?? '+'}\t0M`,
-    ),
+    ...graph.edges.flatMap(e => {
+      const from = nameOf.get(e.from)
+      const to = nameOf.get(e.to)
+      return from === undefined || to === undefined
+        ? []
+        : [
+            `L\t${from}\t${e.fromStrand ?? '+'}\t${to}\t${e.toStrand ?? '+'}\t0M`,
+          ]
+    }),
     '',
   ].join('\n')
 }
