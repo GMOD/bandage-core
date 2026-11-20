@@ -807,6 +807,30 @@ test('a haplotype with no step in the window draws its departure under it', () =
   expect(a[0]!.departures).toEqual([rejoinsA])
 })
 
+// GRCh38 in two fragments, chr1:0-2000 and chr1:3000-5000, so its bar holds a
+// 1 kb gap, and F leaves it at 4500 to rejoin past the cut
+test("a stepless row's departure stops where a reference bar with a gap ends", () => {
+  const fragments: GraphTables = {
+    ...tables,
+    walks: {
+      names: ['GRCh38#0#chr1', 'GRCh38#0#chr1', 'A#1#a'],
+      starts: Float64Array.of(0, 3000, 0),
+      ends: Float64Array.of(2000, 5000, 4000),
+      offsets: Int32Array.of(0, 2, 4, 8),
+      steps: Int32Array.of(0, 1, 3, 4, 0, 1, 3, 4),
+      reversed: new Uint8Array(8),
+    },
+    departures: departureTable([
+      departure('F#1#f', { leavePos: 4500, rejoinPos: 9000 }),
+    ]),
+  }
+  const { rows, reference } = walkRowsOf(walkRowRuns(fragments)!)
+  expect(reference).toMatchObject({ bp: 5000, gapBp: 1000 })
+  expect(rows.find(r => r.stepless)!.runs).toEqual([
+    expect.objectContaining({ start: 4500, bp: 500, cause: 'departure' }),
+  ])
+})
+
 test("a haplotype that walks the window counts its other contigs' departures over it on its row, and draws no row of them", () => {
   const { rows, reference } = rowsOf({
     ...tables,
@@ -1093,6 +1117,48 @@ describe('a walk row over a window between 1 kb nodes', () => {
       'O#1': '≥ 1.5 kb · contig ends inside the window',
       'H#1': '≥ 1.1 kb · turns back out of the window',
     })
+  })
+})
+
+// Six 1 kb reference nodes and a window from 1.5 kb to 3.5 kb. J and K each
+// reach the right flank r5 alone and step r6 beyond it at the end their bars
+// start from: J first, running along the reference, and K last, against it
+test("a row that turns back at the end its bar starts from places its axis at the bar's first step", () => {
+  const gfa = [
+    'H\tVN:Z:1.1',
+    ...[0, 1, 2, 3, 4, 5].map(
+      i =>
+        `S\tr${i + 1}\t*\tLN:i:1000\tSN:Z:GRCh38#0#chr1\tSO:i:${i * 1000}\tSR:i:0`,
+    ),
+    'W\tGRCh38\t0\tchr1\t0\t6000\t>r1>r2>r3>r4>r5>r6',
+    'W\tJ\t1\tj\t0\t5000\t>r6>r2>r3>r4>r5',
+    'W\tK\t1\tk\t0\t5000\t<r5<r4<r3<r2<r6',
+  ].join('\n')
+  const graph = loadGraph(gfa, 'cut', { referencePath: 'GRCh38#0#chr1' })
+  const rows = walkRows(graph, { start: 1500, end: 3500 }, undefined, {
+    visits: true,
+  })!
+  const byLabel = Object.fromEntries(rows.rows.map(r => [r.label, r]))
+  for (const label of ['J#1', 'K#1']) {
+    expect(byLabel[label]).toMatchObject({
+      bp: 3000,
+      stop: { turnsBack: true },
+    })
+    expect(byLabel[label]!.visits!.map(v => v.node)).toEqual([
+      'r2+',
+      'r3+',
+      'r4+',
+    ])
+  }
+  expect(byLabel['J#1']!.axis).toEqual({
+    contig: 'j',
+    start: 1000,
+    reversed: false,
+  })
+  expect(byLabel['K#1']!.axis).toEqual({
+    contig: 'k',
+    start: 4000,
+    reversed: true,
   })
 })
 

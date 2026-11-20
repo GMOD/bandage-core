@@ -144,6 +144,16 @@ test('sub-pixel runs merge into the colour most of their bp carry', () => {
   expect(coalesceRuns(runs, 10)).toEqual(runs)
 })
 
+test('runs of no bp off the path, one loaded and one not, merge into one off it', () => {
+  const runs = [
+    { start: 0, bp: 0, onReference: false },
+    { start: 0, bp: 0, onReference: false, unloaded: true as const },
+  ]
+  expect(coalesceRuns(runs, 1, true)).toEqual([
+    { start: 0, bp: 0, onReference: false },
+  ])
+})
+
 test('the strip fits every row, shrinking them and dropping labels as they crowd', () => {
   const { bars } = setup()
   const roomy = walkStripFrame(bars, {

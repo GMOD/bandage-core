@@ -1216,28 +1216,19 @@ const offPath = (run: WalkRun) => !run.gap && !run.onReference
 // Adjacent runs off the path as one where they draw alike: loaded or not,
 // unless `marked` draws those not loaded apart
 function joinOffPath(runs: WalkRun[], marked: boolean) {
-  const out: WalkRun[] = []
-  for (const run of runs) {
-    const last = out.at(-1)
-    const hollow = marked && run.unloaded === true
-    if (
-      last &&
-      offPath(last) &&
-      offPath(run) &&
-      hollow === (marked && last.unloaded === true)
-    ) {
-      out[out.length - 1] = {
-        start: last.start,
-        bp: last.bp + run.bp,
-        onReference: false,
-        referenceStart: undefined,
-        ...(hollow ? { unloaded: true as const } : {}),
-      }
-    } else {
-      out.push(run)
-    }
-  }
-  return out
+  const hollow = (run: WalkRun) => marked && run.unloaded === true
+  return joined(
+    runs,
+    (last, run) =>
+      offPath(last) && offPath(run) && hollow(last) === hollow(run),
+    (last, run) => ({
+      start: last.start,
+      bp: last.bp + run.bp,
+      onReference: false,
+      referenceStart: undefined,
+      ...(hollow(run) ? { unloaded: true as const } : {}),
+    }),
+  )
 }
 
 // Runs under a pixel wide merged into one, painted as the bp most of them
@@ -1267,7 +1258,8 @@ export function coalesceRuns(runs: WalkRun[], pxPerBp: number, marked = false) {
           off += r.bp
         }
       }
-      const onReference = on >= off && on >= unloaded
+      const onReference =
+        on >= off && on >= unloaded && bucket.some(r => r.onReference)
       const hollow = !onReference && unloaded > off
       const lead = bucket.find(r =>
         onReference
@@ -1416,7 +1408,7 @@ export function walkRowsTree(
     const inkFill =
       inkStops && (inkStops.length > 1 ? `url(#${inkId})` : inkStops[0]!.color)
     const inked = (run: WalkRun) => !run.gap && !(marked && run.unloaded)
-    const pieces = inkFill ? joined(coalesced, inked) : coalesced
+    const pieces = inkFill ? joined(coalesced, touching(inked)) : coalesced
     const runs = pieces.flatMap(run => {
       const paint =
         inkFill && inked(run)
@@ -1459,7 +1451,7 @@ export function walkRowsTree(
     })
     const strip =
       ink && i > 0 && stripRoom
-        ? joined(coalesced, onPath)
+        ? joined(coalesced, touching(onPath))
             .filter(onPath)
             .map(span =>
               el('rect', {
@@ -1548,19 +1540,26 @@ export function walkRowsTree(
 
 const onPath = (run: WalkRun) => run.onReference && !run.gap
 
-// Runs with the touching ones `joins` holds made one, so a bar of one paint
-// draws no seams between its runs
-function joined(runs: readonly WalkRun[], joins: (run: WalkRun) => boolean) {
+// Two touching runs that `joins` both holds, which a bar of one paint draws
+// with no seam between them
+const touching =
+  (joins: (run: WalkRun) => boolean) => (last: WalkRun, run: WalkRun) =>
+    joins(last) && joins(run) && last.start + last.bp === run.start
+
+// Runs with each one `alike` the run before it made one with it
+function joined(
+  runs: readonly WalkRun[],
+  alike: (last: WalkRun, run: WalkRun) => boolean,
+  merged: (last: WalkRun, run: WalkRun) => WalkRun = (last, run) => ({
+    ...last,
+    bp: last.bp + run.bp,
+  }),
+) {
   const out: WalkRun[] = []
   for (const run of runs) {
     const last = out.at(-1)
-    if (
-      last &&
-      joins(last) &&
-      joins(run) &&
-      last.start + last.bp === run.start
-    ) {
-      out[out.length - 1] = { ...last, bp: last.bp + run.bp }
+    if (last && alike(last, run)) {
+      out[out.length - 1] = merged(last, run)
     } else {
       out.push(run)
     }
@@ -1569,14 +1568,6 @@ function joined(runs: readonly WalkRun[], joins: (run: WalkRun) => boolean) {
 }
 
 // An element of `parts`' elements, which may be too many to pass one by one
-function group(attrs: ElAttrs, ...parts: (El | undefined | false)[][]): El {
-  const children: El[] = []
-  for (const part of parts) {
-    for (const child of part) {
-      if (child) {
-        children.push(child)
-      }
-    }
-  }
-  return { tag: 'g', attrs, children }
+function group(attrs: ElAttrs, ...parts: (El | undefined | false)[][]) {
+  return elOf('g', attrs, parts.flat())
 }

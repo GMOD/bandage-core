@@ -10,7 +10,7 @@ import { referenceOf, tableNodeIds, tablePath } from '../gfa/graphTables'
 import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
 import { pathOrigin } from '../pathAnchoring'
 import { compareIds } from '../util/canonicalOrder'
-import { groupBy } from '../util/groups'
+import { groupBy, pushTo } from '../util/groups'
 
 import type {
   Departure,
@@ -819,7 +819,6 @@ export function walkRowRuns(
           : {}),
       }
       const skip = inside ? 0 : 1
-      const flankBp = after === inside ? stepStart[flank]! : stepEnd(flank)
       return forward === undefined
         ? undefined
         : {
@@ -827,13 +826,6 @@ export function walkRowRuns(
             lo: after ? flank + skip : 0,
             hi: after ? length : flank + 1 - skip,
             backward: !forward,
-            axisStart: forward
-              ? after
-                ? flankBp
-                : stepStart[0]!
-              : after
-                ? stepEnd(length - 1)
-                : flankBp,
           }
     }
 
@@ -843,7 +835,6 @@ export function walkRowRuns(
     let complete = true
     let flankFrom = -1
     let flankTo = -1
-    let axisStart: number | undefined
     let stop: WalkStop | undefined
     if (stepPlace.length < length) {
       stepPlace = new Float64Array(steps.length)
@@ -904,7 +895,7 @@ export function walkRowRuns(
       complete = false
       const side = i0 >= 0 || i1 >= 0 ? partialSide(i0, i1, inside) : undefined
       if (side) {
-        ;({ lo, hi, backward, axisStart, stop } = side)
+        ;({ lo, hi, backward, stop } = side)
       }
     }
     // The walk's steps on the reference outside the window, in walk order,
@@ -1027,16 +1018,12 @@ export function walkRowRuns(
         return span.start < bar.end && span.end > bar.start
       })
     const contig = head.contig ?? panSNContig(pathOrigin(head.name).name)
+    const contigAt = (i: number) =>
+      i < length ? stepStart[i]! : stepEnd(length - 1)
     const axis: WalkAxis | undefined =
       unplaced || length === 0
         ? undefined
-        : axisStart !== undefined
-          ? { contig, start: axisStart, reversed: backward }
-          : flankFrom < 0
-            ? { contig, start: stepStart[lo]!, reversed: false }
-            : flankFrom < flankTo
-              ? { contig, start: stepEnd(flankFrom), reversed: false }
-              : { contig, start: stepStart[flankFrom]!, reversed: true }
+        : { contig, start: contigAt(backward ? hi : lo), reversed: backward }
 
     // A pass's steps from `lo` to `hi`, read from its flank on the left,
     // measured over the window: on the reference, a step's bp less what lies
@@ -1308,10 +1295,7 @@ export function walkRowRuns(
   }
   const { axis } = referenceRow
   const bar = axis
-    ? {
-        start: axis.start,
-        end: axis.start + referenceRow.bp + referenceRow.gapBp,
-      }
+    ? { start: axis.start, end: axis.start + referenceRow.bp }
     : cut
   const rows = [...walks.values()].map((pieces, i) => ({
     meta: rowOf(pieces, bar),
@@ -1397,12 +1381,7 @@ function departuresByWalk(
       const d = departureAt(table, k)
       const name = pathOrigin(d.name).name
       if (name !== reference) {
-        const list = byWalk.get(name)
-        if (list) {
-          list.push(d)
-        } else {
-          byWalk.set(name, [d])
-        }
+        pushTo(byWalk, name, d)
       }
     }
   }
