@@ -1,5 +1,12 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`golden folds > a link stated twice 1`] = `
+"H	VN:Z:1.0
+S	r1	*	LN:i:1000	SN:Z:ref#chr	SO:i:0	SR:i:0
+L	r1	+	r1	+	0M
+"
+`;
+
 exports[`golden folds > a reference step read reversed 1`] = `
 "H	VN:Z:1.0
 S	a	*	LN:i:1000	SN:Z:ref	SO:i:0	SR:i:0	SM:Z:alt,ref

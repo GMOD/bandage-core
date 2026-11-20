@@ -16,7 +16,16 @@ import { loadGraph } from './pipeline'
 
 const BINARY = process.env.GFA_TO_TABIX ?? 'gfa-to-tabix'
 const probe = spawnSync(BINARY, ['--version'], { encoding: 'utf8' })
-const VERSION = probe.status === 0 ? probe.stdout.trim() : undefined
+const FOUND = probe.status === 0 ? probe.stdout.trim() : undefined
+const PINNED = `gfa-to-tabix ${
+  /VERSION: v(\S+)/.exec(
+    readFileSync(
+      path.join(__dirname, '../.github/actions/gfa-to-tabix/action.yml'),
+      'utf8',
+    ),
+  )?.[1]
+}`
+const VERSION = FOUND === PINNED ? FOUND : undefined
 
 const THRESHOLDS = [5, 50, 500, 5000]
 const GRAPHS = 300
@@ -372,6 +381,14 @@ const GOLDEN = {
     'P\tref\ta+,b+,c+\t*',
     'P\talt\ta+,y-,x-,c+\t*',
   ]),
+  // the smallest of randomRgfa's graphs gfa-to-tabix 4.0.0 folded apart from
+  // foldVariants: its fold wrote a link stated twice as two rows, where both
+  // folds now keep its first statement only
+  'a link stated twice': gfa([
+    segment('r1', 'ref#chr', 0, 1000, 0),
+    link('r1', '+', 'r1', '+'),
+    link('r1', '+', 'r1', '+'),
+  ]),
 }
 
 // A node's id carries the strand of the first link naming its segment, so a
@@ -433,16 +450,16 @@ test(`${GRAPHS} random rGFA graphs folded twice fold as once at the larger size`
 const where = 'GFA_TO_TABIX or PATH'
 
 test.runIf([process.env.CI, process.env.GFA_TO_TABIX].some(Boolean))(
-  `a gfa-to-tabix runs from ${where} under CI or a set GFA_TO_TABIX`,
+  `${PINNED}, the release CI pins, runs from ${where} under CI or a set GFA_TO_TABIX`,
   () => {
-    expect(VERSION).toBeDefined()
+    expect(FOUND).toBe(PINNED)
   },
 )
 
 describe.skipIf(!VERSION)(
   VERSION
     ? `foldVariants matches ${VERSION} fold`
-    : `foldVariants against gfa-to-tabix: skipped, none on ${where}`,
+    : `foldVariants against gfa-to-tabix: skipped, ${FOUND ?? 'none'} on ${where} where CI pins ${PINNED}`,
   () => {
     let dir: string
     beforeAll(() => {
@@ -514,12 +531,8 @@ function rowDiff({ js, rs }: { js: string; rs: string }) {
   const a = js.split('\n')
   const b = rs.split('\n')
   return [
-    ...a
-      .filter(row => !b.includes(row))
-      .map(row => `bandage-fold only: ${row}`),
-    ...b
-      .filter(row => !a.includes(row))
-      .map(row => `gfa-to-tabix fold only: ${row}`),
+    ...unmatched(a, b).map(row => `bandage-fold only: ${row}`),
+    ...unmatched(b, a).map(row => `gfa-to-tabix fold only: ${row}`),
   ].join('\n')
 }
 
@@ -527,7 +540,20 @@ function lineDiff(once: string, twice: string) {
   const a = once.split('\n')
   const b = twice.split('\n')
   return [
-    ...a.filter(row => !b.includes(row)).map(row => `once only: ${row}`),
-    ...b.filter(row => !a.includes(row)).map(row => `twice only: ${row}`),
+    ...unmatched(a, b).map(row => `once only: ${row}`),
+    ...unmatched(b, a).map(row => `twice only: ${row}`),
   ].join('\n')
+}
+
+// The lines of one side the other lacks, a line there n times matching n here
+function unmatched(lines: string[], others: string[]) {
+  const left = new Map<string, number>()
+  for (const line of others) {
+    left.set(line, (left.get(line) ?? 0) + 1)
+  }
+  return lines.filter(line => {
+    const count = left.get(line) ?? 0
+    left.set(line, count - 1)
+    return count <= 0
+  })
 }
