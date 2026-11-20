@@ -731,3 +731,99 @@ test('faded strokes paint opaque in one layer under the rest, laid down once', (
   expect(layer?.[1]).not.toContain('stroke-opacity')
   expect(svg.indexOf('</g>')).toBeLessThan(svg.indexOf('rgb(0,0,255)'))
 })
+
+// A context as a browser gives one, with no opacity groups, so a faded layer
+// is painted into a scratch canvas and drawn from it
+function screenContext(width: number, height: number) {
+  const drawn: { width: number; height: number; alpha: number }[] = []
+  const ctx = {
+    canvas: { width, height, style: {} },
+    globalAlpha: 1,
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 0,
+    lineCap: '',
+    lineJoin: '',
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    bezierCurveTo: () => {},
+    stroke: () => {},
+    fill: () => {},
+    fillRect: () => {},
+    clearRect: () => {},
+    save: () => {},
+    restore: () => {},
+    drawImage: (image: { width: number; height: number }) => {
+      drawn.push({
+        width: image.width,
+        height: image.height,
+        alpha: ctx.globalAlpha,
+      })
+    },
+  }
+  return { ctx, drawn }
+}
+
+test('a screen canvas lays its faded layer down from a scratch canvas its own size, which releasing offscreen targets or disposing empties', () => {
+  const scratches: { width: number; height: number }[] = []
+  const getContext = Object.getOwnPropertyDescriptor(
+    HTMLCanvasElement.prototype,
+    'getContext',
+  )
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    value: () => {
+      const { ctx } = screenContext(300, 150)
+      scratches.push(ctx.canvas)
+      return ctx
+    },
+  })
+  try {
+    const { ctx, drawn } = screenContext(800, 600)
+    const canvas = document.createElement('canvas')
+    Object.defineProperty(canvas, 'getContext', { value: () => ctx })
+    const renderer = new Canvas2DRenderer(canvas)
+    renderer.updateTransform(TRANSFORM)
+    renderer.uploadGeometry({
+      nodeStrokes: [
+        {
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+          ],
+          thickness: 2,
+          color: packAbgr(160, 160, 160, 255),
+          faded: true,
+        },
+      ],
+      nodeStrokeRuns: new Map(),
+      edgeCurves: [],
+      edgeCurveRuns: new Map(),
+      arrows: [],
+      arrowRuns: new Map(),
+    })
+    renderer.render([1, 1, 1, 1])
+    expect(drawn).toEqual([{ width: 800, height: 600, alpha: FADED_ALPHA }])
+    expect(scratches).toEqual([{ width: 800, height: 600, style: {} }])
+
+    renderer.releaseOffscreenTargets()
+    expect(scratches).toEqual([{ width: 0, height: 0, style: {} }])
+
+    renderer.render([1, 1, 1, 1])
+    expect(drawn).toHaveLength(2)
+    expect(scratches[1]).toEqual({ width: 800, height: 600, style: {} })
+
+    renderer.dispose()
+    expect(scratches[1]).toEqual({ width: 0, height: 0, style: {} })
+  } finally {
+    if (getContext) {
+      Object.defineProperty(
+        HTMLCanvasElement.prototype,
+        'getContext',
+        getContext,
+      )
+    }
+  }
+})

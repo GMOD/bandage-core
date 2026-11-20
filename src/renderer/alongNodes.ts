@@ -111,7 +111,7 @@ export function linksAlongNodes(
     }
   }
   for (const { points, halfWidth, faded = false, walk } of lines) {
-    for (let i = 0; i < points.length; i++) {
+    for (let i = points.length > 1 ? 1 : 0; i < points.length; i++) {
       const a = points[Math.max(0, i - 1)]!
       const b = points[i]!
       if (!bounds || meets(a, b, bounds, reachPx)) {
@@ -145,17 +145,19 @@ export function linksAlongNodes(
       for (let k = 0; k < samples; k++) {
         const u = (END_INSET_PX + k * spacing) / length
         const p = { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u }
-        const near = cells.get(cellAt(p.x, p.y)) ?? []
-        on += near.some(s => distanceToSegment(p, s) <= ALONG_NODE_PX) ? 1 : 0
-        clear += near.some(s => distanceToSegment(p, s) <= s.halfWidth) ? 0 : 1
-        clearOfOtherLanes += near.some(
-          s =>
-            !s.faded &&
-            s.walk !== walk &&
-            distanceToSegment(p, s) <= s.halfWidth,
-        )
-          ? 0
-          : 1
+        let onNode = false
+        let covered = false
+        let coveredByOtherLane = false
+        for (const s of cells.get(cellAt(p.x, p.y)) ?? []) {
+          const distance = distanceToSegment(p, s)
+          onNode ||= distance <= ALONG_NODE_PX
+          covered ||= distance <= s.halfWidth
+          coveredByOtherLane ||=
+            distance <= s.halfWidth && !s.faded && s.walk !== walk
+        }
+        on += onNode ? 1 : 0
+        clear += covered ? 0 : 1
+        clearOfOtherLanes += coveredByOtherLane ? 0 : 1
       }
       const leastShown = Math.max(LEAST_SHOWN_PX, length / 2)
       if (

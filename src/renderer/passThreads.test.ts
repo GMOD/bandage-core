@@ -581,3 +581,27 @@ test('a head points the way the visit its thread draws reads the node, not the v
     expect(h.against).toBe(turned[visitOf.get(h.pass) ?? -1])
   }
 })
+
+// The second copy reads b turned, so the walk takes two links from a to b and
+// two from b to c, one on each strand of b
+test('two links joining the same two nodes on different strands each carry only the pass that takes them', () => {
+  const { batch, graph } = drawn('>f1>a>b>c>d>a<b>c>d>f2', [byPass()])
+  const passesOn = (from: string, to: string, strandOfB: string) => {
+    const run = batch.edgeCurveRuns.get(
+      graph.edges.findIndex(
+        e =>
+          e.from === from &&
+          e.to === to &&
+          (from === 'b+' ? e.fromStrand : e.toStrand) === strandOfB,
+      ),
+    )!
+    return batch.edgeCurves
+      .slice(run.start, run.start + run.count)
+      .map(s => s.walkPass)
+  }
+  expect(passesOn('a+', 'b+', '+')).toEqual([0])
+  expect(passesOn('a+', 'b+', '-')).toEqual([1])
+  expect(passesOn('b+', 'c+', '+')).toEqual([0])
+  expect(passesOn('b+', 'c+', '-')).toEqual([1])
+  expect(passesOn('c+', 'd+', '+')).toEqual([0, 1])
+})

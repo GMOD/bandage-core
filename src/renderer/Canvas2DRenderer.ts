@@ -21,8 +21,9 @@ import type {
 // rather than one path per thing. A drawing is mostly runs of one colour, and
 // Canvas2D's cost is per path verb and per fill or stroke, not per pixel: the
 // same 15k-node graph took 414 ms a frame as one fill per mesh triangle and 11
-// ms as batched strokes (agent-docs/GRAPH_SCALE_AND_LOD.md). Highlighted things
-// are drawn last, in their own paths, so they sit on top of what they brighten.
+// ms as batched strokes (jbrowse-plugin-graphgenomeviewer's
+// agent-docs/reference/GRAPH_SCALE_AND_LOD.md). Highlighted things are drawn
+// last, in their own paths, so they sit on top of what they brighten.
 // A link that skips reference sequence is drawn over the nodes it skips, since
 // the dashes are the only mark a deletion has, and so is a link turning strand
 // against the reference, whose ends lie under the nodes it joins wherever the
@@ -52,7 +53,9 @@ export class Canvas2DRenderer implements Renderer {
 
   setErrorHandler(_handler: (error: Error) => void) {}
 
-  releaseOffscreenTargets() {}
+  releaseOffscreenTargets() {
+    releaseScratch()
+  }
 
   // A host builds its transform at `getDpr()`. Where syncCanvasSize had to
   // shrink the ratio to stay under MAX_CANVAS_DIM_PX, `fit` shrinks the
@@ -386,6 +389,7 @@ export class Canvas2DRenderer implements Renderer {
     this.nodeHighlights = new Map()
     this.highlightedEdge = null
     this.painted = null
+    releaseScratch()
   }
 }
 
@@ -516,6 +520,14 @@ function scratchContext(width: number, height: number) {
     ctx.clearRect(0, 0, width, height)
   }
   return ctx
+}
+
+function releaseScratch() {
+  if (scratch) {
+    scratch.canvas.width = 0
+    scratch.canvas.height = 0
+    scratch = undefined
+  }
 }
 
 // Items bucketed by what they are painted with, in first-seen order, with the

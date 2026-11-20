@@ -164,8 +164,9 @@ const ARROW_CURVE_STEPS = 12
 // Below this an edge has no length, only the rounding of sampling one.
 const ABUTTING_PX = 1e-6
 
-// Scratch for backFromEnd, reused across edges: this runs once per head per
-// rebuild, and objects per sample doubled the cost of a 16k-edge build.
+// Scratch for backFromEnd, reused across edges: this runs for every link a
+// run of heads is spread over and again for every head drawn, each rebuild,
+// and objects per sample doubled the cost of a 16k-edge build.
 let walkX = new Float64Array(64)
 let walkY = new Float64Array(64)
 let walkPx = new Float64Array(64)
@@ -376,6 +377,14 @@ const passageKey = (
   outsideThread: number,
 ) => `${lane}\t${ei}\t${nodeId}\t${outsideThread}`
 
+const linkKeyOf = (e: GraphEdge) =>
+  linkKey(
+    e.from,
+    e.fromStrand ?? ownStrand(e.from),
+    e.to,
+    e.toStrand ?? ownStrand(e.to),
+  )
+
 const linkIndexes = new WeakMap<Graph, Map<string, number>>()
 
 function linkIndexOf(graph: Graph) {
@@ -383,15 +392,7 @@ function linkIndexOf(graph: Graph) {
   if (!index) {
     index = new Map()
     graph.edges.forEach((e, i) => {
-      index?.set(
-        linkKey(
-          e.from,
-          e.fromStrand ?? ownStrand(e.from),
-          e.to,
-          e.toStrand ?? ownStrand(e.to),
-        ),
-        i,
-      )
+      index?.set(linkKeyOf(e), i)
     })
     linkIndexes.set(graph, index)
   }
@@ -530,20 +531,7 @@ function straightened(
   const last = curves.at(-1)
   const a = from ?? (first && { x: first.x0, y: first.y0 })
   const b = to ?? (last && { x: last.x1, y: last.y1 })
-  return a && b
-    ? [
-        {
-          x0: a.x,
-          y0: a.y,
-          cx0: a.x + (b.x - a.x) / 3,
-          cy0: a.y + (b.y - a.y) / 3,
-          cx1: a.x + ((b.x - a.x) * 2) / 3,
-          cy1: a.y + ((b.y - a.y) * 2) / 3,
-          x1: b.x,
-          y1: b.y,
-        },
-      ]
-    : curves
+  return a && b ? polylineCurves([a, b]) : curves
 }
 
 const MITRE_LIMIT = 0.1
@@ -553,7 +541,7 @@ const LONGEST_NORMAL = 1 / Math.sqrt(MITRE_LIMIT)
 // stripe slid along them keeps a constant distance from the node's outline
 // where it bends. `yToX` puts the axes in comparable units first (see
 // computeEdgeCurves), so each normal is perpendicular to the polyline as drawn.
-function pointNormalsOf(rawPoints: Point[], yToX = 1) {
+function pointNormalsOf(rawPoints: Point[], yToX: number) {
   const points =
     yToX === 1 ? rawPoints : rawPoints.map(p => ({ x: p.x, y: p.y * yToX }))
   return points.map((p, i) => {
@@ -577,7 +565,7 @@ function offsetPolyline(
   points: { x: number; y: number }[],
   normals: { nx: number; ny: number }[],
   distance: number | readonly number[],
-  yToX = 1,
+  yToX: number,
 ) {
   const out = new Array<{ x: number; y: number }>(points.length)
   for (let i = 0; i < points.length; i++) {
@@ -1111,25 +1099,6 @@ const headInBounds = (
   )
 }
 
-const linksCache = new WeakMap<Graph, Map<string, Set<string>>>()
-
-function linksOf(graph: Graph): ReadonlyMap<string, ReadonlySet<string>> {
-  let links = linksCache.get(graph)
-  if (!links) {
-    links = new Map()
-    for (const { from, to } of graph.edges) {
-      let out = links.get(from)
-      if (!out) {
-        out = new Set()
-        links.set(from, out)
-      }
-      out.add(to)
-    }
-    linksCache.set(graph, links)
-  }
-  return links
-}
-
 export function buildGeometry(options: BuildOptions): RenderBatch {
   const {
     nodePositions,
@@ -1533,9 +1502,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     if (width === undefined) {
       const node = nodeById.get(id)
       width = walkLaneWidthPx(
-        node
-          ? nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
-          : contigThickness,
+        node ? widthOf(node) : contigThickness,
         liftedWalks.length,
       )
       laneWidths.set(id, width)
@@ -1555,17 +1522,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   ) => {
     const at = atStart ? 0 : segments.length - 1
     const frame = frames?.[lane]?.[visitOf(lane, id, thread)]
-    const eased = frame?.offsets?.[at] ?? frame?.offset
     const laned = segments.length >= 2 && !nodeById.get(id)?.placeholder
     return {
       normal: frame?.normals[at] ??
         plainNormalsOf(id, segments)[at] ?? { nx: 0, ny: 0 },
       shift: laned ? (frame?.shifts[at] ?? NO_SHIFT) : NO_SHIFT,
-      offset: !laned
-        ? 0
-        : eased === undefined
-          ? laneOffset(id, laneWidthOf(id), lane, thread)
-          : eased * thinned,
+      offset: laned
+        ? threadOffsetAt(
+            frame,
+            at,
+            laneOffset(id, laneWidthOf(id), lane, thread),
+          )
+        : 0,
     }
   }
   const lanesMayShow = (curves: BezierCurve[], fromId: string) => {
@@ -1583,29 +1551,25 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       reach / yToX + (fields?.furthestShift.dy ?? 0),
     )
   }
+  // the threads a walk's passes along a link join, at the node the link
+  // leaves and the one it enters, whichever way each pass reads it
   const threadPairs = (
     lane: number,
-    from: string,
-    to: string,
+    edge: GraphEdge,
   ): readonly (readonly [number, number])[] => {
     const own = threads?.[lane]?.linkThreads
-    if (!own?.size) {
-      return FIRST_THREADS
-    }
-    const ahead = own.get(from)?.get(to)
-    const back = linksOf(graph).get(to)?.has(from)
-      ? undefined
-      : own.get(to)?.get(from)
-    if (!back) {
-      return ahead ?? FIRST_THREADS
-    }
-    const turned = back.map(([a, b]): [number, number] => [b, a])
-    return ahead ? [...ahead, ...turned] : turned
+    const leaving = own?.size ? own.get(linkKeyOf(edge)) : undefined
+    const ahead = leaving?.get(edge.from)
+    const turned =
+      edge.from === edge.to
+        ? undefined
+        : leaving?.get(edge.to)?.map(([a, b]): [number, number] => [b, a])
+    return ahead && turned
+      ? [...ahead, ...turned]
+      : (ahead ?? turned ?? FIRST_THREADS)
   }
   const threadColor = (lane: number, nodeId: string, thread: number) =>
-    liftedWalks[lane]?.passColors.get(nodeId)?.[
-      threads?.[lane]?.threadPasses.get(nodeId)?.[thread] ?? 0
-    ]
+    liftedWalks[lane]?.passColors.get(nodeId)?.[visitOf(lane, nodeId, thread)]
   // which end of each node a link leaves and enters as it is laid
   const linkSides = (ei: number) => {
     const edge = graph.edges[ei]
@@ -1724,6 +1688,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     string,
     { passage: RunPassage; side: 'into' | 'out' }
   >()
+  const passageLinks = new Set<number>()
   const threadOfVisit = (lane: number, id: string, visit: number) =>
     Math.max(0, threads?.[lane]?.threadPasses.get(id)?.indexOf(visit - 1) ?? 0)
   liftedWalks.forEach((walk, lane) => {
@@ -1765,21 +1730,20 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               passage,
               side: 'into',
             })
+            passageLinks.add(into.ei)
           }
           if (out) {
             passageAt.set(passageKey(lane, out.ei, steps[j]!.id, outThread), {
               passage,
               side: 'out',
             })
+            passageLinks.add(out.ei)
           }
         }
         i = j + 1
       }
     }
   })
-  const passageLinks = new Set(
-    [...passageAt.keys()].map(key => Number(key.split('\t')[1])),
-  )
   // the lane's points along a passage from `from` to `to` along its path,
   // at its slot there: the offset and shift each meeting gives, eased
   // between them along the path
@@ -1871,7 +1835,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     thread: number,
     color: number,
   ): NodeStroke => ({
-    ...(liftedWalks.length === 1 && !threaded
+    ...(singleLane
       ? { points: segments }
       : offsetLane(nodeId, segments, laneWidth, lane, thread)),
     thickness: laneHalfWidth(laneWidth, lane),
@@ -1948,11 +1912,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               headsMayShow(nodeId) &&
               lanedAt(node, nodeId, segments)
             ) {
-              const laned = laneStrokesOf(
-                nodeId,
-                segments,
-                nodeWidthPx(node, contigThickness, nodeWidth, widthScale),
-              )
+              const laned = laneStrokesOf(nodeId, segments, widthOf(node))
               strokes.set(
                 nodeId,
                 laned.map(({ stroke }) => stroke),
@@ -2002,24 +1962,23 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     )
   }
 
+  const laidLinks: number[] = []
+  for (let ei = 0; ei < graph.edges.length; ei++) {
+    const { from, to } = graph.edges[ei]!
+    if (
+      nodePositions[from]?.length &&
+      nodePositions[to]?.length &&
+      sharedCurves.has(ei) &&
+      !hiddenEdges?.has(ei)
+    ) {
+      laidLinks.push(ei)
+    }
+  }
   const headsDropped = new Set<number>()
   if (showArrows) {
-    const drawnLinks: number[] = []
-    for (let ei = 0; ei < graph.edges.length; ei++) {
-      const { from, to } = graph.edges[ei]!
-      if (
-        nodePositions[from]?.length &&
-        nodePositions[to]?.length &&
-        sharedCurves.has(ei) &&
-        !hiddenEdges?.has(ei) &&
-        !collapse.edges.has(ei)
-      ) {
-        drawnLinks.push(ei)
-      }
-    }
     const runs = directedRuns(
       graph.edges,
-      drawnLinks,
+      laidLinks.filter(ei => !collapse.edges.has(ei)),
       ei =>
         !sharedCurves.arcs.has(ei) &&
         !deletions?.has(ei) &&
@@ -2049,10 +2008,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
                 (drawPaths && numPaths > 0
                   ? 1
                   : edgeWidthFactor(numPaths, busiest, edgeWidth)),
-              nodeHalfWidth:
-                (toNode
-                  ? nodeWidthPx(toNode, contigThickness, nodeWidth, widthScale)
-                  : contigThickness) / 2,
+              nodeHalfWidth: (toNode ? widthOf(toNode) : contigThickness) / 2,
               scale,
               yToX,
               color: EDGE_DEFAULT_COLOR,
@@ -2073,19 +2029,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
   const bridgeStrokes = new Set<number>()
-  for (let ei = 0; ei < graph.edges.length; ei++) {
+  let pathRibbons = false
+  for (const ei of laidLinks) {
     const edge = graph.edges[ei]!
-    const fromSegments = nodePositions[edge.from]
-    const toSegments = nodePositions[edge.to]
-    const baseCurves = sharedCurves.get(ei)
-    if (
-      !fromSegments?.length ||
-      !toSegments?.length ||
-      !baseCurves ||
-      hiddenEdges?.has(ei)
-    ) {
-      continue
-    }
+    const fromSegments = nodePositions[edge.from]!
+    const toSegments = nodePositions[edge.to]!
+    const baseCurves = sharedCurves.get(ei)!
 
     const numPaths = edge.pathIds?.length ?? 0
     const isDeletion = sharedCurves.arcs.has(ei)
@@ -2115,6 +2064,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // the curve at each offset was 40% of a striped build and differed from a
     // translation only in a deletion's bow, by the offset's few px.
     const ribbons = drawPaths && numPaths > 0
+    pathRibbons ||= ribbons
 
     // An arrowhead states which way a LINK is read, which is a property of the
     // edge and not of each path crossing it. Drawn per ribbon it says one thing
@@ -2138,10 +2088,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : plainEdgeColor
     const fadedMark = edgeFaded ? { faded: true as const } : {}
     const toNode = nodeById.get(edge.to)
-    const intoHalfWidth =
-      (toNode
-        ? nodeWidthPx(toNode, contigThickness, nodeWidth, widthScale)
-        : contigThickness) / 2
+    const intoHalfWidth = (toNode ? widthOf(toNode) : contigThickness) / 2
     const inView = (curves: BezierCurve[]) =>
       !viewportBounds || isBezierInBounds(curves, viewportBounds)
     // A deletion is drawn dashed, and that is the only thing in the drawing
@@ -2246,20 +2193,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       continue
     }
     if (laneWalks) {
-      const fromAtStart = leavesStart(
-        edge,
-        fromSegments,
-        baseCurves[0]!,
-        stranded,
-        yToX,
-      )
+      const { fromAtStart, toAtStart } = linkSides(ei)!
       const last = baseCurves.at(-1)!
-      const toAtStart = nearerStart(
-        { x: last.x1, y: last.y1 },
-        toSegments,
-        yToX,
-      )
-      const single = laneWalks.length === 1 && !threaded
       const fromFrames = lines?.frames.get(edge.from)
       const toFrames = lines?.frames.get(edge.to)
       const laneCurves = across
@@ -2270,7 +2205,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         if (!walk.edgeIndexes.has(ei)) {
           continue
         }
-        for (const [pass, toPass] of threadPairs(lane, edge.from, edge.to)) {
+        for (const [pass, toPass] of threadPairs(lane, edge)) {
           const from = laneEndOf(
             edge.from,
             fromFrames,
@@ -2289,8 +2224,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           )
           const start = fromSite ? to : from
           const end = toSite ? from : to
-          const offsetX = single ? 0 : start.offset * worldPerScreenPx
-          const endOffsetX = single ? 0 : end.offset * worldPerScreenPx
+          const offsetX = singleLane ? 0 : start.offset * worldPerScreenPx
+          const endOffsetX = singleLane ? 0 : end.offset * worldPerScreenPx
           const fromShift = threaded ? start.shift : NO_SHIFT
           const toShift = threaded ? end.shift : NO_SHIFT
           const fromRun = passageAt.get(passageKey(lane, ei, edge.from, toPass))
@@ -2301,7 +2236,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             sideways: Normal,
             by: number,
           ) =>
-            single
+            singleLane
               ? p
               : {
                   x: p.x + shift.dx + sideways.nx * by,
@@ -2312,13 +2247,13 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             { x: first.x0, y: first.y0 },
             threaded ? from.shift : NO_SHIFT,
             from.normal,
-            single ? 0 : from.offset * worldPerScreenPx,
+            singleLane ? 0 : from.offset * worldPerScreenPx,
           )
           const toPoint = slid(
             { x: last.x1, y: last.y1 },
             threaded ? to.shift : NO_SHIFT,
             to.normal,
-            single ? 0 : to.offset * worldPerScreenPx,
+            singleLane ? 0 : to.offset * worldPerScreenPx,
           )
           // a folded link between two drawn nodes, a skip, runs along the
           // run its site is in, as any lane crossing that run does
@@ -2369,7 +2304,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
                     ),
                     toPoint,
                   ])
-                : single
+                : singleLane
                   ? laneCurves
                   : slideCurves(
                       laneCurves,
@@ -2419,6 +2354,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         toSegments,
         numPaths,
         axis,
+        baseCurves,
       )
       // The middle ribbon carries the head, which at an odd path count is the
       // one drawn at offset 0, i.e. on the edge's own line. At an even count it
@@ -2473,9 +2409,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
 
     const faded = highlight !== undefined && !highlight.nodeIds.has(nodeId)
     const run = collapse.through.get(nodeId)
-    const width = run
-      ? runWidth(run, node)
-      : nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
+    const width = run ? runWidth(run, node) : widthOf(node)
     const nodeThickness = width / 2
     // The node's drawn width is the same either way: the stripes divide it
     // rather than inflate it, so turning paths on does not re-weight the
@@ -2595,26 +2529,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
 
   if (graph.departures?.names.length) {
     const linked = new Set<string>()
-    for (let ei = 0; ei < graph.edges.length; ei++) {
+    for (const ei of laidLinks) {
       const { from, to } = graph.edges[ei]!
-      const curves = sharedCurves.get(ei)
-      const fromSegments = nodePositions[from]
-      const toSegments = nodePositions[to]
-      if (
-        curves &&
-        fromSegments?.length &&
-        toSegments?.length &&
-        !hiddenEdges?.has(ei)
-      ) {
-        const first = curves[0]!
-        const last = curves.at(-1)!
-        linked.add(
-          `${from}\t${nearerStart({ x: first.x0, y: first.y0 }, fromSegments, yToX)}`,
-        )
-        linked.add(
-          `${to}\t${nearerStart({ x: last.x1, y: last.y1 }, toSegments, yToX)}`,
-        )
-      }
+      const curves = sharedCurves.get(ei)!
+      const first = curves[0]!
+      const last = curves.at(-1)!
+      linked.add(
+        `${from}\t${nearerStart({ x: first.x0, y: first.y0 }, nodePositions[from]!, yToX)}`,
+      )
+      linked.add(
+        `${to}\t${nearerStart({ x: last.x1, y: last.y1 }, nodePositions[to]!, yToX)}`,
+      )
     }
     for (const tab of runsOnTabs({
       graph,
@@ -2628,7 +2553,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       },
       scale,
       yToX,
-      color: () => EDGE_DELETION_COLOR,
+      color: EDGE_DELETION_COLOR,
     })) {
       if (!viewportBounds || headInBounds(tab, viewportBounds, scale, yToX)) {
         arrows.push(
@@ -2689,5 +2614,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     collapsed: collapse,
     laneOnly,
     nodeThicknessesVary: thinnestStroke < thickestStroke,
+    pathRibbons,
   }
 }

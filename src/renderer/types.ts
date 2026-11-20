@@ -8,7 +8,9 @@ import type { BezierCurve } from '../util/geometry'
 // down at FADED_ALPHA, so where faded strokes overlap they keep one tone.
 // Nodes used to arrive as a triangle mesh with per-vertex normals, built for a
 // GPU backend that was never wired; stroking the polyline instead is 20-40x
-// faster on Canvas2D and needs no mesh at all (agent-docs/GRAPH_SCALE_AND_LOD.md).
+// faster on Canvas2D and needs no mesh at all
+// (jbrowse-plugin-graphgenomeviewer's
+// agent-docs/reference/GRAPH_SCALE_AND_LOD.md).
 
 // One stroke per edge, or one per path crossing it when drawPaths is on.
 export interface EdgeCurveBatch {
@@ -108,6 +110,8 @@ export interface RenderBatch {
   // whether the node strokes, hollow ones aside, differ in thickness across
   // the whole drawing, those of nodes a viewport culled included
   nodeThicknessesVary?: boolean
+  // whether any link is drawn as a ribbon per walk, not as one stroke
+  pathRibbons?: boolean
 }
 
 export interface TransformUniform {

@@ -33,7 +33,7 @@ export function runsOnTabs({
   halfWidthPx: (id: string) => number
   scale: number
   yToX: number
-  color: (id: string) => number
+  color: number
 }) {
   const tabs: Arrowhead[] = []
   for (const id of tailsOf(graph, [], () => departureTails(graph))) {
@@ -43,7 +43,7 @@ export function runsOnTabs({
         if (!linked.has(`${id}\t${atStart}`)) {
           const tab = tabAt(segments, atStart, halfWidthPx(id), scale, yToX)
           if (tab) {
-            tabs.push({ ...tab, color: color(id), node: id, runsOn: true })
+            tabs.push({ ...tab, color, node: id, runsOn: true })
           }
         }
       }

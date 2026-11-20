@@ -1,3 +1,4 @@
+import { pushTo } from '../util/groups'
 import { contrastRatio, mixAbgr, packAbgr } from './colorBits'
 
 import type { Arrowhead } from './types'
@@ -67,12 +68,7 @@ function grid(size: number) {
         column = new Map()
         columns.set(cx, column)
       }
-      const held = column.get(cy)
-      if (held) {
-        held.push(at)
-      } else {
-        column.set(cy, [at])
-      }
+      pushTo(column, cy, at)
     },
   }
 }

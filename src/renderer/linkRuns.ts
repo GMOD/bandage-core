@@ -1,3 +1,5 @@
+import { pushTo } from '../util/groups'
+
 import type { GraphEdge } from '../types'
 import type { BezierCurve } from '../util/geometry'
 
@@ -42,13 +44,7 @@ export function directedRuns(
 ) {
   const atSide = new Map<string, number[]>()
   const add = (node: string, side: Side, ei: number) => {
-    const key = `${node}\t${side}`
-    const list = atSide.get(key)
-    if (list) {
-      list.push(ei)
-    } else {
-      atSide.set(key, [ei])
-    }
+    pushTo(atSide, `${node}\t${side}`, ei)
   }
   for (const ei of drawn) {
     const e = edges[ei]!

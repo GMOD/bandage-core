@@ -1,4 +1,5 @@
-import { slideAt } from '../util/geometry'
+import { linkKey } from '../gfa/linkKey'
+import { ownStrand, slideAt } from '../util/geometry'
 
 import type { NodeSegment } from '../types'
 import type { LiftedWalk } from '../walkHighlight'
@@ -594,7 +595,7 @@ export function laneLines(
   yToX: number,
   reach: number,
   band: number,
-  smooth = true,
+  smooth: boolean,
 ) {
   const turn = Math.max(reach, 2 * band)
   const curl = Math.PI * band
@@ -768,22 +769,14 @@ export function laneLines(
   return { frames, arcs, stepFrames }
 }
 
-function windowed(
-  s: ArrayLike<number>,
-  v: readonly number[],
-  half: number,
-  sign: 1 | -1,
-) {
+function windowed(s: ArrayLike<number>, v: readonly number[], half: number) {
   const out = new Array<number>(v.length)
   const deque: number[] = []
   let head = 0
   let next = 0
   for (let i = 0; i < v.length; i++) {
     while (next < v.length && s[next]! - s[i]! <= half) {
-      while (
-        deque.length > head &&
-        sign * v[deque.at(-1)!]! <= sign * v[next]!
-      ) {
+      while (deque.length > head && v[deque.at(-1)!]! <= v[next]!) {
         deque.pop()
       }
       deque.push(next++)
@@ -838,6 +831,8 @@ export interface WalkThreads {
   // where a node the walk visits once runs its thread, in thread pitches,
   // where that falls between threads
   threadAt: Map<string, readonly number[]>
+  // the threads each link joins, by its linkKey and then by the node the walk
+  // leaves along it
   linkThreads: Map<string, Map<string, [number, number][]>>
 }
 
@@ -858,6 +853,7 @@ export function walkThreads(
   nodePositions: Record<string, NodeSegment[]>,
   yToX: number,
   reach: number,
+  routeSteps: readonly (readonly { strand: string }[])[] = [],
 ): WalkThreads {
   if (!repeats(passes)) {
     return {
@@ -897,7 +893,7 @@ export function walkThreads(
     }
     const s = arcOf(points)
     const p = piece.map(id => passes.get(id) ?? 1)
-    const most = windowed(s, p, reach / 2, 1)
+    const most = windowed(s, p, reach / 2)
     const copy = nodes.map(k => ++visits[k]!)
     const n = piece.length
     const before = new Int32Array(n)
@@ -987,6 +983,8 @@ export function walkThreads(
   const linkThreads = new Map<string, Map<string, [number, number][]>>()
   steps.forEach((nodes, piece) => {
     const visit = stepVisits[piece]!
+    const strandAt = (i: number) =>
+      routeSteps[piece]?.[i]?.strand ?? ownStrand(ids[nodes[i]!]!)
     for (let i = 1; i < nodes.length; i++) {
       const from = nodes[i - 1]!
       const to = nodes[i]!
@@ -994,14 +992,15 @@ export function walkThreads(
         threadOf[from]?.[visit[i - 1]!] ?? 0,
         threadOf[to]?.[visit[i]!] ?? 0,
       ]
-      let ahead = linkThreads.get(ids[from]!)
-      if (!ahead) {
-        ahead = new Map()
-        linkThreads.set(ids[from]!, ahead)
+      const link = linkKey(ids[from]!, strandAt(i - 1), ids[to]!, strandAt(i))
+      let leaving = linkThreads.get(link)
+      if (!leaving) {
+        leaving = new Map()
+        linkThreads.set(link, leaving)
       }
-      const list = ahead.get(ids[to]!)
+      const list = leaving.get(ids[from]!)
       if (!list) {
-        ahead.set(ids[to]!, [pair])
+        leaving.set(ids[from]!, [pair])
       } else if (!list.some(([a, b]) => a === pair[0] && b === pair[1])) {
         list.push(pair)
       }
@@ -1038,7 +1037,7 @@ export function bandSpans(
         return raw.every(v => v === raw[0])
           ? { slot: raw, held: raw }
           : {
-              slot: windowMean(at, windowed(at, raw, reach / 2, 1), taper / 2),
+              slot: windowMean(at, windowed(at, raw, reach / 2), taper / 2),
               held: windowMean(at, raw, taper / 2, v => v > 0),
             }
       })
@@ -1137,7 +1136,16 @@ export function liftLanes(
     threaded,
   )
   const threads = threaded
-    ? walks.map(w => walkThreads(w.route, w.passes, nodePositions, yToX, reach))
+    ? walks.map(w =>
+        walkThreads(
+          w.route,
+          w.passes,
+          nodePositions,
+          yToX,
+          reach,
+          w.routeSteps,
+        ),
+      )
     : undefined
   const spans = threads
     ? bandSpans(
