@@ -489,9 +489,9 @@ test("a figure writes every node's length by default, and a placeholder's alone 
   expect(written(true)).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
 })
 
-// two haplotypes' 75 kb placeholders, laid on one loop: one length names
-// it, and where the loop is too short to hold the length, stands off it with
-// a leader to it
+// two haplotypes' 75 kb placeholders, laid on one loop 30 px over the
+// reference: one length names it, and where the loop is too short to hold
+// the length, stands off it with a leader to it
 test('a figure writes one length for two placeholders drawn on one loop, with a leader where the loop is too short to hold it, and its key counts the other', () => {
   const twin = anchorGraph(
     convertGFAToGraph(
@@ -512,13 +512,19 @@ test('a figure writes one length for two placeholders drawn on one loop, with a 
         ...Object.fromEntries(
           ids
             .filter(id => id.startsWith('p'))
-            .map(id => [id, [start!, { ...start!, x: start!.x + units }]]),
+            .map(id => [
+              id,
+              [
+                { x: start!.x, y: start!.y - 30 },
+                { x: start!.x + units, y: start!.y - 30 },
+              ],
+            ]),
         ),
       },
     })
   const leader =
     /<line [^>]*stroke="#18181c" stroke-width="0.8" stroke-opacity="0.6"\/>/
-  const loop = drawn(3000)
+  const loop = drawn(6000)
   expect([...loop.matchAll(/>75 kb<\/text>/g)]).toHaveLength(1)
   expect(loop).not.toMatch(leader)
   expect(loop).toContain('>1 unlabelled, 75 kb<')

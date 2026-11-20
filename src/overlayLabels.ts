@@ -43,7 +43,9 @@ export interface PlacedLabel<T> extends LabelCandidate<T> {
   w: number
 }
 
-export type TakeBox = (box: Box) => boolean
+// Takes a label's box, and the path its leader runs where it has one, both
+// or neither
+export type TakeBox = (box: Box, path?: Box) => boolean
 
 export function labelWidth(text: string) {
   return text.length * LABEL_CHAR_PX + LABEL_PAD * 2
@@ -87,11 +89,17 @@ export function grown(box: Box, by: number) {
 
 export function occupancy(frame: Frame, reserved: Box[] = []): TakeBox {
   const placed = [...reserved]
-  return box => {
-    if (offFrame(box, frame) || placed.some(p => overlaps(p, box))) {
+  return (box, path) => {
+    const taken = path ? [box, path] : [box]
+    if (
+      offFrame(box, frame) ||
+      placed.some(p => taken.some(t => overlaps(p, t)))
+    ) {
       return false
     }
-    placed.push(box)
+    for (const t of taken) {
+      placed.push(t)
+    }
     return true
   }
 }

@@ -1,3 +1,4 @@
+import { EXON_RIM_PX } from './genes/exonOutline'
 import {
   LABEL_DEFAULTS,
   labelledNodeLengths,
@@ -265,7 +266,7 @@ test('a placeholder whose middle is taken writes its length further along its lo
       nodeById: new Map([['a', loop]]),
     }),
   )
-  expect(layout.sizes.map(l => [l.text, l.y])).toEqual([['11.1 kb', 225]])
+  expect(layout.sizes.map(l => [l.text, l.y])).toEqual([['11.1 kb', 231.25]])
 })
 
 const placeholders = (lengths: number[]) =>
@@ -286,19 +287,20 @@ const sizeBox = (l: { text: string; x: number; y: number }) => {
 const apart = (a: ReturnType<typeof sizeBox>, b: ReturnType<typeof sizeBox>) =>
   a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0
 
-// a 75 kb loop drawn under the 116 kb loop's length: the length's box takes
-// every spot along it, though its middle lies 17 px from the 116 kb's
+// a 75 kb loop drawn on from the end of the 116 kb loop: every spot along it
+// whose length would clear the 116 kb loop's stroke lies too near its own end
+// for the loop to run on past the length
 const covered = (more: Record<string, NodeSegment[]> = {}) => {
   const nodes = placeholders([116_000, 75_000])
   return {
     nodePositions: {
       p0: [
-        { x: 300, y: 200 },
-        { x: 324, y: 200 },
+        { x: 220, y: 200 },
+        { x: 340, y: 200 },
       ],
       p1: [
-        { x: 317, y: 200 },
-        { x: 341, y: 200 },
+        { x: 320, y: 200 },
+        { x: 390, y: 200 },
       ],
       ...more,
     },
@@ -312,7 +314,7 @@ test('a placeholder whose every spot is taken stacks its length beside the neare
   expect(sizes.map(l => l.text)).toEqual(['116 kb', '75 kb'])
   const [onLoop, stacked] = sizes
   expect(onLoop!.leader).toBeUndefined()
-  expect(stacked!.leader).toEqual({ x: 329, y: 200 })
+  expect(stacked!.leader).toEqual({ x: 355, y: 200 })
   expect(Math.abs(stacked!.y - 200)).toBe(16)
   expect(apart(sizeBox(onLoop!), sizeBox(stacked!))).toBe(true)
   expect(sizeLeader(stacked!)).toEqual({
@@ -346,7 +348,8 @@ test("a placeholder whose loop is too short to hold its length stacks it off the
 })
 
 // A stacked length names its loop's middle, the point that tells loops on one
-// spot, rather than whichever spot along the loop had the nearest clear row
+// spot, rather than whichever spot along the loop had the nearest clear row:
+// strokes either side of the middle's leader take its first rows
 test("a stacked placeholder length leads to its loop's middle, as a speck's does", () => {
   const nodes = placeholders([116_000, 116_000, 75_000])
   const { sizes } = layoutLabels(
@@ -364,14 +367,24 @@ test("a stacked placeholder length leads to its loop's middle, as a speck's does
           { x: 300, y: 200 },
           { x: 380, y: 200 },
         ],
-        above: [
-          { x: 334, y: 184 },
-          { x: 346, y: 184 },
-        ],
-        below: [
-          { x: 334, y: 216 },
-          { x: 346, y: 216 },
-        ],
+        ...Object.fromEntries(
+          [184, 216].flatMap(y => [
+            [
+              `left${y}`,
+              [
+                { x: 322, y },
+                { x: 334, y },
+              ],
+            ],
+            [
+              `right${y}`,
+              [
+                { x: 346, y },
+                { x: 358, y },
+              ],
+            ],
+          ]),
+        ),
       },
       nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
       nodeById: new Map(nodes.map(n => [n.id, n])),
@@ -383,7 +396,7 @@ test("a stacked placeholder length leads to its loop's middle, as a speck's does
 
 // At the amylase locus the stacked length first stood on the reference bar
 // beside the loops, where it read as that bar's length
-test("a stacked placeholder length keeps off other nodes' ink where it can", () => {
+test("a stacked placeholder length keeps off other nodes' ink", () => {
   const below = [
     { x: 250, y: 216 },
     { x: 380, y: 216 },
@@ -889,7 +902,7 @@ test("a loop's length over another node's ink moves along its loop to a spot cle
     }),
   )
   expect(sizes.map(l => [l.text, l.x, l.y, l.leader])).toEqual([
-    ['148 kb', 300, 100, undefined],
+    ['148 kb', 350, 100, undefined],
   ])
 })
 
@@ -904,16 +917,16 @@ const crossings = (spots: NodeSegment[]) =>
     ]),
   )
 
-// every spot along the loop that a length may take, a node crossing each
-const everySpot = [
-  { x: 400, y: 100 },
-  { x: 300, y: 100 },
-  { x: 500, y: 100 },
-  { x: 200, y: 100 },
-  { x: 600, y: 100 },
-  { x: 200, y: 200 },
-  { x: 600, y: 200 },
-]
+// every spot along the loop that a length may take, each sixteenth of its
+// 800 units up, across and down, a node crossing each
+const everySpot = Array.from({ length: 15 }, (_, k) => {
+  const along = (800 * (k + 1)) / 16
+  return along <= 200
+    ? { x: 200, y: 300 - along }
+    : along <= 600
+      ? { x: along, y: 100 }
+      : { x: 600, y: along - 500 }
+})
 
 test("a loop's length with every spot along its loop over another node's ink stands off the loop's middle on a leader, clear of all ink", () => {
   const graph = bigLoop()
@@ -1061,8 +1074,8 @@ test('a loop writes no length without the drawing it would stand on', () => {
 })
 
 // a host that rebuilds its batch reads it again only for a drawing that
-// writes a loop's length
-test('a graph whose walks make no loop does not read the drawn ink', () => {
+// places a length
+test('a drawing with no length to place does not read the drawn ink', () => {
   const graph = {
     ...bigLoop(),
     paths: [{ name: 'GRCh38', nodeIds: ['r1', 'r2'] }],
@@ -1289,6 +1302,302 @@ test('a gene the cut holds a sliver of says how much in the unit of the sliver, 
 // `pangenome/pggb_bubble_tier` labelled K12's IS5 node `oppA`: oppA's chip
 // hangs under its pin on the backbone, which is the rank-1 row, where the IS5
 // node lies, and oppA starts past the element.
+// what a length's box must leave showing: each stroke 3 px either side of its
+// line, as inkOf paints it, and each exon outline EXON_RIM_PX past that
+const STROKE_HALF_PX = 3
+const EXON_REACH_PX = STROKE_HALF_PX + EXON_RIM_PX
+
+// every half px along a line, with how far along it lies
+function samplesAlong(line: readonly NodeSegment[]) {
+  const samples: { x: number; y: number; at: number }[] = []
+  let walked = 0
+  line.slice(1).forEach((b, k) => {
+    const a = line[k]!
+    const length = Math.hypot(b.x - a.x, b.y - a.y)
+    const steps = Math.max(1, Math.ceil(length / 0.5))
+    for (let i = 0; i <= steps; i++) {
+      samples.push({
+        x: a.x + ((b.x - a.x) * i) / steps,
+        y: a.y + ((b.y - a.y) * i) / steps,
+        at: walked + (length * i) / steps,
+      })
+    }
+    walked += length
+  })
+  return { samples, walked }
+}
+
+const inBox = (
+  p: { x: number; y: number },
+  box: ReturnType<typeof chipBox>,
+  by: number,
+) =>
+  p.x >= box.x0 - by &&
+  p.x <= box.x1 + by &&
+  p.y >= box.y0 - by &&
+  p.y <= box.y1 + by
+
+// the point halfway along a line
+function middleOf(line: readonly NodeSegment[]) {
+  const pieces = line.slice(1).map((b, k) => ({ a: line[k]!, b }))
+  const lengths = pieces.map(({ a, b }) => Math.hypot(b.x - a.x, b.y - a.y))
+  let left = lengths.reduce((sum, length) => sum + length, 0) / 2
+  const k = lengths.findIndex(length => (left -= length) <= 0)
+  const { a, b } = pieces[k]!
+  const t = (lengths[k]! + left) / lengths[k]!
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+}
+
+// a leader as sizeLeader draws it, short of the half row at its foot where
+// it meets the node it names
+function leaderShortOfFoot(label: GraphLabel) {
+  const line = sizeLeader(label)
+  const reach = line ? Math.hypot(line.x1 - line.x2, line.y1 - line.y2) : 0
+  const short = reach > 8 ? (reach - 8) / reach : 0
+  return line
+    ? [
+        { x: line.x1, y: line.y1 },
+        {
+          x: line.x1 + (line.x2 - line.x1) * short,
+          y: line.y1 + (line.y2 - line.y1) * short,
+        },
+      ]
+    : []
+}
+
+// What each length placed breaks of its guarantee: its box covers the stroke
+// of a node it does not name, its own or one whose middle lies within a line
+// of its own's, or any exon outline; or, standing on its node, the node does
+// not run on a line's height past it at both ends; or, standing off on a
+// leader, it covers any node at all, or its leader crosses, short of its
+// foot, a node it does not name, an exon outline of one, or another length
+function brokenLengths(
+  sizes: GraphLabel[],
+  positions: Record<string, NodeSegment[]>,
+  exons: { nodeId: string; stretches: NodeSegment[][] }[],
+) {
+  return sizes.flatMap(label => {
+    const box = chipBox(label)
+    const own = middleOf(positions[label.node] ?? [])
+    const names = (id: string) => {
+      const middle = middleOf(positions[id] ?? [])
+      return Math.hypot(middle.x - own.x, middle.y - own.y) < 16
+    }
+    const overNodes = Object.entries(positions)
+      .filter(([id]) => label.leader !== undefined || !names(id))
+      .filter(([, line]) =>
+        samplesAlong(line).samples.some(p => inBox(p, box, STROKE_HALF_PX)),
+      )
+      .map(([id]) => `${label.text} covers ${id}`)
+    const outlined = exons
+      .filter(({ stretches }) =>
+        stretches.some(stretch =>
+          samplesAlong(stretch).samples.some(p => inBox(p, box, EXON_REACH_PX)),
+        ),
+      )
+      .map(({ nodeId }) => `${label.text} covers an exon on ${nodeId}`)
+    const { samples, walked } = samplesAlong(positions[label.node] ?? [])
+    const under = samples.filter(p => inBox(p, box, 0))
+    const first = under[0]?.at ?? 0
+    const last = under.at(-1)?.at ?? walked
+    const hides =
+      !label.leader && (first < 13 - 0.5 || walked - last < 13 - 0.5)
+        ? [`${label.text} hides ${label.node}`]
+        : []
+    const leader = samplesAlong(leaderShortOfFoot(label)).samples
+    const crosses = (line: readonly NodeSegment[], by: number) =>
+      samplesAlong(line).samples.some(p =>
+        leader.some(q => Math.hypot(p.x - q.x, p.y - q.y) <= by),
+      )
+    const crossed = [
+      ...Object.entries(positions)
+        .filter(([id]) => !names(id) && crosses(positions[id]!, 3))
+        .map(([id]) => `${label.text}'s leader crosses ${id}`),
+      ...exons
+        .filter(
+          ({ nodeId, stretches }) =>
+            !names(nodeId) &&
+            stretches.some(stretch => crosses(stretch, EXON_REACH_PX)),
+        )
+        .map(
+          ({ nodeId }) => `${label.text}'s leader crosses an exon on ${nodeId}`,
+        ),
+      ...sizes
+        .filter(
+          other =>
+            other !== label && leader.some(p => inBox(p, chipBox(other), 0)),
+        )
+        .map(other => `${label.text}'s leader runs under ${other.text}`),
+    ]
+    return [...overNodes, ...outlined, ...hides, ...crossed]
+  })
+}
+
+// a pin of a gene over `nodeIds` with these exons, named well off the pane
+// unless `at` says where
+function exonPin(
+  exonsByNode: { nodeId: string; stretches: NodeSegment[][] }[],
+  at: NodeSegment = { x: 4000, y: 4000 },
+): GenePin {
+  return {
+    ...pin(at),
+    exonsByNode: exonsByNode.map(e => ({ ...e, d: '' })),
+    nodeIds: new Set(exonsByNode.map(e => e.nodeId)),
+  }
+}
+
+// HPRC's C4 cut wrote "4.6 kb" over WHR1's exons and "20.7 kb" over
+// CYP21A2's, and "3.6 kb" over a loop node drawn shorter than the words
+test("a node's length moves along its node off its exons, and one drawn shorter than its length stands it off on a leader", () => {
+  const positions = {
+    gene: [
+      { x: 100, y: 200 },
+      { x: 400, y: 200 },
+    ],
+    speck: [
+      { x: 600, y: 200 },
+      { x: 620, y: 200 },
+    ],
+  }
+  const nodes = [
+    onReference('gene', 0, 30_000),
+    onReference('speck', 30_000, 3600),
+  ]
+  const exons = [
+    {
+      nodeId: 'gene',
+      stretches: [
+        [
+          { x: 220, y: 200 },
+          { x: 280, y: 200 },
+        ],
+      ],
+    },
+  ]
+  const layout = (exonsOn: typeof exons) =>
+    layoutLabels(
+      source({
+        nodePositions: positions,
+        nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+        nodeById: nodesById(nodes),
+        graph: {
+          nodes,
+          edges: [],
+          paths: [{ name: 'GRCh38', nodeIds: ['gene', 'speck'] }],
+        },
+        drawnInk: inkOf(positions),
+        genePins: [exonPin(exonsOn)],
+      }),
+    ).sizes
+  const bare = layout([])
+  expect(bare.map(l => [l.text, l.x, l.y, !!l.leader])).toEqual([
+    ['30 kb', 250, 200, false],
+    ['3.6 kb', 610, 216, true],
+  ])
+  const outlined = layout(exons)
+  expect(outlined.map(l => [l.text, l.y, !!l.leader])).toEqual([
+    ['30 kb', 200, false],
+    ['3.6 kb', 216, true],
+  ])
+  expect(outlined[0]!.x).not.toBe(250)
+  expect(brokenLengths(bare, positions, [])).toEqual([])
+  expect(brokenLengths(outlined, positions, exons)).toEqual([])
+})
+
+// a seeded stream of numbers in [0, 1)
+function seeded(seed: number) {
+  let state = seed
+  return () => {
+    state = (state + 0x6d2b79f5) | 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// A drawing of a dozen nodes, some on the reference and some placeholders,
+// each a line of up to three pieces anywhere on the pane, a third of them
+// with an exon outlined along a stretch
+function randomDrawing(random: () => number) {
+  const positions: Record<string, NodeSegment[]> = {}
+  const nodes: GraphNode[] = []
+  const exons: { nodeId: string; stretches: NodeSegment[][] }[] = []
+  for (let k = 0; k < 12; k++) {
+    const id = `n${k}`
+    const line = [{ x: 40 + random() * 720, y: 40 + random() * 320 }]
+    const pieces = 1 + Math.floor(random() * 3)
+    for (let i = 0; i < pieces; i++) {
+      const from = line.at(-1)!
+      const angle = random() * 2 * Math.PI
+      const length = 10 + random() * 190
+      line.push({
+        x: from.x + Math.cos(angle) * length,
+        y: from.y + Math.sin(angle) * length,
+      })
+    }
+    positions[id] = line
+    const bp = Math.round(500 + random() * 99_500)
+    nodes.push(
+      k < 4
+        ? onReference(id, k * 100_000, bp)
+        : k < 6
+          ? { ...offReference(id, bp), placeholder: true }
+          : offReference(id, bp),
+    )
+    if (random() < 1 / 3) {
+      const piece = Math.floor(random() * pieces)
+      const a = line[piece]!
+      const b = line[piece + 1]!
+      const t0 = random() * 0.7
+      const t1 = t0 + 0.1 + random() * 0.2
+      exons.push({
+        nodeId: id,
+        stretches: [
+          [t0, t1].map(t => ({
+            x: a.x + (b.x - a.x) * t,
+            y: a.y + (b.y - a.y) * t,
+          })),
+        ],
+      })
+    }
+  }
+  return { positions, nodes, exons }
+}
+
+test("no length's box covers an exon outline or a node it does not name, and a length standing on its node leaves the node running on past it at both ends", () => {
+  const random = seeded(20261120)
+  const broken: string[] = []
+  let along = 0
+  let leaders = 0
+  for (let drawing = 0; drawing < 200; drawing++) {
+    const { positions, nodes, exons } = randomDrawing(random)
+    const { sizes } = layoutLabels(
+      source({
+        nodePositions: positions,
+        nodeLengths: new Map(nodes.map(n => [n.id, n.length])),
+        nodeById: nodesById(nodes),
+        graph: {
+          nodes,
+          edges: [],
+          paths: [
+            { name: 'GRCh38', nodeIds: nodes.slice(0, 4).map(n => n.id) },
+          ],
+        },
+        drawnInk: inkOf(positions),
+        genePins: exons.length > 0 ? [exonPin(exons)] : [],
+      }),
+    )
+    for (const fault of brokenLengths(sizes, positions, exons)) {
+      broken.push(`drawing ${drawing}: ${fault}`)
+    }
+    along += sizes.filter(l => !l.leader).length
+    leaders += sizes.filter(l => l.leader).length
+  }
+  expect(broken).toEqual([])
+  expect(along).toBeGreaterThan(200)
+  expect(leaders).toBeGreaterThan(100)
+})
+
 test("a gene's name never covers a node the gene does not lie on, nor its own where an exon is outlined", () => {
   const at = { x: 300, y: 100 }
   const backbone = {

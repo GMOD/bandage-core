@@ -9,11 +9,11 @@ const NODES = {
     { x: 0, y: 200 },
     { x: 200, y: 200 },
   ],
-  // 30 units, which at scale 1 is wide enough to hold "12 bp" within the
-  // factor-of-two overhang and at scale 0.2 is not
+  // 70 units, which at scale 1 runs on past "12 bp" at both ends and at
+  // scale 0.35 does not
   small: [
     { x: 300, y: 200 },
-    { x: 330, y: 200 },
+    { x: 370, y: 200 },
   ],
   // 2 units: a speck, whose label would be twenty times the thing it names
   speck: [
@@ -78,7 +78,7 @@ test('sheds labels as the view zooms out', () => {
       ...VIEWPORT,
     }).map(l => l.text)
   expect(at(1).sort()).toEqual(['12 bp', '39 kb'])
-  expect(at(0.2)).toEqual(['39 kb'])
+  expect(at(0.35)).toEqual(['39 kb'])
   expect(at(0.05)).toEqual([])
 })
 

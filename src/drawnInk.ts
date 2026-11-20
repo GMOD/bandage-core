@@ -18,6 +18,8 @@ export type InkBatch = Pick<
 export interface InkOwner {
   node?: string
   edge?: number
+  // the node an exon outline is drawn round
+  exon?: string
 }
 
 interface Point {
