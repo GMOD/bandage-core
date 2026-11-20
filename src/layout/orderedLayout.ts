@@ -41,10 +41,10 @@ function compareKeys(a: OrderKey, b: OrderKey) {
 
 const UNREACHED: OrderKey = { at: Infinity, side: 0, hops: 0 }
 
-// Every node id in reference order: backbone by stable offset, every other node
-// beside a backbone node (orderKeys), nodes nothing reaches last. Name breaks
-// ties, so the order is a strict total order and the same graph always gets
-// the same one.
+// Every node id in reference order: backbone contig by contig and by stable
+// offset within each, every other node beside a backbone node (orderKeys),
+// nodes nothing reaches last. Name breaks ties, so the order is a strict total
+// order and the same graph always gets the same one.
 export function referenceOrder(graph: Graph) {
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const key = orderKeys(graph)
@@ -229,6 +229,7 @@ function orderKeys(graph: Graph) {
     .filter(isBackbone)
     .sort(
       (a, b) =>
+        compareValues(a.stable.refName, b.stable.refName) ||
         compareValues(a.stable.start, b.stable.start) ||
         compareValues(a.name, b.name),
     )

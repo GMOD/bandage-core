@@ -77,3 +77,24 @@ test('seededNodes carries every scaled node with its seed', () => {
     true,
   )
 })
+
+test('a backbone on two contigs is seeded one contig after the other', () => {
+  const contig = (p: string, sn: string) => [
+    ...[0, 1, 2].map(
+      i => `S\t${p}${i + 1}\tAAAAA\tSN:Z:${sn}\tSO:i:${i * 5}\tSR:i:0`,
+    ),
+    `L\t${p}1\t+\t${p}2\t+\t0M`,
+    `L\t${p}2\t+\t${p}3\t+\t0M`,
+  ]
+  const both = convertGFAToGraph(
+    parseGFA([...contig('b', 'chr2'), ...contig('a', 'chr1')].join('\n')),
+  )
+  const seeds = referenceSeeds(both, layoutScaling(both))
+  const along = [...seeds]
+    .sort(([, a], [, b]) => a.x - b.x)
+    .map(([id, seed]) => [id, seed.y])
+  expect(along).toEqual(
+    ['a1+', 'a2+', 'a3+', 'b1+', 'b2+', 'b3+'].map(id => [id, 0]),
+  )
+  expect(new Set([...seeds.values()].map(seed => seed.x)).size).toBe(6)
+})

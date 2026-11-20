@@ -1,5 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { buildNeighbors } from '../referenceSpan'
+import { compareValues } from '../util/canonicalOrder'
 import { drawnNodeLength } from './drawnScale'
 
 import type { Graph, GraphNode } from '../types'
@@ -20,10 +21,11 @@ interface Seed {
 const LANE_GAP = 30
 
 // Initial positions for a reference-anchored graph: the backbone end to end
-// along x at drawn length, each off-reference node at the midpoint of the node
-// a BFS from the backbone reached it from, a lane lower per step. Two alleles
-// off one anchor share a seed; FMMM separates them. Nodes no backbone reaches
-// spread along x below everything rather than piling on one point.
+// along x at drawn length, one contig after another, each off-reference node
+// at the midpoint of the node a BFS from the backbone reached it from, a lane
+// lower per step. Two alleles off one anchor share a seed; FMMM separates them.
+// Nodes no backbone reaches spread along x below everything rather than piling
+// on one point.
 //
 // Lengths come from `scaling.nodes`, not the graph's bp: under a compressing
 // spread a node's `length` crosses the RPC as drawn units times 1000 with a
@@ -40,7 +42,11 @@ export function referenceSeeds(
   const drawnOf = (id: string) => drawn.get(id) ?? opts.minimumNodeLength
   const backbone = graph.nodes
     .filter(isBackbone)
-    .sort((a, b) => a.stable.start - b.stable.start)
+    .sort(
+      (a, b) =>
+        compareValues(a.stable.refName, b.stable.refName) ||
+        a.stable.start - b.stable.start,
+    )
 
   const seeds = new Map<string, Seed>()
   let x = 0

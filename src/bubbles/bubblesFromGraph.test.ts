@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { parseGFA } from '../gfa-core/index'
+import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { bubbleLabel } from './bubbleLabel'
 import { bubblesFromGraph } from './bubblesFromGraph'
 
@@ -235,5 +237,56 @@ describe('bubblesFromGraph', () => {
       'r1,a,r2,r3',
       'r3,w,r4',
     ])
+  })
+
+  // An rGFA whose rank 0 lies on two contigs at the same offsets. Sorted by
+  // offset alone their backbones interleaved, and every boundary on one was
+  // paired with one on the other: one bubble, chr1:10-51, over both contigs.
+  it('keeps each contig’s bubbles to that contig', () => {
+    const segment = (name: string, bp: number, sn: string, so: number) =>
+      `S\t${name}\t${'A'.repeat(bp)}\tSN:Z:${sn}\tSO:i:${so}\tSR:i:${sn.startsWith('chr') ? 0 : 1}`
+    const link = (from: string, to: string) => `L\t${from}\t+\t${to}\t+\t0M`
+    // p1 p2 p3 p4 p5 p6 along `sn`, an insertion px after p1 and a SNP py
+    // beside p4
+    const contig = (p: string, sn: string) => [
+      segment(`${p}1`, 10, sn, 0),
+      segment(`${p}2`, 10, sn, 10),
+      segment(`${p}3`, 10, sn, 20),
+      segment(`${p}4`, 1, sn, 30),
+      segment(`${p}5`, 10, sn, 31),
+      segment(`${p}6`, 10, sn, 41),
+      segment(`${p}x`, 7, `alt${p}`, 0),
+      segment(`${p}y`, 1, `alt${p}`, 7),
+      ...[1, 2, 3, 4, 5].map(i => link(`${p}${i}`, `${p}${i + 1}`)),
+      link(`${p}1`, `${p}x`),
+      link(`${p}x`, `${p}2`),
+      link(`${p}3`, `${p}y`),
+      link(`${p}y`, `${p}5`),
+    ]
+    const chr1 = [
+      ...contig('a', 'chr1'),
+      segment('a7', 10, 'chr1', 51),
+      segment('a8', 10, 'chr1', 61),
+      segment('az', 4, 'alta', 8),
+      link('a6', 'a7'),
+      link('a7', 'a8'),
+      link('a6', 'az'),
+      link('az', 'a7'),
+    ]
+    const chr2 = contig('b', 'chr2')
+    const found = (lines: string[]) =>
+      bubblesFromGraph(convertGFAToGraph(parseGFA(lines.join('\n')))).map(b =>
+        [b.refName, b.start, b.end, b.segments].join(' '),
+      )
+    expect(found(chr1)).toEqual([
+      'chr1 10 10 a1,ax,a2',
+      'chr1 30 31 a3,ay,a4,a5',
+      'chr1 51 51 a6,az,a7',
+    ])
+    expect(found(chr2)).toEqual([
+      'chr2 10 10 b1,bx,b2',
+      'chr2 30 31 b3,by,b4,b5',
+    ])
+    expect(found([...chr2, ...chr1])).toEqual([...found(chr1), ...found(chr2)])
   })
 })

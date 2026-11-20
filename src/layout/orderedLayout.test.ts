@@ -210,3 +210,29 @@ test('a walk on the reverse strand is read end-first', () => {
   const graph = baseLevel([...WALKED, 'W\thap\t1\tctg\t0\t4\t<r4<w2<w1<r1'])
   expect(referenceOrder(graph).slice(0, 3)).toEqual(['r1+', 'w1+', 'w2+'])
 })
+
+// chr2 listed before chr1, each r1 r2 r3 from 0 with an allele x replacing r2
+const contig = (p: string, sn: string) => [
+  ...[0, 1, 2].map(
+    i => `S\t${p}${i + 1}\tAAAAA\tLN:i:5\tSN:Z:${sn}\tSO:i:${i * 5}\tSR:i:0`,
+  ),
+  `S\t${p}x\tA\tLN:i:1\tSN:Z:alt\tSO:i:0\tSR:i:1`,
+  link(`${p}1`, `${p}2`),
+  link(`${p}2`, `${p}3`),
+  link(`${p}1`, `${p}x`),
+  link(`${p}x`, `${p}3`),
+]
+const TWO_CONTIGS = [...contig('b', 'chr2'), ...contig('a', 'chr1')].join('\n')
+
+test('a backbone on two contigs is ordered one contig after the other', () => {
+  expect(referenceOrder(graphOf(TWO_CONTIGS))).toEqual([
+    ...referenceOrder(graphOf(contig('a', 'chr1').join('\n'))),
+    ...referenceOrder(graphOf(contig('b', 'chr2').join('\n'))),
+  ])
+  const pos = layout(TWO_CONTIGS)
+  const xs = ['a1+', 'a2+', 'a3+', 'b1+', 'b2+', 'b3+'].map(id =>
+    centre(pos[id]!),
+  )
+  expect(xs).toEqual([...xs].sort((a, b) => a - b))
+  expect(new Set(xs).size).toBe(xs.length)
+})

@@ -1,6 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { referenceOrder } from '../layout/orderedLayout'
-import { addTo } from '../util/groups'
+import { addTo, groupBy } from '../util/groups'
 import { SATURATED_PATH_COUNT } from './bubbleLine'
 
 import type { Graph, GraphNode } from '../types'
@@ -8,9 +8,9 @@ import type { BubbleRoute, MinigraphBubble } from './bubbleLine'
 
 // Bubbles from the graph alone, off the reference order the ordered layout is
 // also drawn from (referenceOrder): a backbone node no link reaches across is a
-// bubble boundary, and whatever sorts between two consecutive boundaries is a
-// bubble. Needs a reference, not an index, so it works on a GBZ cut, a pggb
-// file and the inside of a popped superbubble alike.
+// bubble boundary, and whatever sorts between two consecutive boundaries of
+// one contig is a bubble. Needs a reference, not an index, so it works on a
+// GBZ cut, a pggb file and the inside of a popped superbubble alike.
 //
 // Read off the order itself, not off the layers the drawing puts it in. A
 // layer is where a node is drawn, and one nothing leads into is drawn in the
@@ -75,14 +75,18 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
   for (let i = 1; i < reach.length; i++) {
     reach[i]! += reach[i - 1]!
   }
-  // Boundaries are nodes: every backbone node no link reaches across, plus the
-  // window's first and last backbone node whatever reaches across them, since a
-  // repeat array whose copies reach the last backbone node would otherwise
-  // never close.
+  // Boundaries are nodes: every backbone node no link reaches across, plus
+  // each contig's first and last backbone node in the window whatever reaches
+  // across them, since a repeat array whose copies reach the last backbone
+  // node would otherwise never close.
   const backbone = graph.nodes
     .filter(isBackbone)
     .sort((a, b) => a.stable.start - b.stable.start)
-  const ends = new Set([backbone[0]!.id, backbone.at(-1)!.id])
+  const ends = new Set(
+    [...groupBy(backbone, node => node.stable.refName).values()].flatMap(
+      contig => [contig[0]!.id, contig.at(-1)!.id],
+    ),
+  )
   const boundaries = backbone
     .map(node => [node, indexOf.get(node.id)!] as const)
     .filter(([node, i]) => ends.has(node.id) || reach[i] === 0)
@@ -97,7 +101,7 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
     const [start, i0] = boundaries[i]!
     const [end, i1] = boundaries[i + 1]!
     const interior = order.slice(i0 + 1, i1)
-    if (interior.length === 0) {
+    if (interior.length === 0 || start.stable.refName !== end.stable.refName) {
       continue
     }
 
