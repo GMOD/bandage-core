@@ -1,5 +1,5 @@
 import { NOT_LOADED_TEXT } from '../gfa/departures'
-import { formatBp } from '../graphLabels'
+import { formatBpSpan } from '../graphLabels'
 import { SATURATED_PATH_COUNT } from './bubbleLine'
 
 import type { MinigraphBubble } from './bubbleLine'
@@ -34,25 +34,14 @@ function coveringRepeat(b: MinigraphBubble, repeats: readonly RepeatSpan[]) {
 
 const SUPERBUBBLE_SEGMENTS = 40
 
-function formatBpRange(shortest: number, longest: number) {
-  const low = formatBp(shortest)
-  const high = formatBp(longest)
-  const unit = high.slice(high.indexOf(' '))
-  return low === high
-    ? high
-    : low.endsWith(unit)
-      ? `${low.slice(0, -unit.length)}–${high}`
-      : `${low}–${high}`
-}
-
 function routes(count: number) {
-  if (count >= SATURATED_PATH_COUNT) {
-    return '≥2.1B routes'
-  }
-  if (count >= 100_000) {
-    return `${(count / 1000).toFixed(0)}k routes`
-  }
-  return `${count} routes`
+  return count >= SATURATED_PATH_COUNT
+    ? '≥2.1B routes'
+    : count >= 999_500
+      ? `${+(count / 1_000_000).toFixed(count >= 100_000_000 ? 0 : 1)}M routes`
+      : count >= 100_000
+        ? `${(count / 1000).toFixed(0)}k routes`
+        : `${count} routes`
 }
 
 // A bubble in words, read off the numbers `gfatools bubble` states: its
@@ -68,7 +57,7 @@ export function bubbleLabel(
   repeats: readonly RepeatSpan[] = [],
 ) {
   const label = b.unloaded
-    ? `${formatBpRange(b.shortestAlleleLength, b.longestAlleleLength)}, ${routes(b.pathCount)}, some ${NOT_LOADED_TEXT}`
+    ? `${formatBpSpan(b.shortestAlleleLength, b.longestAlleleLength)}, ${routes(b.pathCount)}, some ${NOT_LOADED_TEXT}`
     : shapeLabel(b, repeats)
   return b.partial ? `${label}, partial` : label
 }
@@ -80,7 +69,7 @@ function shapeLabel(b: MinigraphBubble, repeats: readonly RepeatSpan[]) {
     pathCount,
     segmentCount,
   } = b
-  const range = formatBpRange(shortest, longest)
+  const range = formatBpSpan(shortest, longest)
   // routes of one length are substitutions inside an array, not copies
   const repeat =
     segmentCount < SUPERBUBBLE_SEGMENTS &&

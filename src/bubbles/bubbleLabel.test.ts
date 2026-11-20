@@ -126,6 +126,24 @@ describe('bubbleLabel', () => {
     ).toBe('2.4–205 kb superbubble, 254 segments, ≥2.1B routes')
   })
 
+  it('counts routes in thousands, then in millions', () => {
+    const counted = (pathCount: number) =>
+      bubbleLabel(
+        bubble({
+          pathCount,
+          shortestAlleleLength: 10,
+          longestAlleleLength: 20,
+        }),
+      )
+    expect(counted(99_999)).toBe('10–20 bp, 99999 routes')
+    expect(counted(123_456)).toBe('10–20 bp, 123k routes')
+    expect(counted(999_499)).toBe('10–20 bp, 999k routes')
+    expect(counted(999_500)).toBe('10–20 bp, 1M routes')
+    expect(counted(1_540_000)).toBe('10–20 bp, 1.5M routes')
+    expect(counted(510_000_000)).toBe('10–20 bp, 510M routes')
+    expect(counted(2_147_483_646)).toBe('10–20 bp, 2147M routes')
+  })
+
   it('names a SNP, and states longer routes of one length by their length', () => {
     expect(
       bubbleLabel(
