@@ -71,8 +71,8 @@ export function curveBounds(curves: BezierCurve[]) {
   return { minX, minY, maxX, maxY }
 }
 
-// The sub-curve over [t0, t1], exact rather than sampled: de Casteljau twice,
-// which is what keeps a dashed curve on the same path as the solid one.
+// The sub-curve over [t0, t1], exact rather than sampled, which is what keeps
+// a dashed curve on the same path as the solid one.
 function subCurve(c: BezierCurve, t0: number, t1: number): BezierCurve {
   const p0 = curvePointAt(c, t0)
   const p1 = curvePointAt(c, t1)
@@ -104,18 +104,33 @@ function curveTangentAt(c: BezierCurve, t: number) {
   }
 }
 
-// A curve chopped into dashes, each its own run so a renderer strokes them as
-// separate paths. Dashing is geometry here rather than a stroke style because
-// the two backends do not share one: Canvas2D has setLineDash, a GPU backend
-// tessellating these curves does not, and a dash pattern that only exists in one
-// of them is a figure that changes with the renderer.
-//
+export function distanceToSegment(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const lenSq = dx * dx + dy * dy
+  const t =
+    lenSq === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq))
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
+}
+
 export interface Bounds {
   minX: number
   minY: number
   maxX: number
   maxY: number
 }
+
+const boundsMeet = (a: Bounds, b: Bounds) =>
+  a.maxX >= b.minX && a.minX <= b.maxX && a.maxY >= b.minY && a.minY <= b.maxY
 
 const VISIBLE_SAMPLES = 32
 
@@ -159,6 +174,12 @@ function visibleStretches(
   return stretches
 }
 
+// A curve chopped into dashes, each its own run so a renderer strokes them as
+// separate paths. Dashing is geometry here rather than a stroke style because
+// the two backends do not share one: Canvas2D has setLineDash, a GPU backend
+// tessellating these curves does not, and a dash pattern that only exists in one
+// of them is a figure that changes with the renderer.
+//
 // `dashWorld` is the period in x units, so a caller passing screen px over the
 // current scale gets dashes of a constant on-screen size. `yToX` puts y in x
 // units first, as in a row layout where x is bp and y is px. The pattern runs
@@ -196,7 +217,9 @@ export function dashSpans(
   // Odd, so a dash sits at each end and the line reads as attached to both
   // nodes rather than floating between them.
   const periods = Math.round(total / dashWorld)
-  const spans = Math.max(3, periods % 2 ? periods : periods + 1)
+  const spans = Number.isFinite(periods)
+    ? Math.max(3, periods % 2 ? periods : periods + 1)
+    : 0
   const stretches = bounds
     ? visibleStretches(curves, lengths, bounds, yToX)
     : undefined
@@ -230,7 +253,7 @@ export function dashSpans(
       }
       start = end
     })
-    if (dash.length) {
+    if (dash.length && (!bounds || boundsMeet(curveBounds(dash), bounds))) {
       out.push({
         curves: dash,
         startAlong: along[0]!,
@@ -591,19 +614,29 @@ function drawnDirection(
 // to hover — and the abutting nodes hid it. A node's own drawn direction answers
 // what the chord cannot, and for a backbone running along x it fans the ribbons
 // across the row, which is where they belong.
+//
+// The edge is the curve drawn, from its first foot to its last: a link may
+// join either end of each node, so the chord from one's end to the other's
+// start is not always the one it runs along.
 export function pathRibbonOffsets(
   fromSegments: NodeSegment[],
   toSegments: NodeSegment[],
   count: number,
   axis: AxisScale,
+  curves?: BezierCurve[],
 ) {
   const yToX = yToXOf(axis)
   const spacing = PATH_RIBBON_SPACING_PX / Math.max(axis.scaleX, 1e-6)
-  const dir = drawnDirection(
-    fromSegments[fromSegments.length - 1]!,
-    toSegments[0]!,
-    yToX,
-  ) ??
+  const first = curves?.[0]
+  const last = curves?.at(-1)
+  const dir = (first && last
+    ? drawnDirection(
+        { x: first.x0, y: first.y0 },
+        { x: last.x1, y: last.y1 },
+        yToX,
+      )
+    : undefined) ??
+    drawnDirection(fromSegments.at(-1)!, toSegments[0]!, yToX) ??
     drawnDirection(fromSegments[0]!, fromSegments.at(-1)!, yToX) ??
     drawnDirection(toSegments[0]!, toSegments.at(-1)!, yToX) ?? { x: 1, y: 0 }
   const offsets: { x: number; y: number }[] = []

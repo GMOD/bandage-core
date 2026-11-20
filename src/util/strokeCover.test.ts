@@ -83,3 +83,9 @@ test('a flattened cubic lies within its tolerance of the curve, at any scale on 
     expect(flat.at(-1)?.x).toBeCloseTo(25 * scaleX, 12)
   }
 })
+
+test('a cubic with a coordinate that is not finite flattens to nothing', () => {
+  const c = { x0: 0, y0: 0, cx0: 40, cy0: 90, cx1: -30, cy1: 70, x1: 25, y1: 0 }
+  expect(flattenedPx({ ...c, cx0: Infinity }, 1, 1, 0.01)).toEqual([])
+  expect(flattenedPx({ ...c, cy1: NaN }, 1, 1, 0.01)).toEqual([])
+})

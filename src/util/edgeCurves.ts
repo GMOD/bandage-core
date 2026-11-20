@@ -1,5 +1,5 @@
 import { deletionEdges, edgeCurvesOf } from '../deletionEdges'
-import { APEX_FRACTION, curvePointAt, yToXOf } from './geometry'
+import { APEX_FRACTION, curvePointAt, distanceToSegment } from './geometry'
 import { groupBy } from './groups'
 import { partitionPoint } from './partitionPoint'
 import { weakMemo } from './weakMemo'
@@ -49,24 +49,6 @@ const ALONG_SAMPLES = 16
 // such a skip is drawn as an arch whose apex clears that stretch by a level
 const ALONG_ARCH_PX = ALONG_STRETCH_PX + SKIP_LEVEL_PX
 
-function pointToSegmentPx(
-  p: { x: number; y: number },
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-) {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lengthSquared = dx * dx + dy * dy
-  const t =
-    lengthSquared > 0
-      ? Math.max(
-          0,
-          Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared),
-        )
-      : 0
-  return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy)
-}
-
 // Whether most of a skip's course lies on the stretch of reference it skips,
 // from its first foot through the skipped nodes as laid to its last, as drawn
 // on screen
@@ -94,8 +76,10 @@ export function runsAlong(
       const p = screen(curvePointAt(c, k / ALONG_SAMPLES))
       let onStretch = false
       for (let i = 1; i < stretch.length && !onStretch; i++) {
+        const a = stretch[i - 1]!
+        const b = stretch[i]!
         onStretch =
-          pointToSegmentPx(p, stretch[i - 1]!, stretch[i]!) <= ALONG_STRETCH_PX
+          distanceToSegment(p.x, p.y, a.x, a.y, b.x, b.y) <= ALONG_STRETCH_PX
       }
       all++
       near += onStretch ? 1 : 0
@@ -126,12 +110,7 @@ function archSide(
 }
 
 export function spanPx(curves: BezierCurve[], axis: AxisScale) {
-  const first = curves[0]!
-  const last = curves.at(-1)!
-  return (
-    Math.hypot(last.x1 - first.x0, (last.y1 - first.y0) * yToXOf(axis)) *
-    axis.scaleX
-  )
+  return screenChord(curves, axis).length
 }
 
 const cache = weakMemo<Record<string, NodeSegment[]>, EdgeCurves>()
@@ -151,7 +130,16 @@ export function baseEdgeCurves(
 ): EdgeCurves {
   return cache(
     nodePositions,
-    [graph, axis.scaleX, axis.scaleY, deletions, routes, stranded, version],
+    [
+      graph,
+      axis.scaleX,
+      axis.scaleY,
+      !!axis.pixelRows,
+      deletions,
+      routes,
+      stranded,
+      version,
+    ],
     () => {
       const curves = new EdgeCurves()
       for (let ei = 0; ei < graph.edges.length; ei++) {
@@ -346,6 +334,7 @@ function screenChord(curves: BezierCurve[], axis: AxisScale) {
   return {
     ax,
     ay,
+    length,
     ux: (last.x1 * axis.scaleX - ax) / length,
     uy: (last.y1 * axis.scaleY - ay) / length,
   }

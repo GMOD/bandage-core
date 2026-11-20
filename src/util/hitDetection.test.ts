@@ -72,6 +72,12 @@ describe('distanceToCubicBezier', () => {
     const dist = distanceToCubicBezier(525, 4, flat(333, 667, 1000))
     expect(dist).toBeCloseTo(4)
   })
+
+  test("a curve whose y is in other units is measured in the pointer's", () => {
+    const arch = { ...flat(0, 10, 10), cy0: 4, cy1: 4 }
+    expect(distanceToCubicBezier(5, 30, arch, 10)).toBeCloseTo(0)
+    expect(distanceToCubicBezier(5, 40, arch, 10)).toBeCloseTo(10)
+  })
 })
 
 describe('findHoveredNode', () => {
@@ -212,6 +218,40 @@ describe('findHoveredEdge', () => {
     expect(hit(100, 0, false)).toBe(0)
   })
 
+  // 3 px between lanes is 30 bp of x and 3 px of y here, and the 10 px of
+  // slack is measured from the outer lane
+  test('hits a lane where a row layout draws it', () => {
+    const rows = { scaleX: 0.1, scaleY: 1, pixelRows: true }
+    const positions = {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 500, y: 0 },
+      ],
+      'B+': [
+        { x: 1500, y: 0 },
+        { x: 2000, y: 0 },
+      ],
+    }
+    const at = (y: number, drawPaths: boolean) =>
+      findHoveredEdge(
+        positions,
+        graph,
+        1000,
+        y,
+        rows,
+        drawPaths,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        false,
+        undefined,
+      )
+    expect(at(12, true)).toBe(0)
+    expect(at(14, true)).toBeNull()
+    expect(at(12, false)).toBeNull()
+  })
+
   // A deletion is drawn bowed off its chord, and the tutorial tells the reader to
   // hover it for the interval and the bp it removes. Hit detection built its
   // curves without the bow, so the shape on screen was not hoverable and the
@@ -323,6 +363,112 @@ describe('a hit test on a stranded drawing', () => {
     expect(hit(125, true)).toBe(0)
     expect(hit(125, false)).toBeNull()
   })
+
+  // A- to B+ leaves A's start for B's start, along y = 0 from x 0 to 10. The
+  // chord from A's end to B's start runs diagonally, and lanes fanned across
+  // that one reach two thirds as far off the link.
+  test('targets the lanes fanned across the link as drawn', () => {
+    const bent = {
+      'A+': [
+        { x: 0, y: 0 },
+        { x: 0, y: -10 },
+      ],
+      'B+': [
+        { x: 10, y: 0 },
+        { x: 20, y: 0 },
+      ],
+    }
+    const laned: Graph = {
+      ...stranded,
+      edges: [
+        {
+          from: 'A+',
+          to: 'B+',
+          fromStrand: '-',
+          toStrand: '+',
+          pathIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'],
+        },
+      ],
+    }
+    const at = (y: number) =>
+      findHoveredEdge(
+        bent,
+        laned,
+        5,
+        y,
+        iso(10),
+        true,
+        0,
+        undefined,
+        undefined,
+        undefined,
+        true,
+        undefined,
+      )
+    const drawn = baseEdgeCurves(
+      bent,
+      laned,
+      iso(10),
+      undefined,
+      0,
+      undefined,
+      true,
+    ).get(0)!
+    expect(drawn.flatMap(c => [c.y0, c.cy0, c.cy1, c.y1])).toEqual([0, 0, 0, 0])
+    // the outer lane is 9 px off the link and the slack 10 px past it
+    expect(at(1.8)).toBe(0)
+    expect(at(-1.8)).toBe(0)
+    expect(at(2)).toBeNull()
+  })
+})
+
+// A row layout caps a skip's bow and an isotropic one does not, and at a zoom
+// of 1 the two have the same pair of scales
+test('a skip is hit where each layout draws it, at the scales the two share', () => {
+  const positions = {
+    'A+': [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ],
+    'mid+': [
+      { x: 100, y: 0 },
+      { x: 1100, y: 0 },
+    ],
+    'B+': [
+      { x: 1100, y: 0 },
+      { x: 1200, y: 0 },
+    ],
+  }
+  const graph: Graph = {
+    name: 't',
+    nodes: [
+      { id: 'A+', name: 'A', length: 100, depth: 1 },
+      { id: 'mid+', name: 'mid', length: 1000, depth: 1 },
+      { id: 'B+', name: 'B', length: 100, depth: 1 },
+    ],
+    edges: [{ from: 'A+', to: 'B+' }],
+  }
+  const skipped = new Map([[0, ['mid+']]])
+  const at = (y: number, pixelRows: boolean) =>
+    findHoveredEdge(
+      positions,
+      graph,
+      600,
+      y,
+      { ...iso(), pixelRows },
+      false,
+      0,
+      skipped,
+      undefined,
+      undefined,
+      false,
+      undefined,
+    )
+  // three quarters of a 60 px bow on the rows, and of 350 without the cap
+  expect(at(45, true)).toBe(0)
+  expect(at(262, true)).toBeNull()
+  expect(at(262, false)).toBe(0)
+  expect(at(45, false)).toBeNull()
 })
 
 // The hover threshold is 5 screen px converted to world units, so zoomed out it
@@ -536,12 +682,39 @@ describe('otherNodeUnderBox', () => {
       () => true,
     )
     const far = otherNodeUnderBox(chain, at(0.02))
+    const box = { x0: 100, x1: 250, y0: -9, y1: 10 }
+    far(box, () => true)
     const lookups = vi.spyOn(Map.prototype, 'get')
-    const covered = far({ x0: 100, x1: 250, y0: -9, y1: 10 }, () => true)
+    const covered = far(box, () => true)
     const looked = lookups.mock.calls.length
     lookups.mockRestore()
     expect(covered).toBe(false)
     expect(looked).toBeLessThan(50)
+  })
+
+  test('nothing is indexed until a box is asked', () => {
+    const chain = Object.fromEntries(
+      Array.from({ length: 50 }, (_, i) => [
+        `n${i}`,
+        [
+          { x: i * 4, y: 0 },
+          { x: i * 4 + 3, y: 0 },
+        ],
+      ]),
+    )
+    const lookups = vi.spyOn(Map.prototype, 'get')
+    const underBox = otherNodeUnderBox(chain, {
+      scaleX: 1,
+      scaleY: 1,
+      translateX: 0,
+      translateY: 0,
+    })
+    const before = lookups.mock.calls.length
+    underBox({ x0: 0, x1: 40, y0: -9, y1: 10 }, () => true)
+    const after = lookups.mock.calls.length
+    lookups.mockRestore()
+    expect(before).toBe(0)
+    expect(after).toBeGreaterThanOrEqual(50)
   })
 
   test('after a drag moves a node in place, a label box is asked of where the node is now', () => {

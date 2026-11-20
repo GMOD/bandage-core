@@ -159,3 +159,15 @@ test('eight chords come short of a curved link by more than the quadrature is of
   expect(relative(chordsPx(link, 8), exact)).toBeGreaterThan(1e-4)
   expect(relative(cubicLengthPx(link, 1, 1), exact)).toBeLessThan(1e-10)
 })
+
+test('a cubic with a coordinate or a scale that is not finite has no length, and says so at once', () => {
+  const c = cubic(
+    { x: 0, y: 0 },
+    { x: 10, y: 20 },
+    { x: 30, y: 20 },
+    { x: 40, y: 0 },
+  )
+  expect(cubicLengthPx({ ...c, cx0: NaN }, 1, 1)).toBeNaN()
+  expect(cubicLengthPx({ ...c, cy1: Infinity }, 1, 1)).toBeNaN()
+  expect(cubicLengthPx(c, NaN, 1)).toBeNaN()
+})

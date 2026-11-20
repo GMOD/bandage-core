@@ -79,6 +79,23 @@ describe('dashCurves', () => {
     }
   })
 
+  test('bounds leave out every dash whose own box is clear of them', () => {
+    const bounds = { minX: 40, maxX: 60, minY: -10, maxY: 100 }
+    const near = dashCurves([ARC], 2, 1, bounds)
+    expect(near.length).toBeGreaterThan(0)
+    for (const dash of near) {
+      const xs = dash.flatMap(c => [c.x0, c.cx0, c.cx1, c.x1])
+      expect(Math.max(...xs)).toBeGreaterThanOrEqual(bounds.minX)
+      expect(Math.min(...xs)).toBeLessThanOrEqual(bounds.maxX)
+    }
+  })
+
+  test('a length or a period that is not finite dashes nothing', () => {
+    expect(dashCurves([{ ...ARC, cx0: Infinity }], 12)).toEqual([])
+    expect(dashCurves([{ ...ARC, cy1: NaN }], 12)).toEqual([])
+    expect(dashCurves([ARC], 0)).toEqual([])
+  })
+
   test('bounds clear of the whole curve leave no dashes', () => {
     const away = { minX: 500, maxX: 600, minY: 500, maxY: 600 }
     expect(dashCurves([ARC], 2, 1, away)).toEqual([])
@@ -488,4 +505,42 @@ test('path ribbons fan the same screen px apart at any zoom', () => {
     const [a, b] = pathRibbonOffsets(from, to, 2, axis)
     expect((b!.y - a!.y) * axis.scaleY).toBeCloseTo(3, 9)
   }
+})
+
+// a- to b+ leaves a's start for b's start, across the chord from a's end
+test('path ribbons fan across the link as drawn, whichever ends it joins', () => {
+  const a = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+  ]
+  const b = [
+    { x: 5, y: 5 },
+    { x: 5, y: 15 },
+  ]
+  const join = edgeJoinOf(
+    { from: 'a+', to: 'b+', fromStrand: '-', toStrand: '+' },
+    true,
+  )
+  const curves = computeEdgeCurves(a, b, join, iso())
+  const chord = {
+    x: curves.at(-1)!.x1 - curves[0]!.x0,
+    y: curves.at(-1)!.y1 - curves[0]!.y0,
+  }
+  expect(Math.hypot(chord.x, chord.y)).toBeGreaterThan(1)
+  const offsets = pathRibbonOffsets(a, b, 3, iso(), curves)
+  for (const o of offsets) {
+    expect(o.x * chord.x + o.y * chord.y).toBeCloseTo(0, 9)
+  }
+  expect(Math.hypot(offsets[2]!.x, offsets[2]!.y)).toBeCloseTo(3, 9)
+})
+
+test('path ribbons of a link whose feet meet fan as its nodes say', () => {
+  const a = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+  ]
+  const hairpin = computeEdgeCurves(a, a, 'end', iso())
+  expect(pathRibbonOffsets(a, a, 2, iso(), hairpin)).toEqual(
+    pathRibbonOffsets(a, a, 2, iso()),
+  )
 })

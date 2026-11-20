@@ -39,6 +39,31 @@ test('the same layout at the same zoom is derived once', () => {
   )
 })
 
+// A row layout caps a skip's bow and an isotropic one does not, and at a zoom
+// of 1 the two axes are the same pair of scales
+test('a row layout and an isotropic one at the same scales are derived apart', () => {
+  const positions = {
+    ...layout(),
+    'mid+': [
+      { x: 100, y: 0 },
+      { x: 1100, y: 0 },
+    ],
+    'b+': [
+      { x: 1100, y: 0 },
+      { x: 1200, y: 0 },
+    ],
+  }
+  const skipped = new Map([[0, ['mid+']]])
+  const farthest = (pixelRows: boolean) =>
+    Math.max(
+      ...baseEdgeCurves(positions, graph, { ...iso, pixelRows }, skipped, 0)
+        .get(0)!
+        .map(c => Math.abs(c.cy0)),
+    )
+  const rows = farthest(true)
+  expect(farthest(false)).toBeGreaterThan(rows * 2)
+})
+
 // The reason this is shared at all: the drawing and the hit index used to build
 // this curve separately, per edge, from identical arguments — so the index's
 // whole construction was mostly work the geometry pass had just done. Asserted

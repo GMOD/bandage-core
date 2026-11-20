@@ -1,3 +1,5 @@
+import { curvePointAt } from './geometry'
+
 import type { BezierCurve } from './geometry'
 
 interface Point {
@@ -135,29 +137,22 @@ export function flattenedPx(
   scaleY: number,
   tolerance: number,
 ) {
-  const x0 = c.x0 * scaleX
-  const x1 = c.cx0 * scaleX
-  const x2 = c.cx1 * scaleX
-  const x3 = c.x1 * scaleX
-  const y0 = c.y0 * scaleY
-  const y1 = c.cy0 * scaleY
-  const y2 = c.cy1 * scaleY
-  const y3 = c.y1 * scaleY
+  const px = {
+    x0: c.x0 * scaleX,
+    y0: c.y0 * scaleY,
+    cx0: c.cx0 * scaleX,
+    cy0: c.cy0 * scaleY,
+    cx1: c.cx1 * scaleX,
+    cy1: c.cy1 * scaleY,
+    x1: c.x1 * scaleX,
+    y1: c.y1 * scaleY,
+  }
   const bend = Math.max(
-    Math.hypot(x0 - 2 * x1 + x2, y0 - 2 * y1 + y2),
-    Math.hypot(x1 - 2 * x2 + x3, y1 - 2 * y2 + y3),
+    Math.hypot(px.x0 - 2 * px.cx0 + px.cx1, px.y0 - 2 * px.cy0 + px.cy1),
+    Math.hypot(px.cx0 - 2 * px.cx1 + px.x1, px.cy0 - 2 * px.cy1 + px.y1),
   )
   const n = Math.max(1, Math.ceil(Math.sqrt((0.75 * bend) / tolerance)))
-  return Array.from({ length: n + 1 }, (_, k) => {
-    const t = k / n
-    const u = 1 - t
-    const a = u * u * u
-    const b = 3 * u * u * t
-    const d = 3 * u * t * t
-    const e = t * t * t
-    return {
-      x: a * x0 + b * x1 + d * x2 + e * x3,
-      y: a * y0 + b * y1 + d * y2 + e * y3,
-    }
-  })
+  return Array.from({ length: Number.isFinite(n) ? n + 1 : 0 }, (_, k) =>
+    curvePointAt(px, k / n),
+  )
 }

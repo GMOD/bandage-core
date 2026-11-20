@@ -347,6 +347,7 @@ export class EdgeSpatialIndex {
             toSegments,
             numPaths,
             axis,
+            curves,
           )) {
             padX = Math.max(padX, Math.abs(o.x))
             padY = Math.max(padY, Math.abs(o.y))

@@ -53,7 +53,7 @@ function adaptive(
   const mid = (from + to) / 2
   const left = gaussLegendre(speed, from, mid)
   const right = gaussLegendre(speed, mid, to)
-  return depth >= MAX_DEPTH || Math.abs(left + right - whole) <= tolerance
+  return depth >= MAX_DEPTH || !(Math.abs(left + right - whole) > tolerance)
     ? left + right
     : adaptive(speed, from, mid, left, tolerance / 2, depth + 1) +
         adaptive(speed, mid, to, right, tolerance / 2, depth + 1)

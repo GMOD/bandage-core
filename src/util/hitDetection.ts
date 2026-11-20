@@ -1,5 +1,10 @@
 import { EdgeSpatialIndex, SpatialIndex } from './SpatialIndex'
-import { pathRibbonOffsets, translateCurves, yToXOf } from './geometry'
+import {
+  curvePointAt,
+  distanceToSegment,
+  pathRibbonOffsets,
+  yToXOf,
+} from './geometry'
 import { weakMemo } from './weakMemo'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
@@ -8,48 +13,29 @@ import type { RenderBatch } from '../renderer/types'
 import type { Graph, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
-export function distanceToSegment(
+export { distanceToSegment } from './geometry'
+
+const CURVE_SAMPLES = 20
+
+// `yToX` puts the curve's y in the units `py` is already in
+export function distanceToCubicBezier(
   px: number,
   py: number,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
+  c: BezierCurve,
+  yToX = 1,
 ) {
-  const dx = x2 - x1
-  const dy = y2 - y1
-  const lenSq = dx * dx + dy * dy
-  if (lenSq === 0) {
-    return Math.hypot(px - x1, py - y1)
-  }
-  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq))
-  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
-}
-
-export function distanceToCubicBezier(px: number, py: number, c: BezierCurve) {
   // To the chords between samples, not to the samples: on a long curve they
   // are tens of px apart, and a cursor on the curve between two of them
   // measured as far off it as half that gap.
   let minDist = Infinity
-  const samples = 20
-  let lastX = c.x0
-  let lastY = c.y0
-  for (let i = 1; i <= samples; i++) {
-    const t = i / samples
-    const u = 1 - t
-    const bx =
-      u * u * u * c.x0 +
-      3 * u * u * t * c.cx0 +
-      3 * u * t * t * c.cx1 +
-      t * t * t * c.x1
-    const by =
-      u * u * u * c.y0 +
-      3 * u * u * t * c.cy0 +
-      3 * u * t * t * c.cy1 +
-      t * t * t * c.y1
-    minDist = Math.min(minDist, distanceToSegment(px, py, lastX, lastY, bx, by))
-    lastX = bx
-    lastY = by
+  let last = curvePointAt(c, 0)
+  for (let i = 1; i <= CURVE_SAMPLES; i++) {
+    const next = curvePointAt(c, i / CURVE_SAMPLES)
+    minDist = Math.min(
+      minDist,
+      distanceToSegment(px, py, last.x, last.y * yToX, next.x, next.y * yToX),
+    )
+    last = next
   }
   return minDist
 }
@@ -58,26 +44,11 @@ function distanceToEdgeCurves(
   px: number,
   py: number,
   curves: BezierCurve[],
-  yToX = 1,
+  yToX: number,
 ) {
   let minDist = Infinity
   for (const c of curves) {
-    const d = distanceToCubicBezier(
-      px,
-      py,
-      yToX === 1
-        ? c
-        : {
-            x0: c.x0,
-            y0: c.y0 * yToX,
-            cx0: c.cx0,
-            cy0: c.cy0 * yToX,
-            cx1: c.cx1,
-            cy1: c.cy1 * yToX,
-            x1: c.x1,
-            y1: c.y1 * yToX,
-          },
-    )
+    const d = distanceToCubicBezier(px, py, c, yToX)
     if (d < minDist) {
       minDist = d
     }
@@ -144,6 +115,7 @@ function getEdgeSpatialIndex(
       drawPaths,
       axis.scaleX,
       axis.scaleY,
+      !!axis.pixelRows,
       version,
       deletions,
       routes,
@@ -261,13 +233,14 @@ export function otherNodeUnderBox(
   t: { scaleX: number; scaleY: number; translateX: number; translateY: number },
   version = 0,
 ) {
-  const index = getLabelIndex(nodePositions, version, t.scaleX, t.scaleY)
   const screen = (p: NodeSegment) => ({
     x: p.x * t.scaleX + t.translateX,
     y: p.y * t.scaleY + t.translateY,
   })
-  return (box: Box, own: (nodeId: string) => boolean) =>
-    index.some(
+  let index: SpatialIndex | undefined
+  return (box: Box, own: (nodeId: string) => boolean) => {
+    index ??= getLabelIndex(nodePositions, version, t.scaleX, t.scaleY)
+    return index.some(
       ((box.x0 + box.x1) / 2 - t.translateX) / t.scaleX,
       ((box.y0 + box.y1) / 2 - t.translateY) / t.scaleY,
       Math.abs((box.x1 - box.x0) / 2 / t.scaleX),
@@ -284,7 +257,10 @@ export function otherNodeUnderBox(
         )
       },
     )
+  }
 }
+
+const ON_EDGE = { x: 0, y: 0 }
 
 export function findHoveredEdge(
   nodePositions: Record<string, NodeSegment[]>,
@@ -329,49 +305,41 @@ export function findHoveredEdge(
     const edge = graph.edges[edgeIdx]!
     const fromSegments = nodePositions[edge.from]
     const toSegments = nodePositions[edge.to]
-    if (
-      !fromSegments?.length ||
-      !toSegments?.length ||
-      hiddenEdges?.has(edgeIdx) ||
-      collapsed?.edges.has(edgeIdx)
-    ) {
-      continue
-    }
-
-    const numPaths = edge.pathIds?.length ?? 0
     const baseCurves = edgeIndex.getCurves(edgeIdx)
-    if (!baseCurves) {
-      continue
-    }
-    let dist: number
-
-    if (!drawPaths || numPaths === 0) {
-      dist = distanceToEdgeCurves(graphX, graphY * yToX, baseCurves, yToX)
-    } else {
+    if (
+      fromSegments?.length &&
+      toSegments?.length &&
+      baseCurves &&
+      !hiddenEdges?.has(edgeIdx) &&
+      !collapsed?.edges.has(edgeIdx)
+    ) {
+      const numPaths = edge.pathIds?.length ?? 0
       // The same offsets GeometryBuilder drew the ribbons at, from the one
       // function that decides them, so a ribbon is hoverable where it is drawn.
-      let minDist = Infinity
-      for (const offset of pathRibbonOffsets(
-        fromSegments,
-        toSegments,
-        numPaths,
-        axis,
-      )) {
-        const curves =
-          offset.x === 0 && offset.y === 0
-            ? baseCurves
-            : translateCurves(baseCurves, offset.x, offset.y)
-        const d = distanceToEdgeCurves(graphX, graphY * yToX, curves, yToX)
-        if (d < minDist) {
-          minDist = d
+      // A ribbon is the curve moved by its offset, so the pointer moved back by
+      // it is as far from the curve as the pointer is from the ribbon.
+      const offsets =
+        drawPaths && numPaths > 0
+          ? pathRibbonOffsets(
+              fromSegments,
+              toSegments,
+              numPaths,
+              axis,
+              baseCurves,
+            )
+          : [ON_EDGE]
+      for (const offset of offsets) {
+        const dist = distanceToEdgeCurves(
+          graphX - offset.x,
+          (graphY - offset.y) * yToX,
+          baseCurves,
+          yToX,
+        )
+        if (dist < best) {
+          best = dist
+          hovered = edgeIdx
         }
       }
-      dist = minDist
-    }
-
-    if (dist < best) {
-      best = dist
-      hovered = edgeIdx
     }
   }
   return hovered
