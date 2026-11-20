@@ -64,3 +64,43 @@ test('chains multi-segment bubble paths into one allele', () => {
 test('an empty graph projects to nothing rather than throwing', () => {
   expect(projectAlleles({ name: 'empty', nodes: [], edges: [] })).toEqual([])
 })
+
+// An rGFA ring s1..s6 on chr1 whose s6 links back to s1, a SNP n for s3, and
+// w, 20 bp leaving s6 and rejoining s2, in place of s1 across the origin
+const RING = [
+  ...[
+    ['s1', 100, 0],
+    ['s2', 100, 100],
+    ['s3', 1, 200],
+    ['s4', 100, 201],
+    ['s5', 100, 301],
+    ['s6', 100, 401],
+  ].map(
+    ([name, len, at]) =>
+      `S\t${name}\t*\tLN:i:${len}\tSN:Z:chr1\tSO:i:${at}\tSR:i:0`,
+  ),
+  'S\tn\t*\tLN:i:1\tSN:Z:hap1\tSO:i:0\tSR:i:1',
+  'S\tw\t*\tLN:i:20\tSN:Z:hap2\tSO:i:0\tSR:i:1',
+  ...[
+    's1 s2',
+    's2 s3',
+    's3 s4',
+    's4 s5',
+    's5 s6',
+    's6 s1',
+    's2 n',
+    'n s4',
+    's6 w',
+    'w s2',
+  ].map(pair => {
+    const [a, b] = pair.split(' ')
+    return `L\t${a}\t+\t${b}\t+\t0M`
+  }),
+].join('\n')
+
+test('an allele round the origin of a circular contig replaces nothing between its anchors', () => {
+  const alleles = projectAlleles(convertGFAToGraph(parseGFA(RING)))
+  expect(alleles.map(a => [a.nodeIds, a.start, a.refSpan])).toEqual([
+    [['n+'], 200, 1],
+  ])
+})

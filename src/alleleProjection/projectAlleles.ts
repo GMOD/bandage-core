@@ -1,5 +1,6 @@
 import { REFERENCE_RANK, isAnchored } from '../anchoredNodes'
 import { buildNeighbors } from '../referenceSpan'
+import { strandSides } from '../util/geometry'
 
 import type { AnchoredNode } from '../anchoredNodes'
 import type { Graph } from '../types'
@@ -63,8 +64,15 @@ function collectRun(
 // The reference interval an allele replaces: from the end of the last backbone
 // segment before it to the start of the first one after it. Anchors on two
 // stable sequences, or in an order that runs backwards (an inverted or
-// translocated attachment), state no span rather than a negative one.
-function anchorSpan(anchors: AnchoredNode[]) {
+// translocated attachment), state no span rather than a negative one, and so
+// does a run that leaves the later anchor downstream and rejoins the earlier
+// one upstream: it runs round a circular contig's origin, or joins a tandem
+// copy's end to its start, and replaces nothing between the two.
+function anchorSpan(
+  anchors: AnchoredNode[],
+  members: AnchoredNode[],
+  sides: AnchorSides,
+) {
   const refNames = new Set(anchors.map(a => a.stable.refName))
   if (refNames.size !== 1 || anchors.length < 2) {
     return undefined
@@ -74,7 +82,51 @@ function anchorSpan(anchors: AnchoredNode[]) {
   const last = sorted.at(-1)!
   const start = first.stable.start + first.length
   const end = last.stable.start
-  return end >= start ? { start, end, entry: first } : undefined
+  const joined = (anchor: AnchoredNode) =>
+    new Set(
+      members.flatMap(m => [...(sides.get(`${anchor.id}\t${m.id}`) ?? [])]),
+    )
+  const only = (anchor: AnchoredNode, side: 'up' | 'down') => {
+    const at = joined(anchor)
+    return at.size === 1 && at.has(side)
+  }
+  const wraps =
+    first.stable.start < last.stable.start &&
+    only(first, 'up') &&
+    only(last, 'down')
+  return end >= start && !wraps ? { start, end, entry: first } : undefined
+}
+
+// Which sides of a backbone segment, up or down the reference, the links
+// stating strands join to each segment off it, keyed `anchor\tsegment`
+type AnchorSides = Map<string, Set<'up' | 'down'>>
+
+function anchorSides(graph: Graph, byId: Map<string, AnchoredNode>) {
+  const sides: AnchorSides = new Map()
+  for (const e of graph.edges) {
+    const from = byId.get(e.from)
+    const to = byId.get(e.to)
+    if (from && to && e.fromStrand && e.toStrand) {
+      const { from: fromSide, to: toSide } = strandSides(e)
+      for (const [anchor, other, side] of [
+        [from, to, fromSide],
+        [to, from, toSide],
+      ] as const) {
+        if (
+          anchor.stable.rank === REFERENCE_RANK &&
+          other.stable.rank !== REFERENCE_RANK
+        ) {
+          const key = `${anchor.id}\t${other.id}`
+          const known = sides.get(key) ?? new Set()
+          known.add(
+            (side === 'end') === (anchor.stable.strand !== '-') ? 'down' : 'up',
+          )
+          sides.set(key, known)
+        }
+      }
+    }
+  }
+  return sides
 }
 
 // Shortest-path bp from the upstream anchor to each member over the run's own
@@ -154,13 +206,14 @@ export function projectAlleles(graph: Graph): ProjectedAllele[] {
     graph.nodes.filter(isAnchored).map(n => [n.id, n] as const),
   )
   const adj = buildNeighbors(graph)
+  const sides = anchorSides(graph, byId)
   const claimed = new Set<string>()
   const alleles: ProjectedAllele[] = []
 
   for (const node of byId.values()) {
     if (node.stable.rank !== REFERENCE_RANK && !claimed.has(node.id)) {
       const { members, anchors } = collectRun(node.id, byId, adj, claimed)
-      const span = anchorSpan(anchors)
+      const span = anchorSpan(anchors, members, sides)
       if (span) {
         const { offsets, ordered } = runOffsets(members, span.entry, adj)
         alleles.push({
