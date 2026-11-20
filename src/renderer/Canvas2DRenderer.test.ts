@@ -4,6 +4,7 @@ import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
 import {
   Canvas2DRenderer,
+  SUBPATHS_PER_STROKE,
   WEIGHT_STEP_PX,
   arrowheadOutline,
 } from './Canvas2DRenderer'
@@ -335,6 +336,60 @@ describe('nodes of nearly one depth', () => {
     expect(written.map(([, w]) => Number(w))).toEqual(
       widths.toSorted((a, b) => b - a).map(w => +w.toFixed(1)),
     )
+  })
+})
+
+function rowOfNodes(count: number, at: (i: number) => number, length: number) {
+  const row = Array.from({ length: count }, (_, i) => ({
+    id: `R${i}+`,
+    name: `R${i}`,
+    length: 10,
+    depth: 1,
+  }))
+  return buildGeometry({
+    nodePositions: Object.fromEntries(
+      row.map((n, i) => [
+        n.id,
+        [
+          { x: at(i), y: 0 },
+          { x: at(i) + length, y: 0 },
+        ],
+      ]),
+    ),
+    graph: { name: 'test', nodes: row, edges: [] },
+    nodeById: new Map(row.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    axis: iso(),
+  })
+}
+
+describe('a paint of more subpaths than one stroke takes', () => {
+  const count = 2 * SUBPATHS_PER_STROKE + 1
+  const batch = rowOfNodes(count, i => i * 20, 10)
+
+  test('is stroked in pieces of SUBPATHS_PER_STROKE on a raster canvas, every piece alike', () => {
+    const { renderer, strokes, lineWidths, points } = makeRenderer()
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+
+    expect(strokes).toHaveLength(3)
+    expect(new Set(strokes).size).toBe(1)
+    expect(lineWidths).toEqual([6, 6, 6])
+    expect(points).toHaveLength(2 * count)
+  })
+
+  test('is one path in a figure', () => {
+    const { canvas, markup } = svgCanvas(100, 100)
+    const renderer = new Canvas2DRenderer(canvas)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+
+    expect(markup().match(/<path /g)).toHaveLength(1)
   })
 })
 

@@ -34,7 +34,10 @@ import type {
 // On a raster canvas a weight is drawn to the nearest WEIGHT_STEP_PX, so nodes
 // widened by depth share a few dozen paths rather than one each: Chrome's GPU
 // canvas drew 50,000 nodes of distinct depths in 1,060 ms a frame as 46,000
-// strokes and in 590 ms as 68. A vector context keeps every weight as given.
+// strokes and in 590 ms as 68. A raster path is also stroked in pieces of
+// SUBPATHS_PER_STROKE, since Chrome stroked a 50,000-node graph's two paths in
+// 274 ms a frame and their 105 pieces in 201. A vector context keeps every weight
+// as given and every subpath in one path.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   ctx: CanvasRenderingContext2D
@@ -45,6 +48,7 @@ export class Canvas2DRenderer implements Renderer {
   private highlightFactor = 1
   private fit = 1
   private painted: PaintedGroups | null = null
+  private readonly raster: boolean
   private readonly weightOf: (thickness: number) => number
 
   constructor(canvas: HTMLCanvasElement) {
@@ -54,7 +58,8 @@ export class Canvas2DRenderer implements Renderer {
     }
     this.canvas = canvas
     this.ctx = ctx
-    this.weightOf = isVector(ctx) ? exactWeight : steppedWeight
+    this.raster = !isVector(ctx)
+    this.weightOf = this.raster ? steppedWeight : exactWeight
   }
 
   setErrorHandler(_handler: (error: Error) => void) {}
@@ -326,8 +331,9 @@ export class Canvas2DRenderer implements Renderer {
     // weight is the half-width in css px, so the stroke is twice it at the
     // device ratio the transform already carries
     ctx.lineWidth = weight * 2 * t.dpr
-    ctx.beginPath()
+    const path = this.subpaths()
     for (const e of items) {
+      path.next()
       const first = e.curves[0]!
       ctx.moveTo(
         first.x0 * t.scaleX + t.translateX,
@@ -344,7 +350,7 @@ export class Canvas2DRenderer implements Renderer {
         )
       }
     }
-    ctx.stroke()
+    path.end()
   }
 
   private strokeNodes(
@@ -354,8 +360,9 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx
     ctx.strokeStyle = abgrToCssRgba(color)
     ctx.lineWidth = weight * 2 * t.dpr
-    ctx.beginPath()
+    const path = this.subpaths()
     for (const s of items) {
+      path.next()
       const p0 = s.points[0]!
       ctx.moveTo(p0.x * t.scaleX + t.translateX, p0.y * t.scaleY + t.translateY)
       for (let i = 1, l = s.points.length; i < l; i++) {
@@ -363,7 +370,29 @@ export class Canvas2DRenderer implements Renderer {
         ctx.lineTo(p.x * t.scaleX + t.translateX, p.y * t.scaleY + t.translateY)
       }
     }
-    ctx.stroke()
+    path.end()
+  }
+
+  // One paint group's path as it is laid down, a raster one stroked every
+  // SUBPATHS_PER_STROKE subpaths
+  private subpaths() {
+    const ctx = this.ctx
+    const pieces = this.raster
+    let count = 0
+    ctx.beginPath()
+    return {
+      next() {
+        if (pieces && count === SUBPATHS_PER_STROKE) {
+          ctx.stroke()
+          ctx.beginPath()
+          count = 0
+        }
+        count++
+      },
+      end() {
+        ctx.stroke()
+      },
+    }
   }
 
   private traceArrows(items: Arrowhead[], t: TransformUniform) {
@@ -431,6 +460,9 @@ export function arrowheadOutline(a: Arrowhead, t: TransformUniform) {
 // 1/8 px of its width at a device ratio of 1 and 1/4 px at 2. A weight under
 // the step is drawn as given, so a hairline never thickens to it.
 export const WEIGHT_STEP_PX = 1 / 8
+
+// How many subpaths a raster stroke() takes
+export const SUBPATHS_PER_STROKE = 1024
 
 function steppedWeight(thickness: number) {
   return thickness < WEIGHT_STEP_PX

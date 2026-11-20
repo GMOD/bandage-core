@@ -1,6 +1,10 @@
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import { Canvas2DRenderer, WEIGHT_STEP_PX } from './renderer/Canvas2DRenderer'
+import {
+  Canvas2DRenderer,
+  SUBPATHS_PER_STROKE,
+  WEIGHT_STEP_PX,
+} from './renderer/Canvas2DRenderer'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { recordingCanvas } from './renderer/recordingCanvas'
 
@@ -171,9 +175,10 @@ test('viewport culling drops the vast majority of off-screen nodes', () => {
 
 // Draw calls per frame, which is what the Canvas2D renderer's cost tracks --
 // and unlike wall-clock they are deterministic, so they can be asserted exactly.
-// The renderer batches everything drawn with one paint into one path, so the
-// count is a function of how many distinct colours and weights the drawing
-// uses and not of how many nodes it has. It used to be 12.6 per node, with a
+// The renderer batches everything drawn with one paint into one path, stroked
+// every SUBPATHS_PER_STROKE subpaths, so the count is a function of how many
+// distinct colours and weights the drawing uses and how many thousand subpaths
+// each has, and not of how many nodes it has. It used to be 12.6 per node, with a
 // fill per mesh triangle; see jbrowse-plugin-graphgenomeviewer's
 // agent-docs/reference/GRAPH_SCALE_AND_LOD.md.
 function countDrawCalls(batch: ReturnType<typeof buildGeometry>) {
@@ -207,13 +212,15 @@ function uniformBatch(bubbleCount: number) {
   })
 }
 
-test('draw calls per frame do not grow with the graph', () => {
+test('draw calls per frame grow by a stroke per SUBPATHS_PER_STROKE subpaths of a paint, not per node', () => {
   const small = countDrawCalls(uniformBatch(100))
   const large = countDrawCalls(uniformBatch(500))
   // one paint each for the links under the nodes, the nodes, the links laid
-  // along the line that the nodes would hide, and the arrowheads
+  // along the line that the nodes would hide, and the arrowheads; the larger
+  // graph's 1,501 nodes take a second stroke
+  expect(SUBPATHS_PER_STROKE).toBeLessThan(1501)
   expect(small).toEqual({ strokes: 3, fills: 1 })
-  expect(large).toEqual(small)
+  expect(large).toEqual({ strokes: 4, fills: 1 })
 })
 
 // Depths a file states are nearly all distinct, so drawn at their exact widths
