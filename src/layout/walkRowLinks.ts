@@ -1,3 +1,5 @@
+import { addTo, pushTo } from '../util/groups'
+
 import type { WalkRow, WalkVisit } from './walkRows'
 
 // A ribbon between row `row` and the row below it: bar offsets a0..a1 on the
@@ -47,13 +49,10 @@ function barOf(row: WalkRow): Bar | undefined {
   const offsets = new Map<string, number[]>()
   const lengths = new Map<string, number>()
   for (const { node, start, bp } of row.visits) {
-    const at = offsets.get(node)
-    if (at) {
-      at.push(start)
-    } else {
-      offsets.set(node, [start])
+    if (!lengths.has(node)) {
       lengths.set(node, bp)
     }
+    pushTo(offsets, node, start)
   }
   return { visits: row.visits, offsets, lengths }
 }
@@ -64,12 +63,46 @@ export function ribbonJoin(rows: WalkRow[]) {
   return rows.reduce((most, r) => Math.max(most, r.bp), -Infinity) / 2000
 }
 
-function sharedBp(a: Bar, b: Bar) {
-  let bp = 0
-  for (const [id, visits] of a.offsets) {
-    const other = b.offsets.get(id)
+// A bar as the shared order compares it
+interface ComparedBar {
+  // the bp of the nodes every bar walks exactly once, which any two bars share
+  commonBp: number
+  // how often it walks each other node
+  visits: Map<string, number>
+  lengths: Map<string, number>
+}
+
+function comparedBars(bars: (Bar | undefined)[]) {
+  const held = bars.flatMap(bar => (bar ? [bar] : []))
+  const walkedOnceBy = new Map<string, number>()
+  for (const { offsets } of held) {
+    for (const [id, at] of offsets) {
+      if (at.length === 1) {
+        walkedOnceBy.set(id, (walkedOnceBy.get(id) ?? 0) + 1)
+      }
+    }
+  }
+  const compared = ({ offsets, lengths }: Bar) => {
+    const visits = new Map<string, number>()
+    let commonBp = 0
+    for (const [id, at] of offsets) {
+      if (walkedOnceBy.get(id) === held.length) {
+        commonBp += lengths.get(id)!
+      } else {
+        visits.set(id, at.length)
+      }
+    }
+    return { commonBp, visits, lengths }
+  }
+  return bars.map(bar => bar && compared(bar))
+}
+
+function sharedBp(a: ComparedBar, b: ComparedBar) {
+  let bp = a.commonBp
+  for (const [id, visits] of a.visits) {
+    const other = b.visits.get(id)
     if (other) {
-      bp += a.lengths.get(id)! * Math.min(visits.length, other.length)
+      bp += a.lengths.get(id)! * Math.min(visits, other)
     }
   }
   return bp
@@ -81,8 +114,8 @@ function sharedBp(a: Bar, b: Bar) {
  * over when comparing.
  */
 export function sharedRowOrder(rows: WalkRow[]) {
-  const bars = rows.map(barOf)
-  const order = [0]
+  const bars = comparedBars(rows.map(barOf))
+  const order = rows.length > 0 ? [0] : []
   const rest = bars.map((_, i) => i).slice(1)
   while (rest.length > 0) {
     const last = bars[order.findLast(i => bars[i]) ?? 0]
@@ -238,7 +271,7 @@ export function walkRowBlocks(
   bars.forEach((bar, i) => {
     for (const { node, onReference } of bar?.visits ?? []) {
       if (!onReference) {
-        carriers.set(node, (carriers.get(node) ?? new Set()).add(rows[i]!.name))
+        addTo(carriers, node, rows[i]!.name)
       }
     }
   })
