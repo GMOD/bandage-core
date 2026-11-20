@@ -19,11 +19,14 @@ import type {
 
 // Everything is drawn as a handful of paths, one per distinct (colour, weight),
 // rather than one path per thing. A drawing is mostly runs of one colour, and
-// Canvas2D's cost is per path verb and per fill or stroke, not per pixel: the
-// same 15k-node graph took 414 ms a frame as one fill per mesh triangle and 11
-// ms as batched strokes (jbrowse-plugin-graphgenomeviewer's
-// agent-docs/reference/GRAPH_SCALE_AND_LOD.md). Highlighted things are drawn
-// last, in their own paths, so they sit on top of what they brighten.
+// Canvas2D's cost is per path verb and per fill or stroke, not per pixel: a
+// 15k-node graph mostly off the pane took 414 ms a frame as one fill per mesh
+// triangle and far less as batched strokes. With the whole graph in view it
+// still misses vsync, so jbrowse-plugin-graphgenomeviewer's ADR-047 moves
+// drawing on screen to a WebGL2 backend and keeps this renderer for SVG and as
+// the fallback (that repo's agent-docs/reference/GPU_RENDERING.md). Highlighted
+// things are drawn last, in their own paths, so they sit on top of what they
+// brighten.
 // A link that skips reference sequence is drawn over the nodes it skips, since
 // the dashes are the only mark a deletion has, and so is a link turning strand
 // against the reference, whose ends lie under the nodes it joins wherever the
