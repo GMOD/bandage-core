@@ -36,8 +36,9 @@ import type {
 // canvas drew 50,000 nodes of distinct depths in 1,060 ms a frame as 46,000
 // strokes and in 590 ms as 68. A raster path is also stroked in pieces of
 // SUBPATHS_PER_STROKE, since Chrome stroked a 50,000-node graph's two paths in
-// 274 ms a frame and their 105 pieces in 201. A vector context keeps every weight
-// as given and every subpath in one path.
+// 274 ms a frame and their 105 pieces in 201, and a subpath too short to see is
+// drawn once per DOT_CELL_PX however many land there. A vector context keeps
+// every weight as given and every subpath in one path.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   ctx: CanvasRenderingContext2D
@@ -331,23 +332,31 @@ export class Canvas2DRenderer implements Renderer {
     // weight is the half-width in css px, so the stroke is twice it at the
     // device ratio the transform already carries
     ctx.lineWidth = weight * 2 * t.dpr
-    const path = this.subpaths()
+    const path = this.subpaths(t)
     for (const e of items) {
-      path.next()
-      const first = e.curves[0]!
-      ctx.moveTo(
-        first.x0 * t.scaleX + t.translateX,
-        first.y0 * t.scaleY + t.translateY,
-      )
+      const box = path.box()
       for (const c of e.curves) {
-        ctx.bezierCurveTo(
-          c.cx0 * t.scaleX + t.translateX,
-          c.cy0 * t.scaleY + t.translateY,
-          c.cx1 * t.scaleX + t.translateX,
-          c.cy1 * t.scaleY + t.translateY,
-          c.x1 * t.scaleX + t.translateX,
-          c.y1 * t.scaleY + t.translateY,
+        box.add(c.x0, c.y0)
+        box.add(c.cx0, c.cy0)
+        box.add(c.cx1, c.cy1)
+        box.add(c.x1, c.y1)
+      }
+      if (path.draws(box)) {
+        const first = e.curves[0]!
+        ctx.moveTo(
+          first.x0 * t.scaleX + t.translateX,
+          first.y0 * t.scaleY + t.translateY,
         )
+        for (const c of e.curves) {
+          ctx.bezierCurveTo(
+            c.cx0 * t.scaleX + t.translateX,
+            c.cy0 * t.scaleY + t.translateY,
+            c.cx1 * t.scaleX + t.translateX,
+            c.cy1 * t.scaleY + t.translateY,
+            c.x1 * t.scaleX + t.translateX,
+            c.y1 * t.scaleY + t.translateY,
+          )
+        }
       }
     }
     path.end()
@@ -360,34 +369,59 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx
     ctx.strokeStyle = abgrToCssRgba(color)
     ctx.lineWidth = weight * 2 * t.dpr
-    const path = this.subpaths()
+    const path = this.subpaths(t)
     for (const s of items) {
-      path.next()
-      const p0 = s.points[0]!
-      ctx.moveTo(p0.x * t.scaleX + t.translateX, p0.y * t.scaleY + t.translateY)
-      for (let i = 1, l = s.points.length; i < l; i++) {
-        const p = s.points[i]!
-        ctx.lineTo(p.x * t.scaleX + t.translateX, p.y * t.scaleY + t.translateY)
+      const box = path.box()
+      for (const p of s.points) {
+        box.add(p.x, p.y)
+      }
+      if (path.draws(box)) {
+        const p0 = s.points[0]!
+        ctx.moveTo(
+          p0.x * t.scaleX + t.translateX,
+          p0.y * t.scaleY + t.translateY,
+        )
+        for (let i = 1, l = s.points.length; i < l; i++) {
+          const p = s.points[i]!
+          ctx.lineTo(
+            p.x * t.scaleX + t.translateX,
+            p.y * t.scaleY + t.translateY,
+          )
+        }
       }
     }
     path.end()
   }
 
-  // One paint group's path as it is laid down, a raster one stroked every
-  // SUBPATHS_PER_STROKE subpaths
-  private subpaths() {
+  // One paint group's path as it is laid down: a raster one stroked every
+  // SUBPATHS_PER_STROKE subpaths, and a dot drawn once per cell it lands in
+  private subpaths(t: TransformUniform) {
     const ctx = this.ctx
-    const pieces = this.raster
+    const raster = this.raster
+    const dotCells = new Set<number>()
+    const screenBox = new ScreenBox(t)
     let count = 0
     ctx.beginPath()
     return {
-      next() {
-        if (pieces && count === SUBPATHS_PER_STROKE) {
-          ctx.stroke()
-          ctx.beginPath()
-          count = 0
+      box() {
+        screenBox.empty()
+        return screenBox
+      },
+      draws(box: ScreenBox) {
+        const cell = raster ? box.dotCell() : undefined
+        const fresh = cell === undefined || !dotCells.has(cell)
+        if (fresh) {
+          if (cell !== undefined) {
+            dotCells.add(cell)
+          }
+          if (raster && count === SUBPATHS_PER_STROKE) {
+            ctx.stroke()
+            ctx.beginPath()
+            count = 0
+          }
+          count++
         }
-        count++
+        return fresh
       },
       end() {
         ctx.stroke()
@@ -463,6 +497,44 @@ export const WEIGHT_STEP_PX = 1 / 8
 
 // How many subpaths a raster stroke() takes
 export const SUBPATHS_PER_STROKE = 1024
+
+// A subpath inside DOT_PX either way on screen draws as little more than its
+// round cap. Where another such subpath of its paint group already lies within
+// the same DOT_CELL_PX cell, the two draw within a fraction of a pixel of each
+// other, so it is left out.
+export const DOT_PX = 1 / 4
+export const DOT_CELL_PX = 1 / 8
+
+class ScreenBox {
+  minX = Infinity
+  minY = Infinity
+  maxX = -Infinity
+  maxY = -Infinity
+  constructor(private readonly t: TransformUniform) {}
+
+  empty() {
+    this.minX = Infinity
+    this.minY = Infinity
+    this.maxX = -Infinity
+    this.maxY = -Infinity
+  }
+
+  add(x: number, y: number) {
+    const sx = x * this.t.scaleX + this.t.translateX
+    const sy = y * this.t.scaleY + this.t.translateY
+    this.minX = Math.min(this.minX, sx)
+    this.maxX = Math.max(this.maxX, sx)
+    this.minY = Math.min(this.minY, sy)
+    this.maxY = Math.max(this.maxY, sy)
+  }
+
+  dotCell() {
+    return this.maxX - this.minX < DOT_PX && this.maxY - this.minY < DOT_PX
+      ? Math.round((this.minX + this.maxX) / 2 / DOT_CELL_PX) * 2 ** 26 +
+          Math.round((this.minY + this.maxY) / 2 / DOT_CELL_PX)
+      : undefined
+  }
+}
 
 function steppedWeight(thickness: number) {
   return thickness < WEIGHT_STEP_PX

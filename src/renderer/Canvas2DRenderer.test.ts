@@ -4,6 +4,7 @@ import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
 import {
   Canvas2DRenderer,
+  DOT_CELL_PX,
   SUBPATHS_PER_STROKE,
   WEIGHT_STEP_PX,
   arrowheadOutline,
@@ -390,6 +391,35 @@ describe('a paint of more subpaths than one stroke takes', () => {
     renderer.render([1, 1, 1, 1])
 
     expect(markup().match(/<path /g)).toHaveLength(1)
+  })
+})
+
+describe('nodes too short to see, laid on one dot', () => {
+  const batch = rowOfNodes(6, i => (i < 5 ? 0.005 * i : 40), DOT_CELL_PX / 4)
+
+  test('draw one dot there on a raster canvas', () => {
+    const { renderer, points } = makeRenderer()
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+
+    expect(points.map(p => p.x)).toEqual([
+      0,
+      DOT_CELL_PX / 4,
+      40,
+      40 + DOT_CELL_PX / 4,
+    ])
+  })
+
+  test('each draw in a figure', () => {
+    const { canvas, points } = recordingCanvas()
+    Object.assign(canvas.getContext('2d') ?? {}, { vector: true })
+    const renderer = new Canvas2DRenderer(canvas)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+
+    expect(points).toHaveLength(12)
   })
 })
 
