@@ -6,9 +6,6 @@ type Interval = GeneModel['exons'][number]
 // alignments, repeats and regulatory regions at the top level, named by uuid.
 const GENE_TYPE = /(gene|gene_segment|RNA|transcript)$/i
 
-const isGene = (type: string) =>
-  GENE_TYPE.test(type) || type === 'CDS' || type === 'exon'
-
 export function mergedIntervals(intervals: Interval[]) {
   const out: Interval[] = []
   for (const iv of [...intervals].sort((a, b) => a.start - b.start)) {
@@ -34,11 +31,17 @@ function unescape(value: string) {
   }
 }
 
+// GTF's `gene_id "ENSG1"`, where GFF3 writes `gene_id=ENSG1`
+const GTF_PAIR = /^\s*([^\s=]+)\s+"([^"]*)"\s*$/
+
 function attributes(column: string) {
   const out = new Map<string, string>()
   for (const pair of column.split(';')) {
+    const quoted = GTF_PAIR.exec(pair)
     const eq = pair.indexOf('=')
-    if (eq > 0) {
+    if (quoted) {
+      out.set(quoted[1]!, quoted[2]!)
+    } else if (eq > 0) {
       out.set(pair.slice(0, eq).trim(), unescape(pair.slice(eq + 1).trim()))
     }
   }
@@ -71,10 +74,20 @@ function gff3Row(line: string): Gff3Row | undefined {
   }
 }
 
-// GFF3 lines as genes: each top-level feature with the exons of every
+// Whether a row with no `Parent` is its gene's own row, whose span is the
+// gene's: never an exon or a CDS, and of the rows `gene_id` alone groups, as a
+// GTF's are, only the gene's
+const headsGene = ({ type, attrs }: Gff3Row) =>
+  !attrs.has('Parent') &&
+  (attrs.has('ID') || !attrs.has('gene_id')
+    ? type !== 'exon' && type !== 'CDS'
+    : /gene$/i.test(type))
+
+// GFF3 or GTF lines as genes: each top-level feature with the exons of every
 // transcript under it merged, found by climbing `Parent`, or by `gene_id` for a
-// line with neither `ID` nor `Parent`. A gene with no exons is one exon, its
-// whole span. GFF's 1-based closed spans become 0-based half-open.
+// line with neither `ID` nor `Parent`. A gene with no row of its own spans its
+// rows. A gene with no exons is one exon, its whole span. GFF's 1-based closed
+// spans become 0-based half-open.
 export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
   const rows: Gff3Row[] = []
   for (const line of lines) {
@@ -112,13 +125,13 @@ export function genesFromGff3Lines(lines: Iterable<string>): GeneModel[] {
     const key = `${row.refName}\t${root}`
     const group = groups.get(key) ?? groups.set(key, { rows: [] }).get(key)!
     group.rows.push(row)
-    if (!row.attrs.has('Parent') && !group.top) {
+    if (!group.top && headsGene(row)) {
       group.top = row
     }
   })
   const genes: GeneModel[] = []
   for (const [key, { top, rows: members }] of groups) {
-    if (top && !isGene(top.type)) {
+    if (top && !GENE_TYPE.test(top.type)) {
       continue
     }
     const first = top ?? members[0]!
@@ -239,7 +252,7 @@ export type GeneFormat = 'gff3' | 'bed'
 // its source
 function sniffedFormat(text: string): GeneFormat {
   const first = text
-    .split('\n', 1000)
+    .split(/\r?\n/, 1000)
     .find(l => l.trim() !== '' && !BED_HEADER.test(l))
   const cols = first?.split('\t') ?? []
   return /^\d+$/.test(cols[1] ?? '') && /^\d+$/.test(cols[2] ?? '')

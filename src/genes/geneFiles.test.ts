@@ -129,6 +129,94 @@ test("genesFromGff3Lines skips the rest of NCBI's top level", () => {
   expect(genes.map(g => g.name)).toEqual(['P1', 'N1', 'C1', 'trnA'])
 })
 
+test('genesFromGff3Lines spans every row of a gene that gene_id alone groups', () => {
+  const genes = genesFromGff3Lines([
+    gff('chr1', 'exon', 101, 200, '+', 'gene_id=G1;gene_name=ABC'),
+    gff('chr1', 'exon', 801, 900, '+', 'gene_id=G1;gene_name=ABC'),
+  ])
+  expect(genes).toEqual([
+    {
+      name: 'ABC',
+      refName: 'chr1',
+      start: 100,
+      end: 900,
+      strand: 1,
+      exons: [
+        { start: 100, end: 200 },
+        { start: 800, end: 900 },
+      ],
+    },
+  ])
+})
+
+const gtf = (type: string, start: number, end: number, transcript?: string) =>
+  gff(
+    'chr1',
+    type,
+    start,
+    end,
+    '+',
+    `gene_id "ENSG1.4"; ${transcript ? `transcript_id "${transcript}"; ` : ''}gene_name "ABC"; level 2;`,
+  )
+
+test("genesFromText reads a GENCODE GTF's quoted attributes as one gene", () => {
+  const genes = genesFromText(
+    [
+      gtf('gene', 101, 900),
+      gtf('transcript', 101, 900, 'ENST1'),
+      gtf('exon', 101, 200, 'ENST1'),
+      gtf('exon', 801, 900, 'ENST1'),
+      gtf('transcript', 151, 600, 'ENST2'),
+      gtf('exon', 151, 250, 'ENST2'),
+      gtf('exon', 501, 600, 'ENST2'),
+    ].join('\n'),
+  )
+  expect(genes).toEqual([
+    {
+      name: 'ABC',
+      refName: 'chr1',
+      start: 100,
+      end: 900,
+      strand: 1,
+      exons: [
+        { start: 100, end: 250 },
+        { start: 500, end: 600 },
+        { start: 800, end: 900 },
+      ],
+    },
+  ])
+})
+
+// UCSC's GTFs list transcripts and no gene
+test('genesFromText spans the transcripts of a GTF gene with no row of its own', () => {
+  const [gene] = genesFromText(
+    [
+      gtf('transcript', 101, 400, 'T1'),
+      gtf('exon', 101, 400, 'T1'),
+      gtf('start_codon', 121, 123, 'T1'),
+      gtf('transcript', 301, 900, 'T2'),
+      gtf('exon', 301, 900, 'T2'),
+    ].join('\n'),
+  )
+  expect(gene).toMatchObject({
+    name: 'ABC',
+    start: 100,
+    end: 900,
+    exons: [{ start: 100, end: 900 }],
+  })
+})
+
+test('genesFromText tells a BED3 file with CRLF line ends from GFF3', () => {
+  expect(
+    genesFromText(
+      `${row('chr1', 100, 200)}\r\n${row('chr1', 300, 400)}\r\n`,
+    ).map(g => [g.start, g.end]),
+  ).toEqual([
+    [100, 200],
+    [300, 400],
+  ])
+})
+
 // bedtools writes `.` in an empty name column
 test('genesFromBed keeps rows named `.` apart', () => {
   const genes = genesFromBed(
