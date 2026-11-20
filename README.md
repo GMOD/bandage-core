@@ -70,12 +70,13 @@ const svg = figureSvg(graph, result, {
 ## Haplotype threads
 
 Leave out `facet` in the example above, and `figureSvg` draws the same three
-haplotypes on the same graph, but on one layout, each in a different color along the nodes it passes
-through. Where haplotypes pass through the same nodes, their threads run side by
-side, so a loop drawn in one color is a loop only that haplotype passes through.
-On a canvas, passing `walkLift(graph, walks)` to `buildGeometry` as `highlight`
-draws the same threads. A haplotype colored by `pass` splits into one thread per
-trip round a repeat; see [Threading by pass](docs/drawing.md#threading-by-pass).
+haplotypes on the same graph, but on one layout, each in a different color along
+the nodes it passes through. Where haplotypes pass through the same nodes, their
+threads run side by side, so a loop drawn in one color is a loop only that
+haplotype passes through. On a canvas, passing `walkLift(graph, walks)` to
+`buildGeometry` as `highlight` draws the same threads. A haplotype colored by
+`pass` splits into one thread per trip round a repeat; see
+[Threading by pass](docs/drawing.md#threading-by-pass).
 
 ![The same graph as above with GRCh38 in grey, HG00097 in blue and HG00133 in orange on one layout. The three run side by side through the shared loops. HG00097 also passes through one small loop that GRCh38 skips, and HG00133 through two other small loops and the large loop below](img/figure_kiv2_threads.svg)
 
