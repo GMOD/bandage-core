@@ -279,7 +279,9 @@ test('a spec is refused its layout where no mode of that name draws nodes, and i
     gfaFigureData(text, 'ecoli', JSON.parse(spec) as GfaFigureSpec)
   const noLayout = (layout: string) =>
     `a figure draws no "${layout}" layout: one of auto, samplerows, ordered, force`
-  await expect(laid('{ "layout": "forse" }')).rejects.toThrow(noLayout('forse'))
+  await expect(laid('{ "layout": "spiral" }')).rejects.toThrow(
+    noLayout('spiral'),
+  )
   await expect(laid('{ "layout": "walkrows" }')).rejects.toThrow(
     noLayout('walkrows'),
   )
