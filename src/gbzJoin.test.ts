@@ -5,6 +5,9 @@ const segments = (...ids: number[]) => ids.map(id => `S\t${id}\t${seq}`)
 const walk = (name: string, start: number, ids: number[]) =>
   `W\t${name.replaceAll('#', '\t')}\t${start}\t${start + ids.length * seq.length}\t${ids.map(id => `>${id}`).join('')}`
 const gfa = (...lines: string[]) => `${lines.join('\n')}\n`
+// the links of a run of nodes, each of which a cut holding both ends writes
+const chain = (...ids: number[]) =>
+  ids.slice(1).map((id, i) => `L\t${ids[i]}\t+\t${id}\t+\t0M`)
 const walks = (text: string) =>
   text.split('\n').filter(line => line.startsWith('W\t'))
 const links = (text: string) =>
@@ -19,14 +22,14 @@ const pathStartsAt =
 const first = gfa(
   'H\tVN:Z:1.1\tRS:Z:GRCh38',
   ...segments(1, 2, 3, 4),
-  'L\t3\t+\t4\t+\t0M',
+  ...chain(1, 2, 3, 4),
   walk('GRCh38#0#chr6', 100, [1, 2]),
   walk('HG002#1#chr6', 500, [1, 2, 3, 4]),
 )
 const second = gfa(
   'H\tVN:Z:1.1\tRS:Z:GRCh38',
   ...segments(3, 4, 5, 6),
-  'L\t3\t+\t4\t+\t0M',
+  ...chain(3, 4, 5, 6),
   walk('GRCh38#0#chr6', 200, [5, 6]),
   walk('HG002#1#chr6', 520, [3, 4, 5, 6]),
 )
@@ -49,11 +52,13 @@ test('a walk bridging two fragments is joined where its pieces overlap', () => {
 const meeting = [
   gfa(
     ...segments(1, 2),
+    ...chain(1, 2),
     walk('GRCh38#0#chr6', 100, [1]),
     walk('HG003#1#chr6', 500, [1, 2]),
   ),
   gfa(
     ...segments(5, 6),
+    ...chain(5, 6),
     walk('GRCh38#0#chr6', 200, [6]),
     walk('HG003#1#chr6', 520, [5, 6]),
   ),
@@ -66,8 +71,8 @@ test('pieces that meet are joined, with the link neither cut wrote', () => {
   ])
   expect(links(joined)).toEqual([
     'L\t1\t+\t2\t+\t0M',
-    'L\t2\t+\t5\t+\t0M',
     'L\t5\t+\t6\t+\t0M',
+    'L\t2\t+\t5\t+\t0M',
   ])
 })
 
@@ -87,11 +92,13 @@ test("the reference's pieces in another cut fold into its own walks", () => {
     [
       gfa(
         ...segments(1, 2, 5),
+        ...chain(1, 2),
         walk('GRCh38#0#chr6', 100, [1, 2]),
         walk('GRCh38#0#chr6', 200, [5]),
       ),
       gfa(
         ...segments(2, 5, 6),
+        ...chain(5, 6),
         walk('GRCh38#0#chr6', 200, [5, 6]),
         walk('GRCh38#0#chr6', 110, [2]),
       ),
@@ -104,35 +111,51 @@ test("the reference's pieces in another cut fold into its own walks", () => {
   ])
 })
 
-test('a link a walk takes backwards is not written again', () => {
-  const backwards = gfa(
-    ...segments(3, 4),
-    'L\t3\t+\t4\t+\t0M',
-    walk('GRCh38#0#chr6', 300, [3, 4]),
-    'W\tHG005\t1\tchr6\t0\t20\t<4<3',
+// HG005 walks 5, 4, 3 backwards, and its pieces overlap on 4: the cut holding
+// 3 and 4 wrote the link where they join, forwards
+test('a link a walk takes backwards where its pieces join is not written again', () => {
+  const joined = joinCuts(
+    [
+      gfa(
+        ...segments(4, 5),
+        ...chain(4, 5),
+        walk('GRCh38#0#chr6', 310, [4, 5]),
+        'W\tHG005\t1\tchr6\t0\t20\t<5<4',
+      ),
+      gfa(
+        ...segments(3, 4),
+        ...chain(3, 4),
+        walk('GRCh38#0#chr6', 300, [3, 4]),
+        'W\tHG005\t1\tchr6\t10\t30\t<4<3',
+      ),
+    ],
+    noPathStarts,
   )
-  expect(links(joinCuts([backwards, backwards], noPathStarts))).toEqual([
-    'L\t3\t+\t4\t+\t0M',
-  ])
+  expect(walks(joined).at(-1)).toBe('W\tHG005\t1\tchr6\t0\t30\t<5<4<3')
+  expect(links(joined)).toEqual(['L\t4\t+\t5\t+\t0M', 'L\t3\t+\t4\t+\t0M'])
 })
 
 test('segments, links and headers appear once', () => {
   const joined = joinCuts([first, second], noPathStarts).split('\n')
   expect(joined.filter(line => line.startsWith('S\t'))).toHaveLength(6)
   expect(joined.filter(line => line.startsWith('H\t'))).toHaveLength(1)
-  const written = joined.filter(line => line.startsWith('L\t'))
-  expect(new Set(written).size).toBe(written.length)
+  expect(joined.filter(line => line.startsWith('L\t'))).toEqual(
+    chain(1, 2, 3, 4, 5, 6),
+  )
 })
 
 test('a piece inside another is dropped, and pieces apart stay apart', () => {
   const inside = gfa(
-    ...segments(5, 6),
+    ...segments(2, 3, 5, 6),
+    ...chain(2, 3),
+    ...chain(5, 6),
     walk('GRCh38#0#chr6', 200, [5, 6]),
     walk('HG002#1#chr6', 510, [2, 3]),
     walk('HG002#2#chr6', 900, [5, 6]),
   )
   const apart = gfa(
-    ...segments(1, 2),
+    ...segments(1, 2, 3, 4),
+    ...chain(1, 2, 3, 4),
     walk('GRCh38#0#chr6', 100, [1, 2]),
     walk('HG002#1#chr6', 500, [1, 2, 3, 4]),
     walk('HG002#2#chr6', 700, [1, 2]),
@@ -149,6 +172,8 @@ test('a segment with no sequence or LN tag is 0 bp', () => {
     gfa(
       ...segments(1, 3),
       'S\t2\t*',
+      'L\t1\t-\t2\t-\t0M',
+      ...chain(1, 3),
       walk('GRCh38#0#chr6', 100, [1]),
       `W\tHG002\t1\tchr6\t500\t${end}\t${body}`,
     )

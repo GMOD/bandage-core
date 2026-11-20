@@ -9,6 +9,8 @@ interface Walk {
   name: string
   start: number
   end: number
+  // the steps either side of each place two pieces of it were joined
+  seams: [string, string][]
 }
 
 const UNKNOWN_SAMPLE = 'unknown'
@@ -20,6 +22,7 @@ function parseWalk(line: string): Walk {
     name: fields.slice(1, 4).join('\t'),
     start: +fields[4]!,
     end: +fields[5]!,
+    seams: [],
   }
 }
 
@@ -55,10 +58,14 @@ function extend(a: Walk, b: Walk, lengths: Map<string, number>) {
   let pos = b.start
   for (const [i, step] of steps.entries()) {
     if (pos === a.end) {
+      const body = a.fields[6]!
+      const last = Math.max(body.lastIndexOf('>'), body.lastIndexOf('<'))
       const fields = [...a.fields]
       fields[5] = String(b.end)
-      fields[6] = a.fields[6]! + steps.slice(i).join('')
-      return { ...a, fields, end: b.end }
+      fields[6] = body + steps.slice(i).join('')
+      const seams: Walk['seams'] =
+        last < 0 ? a.seams : [...a.seams, [body.slice(last), step]]
+      return { ...a, fields, end: b.end, seams }
     }
     const length = lengths.get(step.slice(1))
     if (pos > a.end || length === undefined) {
@@ -107,21 +114,17 @@ function joinPieces(
 
 const flip = (sign: string) => (sign === '+' ? '-' : '+')
 
-// The link each step of a walk takes, in both of the ways an L line can write
-// it. Where two pieces met in no cut's nodes, no cut wrote the link between
-// them.
-function* stepLinks(walk: Walk) {
-  const steps = stepsOf(walk).map(step => ({
-    id: step.slice(1),
-    sign: step.startsWith('>') ? '+' : '-',
-  }))
-  for (let i = 1; i < steps.length; i++) {
-    const a = steps[i - 1]!
-    const b = steps[i]!
-    yield {
-      forward: `L\t${a.id}\t${a.sign}\t${b.id}\t${b.sign}\t0M`,
-      reverse: `L\t${b.id}\t${flip(b.sign)}\t${a.id}\t${flip(a.sign)}\t0M`,
-    }
+const signOf = (step: string) => (step.startsWith('>') ? '+' : '-')
+
+// The link from one step to the next, in both of the ways an L line can write
+// it. A cut writes every link between its own nodes, so the one link a joined
+// walk can take that no cut wrote is where two of its pieces met.
+function seamLink([from, to]: [string, string]) {
+  const a = { id: from.slice(1), sign: signOf(from) }
+  const b = { id: to.slice(1), sign: signOf(to) }
+  return {
+    forward: `L\t${a.id}\t${a.sign}\t${b.id}\t${b.sign}\t0M`,
+    reverse: `L\t${b.id}\t${flip(b.sign)}\t${a.id}\t${flip(a.sign)}\t0M`,
   }
 }
 
@@ -164,7 +167,7 @@ export function joinCuts(gfas: string[], startsPath: StartsPath) {
   )
   const links = new Set(cuts.flatMap(cut => ofType(cut, 'L')))
   for (const walk of walks) {
-    for (const link of stepLinks(walk)) {
+    for (const link of walk.seams.map(seamLink)) {
       if (!links.has(link.forward) && !links.has(link.reverse)) {
         links.add(link.forward)
       }
