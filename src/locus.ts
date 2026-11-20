@@ -5,7 +5,7 @@
 
 const LOCUS = /^\s*(\S+?):\s*([\d,]+)(?:\s*(?:-|\.\.)\s*([\d,]+))?\s*$/
 
-const commaNumber = (s: string) => Number(s.replaceAll(',', ''))
+export const commaNumber = (s: string) => Number(s.replaceAll(',', ''))
 
 export function parseLocus(text: string) {
   const m = LOCUS.exec(text)

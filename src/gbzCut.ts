@@ -9,6 +9,7 @@ import {
   referencePathQuery,
   referenceSamplesOf,
 } from './gbzWindow'
+import { commaNumber } from './locus'
 import { panSNSample } from './pansn'
 
 import type { ByteSource, SnarlOutput } from '@gmod/gbz-base'
@@ -54,8 +55,6 @@ export function haplotypeIndexBeside(db: string) {
 // A figure spec's region, 0-based and half-open as in BED: a genome browser's
 // chr6:160,614,798-160,647,758 is chr6:160,614,797-160,647,758 here.
 // parseLocus reads the browser's form.
-const commaNumber = (s: string) => Number(s.replaceAll(',', ''))
-
 export function parseRegion(text: string) {
   const m = /^\s*(\S+?):([\d,]+)-([\d,]+)\s*$/.exec(text)
   if (!m) {

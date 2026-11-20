@@ -30,7 +30,7 @@ import type { Graph, GraphEdge, GraphNode, GraphPath } from '../types'
 // depth in a dp/RC/FC/KC tag, but a pangenome GFA (odgi, vg) carries none —
 // there the meaningful depth is how many samples go through the segment, i.e.
 // core versus accessory sequence.
-function surveySegments(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
+function surveySegments(gfaGraph: GFAGraph, stepped: PathSteps[]) {
   const index = new Map<string, number>()
   const names: string[] = []
   const indexOf = (id: string) => {
@@ -71,13 +71,8 @@ function surveySegments(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
       }
       traversals.set(id, (traversals.get(id) ?? 0) + 1)
     }
-  for (const { name, steps } of pathSteps) {
+  for (const { name, steps } of stepped) {
     steps.forEach(traverse(name))
-  }
-  for (const walk of gfaGraph.walks) {
-    walk.segments.forEach(
-      traverse(`${walk.sample}#${walk.haplotype}#${walk.contig}`),
-    )
   }
   const orient = orientSegments(
     names,
@@ -115,15 +110,23 @@ function stepsOfPath(p: GFAPath): PathSteps {
   }
 }
 
-function anchorablePaths(gfaGraph: GFAGraph, pathSteps: PathSteps[]) {
-  return [
-    ...pathSteps,
-    ...gfaGraph.walks.map(w => ({
-      name: `${w.sample}#${w.haplotype}#${w.contig}`,
-      start: walkStart(w),
-      steps: w.segments,
-    })),
-  ]
+// Named by the full PanSN name, contig included. Dropping the contig made a
+// path's name an ASSEMBLY's name, and one assembly walks one W record per
+// contig: two walks of `HG00438#1` then shared an identity, so
+// `edgeToPathsMap` merged them, `pathColors` (keyed by name) kept only the
+// last colour written while the node stripes kept the first, and the key drew
+// one haplotype twice in two colours. That is the ordinary Minigraph-Cactus
+// shape, not a corner case.
+//
+// The legend narrows it back: `labelTiers` tries sample, then sample and
+// haplotype, then the whole name, so a graph with one contig per haplotype
+// is labelled exactly as before and only a colliding one widens.
+function stepsOfWalk(w: GFAWalk) {
+  return {
+    name: `${w.sample}#${w.haplotype}#${w.contig}`,
+    start: walkStart(w),
+    steps: w.segments,
+  }
 }
 
 // Carriage stated as a tag rather than derived from a walk. `RgfaTabixAdapter`
@@ -199,7 +202,9 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
   const edges: GraphEdge[] = []
 
   const pathSteps = gfaGraph.paths.map(stepsOfPath)
-  const { canonical, traversals, respell } = surveySegments(gfaGraph, pathSteps)
+  const walkSteps = gfaGraph.walks.map(stepsOfWalk)
+  const stepped = [...pathSteps, ...walkSteps]
+  const { canonical, traversals, respell } = surveySegments(gfaGraph, stepped)
   // segments no link, path, or walk mentions are drawn forward-strand. One
   // string per segment, not per step: a walk of 100k steps built 100k.
   const canonicalIds = new Map<string, string>()
@@ -289,30 +294,19 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     recordPathEdges(nodeIds, pathName)
   })
 
-  for (const walk of gfaGraph.walks) {
+  gfaGraph.walks.forEach((walk, i) => {
+    const { name: walkName, start } = walkSteps[i]!
     const nodeIds = walk.segments.map(seg => nodeId(seg.id))
-    // The full PanSN name, contig included, which is also what `anchorablePaths`
-    // above calls the same record. Dropping the contig made a path's name an
-    // ASSEMBLY's name, and one assembly walks one W record per contig: two walks
-    // of `HG00438#1` then shared an identity, so `edgeToPathsMap` merged them,
-    // `pathColors` (keyed by name) kept only the last colour written while the
-    // node stripes kept the first, and the key drew one haplotype twice in two
-    // colours. That is the ordinary Minigraph-Cactus shape, not a corner case.
-    //
-    // The legend narrows it back: `labelTiers` tries sample, then sample and
-    // haplotype, then the whole name, so a graph with one contig per haplotype
-    // is labelled exactly as before and only a colliding one widens.
-    const walkName = `${walk.sample}#${walk.haplotype}#${walk.contig}`
     paths.push({
       name: walkName,
       nodeIds,
-      start: walkStart(walk),
+      start,
       sample: walk.sample,
       haplotype: walk.haplotype,
       contig: walk.contig,
     } satisfies GraphPath)
     recordPathEdges(nodeIds, walkName)
-  }
+  })
 
   edges.forEach((edge, i) => {
     const pathIds = edgePaths[i]!
@@ -324,11 +318,8 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
   // Only walked when the file has paths to walk, so an rGFA, which has none,
   // pays nothing for it
   const anchoring =
-    gfaGraph.paths.length > 0 || gfaGraph.walks.length > 0
-      ? surveyPaths(
-          anchorablePaths(gfaGraph, pathSteps),
-          id => lengths.get(id) ?? 0,
-        )
+    stepped.length > 0
+      ? surveyPaths(stepped, id => lengths.get(id) ?? 0)
       : undefined
   if (anchoring) {
     stateStrands(nodes, anchoring.pathVisits)
@@ -350,9 +341,9 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
           name: pathName,
           segments: pathSteps[i]!.steps.map(step => step.id),
         })),
-        ...gfaGraph.walks.map(walk => ({
-          name: `${walk.sample}#${walk.haplotype}#${walk.contig}`,
-          segments: walk.segments.map(seg => seg.id),
+        ...walkSteps.map(({ name: walkName, steps }) => ({
+          name: walkName,
+          segments: steps.map(step => step.id),
         })),
       ],
       new Set(
