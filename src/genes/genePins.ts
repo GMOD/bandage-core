@@ -48,11 +48,12 @@ export interface GenePin {
   // gene runs off it: on the reference, the drawn backbone's share; on a
   // haplotype's own contig, the share inside its walk's records of that contig
   covered: number
-  // of the gene's stretch inside the reference's walk records, the share the
-  // drawn nodes anchored on it hold. Under half where the reference walks
-  // that stretch over nodes it passed before, as through a collapsed
+  // of the gene's stretch inside its contig's walk records, the share the
+  // drawn nodes anchored on that contig hold. Under half where the reference
+  // walks that stretch over nodes it passed before, as through a collapsed
   // repeat's later copies, whose sequence is drawn where the first copy is
-  // pinned. 1 on a haplotype's own contig, and where no reference walk is cut
+  // pinned, and where a haplotype walks it over the reference's nodes, its
+  // own being the variants along the way. 1 where no walk of the contig is cut
   anchored: number
   // whether the gene lies on the reference's own sequence
   onReference: boolean
@@ -326,10 +327,7 @@ export function genePins(
     return {
       ...pin,
       covered: stretch && !pin.onReference ? walked / length : pin.covered,
-      anchored:
-        pin.onReference && walked > 0
-          ? Math.min(1, (pin.covered * length) / walked)
-          : 1,
+      anchored: walked > 0 ? Math.min(1, (pin.covered * length) / walked) : 1,
       walks: known.walks.get(spanKey(pin.gene)) ?? 0,
     }
   })

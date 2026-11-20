@@ -233,3 +233,57 @@ test("a reference copy whose stretch the reference walks over an earlier copy's 
   ])
   expect(namedGenePins(pins).map(n => n.name)).toEqual(['FIRST'])
 })
+
+// HPRC's C4 with HG00128#1 and HG00133#1 lifted: their CAT genes named every
+// gene again beside the reference's, on the SNPs along it, as
+// "C4A · HG00128#1", and STK19, which RefSeq calls WHR1, once per haplotype
+test("a lifted haplotype's copy along the reference's keeps no name, its copy on its own insertion is named, and a gene only haplotypes annotate is named once", () => {
+  const other = 'HG00133#1#CM0002.1'
+  const graph: Graph = {
+    name: 'g',
+    nodes: [
+      anchored('r1', 0, 1000),
+      anchored('r2', 1000, 1000),
+      offReference('snp', 1000, 1),
+      offReference('ins', 2001, 2000),
+      {
+        ...anchored('snp2', 1000, 1),
+        stable: { refName: other, start: 1000, rank: 1, strand: '+' as const },
+      },
+    ],
+    edges: [],
+    paths: [
+      { name: 'chr1', nodeIds: ['r1', 'r2'], start: 0 },
+      { name: HAPLOTYPE, nodeIds: ['r1', 'snp', 'r2', 'ins'], start: 0 },
+      { name: other, nodeIds: ['r1', 'snp2', 'r2'], start: 0 },
+    ],
+  }
+  const pins = genePins(
+    graph,
+    [
+      gene('C4', 'chr1', 0, 2000),
+      gene('C4', HAPLOTYPE, 0, 2001),
+      gene('C4', HAPLOTYPE, 2001, 4001),
+      gene('STK19', HAPLOTYPE, 0, 2001),
+      gene('STK19', other, 0, 2001),
+    ],
+    along(['r1', 'r2', 'snp', 'ins', 'snp2'], 0),
+  )
+  expect(pins.map(p => [p.anchored, [...p.nodeIds]])).toEqual([
+    [1, ['r1', 'r2']],
+    [1 / 2001, ['snp']],
+    [1, ['ins']],
+    [1 / 2001, ['snp']],
+    [1 / 2001, ['snp2']],
+  ])
+  expect(
+    namedGenePins(pins, [HAPLOTYPE, other]).map(n => [
+      n.name,
+      [...n.pin.nodeIds],
+    ]),
+  ).toEqual([
+    ['C4', ['r1', 'r2']],
+    ['C4 · HG00097#1', ['ins']],
+    ['STK19 · HG00097#1', ['snp']],
+  ])
+})
