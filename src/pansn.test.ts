@@ -22,3 +22,9 @@ test('panSNFields reads three fields, the contig keeping any # past them', () =>
   expect(panSNFields('chm13#chr1')).toBeUndefined()
   expect(panSNFields('chr1')).toBeUndefined()
 })
+
+test('panSNFields reads no fields from a name whose second part is not a number', () => {
+  expect(panSNFields('HG002#mat#chr1')).toBeUndefined()
+  expect(panSNFields('grape##chr1')).toBeUndefined()
+  expect(panSNFields('HG002#-1#chr1')).toBeUndefined()
+})

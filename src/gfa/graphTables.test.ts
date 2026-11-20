@@ -155,6 +155,33 @@ test('a two-part walk name keeps its name and writes a P line', () => {
   expectSameGraph(twoPart(5))
 })
 
+test('walks named for haplotypes that are not numbers stay apart', () => {
+  const named = tables({
+    names: ['1', '2'],
+    links: [[0, 1, 0]],
+    walks: [
+      {
+        name: 'HG002#mat#chr1',
+        start: 0,
+        steps: [
+          [0, false],
+          [1, false],
+        ],
+      },
+      { name: 'HG002#pat#chr1', start: 0, steps: [[0, false]] },
+    ],
+  })
+  expect(graphFromTables(named, 'cut').paths?.map(p => p.name)).toEqual([
+    'HG002#mat#chr1',
+    'HG002#pat#chr1',
+  ])
+  expect(graphTablesGFA(named).split('\n').slice(-2)).toEqual([
+    'P\tHG002#mat#chr1\t1+,2+\t*',
+    'P\tHG002#pat#chr1\t1+\t*',
+  ])
+  expectSameGraph(named)
+})
+
 test('tables build the graph their GFA converts to', () => {
   expectSameGraph(
     tables({

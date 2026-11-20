@@ -49,10 +49,11 @@ export function panSNContig(refName: string) {
 }
 
 // A name's three PanSN fields, the contig keeping any `#` past the second, or
-// undefined for a name of fewer parts, such as pggb's `chm13#chr1`
+// undefined for a name of fewer parts, such as pggb's `chm13#chr1`, or one
+// whose second part is no haplotype number, such as `HG002#mat#chr1`
 export function panSNFields(name: string) {
   const [sample = '', haplotype = '', ...contig] = name.split(SEP)
-  return contig.length > 0
+  return contig.length > 0 && /^\d+$/.test(haplotype)
     ? { sample, haplotype: +haplotype, contig: contig.join(SEP) }
     : undefined
 }
