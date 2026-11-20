@@ -1,6 +1,6 @@
 # 1. Hairpin tips keep their pull-back
 
-**Status:** accepted, 2026-10-23
+**Status:** superseded by [3](0003-threads-stay-on-their-nodes.md), 2026-11-20
 
 ## Context
 

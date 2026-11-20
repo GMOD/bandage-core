@@ -351,57 +351,6 @@ function smoothedNormals(
   })
 }
 
-function cutCurls<P extends { x: number; y: number }>(
-  run: readonly P[],
-  close: number,
-  length: number,
-) {
-  const s = arcOf(run)
-  const out = run.slice()
-  const picks: number[] = []
-  s.forEach((at, k) => {
-    const last = picks.at(-1)
-    if (last === undefined || at - s[last]! >= close / 4) {
-      picks.push(k)
-    }
-  })
-  if (picks.at(-1) !== run.length - 1) {
-    picks.push(run.length - 1)
-  }
-  let a = 0
-  while (a < picks.length) {
-    const i = picks[a]!
-    let to = -1
-    for (
-      let b = a + 1;
-      b < picks.length && s[picks[b]!]! - s[i]! <= length;
-      b++
-    ) {
-      const j = picks[b]!
-      if (s[j]! - s[i]! > Math.PI * close && gapOf(run[i]!, run[j]!) <= close) {
-        to = b
-      }
-    }
-    if (to < 0) {
-      a++
-      continue
-    }
-    const j = picks[to]!
-    const p = run[i]!
-    const q = run[j]!
-    for (let k = i + 1; k < j; k++) {
-      const f = (s[k]! - s[i]!) / (s[j]! - s[i]!)
-      out[k] = {
-        ...run[k]!,
-        x: p.x + (q.x - p.x) * f,
-        y: p.y + (q.y - p.y) * f,
-      }
-    }
-    a = to
-  }
-  return out
-}
-
 function rounded(run: readonly { x: number; y: number }[], half: number) {
   const n = run.length
   const s = arcOf(run)
@@ -439,22 +388,20 @@ function rounded(run: readonly { x: number; y: number }[], half: number) {
   return out
 }
 
-// Which points of a line turn tighter than `radius`, by the circle through
-// each point and the points `radius` either side of it along the line
-function tightPoints(
+// Each point's turning radius, the circle through it and the points `reach`
+// either side of it along the line; a point within `reach` of an end, or on a
+// straight stretch, turns on no circle at all
+function turningRadii(
   line: readonly { x: number; y: number }[],
-  radius: number,
+  reach: number,
 ) {
   const n = line.length
   const s = arcOf(line)
-  const end = s[n - 1]!
-  const tight = new Uint8Array(n)
+  const end = s[n - 1] ?? 0
+  const radii = new Float64Array(n).fill(Infinity)
   const along = (j: number, at: number) => {
     const a = line[j]!
-    const b = line[j + 1]
-    if (!b) {
-      return a
-    }
+    const b = line[j + 1] ?? a
     const span = s[j + 1]! - s[j]!
     const f = span > 0 ? (at - s[j]!) / span : 0
     return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
@@ -462,63 +409,48 @@ function tightPoints(
   let lo = 0
   let hi = 0
   for (let i = 0; i < n; i++) {
-    if (s[i]! < radius || end - s[i]! < radius) {
-      continue
+    if (s[i]! >= reach && end - s[i]! >= reach) {
+      while (lo + 1 < n && s[lo + 1]! <= s[i]! - reach) {
+        lo++
+      }
+      while (hi + 1 < n && s[hi + 1]! <= s[i]! + reach) {
+        hi++
+      }
+      const p = line[i]!
+      const a = along(lo, s[i]! - reach)
+      const b = along(hi, s[i]! + reach)
+      const twice = Math.abs(
+        (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x),
+      )
+      if (twice > 0) {
+        radii[i] = (gapOf(a, b) * gapOf(a, p) * gapOf(p, b)) / (2 * twice)
+      }
     }
-    while (lo + 1 < n && s[lo + 1]! <= s[i]! - radius) {
-      lo++
-    }
-    while (hi + 1 < n && s[hi + 1]! <= s[i]! + radius) {
-      hi++
-    }
-    const p = line[i]!
-    const a = along(lo, s[i]! - radius)
-    const b = along(hi, s[i]! + radius)
-    const twice = Math.abs(
-      (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x),
-    )
-    tight[i] =
-      twice > 0 &&
-      (gapOf(a, b) * gapOf(a, p) * gapOf(p, b)) / (2 * twice) < radius
-        ? 1
-        : 0
   }
-  return { tight, s }
+  return radii
 }
 
-// The line smoothed again wherever it turns tighter than `radius`, the
-// furthest a thread runs from it, so the band's inner thread rounds a hairpin
-// rather than folding back on itself at the tip. Only the stretches round
-// tight points change, so later passes smooth those alone.
-function loosened(line: readonly { x: number; y: number }[], radius: number) {
-  const out = line.slice()
-  const { tight, s } = tightPoints(out, radius)
-  let windows = ownedWindows(
+// The share of its offset each point's threads keep: all of it where the line
+// turns no tighter than `halfBand`, the furthest a thread runs from it, and
+// the turning radius over `halfBand` where it does, held over `half` either
+// side and eased, so the inner thread rounds a tight loop or hairpin on the
+// node rather than folding back on itself
+function spreadAlong(
+  s: ArrayLike<number>,
+  radii: ArrayLike<number>,
+  halfBand: number,
+  half: number,
+) {
+  const tightest = windowed(
     s,
-    Array.from(tight, t => t > 0),
-    3 * radius,
+    Array.from(radii, r => -Math.min(1, r / halfBand)),
+    half,
   )
-  for (let pass = 0; pass < 8 && windows.length; pass++) {
-    windows = windows.filter(([lo, hi]) => {
-      const part = out.slice(lo, hi + 1)
-      const local = tightPoints(part, radius)
-      if (!local.tight.includes(1)) {
-        return false
-      }
-      const weight = windowMean(local.s, local.tight, radius)
-      const smoother = rounded(part, radius)
-      for (let k = 0; k < part.length; k++) {
-        const w = Math.min(1, 3 * weight[k]!)
-        if (w > 0) {
-          const p = part[k]!
-          const q = smoother[k]!
-          out[lo + k] = { x: p.x + (q.x - p.x) * w, y: p.y + (q.y - p.y) * w }
-        }
-      }
-      return true
-    })
-  }
-  return out
+  return windowMean(
+    s,
+    tightest.map(f => -f),
+    half,
+  )
 }
 
 export interface VisitFrame {
@@ -598,14 +530,14 @@ export function laneLines(
   smooth: boolean,
 ) {
   const turn = Math.max(reach, 2 * band)
-  const curl = Math.PI * band
-  const context = smooth ? curl + 3 * band + turn / 2 : turn / 2
+  const context = smooth ? (Math.PI + 3) * band + turn / 2 : turn / 2
   const frames = new Map<string, VisitFrame[][]>()
   const firsts = new Map<
     string,
     { run: number; step: number; frame: VisitFrame }
   >()
   const arcs: Float64Array[] = []
+  const radii: Float64Array[] = []
   const stepFrames: VisitFrame[][] = []
   const newFrame = (length: number): VisitFrame => ({
     normals: new Array<Normal | undefined>(length),
@@ -713,10 +645,7 @@ export function laneLines(
         points.push({ x: xs[p]!, y: ys[p]! })
       }
       const line: readonly { x: number; y: number }[] = smooth
-        ? loosened(
-            rounded(cutCurls(points, band / 2, curl), band / 2),
-            band / 2,
-          )
+        ? rounded(points, band / 2)
         : points
       const normals = smoothedNormals(line, turn)
       runSigns(
@@ -754,19 +683,19 @@ export function laneLines(
       return
     }
     const s = new Float64Array(n)
-    let px = 0
-    let py = 0
+    const line = new Array<{ x: number; y: number }>(n)
     for (let p = 0; p < n; p++) {
       const shift = own[stepOf[p]!]!.shifts[pointIndex(run, p)]
-      const x = xs[p]! + (shift?.dx ?? 0)
-      const y = ys[p]! + (shift?.dy ?? 0) * yToX
-      s[p] = p ? s[p - 1]! + Math.sqrt((x - px) ** 2 + (y - py) ** 2) : 0
-      px = x
-      py = y
+      line[p] = {
+        x: xs[p]! + (shift?.dx ?? 0),
+        y: ys[p]! + (shift?.dy ?? 0) * yToX,
+      }
+      s[p] = p ? s[p - 1]! + gapOf(line[p - 1]!, line[p]!) : 0
     }
     arcs.push(s)
+    radii.push(turningRadii(line, band / 2))
   })
-  return { frames, arcs, stepFrames }
+  return { frames, arcs, stepFrames, radii }
 }
 
 function windowed(s: ArrayLike<number>, v: readonly number[], half: number) {
@@ -1060,12 +989,12 @@ export function bandSpans(
 // rather than stepping sideways at whichever node boundary the change falls on
 function easeOffsets(
   runs: readonly LaneRun[],
-  stepFrames: readonly (readonly VisitFrame[])[],
-  arcs: readonly ArrayLike<number>[],
+  { stepFrames, arcs, radii }: ReturnType<typeof laneLines>,
   spans: ReadonlyMap<string, { slot: number[]; held: number[] }>,
   passes: readonly number[],
   threads: readonly WalkThreads[],
   half: number,
+  halfBand: number,
 ) {
   const plain = slotCentres(passes, passes)
   const byNode = new Map<string, number[]>()
@@ -1091,7 +1020,8 @@ function easeOffsets(
         starts[i + 1],
       )
     })
-    const eased = windowMean(arcs[r]!, raw, half)
+    const spread = spreadAlong(arcs[r]!, radii[r]!, halfBand, half)
+    const eased = windowMean(arcs[r]!, raw, half).map((o, p) => o * spread[p]!)
     stepFrames[r]!.forEach((frame, i) => {
       const from = starts[i]!
       const to = starts[i + 1]!
@@ -1158,12 +1088,12 @@ export function liftLanes(
   if (spans && threads) {
     easeOffsets(
       runs,
-      lines.stepFrames,
-      lines.arcs,
+      lines,
       spans,
       passes,
       threads,
       (THREAD_TAPER_PX / 2) * worldPerScreenPx,
+      band / 2,
     )
   }
   const furthestShift = { dx: 0, dy: 0 }

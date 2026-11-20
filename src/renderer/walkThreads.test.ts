@@ -6,6 +6,7 @@ import {
   MAX_BAND_PX,
   MIN_LANE_STROKE_PX,
   PASSES_KEY,
+  bandWidthPx,
   liftLanes,
   passesKey,
   threadsPasses,
@@ -223,8 +224,8 @@ test('threads follow the walk smoothed, not each short node', () => {
   for (let i = 6; i < 14; i++) {
     for (const s of strokes(`n${i}+`)) {
       for (const n of s.normals!) {
-        expect(Math.abs(n.nx)).toBeLessThan(0.1)
-        expect(n.ny).toBeGreaterThan(0.99)
+        expect(Math.abs(n.nx)).toBeLessThan(0.2)
+        expect(n.ny).toBeGreaterThan(0.98)
       }
     }
   }
@@ -350,11 +351,79 @@ function curlCentres(radius: number) {
   }
 }
 
-test('lanes take the chord of a curl too tight for the band to follow', () => {
-  const centre = curlCentres(4)
-  expect(Math.abs(centre('c20+').y)).toBeLessThan(1)
-  expect(Math.hypot(centre('c2+').x - 2, centre('c2+').y)).toBeLessThan(0.5)
-})
+// Two walks lifted round a loop `across` by `out` units hanging off a straight
+// chain, the second walk twice, drawn at `scale` px a unit: each node of the
+// loop is one stretch of its outline
+function loopDrawn(across: number, out: number, scale: number) {
+  const arm = 16
+  const round = 48
+  const outline = Array.from({ length: round + 1 }, (_, k) => {
+    const t = (k / round) * 2 * Math.PI
+    return {
+      x: arm + (Math.sin(t) * across) / 2,
+      y: (out * (1 - Math.cos(t))) / 2,
+    }
+  })
+  const before = Array.from({ length: arm }, (_, i) => [
+    { x: i, y: 0 },
+    { x: i + 1, y: 0 },
+  ])
+  const after = before.map(seg => seg.map(p => ({ x: p.x + arm, y: 0 })))
+  const loop = outline.slice(1).map((p, k) => [outline[k]!, p])
+  const segments = [...before, ...loop, ...after]
+  const ids = segments.map((_, i) => i)
+  const gfa = [
+    ...ids.map(i => `S\tc${i}\tA`),
+    ...ids.slice(1).map(i => `L\tc${i - 1}\t+\tc${i}\t+\t0M`),
+    `L\tc${ids.length - 1}\t+\tc0\t+\t0M`,
+    walk('a', ids.map(i => `>c${i}`).join('')),
+    walk('b', [...ids, ...ids].map(i => `>c${i}`).join('')),
+  ].join('\n')
+  const at = Object.fromEntries(segments.map((seg, i) => [`c${i}+`, seg]))
+  const loopIds = loop.map((_, k) => `c${arm + k}+`)
+  return { ...drawn(gfa, ['a#1#chr', 'b#1#chr'], at, { scale }), at, loopIds }
+}
+
+const LOOPS = [0.5, 1, 2, 4].flatMap(scale => [
+  { across: 8, out: 8, scale },
+  { across: 6, out: 24, scale },
+])
+
+test.each(LOOPS)(
+  "a walk's threads run over every node of a $across by $out loop it walks, drawn at $scale px a unit",
+  ({ across, out, scale }) => {
+    const { strokes, at, loopIds } = loopDrawn(across, out, scale)
+    let furthest = 0
+    for (const id of loopIds) {
+      for (const s of strokes(id).filter(t => t.walk !== undefined)) {
+        s.points.forEach((p, k) => {
+          const own = at[id]![k]!
+          furthest = Math.max(
+            furthest,
+            Math.hypot(p.x - own.x, p.y - own.y) * scale,
+          )
+        })
+      }
+    }
+    expect(furthest).toBeLessThanOrEqual(bandWidthPx([1, 2]))
+  },
+)
+
+test.each(LOOPS.filter(l => l.across * l.scale >= bandWidthPx([1, 2])))(
+  'every thread runs round a $across by $out loop as wide as the band the way its node does, drawn at $scale px a unit',
+  ({ across, out, scale }) => {
+    const { strokes, at, loopIds } = loopDrawn(across, out, scale)
+    for (const id of loopIds) {
+      const [a, b] = at[id]!
+      for (const s of strokes(id).filter(t => t.walk !== undefined)) {
+        const [p, q] = s.points
+        expect(
+          (q!.x - p!.x) * (b!.x - a!.x) + (q!.y - p!.y) * (b!.y - a!.y),
+        ).toBeGreaterThanOrEqual(-1e-9)
+      }
+    }
+  },
+)
 
 test("lanes keep to a loop wide enough for the band's inner thread", () => {
   const centre = curlCentres(10)
