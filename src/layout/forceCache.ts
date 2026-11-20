@@ -14,8 +14,8 @@ import type { FitSize } from './fitAssumptions'
 // Weak on the graph so nothing has to invalidate it: a graph is rebuilt by
 // every load and dropped when the view clears, and its layouts go with it.
 
-// Enough to hold the settings a comparison moves between; past that the oldest
-// goes, since a big graph's positions are megabytes.
+// Enough to hold the settings a comparison moves between; past that the one
+// asked for longest ago goes, since a big graph's positions are megabytes.
 const DEFAULT_SIZE = 4
 
 export interface ForceLayoutCache {
@@ -56,11 +56,19 @@ export function createForceLayoutCache(size = DEFAULT_SIZE): ForceLayoutCache {
     }
     return cache
   }
+  const used = (cache: Map<string, Entry>, key: string) => {
+    const entry = cache.get(key)
+    if (entry) {
+      cache.delete(key)
+      cache.set(key, entry)
+    }
+    return entry
+  }
   return {
     layout(graph, settings, engine, fit) {
       const cache = cacheOf(graph)
       const key = engineKey(graph, settings, fit)
-      const hit = cache.get(key)
+      const hit = used(cache, key)
       if (hit) {
         return hit.run
       }
@@ -86,7 +94,8 @@ export function createForceLayoutCache(size = DEFAULT_SIZE): ForceLayoutCache {
       return entry.run
     },
     ready(graph, settings, fit) {
-      return caches.get(graph)?.get(engineKey(graph, settings, fit))?.done
+      const cache = caches.get(graph)
+      return cache && used(cache, engineKey(graph, settings, fit))?.done
     },
     inherit(from, to) {
       const cache = caches.get(from)

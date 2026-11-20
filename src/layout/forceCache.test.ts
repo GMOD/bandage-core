@@ -112,6 +112,25 @@ test('the oldest goes once the cache is full', async () => {
   expect(cache.ready(GRAPH, { ...SETTINGS, quality: 2 })).toBeDefined()
 })
 
+test.each(['layout', 'ready'])(
+  'a layout asked for again through %s outlasts one filed after it',
+  async how => {
+    const cache = createForceLayoutCache(2)
+    const engine = countingEngine()
+    const at = (quality: number) => ({ ...SETTINGS, quality })
+    await cache.layout(GRAPH, at(0), engine)
+    await cache.layout(GRAPH, at(1), engine)
+    const again =
+      how === 'layout'
+        ? (await cache.layout(GRAPH, at(0), engine)).result
+        : cache.ready(GRAPH, at(0))
+    await cache.layout(GRAPH, at(2), engine)
+    expect(engine.calls()).toBe(3)
+    expect(cache.ready(GRAPH, at(0))).toBe(again)
+    expect(cache.ready(GRAPH, at(1))).toBeUndefined()
+  },
+)
+
 test('a run that throws leaves nothing behind', async () => {
   const cache = createForceLayoutCache()
   const failing = vi.fn<LayoutEngine>(() =>
