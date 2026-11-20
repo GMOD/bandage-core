@@ -7,6 +7,7 @@ import {
 import { polylineSlice } from '../layout/mergeRuns'
 import { pathOrigin } from '../pathAnchoring'
 import { svgPath } from '../util/geometry'
+import { pushTo } from '../util/groups'
 
 import type { AnchoredNode } from '../anchoredNodes'
 import type { Graph, NodeSegment } from '../types'
@@ -135,12 +136,7 @@ function walkStretches(graph: Graph) {
       (sum, id) => sum + (lengths.get(id) ?? 0),
       start,
     )
-    const onContig = records.get(origin.name)
-    if (onContig) {
-      onContig.push({ start, end })
-    } else {
-      records.set(origin.name, [{ start, end }])
-    }
+    pushTo(records, origin.name, { start, end })
   }
   const stretches = new Map<string, Interval[]>()
   for (const [contig, intervals] of records) {
@@ -172,12 +168,7 @@ function walksStepping(graph: Graph, nodeSets: readonly ReadonlySet<string>[]) {
   const steppedBy = new Map<string, Set<string>[]>()
   for (const [ids, walks] of stepping) {
     for (const id of ids) {
-      const into = steppedBy.get(id)
-      if (into) {
-        into.push(walks)
-      } else {
-        steppedBy.set(id, [walks])
-      }
+      pushTo(steppedBy, id, walks)
     }
   }
   for (const path of graph.paths ?? []) {

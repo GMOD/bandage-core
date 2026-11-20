@@ -67,13 +67,22 @@ function offFrame(box: Box, frame: Frame) {
   )
 }
 
-function insideFrame(box: Box, frame: Frame) {
+export function insideFrame(box: Box, frame: Frame) {
   return (
     box.x0 >= 0 &&
     box.x1 <= frame.width &&
     box.y0 >= 0 &&
     box.y1 <= frame.height
   )
+}
+
+export function grown(box: Box, by: number) {
+  return {
+    x0: box.x0 - by,
+    x1: box.x1 + by,
+    y0: box.y0 - by,
+    y1: box.y1 + by,
+  }
 }
 
 export function occupancy(frame: Frame, reserved: Box[] = []): TakeBox {
@@ -163,37 +172,46 @@ export function placeLabels<T>(
       ? first
       : stackFrom(c, text, c.flipY, c.flipY < c.y ? -1 : 1)
   }
+  const rows = Math.ceil(frame.height / row)
+  const offsetsWithin = (slide: number) => {
+    const offsets: { dx: number; dy: number; distance: number }[] = []
+    for (let k = -rows; k <= rows; k++) {
+      for (const dx of slides(slide)) {
+        offsets.push({ dx, dy: k * row, distance: Math.hypot(dx, k * row) })
+      }
+    }
+    return offsets.sort((a, b) => a.distance - b.distance)
+  }
+  let acrossPane: ReturnType<typeof offsetsWithin> | undefined
   // rows up and down from `nearest` to the pane's edges, nearest first, and
   // of two as near the higher, then the one to the left; slid either way to
   // the pane's edges from a point on the pane, so a spot past a reserved box
-  // is found, else as `stackFrom` slides
+  // is found, else as `stackFrom` slides. Points on the pane share one sorted
+  // list of offsets, as a slide past the pane's far edge is off it for each
   const nearestFree = (
     c: LabelCandidate<T>,
     text: string,
     from: { x: number; y: number },
   ) => {
     const w = labelWidth(text)
-    const rows = Math.ceil(frame.height / row)
-    const across = slides(
-      insideFrame({ x0: from.x, x1: from.x, y0: from.y, y1: from.y }, frame)
-        ? Math.max(from.x, frame.width - from.x)
-        : (c.slide ?? 0),
+    const offsets = insideFrame(
+      { x0: from.x, x1: from.x, y0: from.y, y1: from.y },
+      frame,
     )
-    const spots: { box: Box; x: number; y: number; distance: number }[] = []
-    for (let k = -rows; k <= rows; k++) {
-      for (const dx of across) {
-        const x = from.x + dx
-        const y = from.y + k * row
+      ? (acrossPane ??= offsetsWithin(frame.width))
+      : offsetsWithin(c.slide ?? 0)
+    const firstSpot = (stands: (box: Box) => boolean) => {
+      let spot: { x: number; y: number } | undefined
+      for (let i = 0; i < offsets.length && !spot; i++) {
+        const x = from.x + offsets[i]!.dx
+        const y = from.y + offsets[i]!.dy
         const box = boxAt(x, y, w)
-        if (insideFrame(box, frame)) {
-          spots.push({ box, x, y, distance: Math.hypot(dx, k * row) })
-        }
+        spot = insideFrame(box, frame) && stands(box) ? { x, y } : undefined
       }
+      return spot
     }
-    spots.sort((a, b) => a.distance - b.distance)
     const spot =
-      spots.find(s => (c.fits?.(s.box) ?? true) && take(s.box)) ??
-      spots.find(s => take(s.box))
+      firstSpot(box => (c.fits?.(box) ?? true) && take(box)) ?? firstSpot(take)
     return spot && { ...c, x: spot.x, y: spot.y, text, w }
   }
   for (const c of candidates) {

@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 
 import { edgeHoverText, regionLabel } from './hoverText'
 
@@ -16,6 +16,33 @@ test('a span reads 1-based and inclusive, as a node location does', () => {
   expect(regionLabel({ refName: 'chr6', start: 1000, end: 2000 })).toBe(
     'chr6:1,001-2,000',
   )
+})
+
+// a German browser wrote chr6:1.001-2.000 beside a key reading 1,001-2,000
+test('a span and a deletion group digits the same whatever the host locale', () => {
+  const asked = vi
+    .spyOn(Number.prototype, 'toLocaleString')
+    .mockImplementation(() => {
+      throw new Error('digits were grouped by the host locale')
+    })
+  try {
+    expect(regionLabel({ refName: 'chr6', start: 1000, end: 2000 })).toBe(
+      'chr6:1,001-2,000',
+    )
+    expect(
+      edgeHoverText(edge, {
+        ...edge,
+        edgeIndex: 0,
+        refName: 'chr6',
+        start: 1000,
+        end: 87000,
+        bp: 86000,
+        bypassed: [],
+      }),
+    ).toEqual({ deletion: { bp: '86,000 bp', where: 'chr6:1,001-87,000' } })
+  } finally {
+    asked.mockRestore()
+  }
 })
 
 // the ids carry a strand, the names do not, so a caller passes the node's name

@@ -8,6 +8,8 @@ import {
 } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
 import { cubicLengthPx } from './util/curveLength'
+import { polylinePx } from './util/geometry'
+import { addTo, pushTo } from './util/groups'
 import { partitionPoint } from './util/partitionPoint'
 import { flattenedPx, pointInStroke, segmentInStroke } from './util/strokeCover'
 import { weakMemo } from './util/weakMemo'
@@ -165,19 +167,11 @@ function walksByNode(graph: Graph) {
   const haplotypes = haplotypeIndex(graph)
   const byName = new Map<string, number>()
   const byNode = new Map<string, Set<number>>()
-  const visit = (nodeId: string, walk: number) => {
-    const walks = byNode.get(nodeId)
-    if (walks) {
-      walks.add(walk)
-    } else {
-      byNode.set(nodeId, new Set([walk]))
-    }
-  }
   for (const path of graph.paths ?? []) {
     const walk = haplotypes.get(haplotypeOf(path)) ?? 0
     byName.set(path.name, walk)
     for (const id of path.nodeIds) {
-      visit(id, walk)
+      addTo(byNode, id, walk)
     }
   }
   const walkNamed = (name: string) =>
@@ -186,15 +180,11 @@ function walksByNode(graph: Graph) {
     for (const { path } of node.departureVisits ?? []) {
       const walk = walkNamed(path)
       if (walk !== undefined) {
-        visit(node.id, walk)
+        addTo(byNode, node.id, walk)
       }
     }
   }
   return { total: haplotypes.size, byNode, walkNamed }
-}
-
-const listAt = (at: Map<number, string[]>, pos: number, id: string) => {
-  at.set(pos, [...(at.get(pos) ?? []), id])
 }
 
 function unitsOf(
@@ -380,8 +370,8 @@ function unitsOf(
     const reference = referenceOf(refName)
     const end = start + node.length
     reference.spans.push({ id: node.id, start, end })
-    listAt(reference.endingAt, end, node.id)
-    listAt(reference.startingAt, start, node.id)
+    pushTo(reference.endingAt, end, node.id)
+    pushTo(reference.startingAt, start, node.id)
   }
   for (const [refName, links] of referenceLinks) {
     referenceOf(refName).links = links
@@ -532,19 +522,6 @@ const mean = (points: readonly Point[]) => ({
   y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
 })
 
-function drawnPx(line: readonly NodeSegment[], axis: AxisScale) {
-  let px = 0
-  for (let i = 1; i < line.length; i++) {
-    const a = line[i - 1]
-    const b = line[i]
-    px +=
-      a && b
-        ? Math.hypot((b.x - a.x) * axis.scaleX, (b.y - a.y) * axis.scaleY)
-        : 0
-  }
-  return px
-}
-
 // how long a link's curve is drawn on screen
 const curvePx = (curves: readonly BezierCurve[], axis: AxisScale) =>
   curves.reduce((px, c) => px + cubicLengthPx(c, axis.scaleX, axis.scaleY), 0)
@@ -617,7 +594,8 @@ function referencePxPerBp(
   axis: AxisScale,
 ) {
   const px = backbone.reduce(
-    (sum, id) => sum + drawnPx(positions[id] ?? [], axis),
+    (sum, id) =>
+      sum + polylinePx(positions[id] ?? [], axis.scaleX, axis.scaleY),
     0,
   )
   return backboneBp > 0 ? px / backboneBp : 0
@@ -716,7 +694,9 @@ function foldOf(
     axisOf: AxisScale,
     linkPx: (curves: readonly BezierCurve[], axis: AxisScale) => number,
   ) => ({
-    node: once((id: string) => drawnPx(positions[id] ?? [], axisOf)),
+    node: once((id: string) =>
+      polylinePx(positions[id] ?? [], axisOf.scaleX, axisOf.scaleY),
+    ),
     edge: once((edge: number) => linkPx(curves.get(edge) ?? [], axisOf)),
   })
   const atAxis = measured(axis, curvePx)

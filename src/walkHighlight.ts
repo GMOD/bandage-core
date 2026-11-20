@@ -7,6 +7,7 @@ import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
 import { abgrHex } from './renderer/colorBits'
 import { ownStrand } from './util/geometry'
+import { pushTo } from './util/groups'
 import {
   encodedColor,
   encodingStops,
@@ -505,12 +506,7 @@ function referencePlaces(
         cursor = at + len === last ? at : at + len
         last = at
       }
-      const seen = places.get(id)
-      if (seen) {
-        seen.push(t)
-      } else {
-        places.set(id, [t])
-      }
+      pushTo(places, id, t)
     }
   }
   return places

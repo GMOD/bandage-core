@@ -1,4 +1,5 @@
 import { el, elOf } from '../el'
+import { MIN_WALK_LANE_PX } from '../nodeWidths'
 
 import type { El } from '../el'
 import type { GenePin } from './genePins'
@@ -14,8 +15,6 @@ const EXON_GAP_PX = 1
 const EXON_LINE_PX = 2
 // how far an outline reaches past its node's ink
 export const EXON_RIM_PX = EXON_GAP_PX + EXON_LINE_PX
-// a lifted walk's lane at the least, as the geometry draws it
-const MIN_LANE_PX = 4
 
 export interface ExonStretch {
   key: string
@@ -37,7 +36,7 @@ export function exonStretches(
   const inkPx = (nodeId: string) => {
     const own = halfWidthPx(nodeId) * 2
     return lift?.nodeIds.has(nodeId)
-      ? Math.max(own, lift.walks.length * MIN_LANE_PX)
+      ? Math.max(own, lift.walks.length * MIN_WALK_LANE_PX)
       : own
   }
   return pins.flatMap(pin =>

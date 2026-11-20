@@ -1,7 +1,7 @@
 import { isBackbone } from './anchoredNodes'
 import { polylinePointAt } from './layout/mergeRuns'
 import { SMALL_SITE_PX } from './levelOfDetail'
-import { labelWidth, occupancy } from './overlayLabels'
+import { grown, insideFrame, labelWidth, occupancy } from './overlayLabels'
 import { compareIds } from './util/canonicalOrder'
 import { polylinePx } from './util/geometry'
 import { pushTo } from './util/groups'
@@ -123,6 +123,15 @@ const LABEL_HALF_HEIGHT = (LABEL_HEIGHT_PX + LABEL_GAP_PX) / 2
 // string and a box per node only to discard both was most of this pass
 // (measured 37 ms per frame, and this pass runs on every pan).
 const MIN_LABEL_HALF_WIDTH = labelHalfWidth('1 bp')
+
+const onPane = (
+  { x, y }: Point,
+  { width, height }: { width: number; height: number },
+) =>
+  x >= 0 &&
+  x <= width &&
+  y + LABEL_HALF_HEIGHT > 0 &&
+  y - LABEL_HALF_HEIGHT < height
 
 // translate(-50%, -50%) in the style, so the anchor is the box's centre.
 function boxAt(halfW: number, x: number, y: number): Box {
@@ -317,13 +326,7 @@ export function sizeLabelCandidates({
   const { scaleX, scaleY } = axis
   const barred = new Set(alleleDeletions?.flatMap(run => run.nodeIds))
   const candidates: SizeLabelCandidate[] = []
-  const onPane = ({ x, y }: { x: number; y: number }) =>
-    x >= 0 &&
-    x <= width &&
-    y + LABEL_HALF_HEIGHT > 0 &&
-    y - LABEL_HALF_HEIGHT < height
-  const wholeOnPane = (box: Box) =>
-    box.x0 >= 0 && box.x1 <= width && box.y0 >= 0 && box.y1 <= height
+  const pane = { width, height }
   // Placeholders first, then the biggest allele: in a crowd, the label that
   // survives should be the one carrying the most sequence, not whichever node
   // the layout happened to emit first. The order is `labelOrder`'s, cached
@@ -343,7 +346,7 @@ export function sizeLabelCandidates({
     }
     const spots = barred.has(id)
       ? []
-      : (kept ? KEPT_LABEL_SPOTS : [0.5]).map(at).filter(onPane)
+      : (kept ? KEPT_LABEL_SPOTS : [0.5]).map(at).filter(p => onPane(p, pane))
     const drawn = spots.length > 0 ? polylinePx(segments, scaleX, scaleY) : 0
     // The same comparison the real fit test makes, against the narrowest box
     // any label can have — so nothing that would have passed is rejected here.
@@ -365,7 +368,7 @@ export function sizeLabelCandidates({
               label: { ...label, x, y },
               box: boxAt(halfW, x, y),
             }))
-            .filter(({ box }) => wholeOnPane(box))
+            .filter(({ box }) => insideFrame(box, pane))
         : []
       const [middle] = spots
       if ((kept || along.length > 0) && middle) {
@@ -377,7 +380,7 @@ export function sizeLabelCandidates({
           stacked: kept
             ? () =>
                 stackedSpots(label, halfW, middle, height).filter(({ box }) =>
-                  wholeOnPane(box),
+                  insideFrame(box, pane),
                 )
             : undefined,
         })
@@ -597,13 +600,7 @@ export function loopLabelCandidates({
     x: x * scaleX + translateX,
     y: y * scaleY + translateY,
   })
-  const onPane = ({ x, y }: Point) =>
-    x >= 0 &&
-    x <= width &&
-    y + LABEL_HALF_HEIGHT > 0 &&
-    y - LABEL_HALF_HEIGHT < height
-  const wholeOnPane = (box: Box) =>
-    box.x0 >= 0 && box.x1 <= width && box.y0 >= 0 && box.y1 <= height
+  const pane = { width, height }
   const seen = new Map<string, number>()
   const candidates: SizeLabelCandidate[] = []
   for (const { loop, line, ends } of drawnLines) {
@@ -636,7 +633,7 @@ export function loopLabelCandidates({
       const ownHalf = ink.widest(loop.nodes)
       const spots = KEPT_LABEL_SPOTS.map(fraction =>
         screen(polylinePointAt(line, fraction)),
-      ).filter(onPane)
+      ).filter(p => onPane(p, pane))
       const along = spots
         .map(({ x, y }) => ({
           label: { ...label, x, y },
@@ -644,14 +641,9 @@ export function loopLabelCandidates({
         }))
         .filter(
           ({ box }) =>
-            wholeOnPane(box) &&
+            insideFrame(box, pane) &&
             !ink.under(box, own) &&
-            runsUnderOnce(onScreen, {
-              x0: box.x0 - ownHalf,
-              x1: box.x1 + ownHalf,
-              y0: box.y0 - ownHalf,
-              y1: box.y1 + ownHalf,
-            }),
+            runsUnderOnce(onScreen, grown(box, ownHalf)),
         )
       const [middle] = spots
       if (middle) {
@@ -662,7 +654,7 @@ export function loopLabelCandidates({
           along,
           stacked: () =>
             stackedSpots(label, halfW, middle, height).filter(
-              ({ box }) => wholeOnPane(box) && !ink.under(box, noInk),
+              ({ box }) => insideFrame(box, pane) && !ink.under(box, noInk),
             ),
         })
       }

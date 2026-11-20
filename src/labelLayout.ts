@@ -18,6 +18,7 @@ import {
   LABEL_CHAR_PX,
   LABEL_PAD,
   LABEL_PX,
+  grown,
   labelWidth,
   occupancy,
   placeLabels,
@@ -130,15 +131,6 @@ export function geneCoverageNote(pin: GenePin) {
     : held.unit === whole.unit
       ? `${held.value} of ${whole.value} ${whole.unit}`
       : `${held.value} ${held.unit} of ${whole.value} ${whole.unit}`
-}
-
-function grown(box: Box, by: number) {
-  return {
-    x0: box.x0 - by,
-    x1: box.x1 + by,
-    y0: box.y0 - by,
-    y1: box.y1 + by,
-  }
 }
 
 type Screen = (p: { x: number; y: number }) => { x: number; y: number }
@@ -325,7 +317,8 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
   if (stripPx > 0) {
     reserved.push({ x0: 0, x1: width, y0: 0, y1: stripPx })
   }
-  reserved.push(keyColumnBox(m))
+  const keyColumn = keyColumnBox(m)
+  reserved.push(keyColumn)
   if (m.poppedFrom) {
     reserved.push({
       x0: 0,
@@ -451,7 +444,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
       m.contigThickness,
       otherNodeUnder,
       {
-        box: { x0: 0, x1: keyColumnBox(m).x0, y0: stripPx, y1: height },
+        box: { x0: 0, x1: keyColumn.x0, y0: stripPx, y1: height },
         positions: m.nodePositions ?? {},
       },
       m.liftedWalks,

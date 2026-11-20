@@ -1,5 +1,6 @@
 import { formatBp } from './graphLabels'
 import { abgrHex, hexAbgr } from './renderer/colorBits'
+import { pushTo } from './util/groups'
 import { passPalette } from './walkEncoding'
 
 import type { PassSpan } from './walkEncoding'
@@ -63,11 +64,8 @@ function assemble(
         runs.push({ pass: at, start, end: start + bp })
       }
       const first = firstStrand.get(id)
-      const visits = visitPass.get(id)
-      if (visits) {
-        visits.push(at)
-      } else {
-        visitPass.set(id, [at])
+      pushTo(visitPass, id, at)
+      if (first === undefined) {
         firstStrand.set(id, strand)
       }
       const pass = passes[within]

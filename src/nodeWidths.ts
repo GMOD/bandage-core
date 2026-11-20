@@ -180,7 +180,7 @@ export function maxNodeWidthPx(contigThickness: number, nodeWidth: NodeWidth) {
 
 // A lifted walk's lane is never thinner than this, so a node carrying three
 // lifted walks widens rather than splitting into hairlines
-const MIN_WALK_LANE_PX = 4
+export const MIN_WALK_LANE_PX = 4
 
 // One lane's width when a node of `width` carries `lanes` lifted walks
 export function walkLaneWidthPx(width: number, lanes: number) {

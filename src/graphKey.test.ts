@@ -29,6 +29,7 @@ import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { axisScaleOf, keyedView } from './viewport'
 import { walkLift } from './walkHighlight'
 
+import type { EdgeWidth } from './edgeWidths'
 import type { GraphKeyOptions, GraphKeySection } from './graphKey'
 import type { Fold, Site, SmallSites } from './levelOfDetail'
 import type { Bounds } from './pipeline'
@@ -68,6 +69,8 @@ interface Scene {
   width?: number
   bounds?: BuildOptions['viewportBounds']
   smallSites?: SmallSites
+  drawPaths?: boolean
+  edgeWidth?: EdgeWidth
 }
 
 // The drawing a host would paint at a `width` px fit: the batch the key's
@@ -88,8 +91,9 @@ function drawn(g: Graph, s: Scene = {}) {
     colorScheme: s.referenceRamp ? 'reference-position' : 'uniform',
     contigThickness: 6,
     connectorThickness: 2,
-    drawPaths: false,
+    drawPaths: s.drawPaths ?? false,
     nodeWidth: 'depth',
+    ...(s.edgeWidth ? { edgeWidth: s.edgeWidth } : {}),
     highlight: s.lift,
     axis: axisScaleOf(fit.scale, pixelRows),
     referenceRamp: s.referenceRamp,
@@ -568,6 +572,59 @@ test('a link no drawn walk takes keys its own row under link thickness, below th
   const px = rows.map(e => (e.swatch?.kind === 'width' ? e.swatch.px : NaN))
   expect(rows.map(e => e.text)).toEqual(['1 walk', '0 walks'])
   expect(px[1]).toBeLessThan(px[0]!)
+})
+
+// Path colours on with links by walks drew every walked link as ribbons of
+// one width, under a key of the widths the links would have had
+test('link thickness is not keyed where a ribbon per walk draws the links', () => {
+  const shared = load(`${GFA}\nW\tb\t1\tchr6\t0\t9\t>v1>v2>v3`, 'GRCh38')
+  const linkWidths = (drawPaths: boolean) =>
+    keyOf(shared, { drawPaths, edgeWidth: 'walks' }, { edgeWidth: 'walks' })
+      .find(s => s.id === 'link-width')
+      ?.entries.map(e => e.text)
+  expect(linkWidths(false)).toEqual(['2 walks', '1 walk'])
+  expect(linkWidths(true)).toBeUndefined()
+})
+
+// A walk cut in two pieces that both step v1 passes it twice, and the key
+// counted its records as walks: "3 walks" of two
+test('a node more records than walks step is keyed by its walk passes', () => {
+  const pieces = load(
+    GFA.replace(
+      'W\talt\t1\tchr6\t0\t13\t>v1>a1>v3',
+      'W\talt\t1\tchr6\t0\t4\t>v1\nW\talt\t1\tchr6\t100\t113\t>v1>a1>v3',
+    ),
+    'GRCh38',
+  )
+  expect(pieces.paths).toHaveLength(3)
+  expect(
+    keyOf(pieces)
+      .find(s => s.id === 'node-width')
+      ?.entries.map(e => e.text),
+  ).toEqual(['3 walk passes', '1 walk pass'])
+})
+
+test('the key groups digits the same whatever the host locale', () => {
+  const asked = vi
+    .spyOn(Number.prototype, 'toLocaleString')
+    .mockImplementation(() => {
+      throw new Error('digits were grouped by the host locale')
+    })
+  try {
+    expect(tooSmallText(1234, 0, 56_789)).toBe(
+      '1,234 nodes under 56,789 bp not drawn',
+    )
+    expect(unlabelledText({ count: 1200, smallest: 5, largest: 5 })).toBe(
+      '1,200 unlabelled, each 5 bp',
+    )
+    expect(
+      keyOf({ ...graph, paths: [] })
+        .find(s => s.id === 'node-width')
+        ?.entries.map(e => e.text),
+    ).toEqual(['depth 2', 'depth 1'])
+  } finally {
+    asked.mockRestore()
+  }
 })
 
 test('the halo, the strip tab and compress are keyed where they are drawn', () => {

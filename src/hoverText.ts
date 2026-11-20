@@ -1,5 +1,5 @@
 import { NOT_LOADED_TEXT } from './gfa/departures'
-import { formatBp } from './graphLabels'
+import { formatBp, groupDigits } from './graphLabels'
 import { panSNHaplotype } from './pansn'
 
 import type { DeletionEdge } from './deletionEdges'
@@ -12,7 +12,7 @@ export function regionLabel(loc: {
   start: number
   end: number
 }) {
-  return `${loc.refName}:${(loc.start + 1).toLocaleString()}-${loc.end.toLocaleString()}`
+  return `${loc.refName}:${groupDigits(loc.start + 1)}-${groupDigits(loc.end)}`
 }
 
 // What a hovered edge says. A deletion edge is the one link that means
@@ -28,7 +28,7 @@ export function edgeHoverText(
   return deletion
     ? {
         deletion: {
-          bp: `${deletion.bp.toLocaleString()} bp`,
+          bp: `${groupDigits(deletion.bp)} bp`,
           where: regionLabel(deletion),
         },
       }

@@ -4,9 +4,10 @@ import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
 import { busiestEdge, edgeWidthFactor } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
-import { formatBp } from './graphLabels'
+import { formatBp, groupDigits } from './graphLabels'
 import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import { depthKey, frequencyKey } from './nodeWidths'
+import { pathOrigin } from './pathAnchoring'
 import { referenceLabel } from './reference'
 import {
   REFERENCE_RAMP_LIGHTNESS,
@@ -30,6 +31,7 @@ import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
 import { skipDashes } from './util/edgeCurves'
 import { curvePointAt } from './util/geometry'
+import { addTo } from './util/groups'
 import { segmentMeetsBox } from './util/hitDetection'
 import { encodingStops } from './walkEncoding'
 import { fadedKey } from './walkHighlight'
@@ -140,15 +142,16 @@ export function lanesOverUnderlays(
 // no lifted walk's lane, which under a lift is faded; a node in the
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
 // node; nodes of more than one thickness; each lifted walk's passes, by lane;
-// heads along a lane, pointing back along a node or either way; the nodes and
-// skips folded as too small to draw. A lifted walk's lane on a skip is its
-// walk's, keyed by the walk. Where a pane shows part of the drawing, `view`,
-// in layout units, a mark counts only where a stroke of it meets the view, a
-// folded site only where its place lies in it, and `nodes` holds the nodes a
-// stroke of their own draws there, which the key's node thicknesses and
-// exons are read off. Whether the nodes vary in thickness is the whole
-// drawing's, as the batch states it for nodes a viewport culled too, so a
-// view of one thickness still keys what it shows.
+// heads along a lane, pointing back along a node or either way; links drawn
+// as a ribbon per walk; the nodes and skips folded as too small to draw. A
+// lifted walk's lane on a skip is its walk's, keyed by the walk. Where a pane
+// shows part of the drawing, `view`, in layout units, a mark counts only where
+// a stroke of it meets the view, a folded site only where its place lies in
+// it, and `nodes` holds the nodes a stroke of their own draws there, which the
+// key's node thicknesses and exons are read off. Whether the nodes vary in
+// thickness is the whole drawing's, as the batch states it for nodes a
+// viewport culled too, so a view of one thickness still keys what it shows,
+// and so is whether its links are ribbons.
 export function drawnMarks(
   batches: readonly (Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'> &
     Partial<
@@ -159,6 +162,7 @@ export function drawnMarks(
         | 'nodeStrokeRuns'
         | 'laneOnly'
         | 'nodeThicknessesVary'
+        | 'pathRibbons'
       >
     >)[],
   view?: Bounds,
@@ -172,6 +176,7 @@ export function drawnMarks(
     offReference: false,
     threads: false,
     widthsVary: false,
+    ribbons: false,
     passes: new Map<number, Set<number>>(),
     headsAgainst: false,
     headsAlong: false,
@@ -214,6 +219,7 @@ export function drawnMarks(
       }
     }
     marks.widthsVary ||= !!batch.nodeThicknessesVary
+    marks.ribbons ||= !!batch.pathRibbons
     const sites = (collapsed?.sites ?? []).filter(site => inView([site]))
     marks.foldedUnderBp = Math.max(
       marks.foldedUnderBp,
@@ -255,9 +261,7 @@ export function drawnMarks(
     for (const strokes of [edgeCurves, shownStrokes]) {
       for (const { walk, walkPass = -1 } of strokes) {
         if (walk !== undefined && walkPass >= 0) {
-          const drawn = marks.passes.get(walk) ?? new Set<number>()
-          drawn.add(walkPass)
-          marks.passes.set(walk, drawn)
+          addTo(marks.passes, walk, walkPass)
         }
       }
     }
@@ -382,10 +386,10 @@ const entry = (
 ): GraphKeyEntry => (swatch ? { key, text, swatch } : { key, text })
 
 const counted = (n: number, one: string, many: string) =>
-  `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
+  `${groupDigits(n)} ${n === 1 ? one : many}`
 
 export function unlabelledText(unlabelled?: UnlabelledPlaceholders) {
-  const n = unlabelled?.count.toLocaleString('en-US')
+  const n = unlabelled && groupDigits(unlabelled.count)
   return !unlabelled
     ? ''
     : unlabelled.count === 1
@@ -564,7 +568,9 @@ export function graphKey(
 
   const widthEntry = (key: string, text: string, px: number, ink: number) =>
     entry(key, text, { kind: 'width', ink, px })
-  const walkCount = graph.paths?.length ?? 0
+  const walkCount = new Set(
+    graph.paths?.map(path => pathOrigin(path.name).name),
+  ).size
   const depths = depthKey(graph, thickness, o.marks.nodes)
   // a walk looping through a repeat passes its nodes more than once, and
   // each pass counts
@@ -590,7 +596,7 @@ export function graphKey(
                 ? passes
                   ? counted(Math.round(depth), 'walk pass', 'walk passes')
                   : counted(Math.round(depth), 'walk', 'walks')
-                : `depth ${roundDepth(depth).toLocaleString('en-US')}`,
+                : `depth ${groupDigits(roundDepth(depth))}`,
               widthPx,
               REFERENCE_RAMP_ALT_COLOR,
             ),
@@ -600,7 +606,7 @@ export function graphKey(
   const busiest = busiestEdge(graph)
   const unwalked = graph.edges.some(edge => !edge.pathIds?.length)
   const linkWidthEntries: GraphKeyEntry[] =
-    drawsNodes && o.edgeWidth === 'walks' && busiest > 0
+    drawsNodes && o.edgeWidth === 'walks' && busiest > 0 && !o.marks.ribbons
       ? [...(busiest > 1 ? [busiest, 1] : [1]), ...(unwalked ? [0] : [])].map(
           n =>
             widthEntry(

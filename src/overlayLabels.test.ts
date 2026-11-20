@@ -206,3 +206,48 @@ test('labels other labels crowded out stand at the nearest free spot only while 
   expect(placed.map(p => p.item)).toEqual(['a', 'b', 'c'])
   expect(placed.slice(1).every(p => p.y !== at.y)).toBe(true)
 })
+
+// the placements a build and sort of every spot per label gave
+test('labels a band of nodes refuses stand at the same nearest free spots in a crowd', () => {
+  const reserved: Box[] = [{ x0: 300, x1: 400, y0: 0, y1: 300 }]
+  const candidates = Array.from({ length: 24 }, (_, i) => {
+    const x = 20 + ((i * 53) % 270)
+    const y = 130 + ((i * 17) % 40)
+    return {
+      item: i,
+      x,
+      y: y + 20,
+      flipY: y - 20,
+      text: `gene${i}`,
+      stack: 2,
+      slide: 24,
+      nearest: i % 7 === 6 ? { x: x + 400, y } : { x, y },
+      fits: (box: Box) => box.y1 < 100 || box.y0 > 200,
+    }
+  })
+  const placed = placeLabels(
+    candidates,
+    frame,
+    occupancy(frame, reserved),
+    reserved,
+    6,
+  )
+  expect(placed.map(p => [p.item, p.x, p.y])).toEqual([
+    [0, 20, 91],
+    [1, 73, 89],
+    [2, 126, 221],
+    [3, 179, 83],
+    [4, 232, 82],
+    [5, 277, 77],
+    [7, 81, 226],
+    [8, 134, 89],
+    [9, 227, 220],
+    [10, 272, 216],
+    [11, 31, 233],
+    [14, 182, 225],
+    [16, 58, 67],
+    [18, 164, 61],
+    [21, 53, 262],
+    [23, 159, 256],
+  ])
+})
