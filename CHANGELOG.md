@@ -1,3 +1,9 @@
+## [14.0.2](https://github.com/GMOD/bandage-core/compare/v14.0.1...v14.0.2) (2026-11-20)
+
+### Other Changes
+
+- A haplotype's copy of a gene it walks mostly over other contigs' nodes is not named as its own: nowhere where the reference carries the gene, and once among the haplotypes where it does not ([c09a92c](https://github.com/GMOD/bandage-core/commit/c09a92c1b64f51e75e259640dd92477352d1ccfd))
+
 ## [14.0.1](https://github.com/GMOD/bandage-core/compare/v14.0.0...v14.0.1) (2026-11-20)
 
 ### Documentation
