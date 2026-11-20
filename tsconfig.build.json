@@ -8,9 +8,5 @@
     "outDir": "dist/types"
   },
   "include": ["src"],
-  "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.bench.ts",
-    "src/renderer/recordingCanvas.ts"
-  ]
+  "exclude": ["src/**/*.test.ts", "src/**/*.bench.ts"]
 }

@@ -6,9 +6,11 @@
 // Draw-call counts are also the only *deterministic* performance signal available
 // in a unit test -- wall-clock is machine- and load-dependent, so a timing bound
 // loose enough not to flake is too loose to catch a 3x regression. See
-// agent-docs/GRAPH_SCALE_AND_LOD.md.
+// jbrowse-plugin-graphgenomeviewer's
+// agent-docs/reference/GRAPH_SCALE_AND_LOD.md.
 //
-// Not bundled: nothing under src/index.ts imports this, so it never ships.
+// src/index.ts does not export this, but it ships as a module of its own, which
+// a host's tests import.
 
 // `points` is every coordinate the renderer asked for, in BACKING-STORE pixels
 // — the far end of the whole pipeline. Counting draw calls says the renderer ran;
