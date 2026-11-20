@@ -1,5 +1,5 @@
 import { isBackbone } from '../anchoredNodes'
-import { pushTo } from '../util/groups'
+import { buildNeighbors } from '../referenceSpan'
 
 import type { Graph, GraphNode } from '../types'
 
@@ -170,11 +170,7 @@ export interface LayoutScaling {
 // it cuts into many runs.
 export function loopsOf(graph: Graph) {
   const byId = new Map(graph.nodes.map(node => [node.id, node]))
-  const neighbours = new Map<string, string[]>()
-  for (const { from, to } of graph.edges) {
-    pushTo(neighbours, from, to)
-    pushTo(neighbours, to, from)
-  }
+  const neighbours = buildNeighbors(graph)
   const seen = new Set<string>()
   const loops: GraphNode[][] = []
   for (const start of graph.nodes) {

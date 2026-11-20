@@ -1,5 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { buildNeighbors } from '../referenceSpan'
+import { compareValues } from '../util/canonicalOrder'
 import { ROW_HEIGHT_PX } from './rowSpacing'
 
 import type { AnchoredNode } from '../anchoredNodes'
@@ -19,10 +20,6 @@ function nodeWidth(node: GraphNode) {
   return 10 + 8 * Math.log2(1 + node.length)
 }
 
-function compare<T extends string | number>(a: T, b: T) {
-  return a < b ? -1 : a > b ? 1 : 0
-}
-
 // Where a node sorts: `at` is the rank of a placed node, the backbone and what
 // the walks visit, and a node the search claims sorts before or after the one
 // that claimed it, by its steps from it. A tuple rather than an offset nudged
@@ -36,7 +33,9 @@ interface OrderKey {
 
 function compareKeys(a: OrderKey, b: OrderKey) {
   return (
-    compare(a.at, b.at) || compare(a.side, b.side) || compare(a.hops, b.hops)
+    compareValues(a.at, b.at) ||
+    compareValues(a.side, b.side) ||
+    compareValues(a.hops, b.hops)
   )
 }
 
@@ -54,8 +53,8 @@ export function referenceOrder(graph: Graph) {
     .sort(
       (a, b) =>
         compareKeys(key.get(a) ?? UNREACHED, key.get(b) ?? UNREACHED) ||
-        compare(byId.get(a)!.name, byId.get(b)!.name) ||
-        compare(a, b),
+        compareValues(byId.get(a)!.name, byId.get(b)!.name) ||
+        compareValues(a, b),
     )
 }
 
@@ -170,7 +169,7 @@ function placeBySearch(
   isNode: Set<string>,
 ) {
   const queue = [...key.entries()]
-    .sort(([a, ka], [b, kb]) => compareKeys(ka, kb) || compare(a, b))
+    .sort(([a, ka], [b, kb]) => compareKeys(ka, kb) || compareValues(a, b))
     .map(([id]) => id)
   const placed = queue.length
   // the queue grows while the loop walks it, which for-of follows
@@ -230,7 +229,8 @@ function orderKeys(graph: Graph) {
     .filter(isBackbone)
     .sort(
       (a, b) =>
-        compare(a.stable.start, b.stable.start) || compare(a.name, b.name),
+        compareValues(a.stable.start, b.stable.start) ||
+        compareValues(a.name, b.name),
     )
   const key = new Map<string, OrderKey>()
   placeByWalks(graph, backbone).forEach((id, rank) => {

@@ -1,6 +1,9 @@
 import type { GraphEdge, GraphNode } from '../types'
 
-const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+// Strings by code unit and numbers by value, whatever the locale
+export function compareValues<T extends string | number>(a: T, b: T) {
+  return a < b ? -1 : a > b ? 1 : 0
+}
 
 // Links in an order the graph states rather than the file: a layout that
 // reads its links in turn, as FMMM and the allele sweep do, then lays the
@@ -12,7 +15,7 @@ export function canonicalEdgeOrder<E extends GraphEdge>(edges: readonly E[]) {
     `${e.from}\t${e.to}\t${e.fromStrand ?? ''}${e.toStrand ?? ''}\t${e.fromStrand ?? ''}`
   return edges
     .map(e => ({ e, k: key(e) }))
-    .sort((a, b) => byKey(a.k, b.k))
+    .sort((a, b) => compareValues(a.k, b.k))
     .map(({ e }) => e)
 }
 
@@ -30,7 +33,8 @@ const compareChunks = (a: Chunk, b: Chunk) =>
     ? a.numeral
       ? -1
       : 1
-    : (a.numeral ? a.text.length - b.text.length : 0) || byKey(a.text, b.text)
+    : (a.numeral ? a.text.length - b.text.length : 0) ||
+      compareValues(a.text, b.text)
 
 function compareChunkLists(x: readonly Chunk[], y: readonly Chunk[]) {
   let order = 0
@@ -48,7 +52,7 @@ interface ChunkedId {
 }
 
 const compareChunked = (a: ChunkedId, b: ChunkedId) =>
-  compareChunkLists(a.chunks, b.chunks) || byKey(a.id, b.id)
+  compareChunkLists(a.chunks, b.chunks) || compareValues(a.id, b.id)
 
 // Numbers in an id compare as numbers, 9+ before 10+ and s2 before s10, and
 // the plain spelling settles the ids that leaves tied, 007 before 7

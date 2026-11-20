@@ -1,4 +1,5 @@
 import { projectAlleles } from '../alleleProjection/projectAlleles'
+import { MIN_DELETION_BP } from '../deletionEdges'
 import { buildNeighbors } from '../referenceSpan'
 import { canonicalEdgeOrder } from '../util/canonicalOrder'
 
@@ -21,12 +22,6 @@ import type { AlleleDeletion, Graph, NodeSegment } from '../types'
 // how much sequence an insertion adds, so it is not stated here: it is in the
 // node tooltip, and drawn to scale in the allele-inventory track, where a CIGAR
 // gives the alignments display a channel for length that is not the x axis.
-
-// Reference bp an allele has to skip before the drawing calls it a deletion:
-// the 1 bp floor `deletionEdges` uses, a guard against abutting anchors' zero
-// gap rather than a biological threshold. Whether a small one is drawn is
-// decided by its label's fit in graphLabels.
-const MIN_DELETION_BP = 1
 
 // Floor on an off-reference node's drawn span, as a fraction of the window.
 // Node thickness is a constant number of screen pixels, so a segment on a

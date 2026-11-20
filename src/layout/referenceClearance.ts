@@ -1,5 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { meanDepth, nodeWidthPx } from '../nodeWidths'
+import { pushTo } from '../util/groups'
 import { ASSUMED_FIT, fitRoom } from './fitAssumptions'
 
 import type { Graph, GraphNode, NodeSegment } from '../types'
@@ -59,19 +60,33 @@ function fitScale(extent: Extent, fit: FitSize) {
   )
 }
 
-function nearestOn(s: Segment, p: Point) {
+// where on `s` its point nearest `p` lies, from 0 at `s.a` to 1 at `s.b`
+function alongNearest(s: Segment, p: Point) {
   const dx = s.b.x - s.a.x
   const dy = s.b.y - s.a.y
   const length2 = dx * dx + dy * dy
-  const u =
-    length2 > 0
-      ? Math.max(
-          0,
-          Math.min(1, ((p.x - s.a.x) * dx + (p.y - s.a.y) * dy) / length2),
-        )
-      : 0
+  return length2 > 0
+    ? Math.max(
+        0,
+        Math.min(1, ((p.x - s.a.x) * dx + (p.y - s.a.y) * dy) / length2),
+      )
+    : 0
+}
+
+function distanceTo(s: Segment, p: Point) {
+  const u = alongNearest(s, p)
+  return Math.hypot(
+    p.x - (s.a.x + u * (s.b.x - s.a.x)),
+    p.y - (s.a.y + u * (s.b.y - s.a.y)),
+  )
+}
+
+function nearestOn(s: Segment, p: Point) {
+  const dx = s.b.x - s.a.x
+  const dy = s.b.y - s.a.y
+  const u = alongNearest(s, p)
   const q = { x: s.a.x + u * dx, y: s.a.y + u * dy }
-  const length = Math.sqrt(length2)
+  const length = Math.sqrt(dx * dx + dy * dy)
   const normal =
     length > 0 ? { x: -dy / length, y: dx / length } : { x: 0, y: 1 }
   return { q, normal, d: Math.hypot(p.x - q.x, p.y - q.y) }
@@ -90,32 +105,28 @@ function referenceIndex(segments: Segment[], cell: number, reach: number) {
     const y1 = Math.floor(Math.max(s.a.y, s.b.y) / cell)
     for (let gx = x0; gx <= x1; gx++) {
       for (let gy = y0; gy <= y1; gy++) {
-        const k = cellKey(gx, gy)
-        const held = grid.get(k)
-        if (held) {
-          held.push(s)
-        } else {
-          grid.set(k, [s])
-        }
+        pushTo(grid, cellKey(gx, gy), s)
       }
     }
   }
   const cells = Math.ceil(reach / cell)
   return (p: Point) => {
-    let best: ReturnType<typeof nearestOn> | undefined
+    let nearest: Segment | undefined
+    let least = reach
     const gx0 = Math.floor(p.x / cell)
     const gy0 = Math.floor(p.y / cell)
     for (let gx = gx0 - cells; gx <= gx0 + cells; gx++) {
       for (let gy = gy0 - cells; gy <= gy0 + cells; gy++) {
         for (const s of grid.get(cellKey(gx, gy)) ?? []) {
-          const hit = nearestOn(s, p)
-          if (hit.d < reach && (!best || hit.d < best.d)) {
-            best = hit
+          const d = distanceTo(s, p)
+          if (d < least) {
+            least = d
+            nearest = s
           }
         }
       }
     }
-    return best
+    return nearest && nearestOn(nearest, p)
   }
 }
 

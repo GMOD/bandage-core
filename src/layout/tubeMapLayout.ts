@@ -5,7 +5,7 @@ import { pathOrigin } from '../pathAnchoring'
 import { pathCssColor, pathGreyCssColor } from '../pathColors'
 import { stepName, tubeMapReads } from '../tubeMap/reads'
 import { ownStrand, strandSides } from '../util/geometry'
-import { groupBy } from '../util/groups'
+import { addTo, groupBy } from '../util/groups'
 import { referenceWalkName } from './walkRows'
 
 import type { Coarsened } from '../tubeMap/coarsen'
@@ -314,7 +314,7 @@ function addNeighbour(
   neighbour: string | undefined,
 ) {
   if (neighbour !== undefined) {
-    side.set(node, (side.get(node) ?? new Set()).add(neighbour))
+    addTo(side, node, neighbour)
   }
 }
 
@@ -383,13 +383,7 @@ function runTubeMap(graph: Graph) {
 
 // Drawn nodes only: an unreached one has no x.
 function drawnNodes(layout: TubeMapLayout) {
-  const nodes: LayoutNode[] = []
-  layout.nodes.forEach(node => {
-    if (node.order >= 0) {
-      nodes.push(node)
-    }
-  })
-  return nodes
+  return layout.nodes.filter(node => node.order >= 0)
 }
 
 function centreline(node: LayoutNode, yOffset: number, x0: number, x1: number) {

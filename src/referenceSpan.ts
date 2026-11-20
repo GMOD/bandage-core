@@ -111,9 +111,11 @@ export function nodeReferenceSpan({
 // colour scheme ramps over. Alleles come through the same flanking walk hover
 // sync uses, so a lane or a measured ramp extent can place them, though the
 // node colouring paints them charcoal wherever they branch.
-export function referenceMidpoints(graph: Graph) {
+export function referenceMidpoints(
+  graph: Graph,
+  neighbors = buildNeighbors(graph),
+) {
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
-  const neighbors = buildNeighbors(graph)
   const midpoints = new Map<string, number>()
   for (const node of graph.nodes) {
     const span = nodeReferenceSpan({ nodeId: node.id, nodeById, neighbors })
@@ -128,8 +130,8 @@ export function referenceMidpoints(graph: Graph) {
 // taking the nearest placed node's midpoint. Only a node nothing links to the
 // reference stays unplaced.
 export function referencePositions(graph: Graph) {
-  const positions = referenceMidpoints(graph)
   const neighbors = buildNeighbors(graph)
+  const positions = referenceMidpoints(graph, neighbors)
   let frontier = [...positions.keys()]
   while (frontier.length > 0) {
     const next: string[] = []

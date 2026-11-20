@@ -149,16 +149,10 @@ function statedStrand(node: AnchoredNode, visits: PathVisits, p: number) {
 }
 
 export function stateStrands(nodes: GraphNode[], visits: PathVisits) {
-  const pathOf = new Map<string, number>()
-  const pathIndex = (name: string) => {
-    const p = pathOf.get(name) ?? visits.pathIndex(name)
-    pathOf.set(name, p)
-    return p
-  }
   for (const node of nodes) {
     const strand =
       isAnchored(node) && node.stable.strand === undefined
-        ? statedStrand(node, visits, pathIndex(node.stable.refName))
+        ? statedStrand(node, visits, visits.pathIndex(node.stable.refName))
         : undefined
     if (isAnchored(node) && strand) {
       node.stable.strand = strand

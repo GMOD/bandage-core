@@ -1,5 +1,7 @@
 import { ROUTE_ID } from '@jbrowse/graph-stress-layout'
 
+import { compareValues } from '../util/canonicalOrder'
+
 import type { DeletionEdge } from '../deletionEdges'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 import type { BandageScaleOpts } from './drawnScale'
@@ -28,7 +30,7 @@ export function withDeletionRoutes(
   const routes = new Map(
     deletions
       .map(d => ({ d, key: linkKey(d) }))
-      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      .sort((a, b) => compareValues(a.key, b.key))
       .map(({ d, key }) => {
         const copy = seen.get(key) ?? 0
         seen.set(key, copy + 1)
@@ -105,7 +107,7 @@ export function routeNodes(
         depth: 0,
       }
     })
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .sort((a, b) => compareValues(a.id, b.id))
 }
 
 // The route nodes split back out of a finished layout, keyed by the edge each

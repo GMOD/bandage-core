@@ -8,7 +8,7 @@ import {
   routedEdgeCurves,
   strandSides,
 } from './util/geometry'
-import { groupBy } from './util/groups'
+import { groupBy, pushTo } from './util/groups'
 import { partitionPoint } from './util/partitionPoint'
 
 import type { AnchoredNode } from './anchoredNodes'
@@ -26,17 +26,16 @@ import type { AxisScale } from './util/geometry'
 // It needs no new data. Both endpoints of such an edge carry rGFA coordinates on
 // the same stable sequence, so the bp the haplotype skips is the gap between
 // them, and the whole classification is arithmetic on SN/SO plus the segment
-// lengths already parsed. `agent-docs/reference/PANGENOME_GRAPHS.md` in
-// jbrowse-components measured what this finds on the hosted HPRC graph: 8
-// deletions in the 200 kb MHC class II window against 78 attributed alleles, 1
-// in the 70 kb C4 window.
+// lengths already parsed. On the hosted HPRC graph it finds 8 deletions in the
+// 200 kb MHC class II window against 78 attributed alleles, and 1 in the 70 kb
+// C4 window.
 //
 // Two things this deliberately does not do:
 //
 //   - it does not attribute the deletion to a haplotype. A backbone-to-backbone
-//     skip has GRCh38 at both ends, so there is no `SN` naming a donor, and the
-//     same reference note records why: a deletion only carries a donor when it
-//     also carries novel sequence, and then it is not a clean deletion any more.
+//     skip has GRCh38 at both ends, so there is no `SN` naming a donor: a
+//     deletion only carries a donor when it also carries novel sequence, and
+//     then it is not a clean deletion any more.
 //   - it does not treat a same-position link as a deletion. Adjacent backbone
 //     segments abut (gap 0) and a substitution's flanks can overlap by the
 //     aligned bases, so only a positive gap counts.
@@ -45,7 +44,7 @@ import type { AxisScale } from './util/geometry'
 // graph does not record anything smaller than tens of bp, so this is not a
 // biological threshold but a guard against calling a rounding artifact a
 // deletion — abutting segments are the common case and they must not light up.
-const MIN_DELETION_BP = 1
+export const MIN_DELETION_BP = 1
 
 // What a legend calls the dashed links, in the words of the reference they skip
 export const deletionKey = (reference?: string) =>
@@ -226,13 +225,10 @@ function everyVisitPair(
 
 function referenceVisitAt(graph: Graph) {
   const { pathVisits } = graph
-  const pathOf = new Map<string, number>()
   return (node: AnchoredNode, start: number) => {
     let visit: ReferenceVisit | undefined
     if (pathVisits) {
-      const { refName } = node.stable
-      const p = pathOf.get(refName) ?? pathVisits.pathIndex(refName)
-      pathOf.set(refName, p)
+      const p = pathVisits.pathIndex(node.stable.refName)
       const slot = pathVisits.slot(node.name)
       if (slot >= 0 && p >= 0) {
         for (
@@ -262,12 +258,7 @@ function statedCrossings(graph: Graph, edgeIndexes: number[]) {
       byTo = new Map()
       linksFrom.set(from, byTo)
     }
-    const indexes = byTo.get(to)
-    if (indexes) {
-      indexes.push(edgeIndex)
-    } else {
-      byTo.set(to, [edgeIndex])
-    }
+    pushTo(byTo, to, edgeIndex)
   }
   const passes = new Map<number, number[]>()
   const cross = (edgeIndex: number, fromStart: number, toStart: number) => {

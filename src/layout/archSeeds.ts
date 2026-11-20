@@ -1,4 +1,5 @@
 import { isBackbone, readsAsReference } from '../anchoredNodes'
+import { compareValues } from '../util/canonicalOrder'
 import { ownStrand } from '../util/geometry'
 import { groupBy } from '../util/groups'
 
@@ -45,8 +46,6 @@ const leaving = (node: Seeded, strand: Edge['fromStrand']): Side =>
 
 const entering = (node: Seeded, strand: Edge['toStrand']): Side =>
   readsAsReference(node, strandAt(node.id, strand)) ? 'left' : 'right'
-
-const byKey = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 const joinKey = (j: Join) =>
   [j.from, j.fromSide, j.to, j.toSide, j.via ?? ''].join(' ')
@@ -127,13 +126,15 @@ export function likeEndJoins(
       .filter(j => j.fromSide === j.toSide)
       .map(j => [joinKey(j), j]),
   )
-  return [...unique.values()].sort((a, b) => byKey(joinKey(a), joinKey(b)))
+  return [...unique.values()].sort((a, b) =>
+    compareValues(joinKey(a), joinKey(b)),
+  )
 }
 
 function seededReference(nodes: readonly LayoutNode[]) {
   return nodes
     .filter(isSeededReference)
-    .sort((a, b) => a.x - b.x || byKey(a.id, b.id))
+    .sort((a, b) => a.x - b.x || compareValues(a.id, b.id))
 }
 
 export function closedStretches(

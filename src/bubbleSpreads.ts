@@ -21,7 +21,7 @@ import type { NodeLengthSpread } from './layout/drawnScale'
 //
 // The compression is Bandage's own, taken off the axis upstream uses it on: it
 // draws node *width* from depth as a power law against the mean, at power 0.5
-// and effect 0.5, for the same reason. 'open' is those two numbers. See
+// and effect 0.5, for the same reason. 'compress' is those two numbers. See
 // DrawnLengthLaw.
 //
 // Measured on an odgi extract of GRCh38#0#chrM:8,200-8,400 from HPRC release 2's

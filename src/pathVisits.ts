@@ -20,6 +20,7 @@ export class PathVisits {
   // per path, its PanSN sample
   readonly samples: string[]
   private readonly slots: Map<string, number>
+  private readonly pathIndexes = new Map<string, number>()
 
   constructor(columns: {
     segments: string[]
@@ -38,6 +39,11 @@ export class PathVisits {
     this.paths = columns.paths
     this.samples = columns.samples
     this.slots = new Map(this.segments.map((s, i) => [s, i]))
+    this.paths.forEach((path, i) => {
+      if (!this.pathIndexes.has(path)) {
+        this.pathIndexes.set(path, i)
+      }
+    })
   }
 
   static from(entries: Iterable<readonly [string, readonly PathVisit[]]>) {
@@ -60,8 +66,9 @@ export class PathVisits {
     return this.slots.get(segment) ?? -1
   }
 
+  // the path's index into `paths` and `samples`, -1 for a name none has
   pathIndex(path: string): number {
-    return this.paths.indexOf(path)
+    return this.pathIndexes.get(path) ?? -1
   }
 
   // the first of `slot`'s visits by path `p`, -1 for none
