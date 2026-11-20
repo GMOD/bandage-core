@@ -1,3 +1,15 @@
+## [14.0.1](https://github.com/GMOD/bandage-core/compare/v14.0.0...v14.0.1) (2026-11-20)
+
+### Documentation
+
+- Docs/drawing.md in plain language ([31cb961](https://github.com/GMOD/bandage-core/commit/31cb961ea6ddfb81a51dfdfc86dae920b5e09afa))
+
+### Other Changes
+
+- README facet and thread figures drawn from the same KIV-2 graph ([9227e97](https://github.com/GMOD/bandage-core/commit/9227e974e2624bf5a7a9ff873011b4d26b041f00))
+- Reflow the haplotype threads paragraph, which failed format:check ([f34214b](https://github.com/GMOD/bandage-core/commit/f34214b7b6d3bffdbf34ef211d88496dbd1689a9))
+- Link thickness by walks keys a "0 walks" row where the cut has a link no drawn walk takes, at the floor the scale draws it with: graph-walks 8's links 'between' brings in other haplotypes' links between the drawn walks' nodes, which drew thinner than the "1 walk" row and matched no row ([2bb18de](https://github.com/GMOD/bandage-core/commit/2bb18debb9b07284a8f4f5f012ed5d2da3228a41))
+
 ## [14.0.0](https://github.com/GMOD/bandage-core/compare/v13.3.1...v14.0.0) (2026-11-14)
 
 Reads walk format 8 through @jbrowse/graph-walks 7 and refuses format 7 files:
