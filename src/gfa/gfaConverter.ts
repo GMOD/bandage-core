@@ -220,13 +220,15 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
   // a segment declared twice keeps its first declaration, as links and walks
   // can only name one node
   const lengths = new Map<string, number>()
+  let depthStated = false
   for (const gfaNode of gfaGraph.nodes) {
     if (lengths.has(gfaNode.id)) {
       continue
     }
     lengths.set(gfaNode.id, gfaNode.length)
-    const depth =
-      statedDepth(gfaNode) ?? Math.max(traversals.get(gfaNode.id) ?? 1, 1)
+    const fileDepth = statedDepth(gfaNode)
+    depthStated ||= fileDepth !== undefined
+    const depth = fileDepth ?? Math.max(traversals.get(gfaNode.id) ?? 1, 1)
     nodes.push(makeNode(gfaNode, canonical.get(gfaNode.id) ?? '+', depth))
   }
 
@@ -350,5 +352,6 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
         nodes.flatMap(n => (n.stable?.rank === 0 ? [n.stable.refName] : [])),
       ),
     ),
+    ...(depthStated ? { depthStated } : {}),
   } satisfies Graph
 }

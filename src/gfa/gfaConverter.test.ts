@@ -328,6 +328,18 @@ P\tsampleB\t1+\t*`),
   expect(graph.nodes[0]!.depth).toBe(42)
 })
 
+test('a graph says its depths are stated where a segment states one', () => {
+  const stated = (tag: string) =>
+    convertGFAToGraph(
+      parseGFA(`S\t1\tACGT${tag}
+S\t2\tAC
+P\tsampleA\t1+,2+\t*`),
+    ).depthStated
+  expect(
+    ['\tdp:i:42', '\tDP:f:37.5', '\tRC:i:8', '\tdp:i:0', ''].map(stated),
+  ).toEqual([true, true, true, undefined, undefined])
+})
+
 test('handles empty GFA text', () => {
   const graph = convertGFAToGraph(parseGFA(''))
   expect(graph.nodes).toHaveLength(0)

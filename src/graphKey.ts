@@ -592,7 +592,7 @@ export function graphKey(
         ? depths.map(({ depth, widthPx }, i) =>
             widthEntry(
               i === 0 ? 'width-thickest' : 'width-thinnest',
-              walkCount > 0
+              walkCount > 0 && !graph.depthStated
                 ? passes
                   ? counted(Math.round(depth), 'walk pass', 'walk passes')
                   : counted(Math.round(depth), 'walk', 'walks')

@@ -116,6 +116,9 @@ export interface Graph {
   // how many nodes the reference's paths pass more than once, from the
   // tables the graph was built of (GraphTables.revisited)
   revisited?: number
+  // set where a node's depth is one its file states, a dp/DP tag or an
+  // RC/FC/KC count over its length, and not a count of the walks through it
+  depthStated?: boolean
   // reads aligned to the graph, which the tube map draws under its paths
   reads?: GafRecord[]
   // every departure from the reference over a walk-file cut, which

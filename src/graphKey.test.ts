@@ -3,6 +3,7 @@ import { SHORT_SKIP_KEY, deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
+import { gfaTables } from './gfa/gfaTables'
 import {
   drawnMarks,
   graphKey,
@@ -16,7 +17,7 @@ import { layoutLabels } from './labelLayout'
 import { polylinePointAt } from './layout/mergeRuns'
 import { layoutModeByValue } from './layoutModes'
 import { anchorGraph } from './pathAnchoring'
-import { drawingBounds, fitTransform } from './pipeline'
+import { drawingBounds, fitTransform, loadGraph } from './pipeline'
 import { graphBackbone } from './reference'
 import {
   REFERENCE_RAMP_ALT_COLOR,
@@ -602,6 +603,44 @@ test('a node more records than walks step is keyed by its walk passes', () => {
       .find(s => s.id === 'node-width')
       ?.entries.map(e => e.text),
   ).toEqual(['3 walk passes', '1 walk pass'])
+})
+
+// Three segments tagged DP:f:37.5, 12.2 and 40 under one P line keyed
+// "40 walk passes"
+test('depths the file states are keyed as depths, and counted walks as walks', () => {
+  const segments = (tag: (depth: number) => string) => [
+    `S\ta\tAAAA${tag(37.5)}`,
+    `S\tb\tCC${tag(12.2)}`,
+    `S\tc\tGGG${tag(40)}`,
+    'L\ta\t+\tb\t+\t0M',
+    'L\tb\t+\tc\t+\t0M',
+    'L\ta\t+\tc\t+\t0M',
+  ]
+  const stated = [
+    ...segments(depth => `\tDP:f:${depth}`),
+    'P\tGRCh38#0#chr6\ta+,b+,c+\t*',
+  ].join('\n')
+  const walked = [
+    ...segments(() => ''),
+    'W\tGRCh38\t0\tchr6\t0\t9\t>a>b>c',
+    'W\talt\t1\tchr6\t0\t7\t>a>c',
+  ].join('\n')
+  const thicknesses = (g: Graph) =>
+    keyOf(g)
+      .find(s => s.id === 'node-width')
+      ?.entries.map(e => e.text)
+  expect(gfaTables(stated)).toBeUndefined()
+  expect(thicknesses(loadGraph(stated, 'stated'))).toEqual([
+    'depth 40',
+    'depth 12',
+  ])
+  expect(gfaTables(walked)).toBeDefined()
+  expect(loadGraph(walked, 'walked').depthStated).toBeUndefined()
+  expect(thicknesses(loadGraph(walked, 'walked'))).toEqual([
+    '2 walks',
+    '1 walk',
+  ])
+  expect(thicknesses(load(walked, 'GRCh38'))).toEqual(['2 walks', '1 walk'])
 })
 
 test('the key groups digits the same whatever the host locale', () => {
