@@ -4,7 +4,8 @@ import { NOT_LOADED_TEXT } from '../gfa/departures'
 import { formatBp } from '../graphLabels'
 import { referenceWalkName } from '../layout/walkRows'
 import { pathOrigin } from '../pathAnchoring'
-import { pushTo } from '../util/groups'
+import { groupBy } from '../util/groups'
+import { weakMemo } from '../util/weakMemo'
 import { tubeMapMismatches } from './mismatches'
 import { readColor } from './reads'
 import { MAX_GAP_PX } from './warp'
@@ -306,28 +307,47 @@ export interface TubeMapFrame extends TubeMapTransform {
   nodeColors?: ReadonlyMap<string, string>
 }
 
-// One fill per colour per layer, since a fill per shape costs a draw call
-// each. Which of two crossing tubes covers the other is then the order of
-// their colours, except that the reference goes over every other tube.
-function fillByColor<T extends Filled>(
+const byColor = <T extends Filled>(items: T[]) =>
+  [...groupBy(items, item => item.color).values()].flat()
+
+const paintOrders = weakMemo<Layer, Layer>()
+
+// A layer's items in the order they are painted, later over earlier: those
+// of one colour together, the colours in the order each first appears. The
+// order is the layout's alone, so neither a restyle nor what is on screen
+// changes which of two crossing tubes covers the other, and the pointer can
+// name the one on top.
+function paintOrder(layer: Layer) {
+  return paintOrders(layer, [layer.rects, layer.shapes], () => ({
+    rects: byColor(layer.rects),
+    shapes: byColor(layer.shapes),
+  }))
+}
+
+// One fill per run of a colour, since a fill per shape costs a draw call each
+function fillRuns<T extends Filled>(
   ctx: TubeMapContext,
   items: T[],
   visible: (item: T) => boolean,
   colorOf: (item: T) => string,
   addTo: (item: T) => void,
 ) {
-  const byColor = new Map<string, T[]>()
+  let open: string | undefined
   for (const item of items) {
     if (visible(item)) {
-      pushTo(byColor, colorOf(item), item)
-    }
-  }
-  for (const list of byColor.values()) {
-    ctx.fillStyle = colorOf(list[0]!)
-    ctx.beginPath()
-    for (const item of list) {
+      const color = colorOf(item)
+      if (color !== open) {
+        if (open !== undefined) {
+          ctx.fill()
+        }
+        ctx.fillStyle = color
+        ctx.beginPath()
+        open = color
+      }
       addTo(item)
     }
+  }
+  if (open !== undefined) {
     ctx.fill()
   }
 }
@@ -341,7 +361,6 @@ function outlineAlpha(screenWidth: number) {
   return Math.max(MIN_OUTLINE_ALPHA, Math.min(1, screenWidth / FULL_OUTLINE_PX))
 }
 
-// A tinted box lets the tubes through it show, as the clear box's wash does
 // What the tube map draws with: a 2D canvas, or anything that takes the same
 // calls
 export type TubeMapContext = Pick<
@@ -367,6 +386,7 @@ export type TubeMapContext = Pick<
   | 'textBaseline'
 > & { measureText: (text: string) => { width: number } }
 
+// A tinted box lets the tubes through it show, as the clear box's wash does
 const NODE_TINT_ALPHA = 0.55
 const NOT_SHOWN_DASH = [5, 4]
 const CAPTION_PAD_PX = 8
@@ -426,11 +446,12 @@ export function drawTubeMap(
     (item.haplotype ? frame.tubeColors?.[item.id] : undefined) ?? item.color
   ctx.globalAlpha = 1
   for (const layer of picture.layers) {
+    const { rects, shapes } = paintOrder(layer)
     for (const reference of [false, true]) {
       const inPass = (item: Filled) => item.reference === reference
-      fillByColor(
+      fillRuns(
         ctx,
-        layer.rects,
+        rects,
         r => inPass(r) && visible(r),
         colorOf,
         r => {
@@ -439,9 +460,9 @@ export function drawTubeMap(
           ctx.rect(left, top, x(r.x1) - left, y(r.y1) - top)
         },
       )
-      fillByColor(
+      fillRuns(
         ctx,
-        layer.shapes,
+        shapes,
         s => inPass(s) && visible(s),
         colorOf,
         s => {
@@ -564,47 +585,37 @@ function inside(points: [number, number][], sx: number, sy: number) {
   return hit
 }
 
-// The track whose tube is under a screen point, reads before haplotypes and
-// the reference before other tubes, in the order they draw over each other.
-// A curve is tested against its outline, not its bounds, since tubes cross
-// between columns.
+// The track whose tube is painted on top at a screen point: reads over
+// haplotypes, the reference over other tubes, lane changes over runs, and of
+// two alike the one painted later (paintOrder). A curve is tested against its
+// outline, not its bounds, since tubes cross between columns.
 export function tubeMapTrackAt(
   picture: TubeMapPicture,
   { x, y }: TubeMapTransform,
   sx: number,
   sy: number,
 ) {
-  for (let l = picture.layers.length - 1; l >= 0; l--) {
-    const { rects, shapes } = picture.layers[l]!
+  const onRect = (r: Rect) =>
+    x(r.x0) <= sx && sx <= x(r.x1) && y(r.y0) <= sy && sy <= y(r.y1)
+  const onShape = (s: Shape) =>
+    x(s.x0) <= sx &&
+    sx <= x(s.x1) &&
+    inside(
+      s.outline.map(([px, py]) => [x(px), y(py)]),
+      sx,
+      sy,
+    )
+  let hit: number | undefined
+  for (let l = picture.layers.length - 1; l >= 0 && hit === undefined; l--) {
+    const { rects, shapes } = paintOrder(picture.layers[l]!)
     for (const reference of [true, false]) {
-      for (const r of rects) {
-        if (
-          r.reference === reference &&
-          x(r.x0) <= sx &&
-          sx <= x(r.x1) &&
-          y(r.y0) <= sy &&
-          sy <= y(r.y1)
-        ) {
-          return r.id
-        }
-      }
-      for (const s of shapes) {
-        if (
-          s.reference === reference &&
-          x(s.x0) <= sx &&
-          sx <= x(s.x1) &&
-          inside(
-            s.outline.map(([px, py]) => [x(px), y(py)]),
-            sx,
-            sy,
-          )
-        ) {
-          return s.id
-        }
-      }
+      hit ??= (
+        shapes.findLast(s => s.reference === reference && onShape(s)) ??
+        rects.findLast(r => r.reference === reference && onRect(r))
+      )?.id
     }
   }
-  return undefined
+  return hit
 }
 
 // an insertion's star is a point, so the pointer gets a few px either side

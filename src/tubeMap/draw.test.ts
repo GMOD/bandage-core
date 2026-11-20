@@ -9,6 +9,7 @@ import { anchorGraph } from '../pathAnchoring'
 import {
   drawTubeMap,
   drawTubeMapHighlight,
+  parsePath,
   trackColors,
   tubeMapMismatchAt,
   tubeMapPicture,
@@ -16,7 +17,7 @@ import {
 } from './draw'
 import { FORWARD_READ_COLORS, REVERSE_READ_COLORS } from './reads'
 
-import type { parsePath } from './draw'
+import type { TubeMapPicture } from './draw'
 
 const dir = path.join(__dirname, '../../test_data/cactus')
 const GFA = fs.readFileSync(path.join(dir, 'cactus_240_280.gfa'), 'utf8')
@@ -247,4 +248,105 @@ test('the pointer names the tube on a lane change, the reference over the rest',
     hits.filter(h => !h.onRun && h.hit !== undefined).length,
   ).toBeGreaterThan(0)
   expect(tubeMapTrackAt(picture, identity, -1e6, -1e6)).toBeUndefined()
+})
+
+// every fill's colour, from a context that accepts any other call
+function fillRecorder() {
+  const fills: string[] = []
+  const state: Record<string, unknown> = {}
+  const ctx = new Proxy(state, {
+    get: (target, key: string) =>
+      key === 'fill'
+        ? () => fills.push(String(target.fillStyle))
+        : key in target
+          ? target[key]
+          : () => {},
+    set: (target, key: string, value) => {
+      target[key] = value
+      return true
+    },
+  }) as unknown as CanvasRenderingContext2D
+  return { ctx, fills }
+}
+
+// Three tubes over one stretch, and a lane change over the middle of it
+function crossing(
+  haplotype: boolean,
+  colors = ['#000001', '#000002', '#000001'],
+): TubeMapPicture {
+  const tube = (id: number, color: string) => ({
+    id,
+    color,
+    haplotype,
+    reference: false,
+  })
+  const outline: [number, number][] = [
+    [4, 2],
+    [8, 2],
+    [8, 8],
+    [4, 8],
+  ]
+  return {
+    bounds: { minX: 0, maxX: 10, minY: 0, maxY: 10 },
+    layers: [
+      {
+        rects: colors.map((color, id) => ({
+          ...tube(id, color),
+          x0: 0,
+          x1: 10,
+          y0: 0,
+          y1: 10,
+        })),
+        shapes: [
+          {
+            ...tube(colors.length, colors[0]!),
+            x0: 4,
+            x1: 8,
+            commands: parsePath('M 4 2 L 8 2 L 8 8 L 4 8 Z'),
+            outline,
+          },
+        ],
+      },
+    ],
+    nodes: [],
+    mismatches: [],
+  }
+}
+
+test('where tubes of shared colours cross, the pointer names the one painted last', () => {
+  const picture = crossing(false)
+  const { ctx, fills } = fillRecorder()
+  drawTubeMap(ctx, picture, { ...identity, width: 100 })
+  // both runs of the first colour, then the second colour's over them, then
+  // the lane change over every run
+  expect(fills).toEqual(['#000001', '#000002', '#000001'])
+  expect(tubeMapTrackAt(picture, identity, 1, 5)).toBe(1)
+  expect(tubeMapTrackAt(picture, identity, 5, 5)).toBe(3)
+})
+
+test('a restyle changes no tube on top, nor the one the pointer names', () => {
+  const picture = crossing(true, ['#000001', '#000002', '#000003'])
+  const { ctx, fills } = fillRecorder()
+  drawTubeMap(ctx, picture, {
+    ...identity,
+    width: 100,
+    tubeColors: ['red', 'blue', 'red', 'blue'],
+  })
+  expect(fills).toEqual(['red', 'blue', 'red', 'blue'])
+  expect(tubeMapTrackAt(picture, identity, 1, 5)).toBe(2)
+  expect(tubeMapTrackAt(picture, identity, 5, 5)).toBe(3)
+})
+
+test('what is off screen changes no tube on top', () => {
+  const picture = crossing(false)
+  const [layer] = picture.layers
+  const scrolledOff = { ...layer!.rects[0]!, x0: -50, x1: -40 }
+  const scrolled = {
+    ...picture,
+    layers: [{ ...layer!, rects: [scrolledOff, ...layer!.rects.slice(1)] }],
+  }
+  const { ctx, fills } = fillRecorder()
+  drawTubeMap(ctx, scrolled, { ...identity, width: 100 })
+  expect(fills).toEqual(['#000001', '#000002', '#000001'])
+  expect(tubeMapTrackAt(scrolled, identity, 1, 5)).toBe(1)
 })
