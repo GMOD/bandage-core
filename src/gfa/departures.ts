@@ -1,5 +1,6 @@
 import { isBackbone } from '../anchoredNodes'
 import { pathOrigin } from '../pathAnchoring'
+import { pushTo } from '../util/groups'
 
 import type { Graph } from '../types'
 import type { DepartureTable, GapTable, GraphTables } from './graphTables'
@@ -119,11 +120,12 @@ export function departureSpan(d: Pick<Departure, 'leavePos' | 'rejoinPos'>) {
 
 // Two significant figures, as JBrowse's synteny lane header states a stretch
 export function roughBp(bp: number) {
-  return bp >= 1_000_000
-    ? `${Number((bp / 1_000_000).toPrecision(2))} Mb`
-    : bp >= 1000
-      ? `${Number((bp / 1000).toPrecision(2))} kb`
-      : `${bp} bp`
+  const kb = Number((bp / 1000).toPrecision(2))
+  return bp < 1000
+    ? `${bp} bp`
+    : kb < 1000
+      ? `${kb} kb`
+      : `${Number((Math.max(bp, 1_000_000) / 1_000_000).toPrecision(2))} Mb`
 }
 
 /**
@@ -396,13 +398,7 @@ export function ownStepRuns({
         pos += lengthOf(w.steps[s]!)
       }
       if (w.offsets[p + 1]! > w.offsets[p]!) {
-        const name = pathOrigin(w.names[p]!).name
-        const list = fragments.get(name)
-        if (list) {
-          list.push(p)
-        } else {
-          fragments.set(name, [p])
-        }
+        pushTo(fragments, pathOrigin(w.names[p]!).name, p)
       }
     }
   }
@@ -542,14 +538,20 @@ export function departureTails(graph: Graph) {
       end = Math.max(end, node.stable.start + node.length)
     }
     const off = (pos: number) => pos < start || pos > end
-    const carried = new Set(graph.paths?.flatMap(p => p.nodeIds))
     for (let k = 0; k < d.names.length; k++) {
       if (off(d.leavePos[k]!) || off(d.rejoinPos[k]!)) {
         for (let j = d.offsets[k]!; j < d.offsets[k + 1]!; j++) {
           const id = graph.nodes[d.steps[j]!]?.id
-          if (id !== undefined && !carried.has(id)) {
+          if (id !== undefined) {
             tails.add(id)
           }
+        }
+      }
+    }
+    if (tails.size > 0) {
+      for (const path of graph.paths ?? []) {
+        for (const id of path.nodeIds) {
+          tails.delete(id)
         }
       }
     }

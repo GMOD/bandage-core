@@ -28,6 +28,7 @@ import {
   departureText,
   gapParts,
   placementChoice,
+  roughBp,
 } from './departures'
 import { convertGFAToGraph } from './gfaConverter'
 import { gfaTables } from './gfaTables'
@@ -213,6 +214,12 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
   for (const text of texts) {
     expect(text).not.toMatch(/delet|insert/)
   }
+})
+
+test('a stretch that rounds up to 1000 kb reads as 1 Mb', () => {
+  expect(
+    [999, 1000, 994_999, 995_000, 999_999, 1_000_000, 1_250_000].map(roughBp),
+  ).toEqual(['999 bp', '1 kb', '990 kb', '1 Mb', '1 Mb', '1 Mb', '1.3 Mb'])
 })
 
 test("a walk-file cut's departures and trimmed bp stay off the GFA it writes", () => {
