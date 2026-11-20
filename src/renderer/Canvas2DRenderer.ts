@@ -31,6 +31,10 @@ import type {
 // apart along them (linksAlongNodes); every other plain link lies under them.
 // What is off the lifted walks is painted that same way into one layer of its
 // own, under everything else, and laid down once at FADED_ALPHA.
+// On a raster canvas a weight is drawn to the nearest WEIGHT_STEP_PX, so nodes
+// widened by depth share a few dozen paths rather than one each: Chrome's GPU
+// canvas drew 50,000 nodes of distinct depths in 1,060 ms a frame as 46,000
+// strokes and in 590 ms as 68. A vector context keeps every weight as given.
 export class Canvas2DRenderer implements Renderer {
   readonly canvas: HTMLCanvasElement
   ctx: CanvasRenderingContext2D
@@ -41,6 +45,7 @@ export class Canvas2DRenderer implements Renderer {
   private highlightFactor = 1
   private fit = 1
   private painted: PaintedGroups | null = null
+  private readonly weightOf: (thickness: number) => number
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d')
@@ -49,6 +54,7 @@ export class Canvas2DRenderer implements Renderer {
     }
     this.canvas = canvas
     this.ctx = ctx
+    this.weightOf = isVector(ctx) ? exactWeight : steppedWeight
   }
 
   setErrorHandler(_handler: (error: Error) => void) {}
@@ -141,17 +147,17 @@ export class Canvas2DRenderer implements Renderer {
     const ctx = this.ctx
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    for (const { color, items } of links) {
-      this.strokeCurves(items, color, t)
+    for (const group of links) {
+      this.strokeCurves(group, t)
     }
-    for (const { color, items } of nodes) {
-      this.strokeNodes(items, color, t)
+    for (const group of nodes) {
+      this.strokeNodes(group, t)
     }
-    for (const { color, items } of skips) {
-      this.strokeCurves(items, color, t)
+    for (const group of skips) {
+      this.strokeCurves(group, t)
     }
-    for (const { color, items } of liftedNodes) {
-      this.strokeNodes(items, color, t)
+    for (const group of liftedNodes) {
+      this.strokeNodes(group, t)
     }
     this.haloArrows(halos, t)
     for (const { color, items } of arrows) {
@@ -199,9 +205,10 @@ export class Canvas2DRenderer implements Renderer {
     const edgeRun = this.edgeRun(batch.edgeCurveRuns)
     const arrowRun = this.edgeRun(batch.arrowRuns)
     const lifted = this.liftedStrokes(batch)
+    const weightOf = this.weightOf
     const edgePaint = (e: EdgeCurveBatch, i: number) => ({
       color: inRun(edgeRun, i) ? brightenAbgr(e.color, factor) : e.color,
-      weight: e.thickness,
+      weight: weightOf(e.thickness),
       last: inRun(edgeRun, i),
       skip: e.skip === true || e.turn === true || e.along === true,
       faded: e.faded === true,
@@ -212,7 +219,7 @@ export class Canvas2DRenderer implements Renderer {
         const f = lifted.get(i)
         return {
           color: f === undefined ? s.color : brightenAbgr(s.color, f),
-          weight: s.thickness,
+          weight: weightOf(s.thickness),
           last: f !== undefined,
           placeholder: s.placeholder === true,
           faded: s.faded === true,
@@ -249,13 +256,14 @@ export class Canvas2DRenderer implements Renderer {
       return
     }
     const factor = this.highlightFactor
+    const weightOf = this.weightOf
     const curves = runItems(batch.edgeCurves, this.edgeRun(batch.edgeCurveRuns))
     const lifted = [...this.liftedStrokes(batch)]
     const arrows = runItems(batch.arrows, this.edgeRun(batch.arrowRuns))
     const groups: PaintedLayer = {
       links: groupByPaint(curves, e => ({
         color: brightenAbgr(e.color, factor),
-        weight: e.thickness,
+        weight: weightOf(e.thickness),
         last: false,
         faded: e.faded === true,
       })),
@@ -266,7 +274,7 @@ export class Canvas2DRenderer implements Renderer {
           const s = batch.nodeStrokes[i]!
           return {
             color: brightenAbgr(s.color, f),
-            weight: s.thickness,
+            weight: weightOf(s.thickness),
             last: false,
             placeholder: s.placeholder === true,
             faded: s.faded === true,
@@ -310,15 +318,14 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   private strokeCurves(
-    items: EdgeCurveBatch[],
-    color: number,
+    { items, color, weight }: Group<EdgeCurveBatch>,
     t: TransformUniform,
   ) {
     const ctx = this.ctx
     ctx.strokeStyle = abgrToCssRgba(color)
-    // thickness is the half-width in css px, so the stroke is twice it at
-    // the device ratio the transform already carries
-    ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
+    // weight is the half-width in css px, so the stroke is twice it at the
+    // device ratio the transform already carries
+    ctx.lineWidth = weight * 2 * t.dpr
     ctx.beginPath()
     for (const e of items) {
       const first = e.curves[0]!
@@ -340,10 +347,13 @@ export class Canvas2DRenderer implements Renderer {
     ctx.stroke()
   }
 
-  private strokeNodes(items: NodeStroke[], color: number, t: TransformUniform) {
+  private strokeNodes(
+    { items, color, weight }: Group<NodeStroke>,
+    t: TransformUniform,
+  ) {
     const ctx = this.ctx
     ctx.strokeStyle = abgrToCssRgba(color)
-    ctx.lineWidth = items[0]!.thickness * 2 * t.dpr
+    ctx.lineWidth = weight * 2 * t.dpr
     ctx.beginPath()
     for (const s of items) {
       const p0 = s.points[0]!
@@ -415,6 +425,25 @@ export function arrowheadOutline(a: Arrowhead, t: TransformUniform) {
     { x: tipX - ux * notchBack, y: tipY - uy * notchBack },
     { x: backX + uy * halfWidth, y: backY - ux * halfWidth },
   ] as const
+}
+
+// A raster weight's step, as a half-width in css px: a stroke draws within
+// 1/8 px of its width at a device ratio of 1 and 1/4 px at 2. A weight under
+// the step is drawn as given, so a hairline never thickens to it.
+export const WEIGHT_STEP_PX = 1 / 8
+
+function steppedWeight(thickness: number) {
+  return thickness < WEIGHT_STEP_PX
+    ? thickness
+    : Math.round(thickness / WEIGHT_STEP_PX) * WEIGHT_STEP_PX
+}
+
+function exactWeight(thickness: number) {
+  return thickness
+}
+
+function isVector(ctx: object) {
+  return 'vector' in ctx && ctx.vector === true
 }
 
 function runItems<T>(items: T[], run: Run | undefined) {

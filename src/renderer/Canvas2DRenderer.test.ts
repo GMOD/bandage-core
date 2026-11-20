@@ -2,7 +2,11 @@ import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph } from '../pathAnchoring'
 import { walkLift } from '../walkHighlight'
-import { Canvas2DRenderer, arrowheadOutline } from './Canvas2DRenderer'
+import {
+  Canvas2DRenderer,
+  WEIGHT_STEP_PX,
+  arrowheadOutline,
+} from './Canvas2DRenderer'
 import { buildGeometry } from './GeometryBuilder'
 import { FADED_ALPHA, abgrToCssRgba, packAbgr } from './colorBits'
 import { recordingCanvas } from './recordingCanvas'
@@ -294,6 +298,72 @@ test('a placeholder is painted under every loaded node, however wide they are', 
   expect(allele).toBeLessThan(reference)
 })
 
+describe('nodes of nearly one depth', () => {
+  const near = [30, 30.4, 31, 31.3, 45].map((depth, i) => ({
+    id: `N${i}+`,
+    name: `N${i}`,
+    length: 10,
+    depth,
+  }))
+  const batch = depthBatch(near)
+  const widths = batch.nodeStrokes.map(s => s.thickness * 2)
+
+  test('share a path per step of width on a raster canvas, each drawn within half a step', () => {
+    const { renderer, lineWidths } = makeRenderer()
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform({ ...TRANSFORM, dpr: 2 })
+    renderer.render([1, 1, 1, 1])
+
+    const step = 2 * WEIGHT_STEP_PX
+    expect(new Set(widths).size).toBe(5)
+    expect(lineWidths).toEqual([2 * 7, 2 * 5.75])
+    for (const width of widths) {
+      const drawn = lineWidths.map(w => w / 2)
+      const nearest = Math.min(...drawn.map(d => Math.abs(d - width)))
+      expect(nearest).toBeLessThanOrEqual(step / 2)
+    }
+  })
+
+  test('keep a path each, at their own widths, in a figure', () => {
+    const { canvas, markup } = svgCanvas(100, 100)
+    const renderer = new Canvas2DRenderer(canvas)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform(TRANSFORM)
+    renderer.render([1, 1, 1, 1])
+
+    const written = [...markup().matchAll(/stroke-width="([\d.]+)"/g)]
+    expect(written.map(([, w]) => Number(w))).toEqual(
+      widths.toSorted((a, b) => b - a).map(w => +w.toFixed(1)),
+    )
+  })
+})
+
+test('a hairline under the width step is drawn at its own width', () => {
+  const { renderer, lineWidths } = makeRenderer()
+  const hair = { id: 'H+', name: 'H', length: 10, depth: 1 }
+  renderer.uploadGeometry(
+    buildGeometry({
+      nodePositions: {
+        'H+': [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+      },
+      graph: { name: 'test', nodes: [hair], edges: [] },
+      nodeById: new Map([[hair.id, hair]]),
+      colorScheme: 'uniform',
+      contigThickness: 0.1,
+      connectorThickness: 2,
+      drawPaths: false,
+      axis: iso(),
+    }),
+  )
+  renderer.updateTransform(TRANSFORM)
+  renderer.render([1, 1, 1, 1])
+
+  expect(lineWidths).toEqual([0.1])
+})
+
 function skipBatch(scale: number) {
   return buildGeometry({
     nodePositions: {
@@ -541,7 +611,9 @@ test('a short skip is painted after a long one it crosses', () => {
   renderer.render([1, 1, 1, 1])
 
   expect(widthOf(3)).not.toBe(widthOf(4))
-  expect(lineWidths.slice(-2)).toEqual([widthOf(4), widthOf(3)])
+  expect(lineWidths.slice(-2).map(Math.round)).toEqual(
+    [widthOf(4), widthOf(3)].map(Math.round),
+  )
 })
 
 test('a skip drawn as its plain link is painted after a dashed skip it crosses', () => {

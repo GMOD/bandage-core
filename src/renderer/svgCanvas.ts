@@ -78,6 +78,7 @@ export function svgCanvas(width: number, height: number) {
   }
   const ctx = {
     canvas: undefined as unknown,
+    vector: true,
     fillStyle: '#000',
     strokeStyle: '#000',
     lineWidth: 1,

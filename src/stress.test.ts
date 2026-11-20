@@ -1,6 +1,6 @@
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
+import { Canvas2DRenderer, WEIGHT_STEP_PX } from './renderer/Canvas2DRenderer'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { recordingCanvas } from './renderer/recordingCanvas'
 
@@ -214,4 +214,43 @@ test('draw calls per frame do not grow with the graph', () => {
   // along the line that the nodes would hide, and the arrowheads
   expect(small).toEqual({ strokes: 3, fills: 1 })
   expect(large).toEqual(small)
+})
+
+// Depths a file states are nearly all distinct, so drawn at their exact widths
+// the nodes would take a stroke each. On a raster canvas a width is drawn to
+// the nearest WEIGHT_STEP_PX of half-width, and depth widths span 0.3 to 3
+// times contigThickness, so the nodes take at most one stroke per step of
+// that span.
+test('draw calls per frame do not grow with the graph under depth widths', () => {
+  function depthDrawCalls(bubbleCount: number) {
+    const { gfa } = generateBubbleGFA(bubbleCount)
+    const parsed = convertGFAToGraph(parseGFA(gfa), 'stress')
+    const nodes = parsed.nodes.map((n, i) => ({
+      ...n,
+      depth: 1 + ((i * 7919) % 100_003) / 1000,
+    }))
+    const graph = { ...parsed, nodes }
+    const batch = buildGeometry({
+      nodePositions: syntheticPositions(nodes),
+      graph,
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      contigThickness: 10,
+      connectorThickness: 4,
+      drawPaths: false,
+      nodeWidth: 'depth',
+      axis: iso(20),
+    })
+    return {
+      widths: new Set(batch.nodeStrokes.map(s => s.thickness)).size,
+      ...countDrawCalls(batch),
+    }
+  }
+  const steps = Math.ceil(((3 - 0.3) * 10) / 2 / WEIGHT_STEP_PX) + 1
+  const small = depthDrawCalls(100)
+  const large = depthDrawCalls(2000)
+
+  expect(large.widths).toBeGreaterThan(5000)
+  expect(small.strokes).toBeLessThanOrEqual(steps + 3)
+  expect(large.strokes).toBeLessThanOrEqual(steps + 3)
 })
