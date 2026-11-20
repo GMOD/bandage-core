@@ -322,7 +322,42 @@ describe('superbubblesFromGraph', () => {
   })
 })
 
+// A on chr at 0 and B at 20, with x y between them and p q from B back round
+// to A: two superbubbles between the same two nodes
+function ring(links: string[] = [], walks?: string[][]) {
+  return graphOf(
+    [
+      node('A', 10, 0),
+      node('B', 10, 20),
+      node('x', 3),
+      node('y', 5),
+      node('p', 7),
+      node('q', 11),
+    ],
+    ['A+x+', 'A+y+', 'x+B+', 'y+B+', 'B+p+', 'B+q+', 'p+A+', 'q+A+', ...links],
+    walks,
+  )
+}
+
+const twinsOf = (g: Graph) =>
+  new Map(superbubblesFromGraph(g, span).map(b => [b.key, b]))
+
+const routesOf = (b: MinigraphBubble) =>
+  b.routes!.map(r => [r.steps.map(s => s.slice(0, -1)), r.bp, r.walks])
+
 describe('superbubbles round a ring', () => {
+  it('keeps both of two between the same two nodes, the one round off the reference', () => {
+    const bubbles = graphBubbles(ring()).filter(b => !b.covering)
+    expect(
+      bubbles.map(b => [b.key, b.segments, b.start, b.end, b.offReference]),
+    ).toEqual([
+      ['A>B', 'A,y,x,B', 10, 20, undefined],
+      ['B>A', 'B,q,p,A', 10, 20, true],
+    ])
+    expect(sameBubble(bubbles[0]!, bubbles[1]!)).toBe(false)
+    expect(superbubblesFromGraph(ring()).map(b => b.key)).toEqual(['A>B'])
+  })
+
   it('places no bubble of a ring of three across the ring', () => {
     const g = graphOf(
       [
@@ -355,6 +390,79 @@ describe('superbubbles round a ring', () => {
       ['C>A', 10, 40, true],
       ['B>C', 30, 40, undefined],
     ])
+  })
+
+  it('reads which way round the ring the reference runs from its strand', () => {
+    const reversedB = {
+      ...node('B', 10, 20),
+      stable: { refName: 'chr', start: 20, rank: 0, strand: '-' as const },
+    }
+    const g = graphOf(
+      [reversedB, ...ring().nodes.filter(n => n.name !== 'B')],
+      ['A+x+', 'A+y+', 'x+B-', 'y+B-', 'B-p+', 'B-q+', 'p+A+', 'q+A+'],
+    )
+    expect(
+      graphBubbles(g)
+        .filter(b => !b.covering)
+        .map(b => [
+          b.key,
+          bubbleSegmentIds(b).slice(1, -1).sort(),
+          b.offReference,
+        ]),
+    ).toEqual([
+      ['A>B', ['x', 'y'], undefined],
+      ['B>A', ['p', 'q'], true],
+    ])
+  })
+
+  it('reads two off the reference one each way where their sides alone do not', () => {
+    const g = graphOf(
+      ['s', 'e', 'b', 'c', 'd', 'f'].map(n => node(n, 1)),
+      ['s+b+', 's+c+', 'b+e-', 'c+e-', 's-d+', 's-f+', 'd+e+', 'f+e+'],
+    )
+    const keys = superbubblesFromGraph(g, span).map(b => b.key)
+    expect(new Set(keys)).toEqual(new Set(['e>s', 's>e']))
+  })
+
+  it('reads each walk through the twin whose interior it takes', () => {
+    const walks = [
+      ['A', 'x', 'B', 'p', 'A'],
+      ['B', 'q', 'A', 'y', 'B'],
+      ['A', 'q', 'B', 'x', 'A'],
+    ]
+    const twins = twinsOf(ring([], walks))
+    expect(twins.get('A>B')).toMatchObject({
+      partial: false,
+      shortestAlleleLength: 3,
+      longestAlleleLength: 5,
+    })
+    expect(routesOf(twins.get('A>B')!)).toEqual([
+      [['x'], 3, ['hap0', 'hap2']],
+      [['y'], 5, ['hap1']],
+    ])
+    expect(twins.get('B>A')).toMatchObject({
+      partial: false,
+      shortestAlleleLength: 7,
+      longestAlleleLength: 11,
+    })
+    expect(routesOf(twins.get('B>A')!)).toEqual([
+      [['p'], 7, ['hap0']],
+      [['q'], 11, ['hap1', 'hap2']],
+    ])
+    const linear = twinsOf(ring([], [['A', 'x', 'B', 'p']]))
+    expect([linear.get('A>B')!.partial, linear.get('B>A')!.partial]).toEqual([
+      false,
+      true,
+    ])
+  })
+
+  it('gives a step straight between the ends to the twin that links them', () => {
+    const walks = [['A', 'B', 'p', 'A']]
+    const one = twinsOf(ring(['A+B+'], walks))
+    expect(routesOf(one.get('A>B')!)).toEqual([[[], 0, ['hap0']]])
+    expect(routesOf(one.get('B>A')!)).toEqual([[['p'], 7, ['hap0']]])
+    const both = twinsOf(ring(['A+B+', 'B+A+'], walks))
+    expect(both.get('A>B')!.partial).toBe(true)
   })
 })
 

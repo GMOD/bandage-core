@@ -6,6 +6,7 @@ import { coversGraph } from './bubbleHalos'
 import { bubbleSegmentIds } from './bubbleLabel'
 import {
   bubblesFromGraph,
+  crossingRoutes,
   derivedBubble,
   relax,
   walkIndexOf,
@@ -15,7 +16,7 @@ import { bubbleSubgraph } from './popBubble'
 
 import type { Graph, GraphNode } from '../types'
 import type { MinigraphBubble } from './bubbleLine'
-import type { Routes } from './bubblesFromGraph'
+import type { Crossing, Routes } from './bubblesFromGraph'
 
 // Superbubbles (Onodera et al. 2013) as BubbleGun finds them
 // (find_bubbles.py's find_sb_alg): from one side of a source, take a node once
@@ -206,29 +207,115 @@ function nodesOf(f: Found) {
   return [f.source >> 1, ...Array.from(f.inside, k => k >> 1), f.sink >> 1]
 }
 
-// Every superbubble in the graph, each once, read source to sink
+function endsOf(f: Found, nodes: number) {
+  const a = f.source >> 1
+  const b = f.sink >> 1
+  return Math.min(a, b) * nodes + Math.max(a, b)
+}
+
+// Every superbubble in the graph, each once, read source to sink. Two can
+// share both ends, one each way round a ring of the two: keyed by the sides
+// they face in with, and read one each way, so their keys differ.
 function allSuperbubbles(graph: Graph) {
   const { nodes } = graph
+  const slots = nodes.length * 2
   const index = new Map(nodes.map((n, i) => [n.id, i]))
   const { offset, next } = slotGraph(graph, index)
   const find = searcher(nodes.length, offset, next)
-  const byEnds = new Map<number, Found>()
-  for (let k = 0; k < nodes.length * 2; k++) {
+  const bySides = new Map<number, Found>()
+  for (let k = 0; k < slots; k++) {
     const hit = find(k)
-    if (!hit) {
-      continue
-    }
-    const a = hit.source >> 1
-    const b = hit.sink >> 1
-    const id = Math.min(a, b) * nodes.length + Math.max(a, b)
-    if (forward(hit, nodes) || !byEnds.has(id)) {
-      byEnds.set(id, hit)
+    if (hit) {
+      const a = hit.source
+      const b = hit.sink ^ 1
+      const id = Math.min(a, b) * slots + Math.max(a, b)
+      if (forward(hit, nodes) || !bySides.has(id)) {
+        bySides.set(id, hit)
+      }
     }
   }
-  const found = [...byEnds.values()].map(f =>
-    forward(f, nodes) ? f : reversed(f),
+  const byEnds = new Map<number, Found[]>()
+  for (const hit of bySides.values()) {
+    const f = forward(hit, nodes) ? hit : reversed(hit)
+    pushTo(byEnds, endsOf(f, nodes.length), f)
+  }
+  const found: Found[] = []
+  const twins = new Map<Found, Found>()
+  for (const pair of byEnds.values()) {
+    const sameWay =
+      pair.length === 2 && pair[0]!.source >> 1 === pair[1]!.source >> 1
+    const read = pair.map(f =>
+      sameWay && (f.source & 1) === 0 ? reversed(f) : f,
+    )
+    found.push(...read)
+    if (read.length === 2) {
+      twins.set(read[0]!, read[1]!).set(read[1]!, read[0]!)
+    }
+  }
+  return { found, twins, offset, next }
+}
+
+function linksEnds(f: Found, offset: Int32Array, next: Int32Array) {
+  return next
+    .subarray(offset[f.source], offset[f.source + 1])
+    .includes(f.sink ^ 1)
+}
+
+// A walk's first stretch from one end of a bubble to the other through its
+// own interior: its twin shares both ends, so where a walk first visits them
+// says nothing. A walk holds no strands, so a step straight from one end to
+// the other is the bubble's only if its twin does not link them too, and a
+// walk taking it where both do cannot be followed.
+function twinCrossing(
+  steps: readonly string[],
+  ends: readonly [string, string],
+  inside: Set<string>,
+  direct: { mine: boolean; theirs: boolean },
+) {
+  let crossing: Crossing | undefined
+  let at = -1
+  let entered = false
+  for (let i = 0; i < steps.length && !crossing; i++) {
+    const id = steps[i]!
+    if (ends.includes(id)) {
+      const stretch = at >= 0 && steps[at] !== id ? i - at - 1 : -1
+      if (stretch > 0 || (stretch === 0 && direct.mine && !direct.theirs)) {
+        crossing = { lo: at + 1, hi: i, endFirst: steps[at] === ends[1] }
+      } else {
+        entered ||= stretch === 0 && direct.mine && direct.theirs
+        at = i
+      }
+    } else if (inside.has(id)) {
+      entered = true
+    } else {
+      at = -1
+    }
+  }
+  return crossing ?? (entered ? ('leaves' as const) : undefined)
+}
+
+function twinRoutes(
+  graph: Graph,
+  byId: Map<string, GraphNode>,
+  f: Found,
+  twin: Found,
+  offset: Int32Array,
+  next: Int32Array,
+  fallback: () => Routes,
+) {
+  const { nodes } = graph
+  const ends = [nodes[f.source >> 1]!.id, nodes[f.sink >> 1]!.id] as const
+  const inside = new Set(Array.from(f.inside, k => nodes[k >> 1]!.id))
+  const direct = {
+    mine: linksEnds(f, offset, next),
+    theirs: linksEnds(twin, offset, next),
+  }
+  return crossingRoutes(
+    graph,
+    byId,
+    steps => twinCrossing(steps, ends, inside, direct),
+    fallback,
   )
-  return { found, offset, next }
 }
 
 // Routes over the bubble's own DAG, for a graph whose walks do not cross it
@@ -263,7 +350,7 @@ export function superbubblesFromGraph(
   span?: MinigraphBubble,
 ): MinigraphBubble[] {
   const { nodes } = graph
-  const { found, offset, next } = allSuperbubbles(graph)
+  const { found, twins, offset, next } = allSuperbubbles(graph)
   const covers = found.map(f => coversGraph(f.inside.length, nodes.length))
   const members = found.map(nodesOf)
   const holders = new Map<number, number[]>()
@@ -298,21 +385,22 @@ export function superbubblesFromGraph(
     .map(f => {
       const source = nodes[f.source >> 1]!
       const sink = nodes[f.sink >> 1]!
-      const walked = walkRoutes(
-        graph,
-        byId,
-        walkIndex,
-        source.id,
-        sink.id,
-        () => routesThrough(nodes, offset, next, f),
-      )
+      const twin = twins.get(f)
+      const fallback = () => routesThrough(nodes, offset, next, f)
+      const walked = twin
+        ? twinRoutes(graph, byId, f, twin, offset, next, fallback)
+        : walkRoutes(graph, byId, walkIndex, source.id, sink.id, fallback)
       const placed = placedOn(f, nodes)
+      const [early, late] =
+        !placed || source.stable!.start <= sink.stable!.start
+          ? [source, sink]
+          : [sink, source]
       return {
         ...derivedBubble(
           {
             refName: placed ? source.stable!.refName : span!.refName,
-            start: placed ? source.stable!.start + source.length : span!.start,
-            end: placed ? sink.stable!.start : span!.end,
+            start: placed ? early.stable!.start + early.length : span!.start,
+            end: placed ? late.stable!.start : span!.end,
           },
           nodesOf(f).map(v => nodes[v]!),
           walked,

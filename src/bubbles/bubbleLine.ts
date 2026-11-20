@@ -28,7 +28,8 @@ export interface MinigraphBubble {
   // walks that take it. Only a graph with walks can state this.
   routes?: BubbleRoute[]
   // `source>sink`, set on a superbubble (superbubbles.ts): siblings off the
-  // reference share their parent's span, so the span cannot tell them apart
+  // reference share their parent's span, so the span cannot tell them apart,
+  // and the two round a ring of the same two nodes read one each way
   key?: string
   // it has no interval of its own on the reference, its ends being off it or
   // it running round from the later to the earlier, so start and end are the

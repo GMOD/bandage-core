@@ -210,46 +210,80 @@ export function walkRoutes(
   if (!walkIndex) {
     return { ...fallback(), walksLeave: false }
   }
+  const at0 = walkIndex.get(startId)!
+  const at1 = walkIndex.get(endId)!
+  return crossingRoutes(
+    graph,
+    byId,
+    (_, k) => {
+      const i0 = at0[k]!
+      const i1 = at1[k]!
+      return i0 < 0 || i1 < 0
+        ? i0 >= 0 || i1 >= 0
+          ? 'leaves'
+          : undefined
+        : { lo: Math.min(i0, i1) + 1, hi: Math.max(i0, i1), endFirst: i1 < i0 }
+    },
+    fallback,
+  )
+}
+
+// Where a walk crosses a bubble: its steps from `lo` up to but not `hi`, the
+// ones between the two ends, and whether it reached the sink first
+export interface Crossing {
+  lo: number
+  hi: number
+  endFirst: boolean
+}
+
+// The routes the walks take, each walk read where `crossingOf` says it crosses
+// the bubble or counted as leaving it
+export function crossingRoutes(
+  graph: Graph,
+  byId: Map<string, GraphNode>,
+  crossingOf: (
+    steps: readonly string[],
+    walk: number,
+  ) => Crossing | 'leaves' | undefined,
+  fallback: () => Routes,
+) {
   const routes: BubbleRoute[] = []
   let min = Infinity
   let max = -Infinity
   let left = 0
-  const at0 = walkIndex.get(startId)!
-  const at1 = walkIndex.get(endId)!
-  graph.paths!.forEach((p, k) => {
-    const i0 = at0[k]!
-    const i1 = at1[k]!
-    if (i0 < 0 || i1 < 0) {
-      if (i0 >= 0 || i1 >= 0) {
-        left++
-      }
-      return
-    }
-    // Start to end, whichever way the walk crosses: a contig on the reverse
-    // strand takes the same route, and read end-first it keyed as a second one.
+  graph.paths?.forEach((p, k) => {
     const ids = p.nodeIds
-    const lo = Math.min(i0, i1) + 1
-    const hi = Math.max(i0, i1)
-    const step =
-      i1 < i0 ? (j: number) => ids[hi - 1 - j]! : (j: number) => ids[lo + j]!
-    // copied and measured only for a route not seen yet: hundreds of walks
-    // take most routes
-    let route = routes.find(
-      r =>
-        r.steps.length === hi - lo && r.steps.every((id, j) => id === step(j)),
-    )
-    if (!route) {
-      const steps = Array.from({ length: hi - lo }, (_, j) => step(j))
-      let bp = 0
-      for (const id of steps) {
-        bp += byId.get(id)?.length ?? 0
+    const crossing = crossingOf(ids, k)
+    if (crossing === 'leaves') {
+      left++
+    } else if (crossing) {
+      // Start to end, whichever way the walk crosses: a contig on the reverse
+      // strand takes the same route, and read end-first it keyed as a second
+      // one.
+      const { lo, hi, endFirst } = crossing
+      const step = endFirst
+        ? (j: number) => ids[hi - 1 - j]!
+        : (j: number) => ids[lo + j]!
+      // copied and measured only for a route not seen yet: hundreds of walks
+      // take most routes
+      let route = routes.find(
+        r =>
+          r.steps.length === hi - lo &&
+          r.steps.every((id, j) => id === step(j)),
+      )
+      if (!route) {
+        const steps = Array.from({ length: hi - lo }, (_, j) => step(j))
+        let bp = 0
+        for (const id of steps) {
+          bp += byId.get(id)?.length ?? 0
+        }
+        route = { steps, bp, walks: [] }
+        routes.push(route)
       }
-      route = { steps, bp, walks: [] }
-      routes.push(route)
+      route.walks.push(p.name)
+      min = Math.min(min, route.bp)
+      max = Math.max(max, route.bp)
     }
-    route.walks.push(p.name)
-    min = Math.min(min, route.bp)
-    max = Math.max(max, route.bp)
   })
   const walksLeave = left > 0
   return routes.length
