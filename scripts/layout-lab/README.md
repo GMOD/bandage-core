@@ -1,6 +1,7 @@
 # Layout lab
 
-The harness behind `agent-docs/adr-042-reference-seeded-layouts-and-bubbles.md`.
+The harness behind jbrowse-plugin-graphgenomeviewer's
+`agent-docs/architecture-decision-records/adr-042-reference-seeded-layouts-and-bubbles.md`.
 It runs layouts on a GFA outside the browser and writes PNGs, so a layout idea
 can be judged on a real HPRC cut in seconds. Nothing here ships in the package.
 

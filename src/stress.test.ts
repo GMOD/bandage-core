@@ -174,7 +174,8 @@ test('viewport culling drops the vast majority of off-screen nodes', () => {
 // The renderer batches everything drawn with one paint into one path, so the
 // count is a function of how many distinct colours and weights the drawing
 // uses and not of how many nodes it has. It used to be 12.6 per node, with a
-// fill per mesh triangle; see agent-docs/GRAPH_SCALE_AND_LOD.md.
+// fill per mesh triangle; see jbrowse-plugin-graphgenomeviewer's
+// agent-docs/reference/GRAPH_SCALE_AND_LOD.md.
 function countDrawCalls(batch: ReturnType<typeof buildGeometry>) {
   const { canvas, strokes, fills } = recordingCanvas()
   const renderer = new Canvas2DRenderer(canvas)

@@ -39,10 +39,8 @@ for (const k of [
 g.getComputedStyle = window.getComputedStyle.bind(window)
 g.requestAnimationFrame = window.requestAnimationFrame.bind(window)
 g.cancelAnimationFrame = window.cancelAnimationFrame.bind(window)
-const tubeMap =
-  await import('/home/cdiesh/src/sequenceTubeMapModern/src/util/tubemap.ts')
-const { exportSvg } =
-  await import('/home/cdiesh/src/sequenceTubeMapModern/src/util/svgExport.ts')
+const tubeMap = await import(`${TUBEMAP}/src/util/tubemap.ts`)
+const { exportSvg } = await import(`${TUBEMAP}/src/util/svgExport.ts`)
 const vg = JSON.parse(readFileSync(file, 'utf8'))
 const nodes = tubeMap.vgExtractNodes(vg)
 const tracks = tubeMap.vgExtractTracks(vg, 0, 0)

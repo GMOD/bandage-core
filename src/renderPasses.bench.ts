@@ -22,7 +22,9 @@ import type { Graph, GraphNode, NodeSegment } from './types'
 //
 // So a millisecond in `layoutLabels` costs about ten times what a millisecond in
 // `buildGeometry` does, and both are budgeted against the ~10 ms that
-// agent-docs/GRAPH_SCALE_AND_LOD.md measures a redraw of a 1-2k node cut at.
+// jbrowse-plugin-graphgenomeviewer's
+// agent-docs/reference/GRAPH_SCALE_AND_LOD.md measures a redraw of a 1-2k node
+// cut at.
 //
 // Vitest 5 moved `bench` from a top-level export to a test-context fixture:
 // each measurement is a `test()` that awaits `bench(name, fn).run()`.
