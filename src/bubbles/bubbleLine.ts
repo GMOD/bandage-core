@@ -30,8 +30,9 @@ export interface MinigraphBubble {
   // `source>sink`, set on a superbubble (superbubbles.ts): siblings off the
   // reference share their parent's span, so the span cannot tell them apart
   key?: string
-  // its ends are not both on the reference, so start and end are the span of
-  // the bubble it was found in
+  // it has no interval of its own on the reference, its ends being off it or
+  // it running round from the later to the earlier, so start and end are the
+  // span of the bubble it was found in
   offReference?: true
   // the bubble the whole drawing is, listed so its name still shows; opening
   // it would draw the same graph

@@ -165,13 +165,39 @@ function onReference(a: GraphNode, b: GraphNode) {
   return isBackbone(a) && isBackbone(b) && a.stable.refName === b.stable.refName
 }
 
-// Reference order where both ends are on it, else whichever way leaves the
-// source by its end, so a bubble reads the same way whichever end the search
-// found it from and runs along its links on a forward strand
+function facesUp(k: number, nodes: GraphNode[]) {
+  return (k & 1) === (nodes[k >> 1]!.stable!.strand === '-' ? 0 : 1)
+}
+
+// Both ends on the reference, and the bubble leaves the earlier upstream and
+// the later downstream: round a circular contig, or from the last copy of a
+// tandem array drawn as a loop back to the first, so nothing between the two
+// is its interval
+function wraps(f: Found, nodes: GraphNode[]) {
+  const a = nodes[f.source >> 1]!
+  const b = nodes[f.sink >> 1]!
+  return (
+    onReference(a, b) &&
+    a.stable!.start !== b.stable!.start &&
+    facesUp(f.source, nodes) === a.stable!.start > b.stable!.start &&
+    facesUp(f.sink ^ 1, nodes) === b.stable!.start > a.stable!.start
+  )
+}
+
+function placedOn(f: Found, nodes: GraphNode[]) {
+  return (
+    onReference(nodes[f.source >> 1]!, nodes[f.sink >> 1]!) && !wraps(f, nodes)
+  )
+}
+
+// Reference order where it lies between its ends on the reference, else
+// whichever way leaves the source by its end, so a bubble reads the same way
+// whichever end the search found it from and runs along its links on a
+// forward strand
 function forward(f: Found, nodes: GraphNode[]) {
   const a = nodes[f.source >> 1]!
   const b = nodes[f.sink >> 1]!
-  const byRef = onReference(a, b) ? a.stable!.start - b.stable!.start : 0
+  const byRef = placedOn(f, nodes) ? a.stable!.start - b.stable!.start : 0
   const bySide = ((f.sink ^ 1) & 1) - (f.source & 1)
   return (byRef || bySide || compareIds(a.name, b.name)) < 0
 }
@@ -230,8 +256,8 @@ function routesThrough(
 }
 
 // The outermost superbubbles that are not the whole graph. One with both ends
-// on the reference is placed between them; any other takes `span`, the bubble
-// it was found in, and is dropped without one.
+// on the reference is placed between them unless it wraps; any other takes
+// `span`, the bubble it was found in, and is dropped without one.
 export function superbubblesFromGraph(
   graph: Graph,
   span?: MinigraphBubble,
@@ -256,11 +282,9 @@ export function superbubblesFromGraph(
           members[j]!.length > members[i]!.length &&
           members[i]!.every(v => holders.get(v)!.includes(j)),
       )
-  const placed = (f: Found) =>
-    span !== undefined ||
-    onReference(nodes[f.source >> 1]!, nodes[f.sink >> 1]!)
   const outermost = found.filter(
-    (f, i) => !covers[i] && placed(f) && !nested(f, i),
+    (f, i) =>
+      !covers[i] && (span !== undefined || placedOn(f, nodes)) && !nested(f, i),
   )
   const byId = new Map(nodes.map(n => [n.id, n]))
   const walkIndex = walkIndexOf(
@@ -282,22 +306,20 @@ export function superbubblesFromGraph(
         sink.id,
         () => routesThrough(nodes, offset, next, f),
       )
-      const placedOn = onReference(source, sink)
+      const placed = placedOn(f, nodes)
       return {
         ...derivedBubble(
           {
-            refName: placedOn ? source.stable!.refName : span!.refName,
-            start: placedOn
-              ? source.stable!.start + source.length
-              : span!.start,
-            end: placedOn ? sink.stable!.start : span!.end,
+            refName: placed ? source.stable!.refName : span!.refName,
+            start: placed ? source.stable!.start + source.length : span!.start,
+            end: placed ? sink.stable!.start : span!.end,
           },
           nodesOf(f).map(v => nodes[v]!),
           walked,
           walked.walksLeave,
         ),
         key: `${source.name}>${sink.name}`,
-        ...(placedOn ? {} : { offReference: true as const }),
+        ...(placed ? {} : { offReference: true as const }),
       }
     })
     .sort(

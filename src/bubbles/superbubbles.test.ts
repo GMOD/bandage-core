@@ -322,6 +322,42 @@ describe('superbubblesFromGraph', () => {
   })
 })
 
+describe('superbubbles round a ring', () => {
+  it('places no bubble of a ring of three across the ring', () => {
+    const g = graphOf(
+      [
+        node('A', 10, 0),
+        node('B', 10, 20),
+        node('C', 10, 40),
+        ...['x', 'y', 'u', 'v', 'p', 'q'].map(n => node(n, 2)),
+      ],
+      [
+        'A+x+',
+        'A+y+',
+        'x+B+',
+        'y+B+',
+        'B+u+',
+        'B+v+',
+        'u+C+',
+        'v+C+',
+        'C+p+',
+        'C+q+',
+        'p+A+',
+        'q+A+',
+      ],
+    )
+    expect(
+      graphBubbles(g)
+        .filter(b => !b.covering)
+        .map(b => [b.key, b.start, b.end, b.offReference]),
+    ).toEqual([
+      ['A>B', 10, 20, undefined],
+      ['C>A', 10, 40, true],
+      ['B>C', 30, 40, undefined],
+    ])
+  })
+})
+
 describe('bubble identity', () => {
   it('tells superbubbles sharing a span apart by key', () => {
     const top = graphBubbles(chain)
