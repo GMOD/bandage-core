@@ -8,6 +8,7 @@ import {
   bubblesFromGraph,
   crossingRoutes,
   derivedBubble,
+  firstCrossing,
   relax,
   walkIndexOf,
   walkRoutes,
@@ -16,7 +17,7 @@ import { bubbleSubgraph } from './popBubble'
 
 import type { Graph, GraphNode } from '../types'
 import type { MinigraphBubble } from './bubbleLine'
-import type { Crossing, Routes } from './bubblesFromGraph'
+import type { Routes } from './bubblesFromGraph'
 
 // Superbubbles (Onodera et al. 2013) as BubbleGun finds them
 // (find_bubbles.py's find_sb_alg): from one side of a source, take a node once
@@ -255,45 +256,26 @@ function allSuperbubbles(graph: Graph) {
   return { found, twins, offset, next }
 }
 
+function linksNodes(
+  a: number,
+  b: number,
+  offset: Int32Array,
+  next: Int32Array,
+) {
+  return next.subarray(offset[a * 2], offset[a * 2 + 2]).some(k => k >> 1 === b)
+}
+
 function linksEnds(f: Found, offset: Int32Array, next: Int32Array) {
   return next
     .subarray(offset[f.source], offset[f.source + 1])
     .includes(f.sink ^ 1)
 }
 
-// A walk's first stretch from one end of a bubble to the other through its
-// own interior: its twin shares both ends, so where a walk first visits them
-// says nothing. A walk holds no strands, so a step straight from one end to
-// the other is the bubble's only if its twin does not link them too, and a
-// walk taking it where both do cannot be followed.
-function twinCrossing(
-  steps: readonly string[],
-  ends: readonly [string, string],
-  inside: Set<string>,
-  direct: { mine: boolean; theirs: boolean },
-) {
-  let crossing: Crossing | undefined
-  let at = -1
-  let entered = false
-  for (let i = 0; i < steps.length && !crossing; i++) {
-    const id = steps[i]!
-    if (ends.includes(id)) {
-      const stretch = at >= 0 && steps[at] !== id ? i - at - 1 : -1
-      if (stretch > 0 || (stretch === 0 && direct.mine && !direct.theirs)) {
-        crossing = { lo: at + 1, hi: i, endFirst: steps[at] === ends[1] }
-      } else {
-        entered ||= stretch === 0 && direct.mine && direct.theirs
-        at = i
-      }
-    } else if (inside.has(id)) {
-      entered = true
-    } else {
-      at = -1
-    }
-  }
-  return crossing ?? (entered ? ('leaves' as const) : undefined)
-}
-
+// A twin's walks: its twin shares both ends, so a walk that visits them has
+// not entered this one unless it steps inside. A walk holds no strands, so a
+// step straight from one end to the other is the bubble's only if its twin
+// does not link them too, and a walk taking it where both do cannot be
+// followed.
 function twinRoutes(
   graph: Graph,
   byId: Map<string, GraphNode>,
@@ -306,14 +288,23 @@ function twinRoutes(
   const { nodes } = graph
   const ends = [nodes[f.source >> 1]!.id, nodes[f.sink >> 1]!.id] as const
   const inside = new Set(Array.from(f.inside, k => nodes[k >> 1]!.id))
-  const direct = {
-    mine: linksEnds(f, offset, next),
-    theirs: linksEnds(twin, offset, next),
-  }
+  const mine = linksEnds(f, offset, next)
+  const both = mine && linksEnds(twin, offset, next)
+  const body = { inside, direct: mine && !both }
+  const unreadable = (steps: readonly string[], i: number) =>
+    both &&
+    i > 0 &&
+    steps[i] !== steps[i - 1] &&
+    ends.includes(steps[i]!) &&
+    ends.includes(steps[i - 1]!)
   return crossingRoutes(
     graph,
     byId,
-    steps => twinCrossing(steps, ends, inside, direct),
+    steps =>
+      firstCrossing(steps, ends, body) ??
+      (steps.some((id, i) => inside.has(id) || unreadable(steps, i))
+        ? 'leaves'
+        : undefined),
     fallback,
   )
 }
@@ -389,7 +380,20 @@ export function superbubblesFromGraph(
       const fallback = () => routesThrough(nodes, offset, next, f)
       const walked = twin
         ? twinRoutes(graph, byId, f, twin, offset, next, fallback)
-        : walkRoutes(graph, byId, walkIndex, source.id, sink.id, fallback)
+        : walkRoutes(
+            graph,
+            byId,
+            walkIndex,
+            source.id,
+            sink.id,
+            {
+              inside: new Set(Array.from(f.inside, k => nodes[k >> 1]!.id)),
+              direct:
+                linksEnds(f, offset, next) ||
+                !linksNodes(f.source >> 1, f.sink >> 1, offset, next),
+            },
+            fallback,
+          )
       const placed = placedOn(f, nodes)
       const [early, late] =
         !placed || source.stable!.start <= sink.stable!.start

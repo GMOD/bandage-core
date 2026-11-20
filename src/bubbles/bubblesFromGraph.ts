@@ -1,9 +1,11 @@
 import { isBackbone } from '../anchoredNodes'
 import { referenceOrder } from '../layout/orderedLayout'
-import { addTo, groupBy } from '../util/groups'
+import { strandSides } from '../util/geometry'
+import { addTo, groupBy, pushTo } from '../util/groups'
 import { SATURATED_PATH_COUNT } from './bubbleLine'
 
-import type { Graph, GraphNode } from '../types'
+import type { AnchoredNode } from '../anchoredNodes'
+import type { Graph, GraphEdge, GraphNode } from '../types'
 import type { BubbleRoute, MinigraphBubble } from './bubbleLine'
 
 // Bubbles from the graph alone, off the reference order the ordered layout is
@@ -45,6 +47,38 @@ export function relax<K>(
   })
 }
 
+const pairKey = (a: string, b: string) => (a < b ? `${a}\t${b}` : `${b}\t${a}`)
+
+const downstream = (n: AnchoredNode) =>
+  n.stable.strand === '-' ? 'start' : 'end'
+const upstream = (n: AnchoredNode) =>
+  n.stable.strand === '-' ? 'end' : 'start'
+
+// A link straight from the start's downstream side to the end's upstream one,
+// as a deletion of everything between them, and not the way round a circular
+// contig from its last node to its first. Ends no link joins, as in a GFA
+// whose walks state its links, and a link stating no strands, are taken to be
+// joined that way.
+function joinsAcross(
+  edges: readonly GraphEdge[],
+  start: AnchoredNode,
+  end: AnchoredNode,
+) {
+  return (
+    edges.length === 0 ||
+    edges.some(e => {
+      const sides = strandSides(e)
+      return (
+        e.fromStrand === undefined ||
+        e.toStrand === undefined ||
+        (e.from === start.id
+          ? sides.from === downstream(start) && sides.to === upstream(end)
+          : sides.from === upstream(end) && sides.to === downstream(start))
+      )
+    })
+  )
+}
+
 export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
   if (!graph.nodes.some(isBackbone)) {
     return []
@@ -59,6 +93,7 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
   // forward one, and counting it twice doubles every route through the copy
   const succ = new Map<string, Set<string>>()
   const linked = new Set<string>()
+  const edgesBetween = new Map<string, GraphEdge[]>()
   for (const e of graph.edges) {
     const a = indexOf.get(e.from)
     const b = indexOf.get(e.to)
@@ -66,6 +101,7 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
       continue
     }
     linked.add(`${e.from}>${e.to}`).add(`${e.to}>${e.from}`)
+    pushTo(edgesBetween, pairKey(e.from, e.to), e)
     const [lo, hi] = a < b ? [a, b] : [b, a]
     reach[lo + 1]!++
     reach[hi]!--
@@ -125,6 +161,18 @@ export function bubblesFromGraph(graph: Graph): MinigraphBubble[] {
       walkIndex,
       start.id,
       end.id,
+      {
+        inside: new Set(interior),
+        beyond: (id, at) => {
+          const k = indexOf.get(id)
+          return k !== undefined && (at === start.id ? k < i0 : k > i1)
+        },
+        direct: joinsAcross(
+          edgesBetween.get(pairKey(start.id, end.id)) ?? [],
+          start,
+          end,
+        ),
+      },
       () => best.get(end.id) ?? { min: 0, max: 0, n: 0 },
     )
 
@@ -193,9 +241,28 @@ export interface WalkedRoutes extends Routes {
   walksLeave: boolean
 }
 
+// A bubble's own interior, and whether a link of its own joins its two ends.
+// `beyond` says whether a node lies past one of its ends, away from it, for a
+// bubble whose interior links may leave: a duplication's copy runs out of it
+// and back, and is sequence the haplotype carries there. Without it the
+// interior is closed, as a superbubble's is, and no crossing leaves it.
+export interface BubbleBody {
+  inside: ReadonlySet<string>
+  direct: boolean
+  beyond?: (id: string, end: string) => boolean
+}
+
 // For every walk that passes both boundary nodes, the bp between them and the
 // step sequence, so routes are distinct sequences and lengths are the true
 // haplotype lengths. Where no walk crosses, the counts are `fallback`'s.
+//
+// A walk is read between its first visits to the two ends, unless that
+// stretch runs the other way round, out of each end on its far side, or
+// straight from one to the other by a link that is not the bubble's own; it
+// is then read at its first stretch through the bubble alone, and leaves it
+// where it has none. Round a circular contig the first visits can lie the
+// other way round, through everything but the bubble, and a walk written from
+// a point inside the bubble crosses it only in pieces at its two ends.
 //
 // `byId` is the caller's: this runs once per bubble, and a map of every node
 // built here made the whole pass quadratic, seven seconds at 15k nodes.
@@ -205,6 +272,7 @@ export function walkRoutes(
   walkIndex: WalkIndex | undefined,
   startId: string,
   endId: string,
+  body: BubbleBody,
   fallback: () => Routes,
 ): WalkedRoutes {
   if (!walkIndex) {
@@ -212,20 +280,83 @@ export function walkRoutes(
   }
   const at0 = walkIndex.get(startId)!
   const at1 = walkIndex.get(endId)!
+  const ends = [startId, endId] as const
   return crossingRoutes(
     graph,
     byId,
-    (_, k) => {
+    (steps, k) => {
       const i0 = at0[k]!
       const i1 = at1[k]!
+      const lo = Math.min(i0, i1) + 1
+      const hi = Math.max(i0, i1)
       return i0 < 0 || i1 < 0
         ? i0 >= 0 || i1 >= 0
           ? 'leaves'
           : undefined
-        : { lo: Math.min(i0, i1) + 1, hi: Math.max(i0, i1), endFirst: i1 < i0 }
+        : betweenFirstVisits(steps, lo, hi, ends, body)
+          ? { lo, hi, endFirst: i1 < i0 }
+          : (firstCrossing(steps, ends, body) ?? 'leaves')
     },
     fallback,
   )
+}
+
+function betweenFirstVisits(
+  steps: readonly string[],
+  lo: number,
+  hi: number,
+  ends: readonly [string, string],
+  body: BubbleBody,
+) {
+  const { beyond } = body
+  return hi > lo && beyond
+    ? !(
+        beyond(steps[lo]!, steps[lo - 1]!) && beyond(steps[hi - 1]!, steps[hi]!)
+      )
+    : throughBody(steps, lo, hi, ends, body)
+}
+
+// Every step inside the bubble or at one of its ends, which a collapsed
+// repeat's copy loops back through, or none where its own link joins them
+function throughBody(
+  steps: readonly string[],
+  lo: number,
+  hi: number,
+  ends: readonly [string, string],
+  { inside, direct }: BubbleBody,
+) {
+  let through = hi > lo || direct
+  for (let i = lo; i < hi && through; i++) {
+    const id = steps[i]!
+    through = inside.has(id) || id === ends[0] || id === ends[1]
+  }
+  return through
+}
+
+// A walk's first stretch from one end of a bubble to the other through its
+// body alone
+export function firstCrossing(
+  steps: readonly string[],
+  ends: readonly [string, string],
+  body: BubbleBody,
+) {
+  let crossing: Crossing | undefined
+  let at = -1
+  for (let i = 0; i < steps.length && !crossing; i++) {
+    const id = steps[i]!
+    if (id === ends[0] || id === ends[1]) {
+      if (at < 0 || steps[at] !== id) {
+        if (at >= 0 && throughBody(steps, at + 1, i, ends, body)) {
+          crossing = { lo: at + 1, hi: i, endFirst: steps[at] === ends[1] }
+        } else {
+          at = i
+        }
+      }
+    } else if (!body.inside.has(id)) {
+      at = -1
+    }
+  }
+  return crossing
 }
 
 // Where a walk crosses a bubble: its steps from `lo` up to but not `hi`, the
