@@ -1,6 +1,6 @@
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { mergeRuns, splitRuns } from './mergeRuns'
+import { mergeRuns, polylinePointAt, splitRuns } from './mergeRuns'
 
 // chr1 runs v1->v2->v3->v4->v5; a1 replaces v3 and v4 between v2 and v5, so
 // v1+v2 is a run, v3+v4 is a run, and v5 and a1 stand alone. v5 loops back to
@@ -152,4 +152,17 @@ test("a run states its backbone member's strand against its own id", () => {
   expect(run('-')).toMatchObject({ id: 'x+', stable: { strand: '+' } })
   expect(run('+')).toMatchObject({ id: 'x+', stable: { strand: '-' } })
   expect(run(undefined)).toMatchObject({ id: 'x+', stable: { strand: '-' } })
+})
+
+test('a point along a polyline is interpolated by arc length, and lies nowhere on one with no points', () => {
+  const line = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 30 },
+  ]
+  expect(polylinePointAt(line, 0)).toEqual({ x: 0, y: 0 })
+  expect(polylinePointAt(line, 0.25)).toEqual({ x: 10, y: 0 })
+  expect(polylinePointAt(line, 0.5)).toEqual({ x: 10, y: 10 })
+  expect(polylinePointAt(line, 1)).toEqual({ x: 10, y: 30 })
+  expect(polylinePointAt([], 0.5)).toEqual({ x: Number.NaN, y: Number.NaN })
 })

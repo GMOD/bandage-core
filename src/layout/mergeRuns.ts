@@ -1,6 +1,7 @@
 import { isBackbone } from '../anchoredNodes'
 import { ownStrand, strandSides } from '../util/geometry'
 import { pushTo } from '../util/groups'
+import { partitionPoint } from '../util/partitionPoint'
 
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 
@@ -194,18 +195,16 @@ export function polylineSlice(line: NodeSegment[], from: number, to: number) {
   return slice(line, arc, from * total, to * total)
 }
 
-// The point a fraction of the way along a polyline by arc length
+// The point a fraction of the way along a polyline by arc length, nowhere on
+// a polyline with no points
 export function polylinePointAt(
   line: NodeSegment[],
   fraction: number,
 ): NodeSegment {
   const arc = arcPrefix(line)
-  return pointAt(line, arc, arc.at(-1)! * fraction)
-}
-
-// The point halfway along a polyline by arc length, where a node's label goes.
-export function polylineMidpoint(line: NodeSegment[]): NodeSegment {
-  return polylinePointAt(line, 0.5)
+  return line.length === 0
+    ? { x: Number.NaN, y: Number.NaN }
+    : pointAt(line, arc, arc.at(-1)! * fraction)
 }
 
 // Cumulative distance to each point of a polyline, starting at 0.
@@ -220,20 +219,9 @@ function arcPrefix(line: NodeSegment[]) {
   return arc
 }
 
-// The first index whose arc distance reaches `s`; arc is sorted
-function firstReaching(arc: number[], s: number) {
-  let lo = 0
-  let hi = arc.length
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (arc[mid]! < s) {
-      lo = mid + 1
-    } else {
-      hi = mid
-    }
-  }
-  return lo
-}
+// The first index whose arc distance reaches `s`
+const firstReaching = (arc: number[], s: number) =>
+  partitionPoint(arc.length, i => arc[i]! < s)
 
 function pointAt(line: NodeSegment[], arc: number[], s: number): NodeSegment {
   if (s <= 0) {
