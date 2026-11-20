@@ -42,11 +42,12 @@ covers fitting the drawing to a pane, labels with `layoutLabels`, the key with
 
 ## Figures
 
-| Export                               | What it does                                                                                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `figureSvg(graph, layout, options)`  | an SVG file of the drawing, with highlighted haplotypes, a panel per haplotype, genes and a key |
-| `figureData(graph, layout, options)` | the same drawing as tables of coordinates, which ggbandage draws in ggplot2                     |
-| `gfaFigureData(text, name, spec)`    | `figureData` from GFA text and a `bandage-figure` spec                                          |
+| Export                                     | What it does                                                                                                                                                                                                                              |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `figureSvg(graph, layout, options)`        | an SVG file of the drawing, with highlighted haplotypes, a panel per haplotype, genes and a key                                                                                                                                           |
+| `figureData(graph, layout, options)`       | the same drawing as tables of coordinates, which ggbandage draws in ggplot2                                                                                                                                                               |
+| `laidOutGraph(source, name, region, spec)` | the graph and the layout a `bandage-figure` spec asks for, from GFA text or a region read from a walk file, to pass to `figureSvg` or `figureData`. It throws an error for a `layout` that draws no nodes or an `engine` there is none of |
+| `gfaFigureData(text, name, spec)`          | `figureData` from GFA text and a `bandage-figure` spec                                                                                                                                                                                    |
 
 ## Haplotypes
 
@@ -59,11 +60,11 @@ covers fitting the drawing to a pane, labels with `layoutLabels`, the key with
 
 ## Genes and variants
 
-| Export                                            | What it does                                                                                   |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `genesFromGff3Lines(lines)`, `genesFromBed(text)` | genes from a GFF3 or BED file                                                                  |
-| `graphBackbone(graph)`                            | the graph's reference, and the contigs it covers                                               |
-| `featuresOnBackbone(genes, backbone)`             | renames genes' contigs to the names the graph's reference uses                                 |
-| `genePins(graph, genes, positions)`               | where each gene lies on the laid-out nodes                                                     |
-| `graphBubbles(graph)`                             | the graph's bubbles (variant sites), found along the reference, or as superbubbles without one |
-| `deletionEdges(graph)`                            | the links that skip reference sequence, which are deletions                                    |
+| Export                                            | What it does                                                                                                     |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `genesFromGff3Lines(lines)`, `genesFromBed(text)` | genes from a GFF3 or BED file                                                                                    |
+| `graphBackbone(graph)`                            | the graph's reference, and the contigs it covers                                                                 |
+| `featuresOnBackbone(genes, backbone)`             | renames genes' contigs to the names the graph's reference uses                                                   |
+| `genePins(graph, genes, positions, stranded)`     | where each gene lies on the laid-out nodes. `stranded` is the layout's own `stranded`, which a force layout sets |
+| `graphBubbles(graph)`                             | the graph's bubbles (variant sites), found along the reference, or as superbubbles without one                   |
+| `deletionEdges(graph)`                            | the links that skip reference sequence, which are deletions                                                      |
