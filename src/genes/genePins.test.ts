@@ -338,3 +338,38 @@ test("a lifted haplotype's copy along the reference's keeps no name, its copy on
     ['STK19 · HG00097#1', ['snp']],
   ])
 })
+
+test("a haplotype's copy of a gene the reference names in another copy's name is not named again", () => {
+  const graph: Graph = {
+    name: 'g',
+    nodes: [
+      anchored('r1', 0, 1000),
+      anchored('r2', 1000, 1000),
+      anchored('u', 3000, 10),
+      offReference('snp', 1000, 1),
+      offReference('ins', 2001, 2000),
+    ],
+    edges: [],
+    paths: [
+      { name: 'chr1', nodeIds: ['r1', 'r2', 'r1', 'u', 'r2'], start: 0 },
+      { name: HAPLOTYPE, nodeIds: ['r1', 'snp', 'r2', 'ins'], start: 0 },
+    ],
+  }
+  const pins = genePins(
+    graph,
+    [
+      gene('FIRST', 'chr1', 0, 2000),
+      gene('LATER', 'chr1', 2000, 4010),
+      gene('LATER', HAPLOTYPE, 0, 2001),
+      gene('LATER', HAPLOTYPE, 2001, 4001),
+    ],
+    along(['r1', 'r2', 'u', 'snp', 'ins'], 0),
+  )
+  const names = (lifted: string[]) =>
+    namedGenePins(pins, lifted).map(n => [n.name, [...n.pin.nodeIds]])
+  expect(names([])).toEqual([['FIRST, LATER', ['r1', 'r2']]])
+  expect(names([HAPLOTYPE])).toEqual([
+    ['FIRST, LATER', ['r1', 'r2']],
+    ['LATER · HG00097#1', ['ins']],
+  ])
+})

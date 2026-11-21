@@ -133,7 +133,8 @@ export function copyNames(names: readonly string[]) {
 // reference carries the gene, and otherwise as a copy no walk is lifted for.
 // A gene with no symbol
 // is named nowhere, unless no gene in the drawing has one. A gene the
-// reference carries is named on the reference alone. A
+// reference carries, in its own name or an earlier copy's, is named on the
+// reference alone. A
 // copy on a lifted walk's own sequence is named too, with its haplotype. A
 // gene only shown haplotypes carry is named once, on the copy chosen by
 // carriedBefore, with its haplotype while any walk is lifted. Every other copy
@@ -158,12 +159,16 @@ export function namedGenePins(
   )
   const onLift = (pin: GenePin) =>
     !pin.onReference && heldOnOwnNodes(pin) && lifted.has(pin.gene.refName)
+  const copies = walkedOverCopies(pins, named)
   const namedElsewhere = new Set(
     named.flatMap(pin =>
-      pin.onReference || onLift(pin) ? [pin.gene.name] : [],
+      pin.onReference
+        ? [pin.gene.name, ...(copies.get(pin) ?? [])]
+        : onLift(pin)
+          ? [pin.gene.name]
+          : [],
     ),
   )
-  const copies = walkedOverCopies(pins, named)
   const offReference = new Map<string, GenePin>()
   for (const pin of named) {
     const { name } = pin.gene
