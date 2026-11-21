@@ -1,3 +1,10 @@
+## [14.3.0](https://github.com/GMOD/bandage-core/compare/v14.2.0...v14.3.0) (2026-11-21)
+
+### Other Changes
+
+- Graph-walks 8.0.2 in development: a unit table whose entries leave a gap, overlap or are out of file order is refused, and a cut of every haplotype takes under half the time ([77d571f](https://github.com/GMOD/bandage-core/commit/77d571f586db671a1a3560d3286426d9fd935fba))
+- Reads are painted forward red and reverse blue, as JBrowse's alignments track colours strands, from tubemap-core 2.1.0's read ramps, which every tube map reader now shares; the tests and scripts read walk files with graph-walks 9.0.0 ([cfaac76](https://github.com/GMOD/bandage-core/commit/cfaac762c4f70e8ab70fc5f9e363654fe13f69e4))
+
 ## [14.2.0](https://github.com/GMOD/bandage-core/compare/v14.1.0...v14.2.0) (2026-11-21)
 
 ### Other Changes
