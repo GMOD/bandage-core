@@ -60,7 +60,7 @@
     "@jbrowse/tubemap-core": "^2.0.0"
   },
   "devDependencies": {
-    "@jbrowse/graph-walks": "^8.0.1",
+    "@jbrowse/graph-walks": "^8.0.2",
     "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "generic-filehandle2": "^2.5.1",
