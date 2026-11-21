@@ -1,3 +1,18 @@
+## [14.2.0](https://github.com/GMOD/bandage-core/compare/v14.1.0...v14.2.0) (2026-11-21)
+
+### Other Changes
+
+- A raster paint group is stroked every 1,024 subpaths, where it was one path of tens of thousands: Chrome's GPU canvas drew a 50,000-node FMMM layout in 201 ms a frame, from 274, and its CPU canvas in 218, from 336 ([86276e2](https://github.com/GMOD/bandage-core/commit/86276e24e930024669562447892baf81faa8c479))
+- A raster paint group draws one of the subpaths under a quarter pixel that land in the same eighth-pixel cell and leaves out the rest, which all drew there: 41 ms a frame on Chrome's CPU canvas for the 14,645-node KIV-2 graph, from 56 ([b7ffbc7](https://github.com/GMOD/bandage-core/commit/b7ffbc75d663184893827ddac07c7799361d1e15))
+- Agent-docs/multi-contig.md records why the multi-contig branch is parked, the refuse guard to add instead, and what to settle if the branch comes back ([93ff32c](https://github.com/GMOD/bandage-core/commit/93ff32c1097bb6466f8c122496412357e8b659b0))
+- Scripts/render-lab times Canvas2DRenderer against an instanced WebGL2 prototype on screen: the prototype holds vsync on whole-graph views of 15k to 50k nodes, where Canvas2D draws 3 to 18 frames a second ([ec1dbad](https://github.com/GMOD/bandage-core/commit/ec1dbaddf4c0e7edb7174e06857bf935261bc2ce))
+- Canvas2DRenderer's header names ADR-047's WebGL2 backend for drawing on screen, where it quoted 11 ms a frame for 15k nodes that held only with most of the graph off the pane ([0a0964b](https://github.com/GMOD/bandage-core/commit/0a0964bdb6fb41a30976ed6e4d77e9ee6669d4df))
+- A reference copy the reference walks over an earlier copy's nodes records those nodes, and each one's hover names it ([99d4ca1](https://github.com/GMOD/bandage-core/commit/99d4ca1d29c93909277a68c06e87b883a590797e))
+- A reference copy the reference walks over a named copy's nodes is named in that copy's name: two in full, three or more numbered copies as how many they are ([bcfbcc4](https://github.com/GMOD/bandage-core/commit/bcfbcc438c521fd2f03f359ef6805de9896a598c))
+- A haplotype's copy of a gene the reference names in an earlier copy's name is not named again ([a4f0100](https://github.com/GMOD/bandage-core/commit/a4f0100fadc17f0a66f901849d9b8c9ef9dd42cb))
+- The graph key says the strip's tab marks the graph's reference continuing past the pane edge, and keys a drawing's top and bottom edge marks with an entry of their own ([13c27ff](https://github.com/GMOD/bandage-core/commit/13c27ffba647b99726f23390911d35c1a491bafc))
+- The key's entry for the drawing running past the pane's top or bottom has a swatch of its own, an up and a down triangle, as the edge marks point ([6549517](https://github.com/GMOD/bandage-core/commit/6549517448e588ce0e1477608d602478a54e26a3))
+
 ## [14.1.0](https://github.com/GMOD/bandage-core/compare/v14.0.2...v14.1.0) (2026-11-20)
 
 ### Documentation
