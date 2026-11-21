@@ -1,4 +1,9 @@
-import { curvePaths, flattenPath, nodeOutlinePath } from '@jbrowse/tubemap-core'
+import {
+  curvePaths,
+  flattenPath,
+  nodeOutlinePath,
+  readColor,
+} from '@jbrowse/tubemap-core'
 
 import { NOT_LOADED_TEXT } from '../gfa/departures'
 import { formatBp } from '../graphLabels'
@@ -7,7 +12,6 @@ import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
 import { tubeMapMismatches } from './mismatches'
-import { readColor } from './reads'
 import { MAX_GAP_PX } from './warp'
 
 import type { TubeMapDrawing } from '../layout/tubeMapLayout'
