@@ -223,7 +223,13 @@ export function segmentInBox(a: NodeSegment, b: NodeSegment, box: Box) {
 
 // Whether any of the segment a-b lies inside the box
 export function segmentMeetsBox(a: NodeSegment, b: NodeSegment, box: Box) {
-  return segmentInBox(a, b, box) !== undefined
+  return (
+    Math.max(a.x, b.x) >= box.x0 &&
+    Math.min(a.x, b.x) <= box.x1 &&
+    Math.max(a.y, b.y) >= box.y0 &&
+    Math.min(a.y, b.y) <= box.y1 &&
+    segmentInBox(a, b, box) !== undefined
+  )
 }
 
 // Whether the centreline of a node other than the label's `own` crosses a box
