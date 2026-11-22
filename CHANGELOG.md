@@ -1,3 +1,11 @@
+## [14.3.1](https://github.com/GMOD/bandage-core/compare/v14.3.0...v14.3.1) (2026-11-22)
+
+### Other Changes
+
+- Graph-walks 9.1.0 in development: the tests and scripts read walk files with it, where an over-budget window is refused before its rows are decoded and departure-dense windows cut faster ([129f55b](https://github.com/GMOD/bandage-core/commit/129f55b6dcf4b006c2fd55feeb78db7ede7ab5c7))
+- Gene names and node lengths test their spots against an index of the exon outlines, and a segment whose box misses a label's is refused before the exact test, so a 25 Mb window of RefSeq genes lays out its labels in milliseconds where each layout took seconds ([37f48d4](https://github.com/GMOD/bandage-core/commit/37f48d4acde5cba27a943918f3e95b482e3278af))
+- LabelLayout.ts formatted with oxfmt ([06a101d](https://github.com/GMOD/bandage-core/commit/06a101d8bdd2cd457e2c9ea3038ec7691c33734f))
+
 ## [14.3.0](https://github.com/GMOD/bandage-core/compare/v14.2.0...v14.3.0) (2026-11-21)
 
 ### Other Changes
