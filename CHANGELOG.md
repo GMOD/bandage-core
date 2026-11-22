@@ -1,3 +1,10 @@
+## [14.3.5](https://github.com/GMOD/bandage-core/compare/v14.3.4...v14.3.5) (2026-11-22)
+
+### Other Changes
+
+- RunsAlong tests each segment of a skip's stretch against only the samples of its route that lie in the segment's box, grown by the reach, in a tree of boxes over the samples in order, and stops once more than half are found, so it returns what testing every sample against every segment returned while building the curves of the 14,142-node window of HPRC release 2's pggb chrY graph at 256 times its fit zoom takes about 0.7 s in Node where it took about 65 s (4.9 billion distance tests over 522 skips whose stretches sum to 10.3 million segments), with the window's curves and render batch byte-identical at six zooms, and the graph plugin draws the eight dense 10 kb windows of that graph in headless Chrome in 8.5 to 10.5 s where they took 78 to 123 s, with screenshots byte-identical; a check against the old predicate on random stretches and skips near the reach, a check of the counted points against every segment, and a test of 202 skips over a 10,000-segment stretch, which the old predicate took about 40 s on, keep it so ([99d1737](https://github.com/GMOD/bandage-core/commit/99d1737f141d35e669c20156f1a8b682985ad53f))
+- Bandage-core depends on @jbrowse/graph-stress-layout ^1.1.0, whose bar hung under a gap clears its own links, so a deletion nested in a deletion draws as two detours, and the suite passes unchanged on it (1846 tests, figure snapshots byte-identical, no expectation moved) ([a382bbb](https://github.com/GMOD/bandage-core/commit/a382bbb69166658abce8e85272c76e20a4161568))
+
 ## [14.3.4](https://github.com/GMOD/bandage-core/compare/v14.3.3...v14.3.4) (2026-11-22)
 
 ### Other Changes
