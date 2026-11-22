@@ -1,3 +1,10 @@
+## [14.4.0](https://github.com/GMOD/bandage-core/compare/v14.3.5...v14.4.0) (2026-11-22)
+
+### Other Changes
+
+- GeometryFold gives the fold a build with the same options makes, without building it and cached for that build, so a reader can size the key that names the fold before it fits and builds the drawing once ([12403af](https://github.com/GMOD/bandage-core/commit/12403af0ce0936ee04d1b7f86ba135c6bca1729b))
+- The long-link hover test checks 300 points against a scan of every link, where 1,500 ran past vitest's 15 s timeout on GitHub's runners ([3a3820c](https://github.com/GMOD/bandage-core/commit/3a3820c8a5d43c6d3f51adbda26add7f062bb0a9))
+
 ## [14.3.5](https://github.com/GMOD/bandage-core/compare/v14.3.4...v14.3.5) (2026-11-22)
 
 ### Other Changes
