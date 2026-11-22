@@ -2,8 +2,10 @@ import {
   computeEdgeCurves,
   curvePointAt,
   dashCurves,
+  distanceToSegment,
   edgeJoinOf,
   pathRibbonOffsets,
+  pointsNearPolyline,
   projectLine,
   routedEdgeCurves,
   selfLinkOf,
@@ -544,3 +546,65 @@ test('path ribbons of a link whose feet meet fan as its nodes say', () => {
     pathRibbonOffsets(a, a, 2, iso()),
   )
 })
+
+// mulberry32
+function random(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+test.each([1, 2, 3, 4])(
+  'the points counted near a polyline are those distanceToSegment finds a segment within reach of, seed %i',
+  seed => {
+    const next = random(seed)
+    const reach = 12
+    for (let n = 0; n < 40; n++) {
+      const level = n % 3 === 0
+      const upright = n % 3 === 1
+      const magnitude = [1, 1e3, 1e6][n % 4 === 3 ? 2 : n % 2]!
+      let x = (next() - 0.5) * magnitude
+      let y = (next() - 0.5) * magnitude
+      const line = Array.from({ length: 1 + Math.floor(next() * 300) }, () => {
+        const step = next() < 0.05 ? 2000 : 40
+        x += upright ? 0 : (next() - 0.3) * step
+        y += level ? 0 : (next() - 0.3) * step
+        return { x, y }
+      })
+      const points = Array.from({ length: 200 }, () => {
+        const at = line[Math.floor(next() * line.length)]!
+        const off = (next() < 0.5 ? -1 : 1) * (reach + (next() - 0.5) * 2)
+        const across = next() < 0.5
+        return {
+          x: at.x + (across ? off : (next() - 0.5) * 30),
+          y: at.y + (across ? (next() - 0.5) * 30 : off),
+        }
+      })
+      const within = points.filter(p => {
+        let near = false
+        for (let i = 1; i < line.length; i++) {
+          const a = line[i - 1]!
+          const b = line[i]!
+          near ||= distanceToSegment(p.x, p.y, a.x, a.y, b.x, b.y) <= reach
+        }
+        return near
+      })
+      const coordinates = (ps: { x: number; y: number }[]) => ({
+        xs: ps.map(p => p.x),
+        ys: ps.map(p => p.y),
+      })
+      const counted = (ps: { x: number; y: number }[], enough: number) =>
+        pointsNearPolyline(coordinates(ps), coordinates(line), reach, enough)
+      expect(counted(points, Infinity)).toBe(within.length)
+      expect(Math.min(counted(points, 50), 51)).toBe(
+        Math.min(within.length, 51),
+      )
+      for (const p of points.slice(0, 40)) {
+        expect(counted([p], Infinity)).toBe(within.includes(p) ? 1 : 0)
+      }
+    }
+  },
+)

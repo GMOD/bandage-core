@@ -1,11 +1,11 @@
 import { buildGeometry } from '../renderer/GeometryBuilder'
 import { EdgeSpatialIndex } from './SpatialIndex'
-import { SKIP_LEVEL_PX, baseEdgeCurves } from './edgeCurves'
-import { curvePointAt } from './geometry'
+import { SKIP_LEVEL_PX, baseEdgeCurves, runsAlong } from './edgeCurves'
+import { curvePointAt, distanceToSegment } from './geometry'
 
 import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, GraphNode, NodeSegment } from '../types'
-import type { BezierCurve } from './geometry'
+import type { AxisScale, BezierCurve } from './geometry'
 
 const nodes: GraphNode[] = [
   { id: 'a+', name: 'a', length: 100, depth: 1 },
@@ -647,4 +647,211 @@ describe('a dashed skip whose route runs along the reference it skips', () => {
   test('a skip too short on screen for its dashes keeps its route', () => {
     expect(skipAlong(2, along)).toBeLessThan(2)
   })
+})
+
+// runsAlong as it was in 14.3.4, testing every sample against every segment
+function runsAlongEverySegment(
+  curves: BezierCurve[],
+  bypassed: readonly string[],
+  nodePositions: Record<string, NodeSegment[]>,
+  axis: AxisScale,
+) {
+  const screen = (p: { x: number; y: number }) => ({
+    x: p.x * axis.scaleX,
+    y: p.y * axis.scaleY,
+  })
+  const first = curves[0]!
+  const last = curves.at(-1)!
+  const stretch = [
+    screen({ x: first.x0, y: first.y0 }),
+    ...bypassed.flatMap(id => (nodePositions[id] ?? []).map(screen)),
+    screen({ x: last.x1, y: last.y1 }),
+  ]
+  let near = 0
+  let all = 0
+  for (const c of curves) {
+    for (let k = 0; k <= 16; k++) {
+      const p = screen(curvePointAt(c, k / 16))
+      let onStretch = false
+      for (let i = 1; i < stretch.length && !onStretch; i++) {
+        const a = stretch[i - 1]!
+        const b = stretch[i]!
+        onStretch = distanceToSegment(p.x, p.y, a.x, a.y, b.x, b.y) <= 12
+      }
+      all++
+      near += onStretch ? 1 : 0
+    }
+  }
+  return near * 2 > all
+}
+
+// mulberry32
+function random(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+// A stretch laid as a wandering or a level line, some of its nodes unplaced,
+// some points repeated and some far jumps, and a skip whose pieces run along
+// it at about the reach, or off it anywhere in the drawing, or both, or flat
+// just inside or outside the reach of a level stretch
+function randomSkip(seed: number) {
+  const next = random(seed)
+  const pick = <T>(xs: readonly T[]) => xs[Math.floor(next() * xs.length)]!
+  const scaleX = pick([0.01, 0.1, 0.5, 1, 3, 20])
+  const axis = {
+    scaleX,
+    scaleY: next() < 0.3 ? pick([0.01, 0.5, 1, 7]) : scaleX,
+  }
+  const pxX = 1 / axis.scaleX
+  const pxY = 1 / axis.scaleY
+  const count = pick([0, 1, 3, 40, 300, 3000])
+  const level = next() < 0.3
+  const positions: Record<string, NodeSegment[]> = {}
+  const bypassed: string[] = []
+  const line: NodeSegment[] = []
+  let x = 0
+  let y = 0
+  for (let i = 0; i < count; i++) {
+    const id = `s${i}`
+    bypassed.push(next() < 0.05 ? `unplaced${i}` : id)
+    const points = Array.from({ length: pick([0, 1, 2, 2, 3]) }, () => {
+      const jump = next() < 0.01
+      x += jump ? (next() - 0.5) * 4000 * pxX : next() * 30 * pxX
+      y += level ? 0 : (next() - 0.5) * (jump ? 4000 : 30) * pxY
+      return next() < 0.05 && line.length > 0 ? { ...line.at(-1)! } : { x, y }
+    })
+    for (const p of points) {
+      line.push(p)
+    }
+    positions[id] = points
+  }
+  const course = pick(['along', 'off', 'mixed', 'rim'])
+  const rim = (next() < 0.5 ? -1 : 1) * (12 + (next() - 0.5) * 0.8) * pxY
+  const near = () => {
+    const at = line.length > 0 ? pick(line) : { x: 0, y: 0 }
+    return {
+      x: at.x + (next() - 0.5) * 30 * pxX,
+      y: at.y + (next() - 0.5) * 30 * pxY,
+    }
+  }
+  const far = () => ({
+    x: (next() - 0.5) * 6000 * pxX,
+    y: (next() - 0.5) * 6000 * pxY,
+  })
+  const point = () =>
+    course === 'along' || (course === 'mixed' && next() < 0.5) ? near() : far()
+  const onRim = () => {
+    const at = line.length > 0 ? pick(line) : { x: 0, y: 0 }
+    const rimY = at.y + rim
+    return {
+      x0: at.x,
+      y0: rimY,
+      cx0: at.x + pxX,
+      cy0: rimY,
+      cx1: at.x + 2 * pxX,
+      cy1: rimY,
+      x1: at.x + 3 * pxX,
+      y1: rimY,
+    }
+  }
+  const anywhere = () => {
+    const a = point()
+    const b = point()
+    const c = point()
+    const d = point()
+    return {
+      x0: a.x,
+      y0: a.y,
+      cx0: b.x,
+      cy0: b.y,
+      cx1: c.x,
+      cy1: c.y,
+      x1: d.x,
+      y1: d.y,
+    }
+  }
+  const curves = Array.from({ length: pick([1, 2, 5, 30]) }, () =>
+    course === 'rim' ? onRim() : anywhere(),
+  )
+  return { curves, bypassed, positions, axis }
+}
+
+test.each([1, 2, 3, 4, 5, 6, 7, 8])(
+  'whether a skip runs along its stretch is what testing every sample against every segment says, seed %i',
+  seed => {
+    const answers = Array.from({ length: 100 }, (_, i) => {
+      const { curves, bypassed, positions, axis } = randomSkip(seed * 1000 + i)
+      const along = runsAlong(curves, bypassed, positions, axis)
+      expect(along).toBe(
+        runsAlongEverySegment(curves, bypassed, positions, axis),
+      )
+      return along
+    })
+    expect(answers.filter(Boolean).length).toBeGreaterThan(10)
+    expect(answers.filter(a => !a).length).toBeGreaterThan(10)
+  },
+)
+
+test('a stretch with a point at NaN reads as testing every segment does', () => {
+  const positions = {
+    a: [
+      { x: 0, y: 0 },
+      { x: Number.NaN, y: 0 },
+    ],
+    b: [
+      { x: 20, y: 0 },
+      { x: 30, y: 0 },
+    ],
+  }
+  const curves = [
+    { x0: 0, y0: 1, cx0: 10, cy0: 1, cx1: 20, cy1: 1, x1: 30, y1: 1 },
+  ]
+  for (const bypassed of [['a'], ['b'], ['a', 'b'], ['b', 'a']]) {
+    expect(runsAlong(curves, bypassed, positions, iso)).toBe(
+      runsAlongEverySegment(curves, bypassed, positions, iso),
+    )
+  }
+})
+
+// Testing every sample against every segment of the stretch took about 76 s
+// of the browser's main thread on chrY's 14,142-node pggb window, and about
+// 40 s here, past the test timeout
+test('a skip over a long stretch reads the segments near each sample, not all of them', () => {
+  const stretch = Array.from({ length: 5000 }, (_, i) => `r${i}`)
+  const positions = Object.fromEntries(
+    stretch.map((id, i) => [
+      id,
+      [
+        { x: i * 10, y: 0 },
+        { x: i * 10 + 10, y: 0 },
+      ],
+    ]),
+  )
+  const piece = (k: number, y: number) => ({
+    x0: k * 490,
+    y0: y,
+    cx0: k * 490 + 100,
+    cy0: y,
+    cx1: k * 490 + 300,
+    cy1: y,
+    x1: k * 490 + 400,
+    y1: y,
+  })
+  // its feet and its first `a` pieces after them on the stretch, the rest
+  // well off it
+  const skip = (a: number) =>
+    Array.from({ length: 102 }, (_, k) =>
+      piece(k, k <= a || k === 101 ? 0.5 : -2000),
+    )
+  const along = Array.from({ length: 202 }, (_, j) =>
+    runsAlong(skip(j % 101), stretch, positions, iso),
+  )
+  expect(along.filter(Boolean)).toHaveLength(102)
+  expect(along.indexOf(true)).toBe(50)
+  expect(along.lastIndexOf(false)).toBe(150)
 })

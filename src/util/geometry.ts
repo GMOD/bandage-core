@@ -122,6 +122,112 @@ export function distanceToSegment(
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
 }
 
+const NEAR_LEAF_POINTS = 4
+// how much wider than `reach` a segment's box is held, so rounding in
+// distanceToSegment never finds a point near that the box left out
+const NEAR_BOX_SLACK = 1
+
+export interface Coordinates {
+  xs: ArrayLike<number>
+  ys: ArrayLike<number>
+}
+
+// Boxes, as minX, minY, maxX, maxY in a row, each over `fan` boxes below
+function mergedBoxes(below: Float64Array, fan: number) {
+  const count = Math.ceil(below.length / (4 * fan))
+  const above = new Float64Array(4 * count)
+  for (let k = 0; k < count; k++) {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (let j = k * fan; j < Math.min((k + 1) * fan, below.length / 4); j++) {
+      minX = Math.min(minX, below[4 * j]!)
+      minY = Math.min(minY, below[4 * j + 1]!)
+      maxX = Math.max(maxX, below[4 * j + 2]!)
+      maxY = Math.max(maxY, below[4 * j + 3]!)
+    }
+    above[4 * k] = minX
+    above[4 * k + 1] = minY
+    above[4 * k + 2] = maxX
+    above[4 * k + 3] = maxY
+  }
+  return above
+}
+
+// How many of the points lie within `reach` of the polyline, as
+// distanceToSegment measures it against each segment, counting no further
+// once past `enough`. Each segment, held as its box grown by the reach, is
+// tested against only the points in it: boxes over runs of NEAR_LEAF_POINTS
+// points in order, merged pairwise level by level up to one box over them all.
+export function pointsNearPolyline(
+  points: Coordinates,
+  line: Coordinates,
+  reach: number,
+  enough: number,
+) {
+  const { xs, ys } = points
+  const corners = new Float64Array(4 * xs.length)
+  for (let i = 0; i < xs.length; i++) {
+    corners[4 * i] = xs[i]!
+    corners[4 * i + 1] = ys[i]!
+    corners[4 * i + 2] = xs[i]!
+    corners[4 * i + 3] = ys[i]!
+  }
+  const levels = [mergedBoxes(corners, NEAR_LEAF_POINTS)]
+  while (levels.at(-1)!.length > 4) {
+    levels.push(mergedBoxes(levels.at(-1)!, 2))
+  }
+  const pad = reach + NEAR_BOX_SLACK
+  const found = new Uint8Array(xs.length)
+  const box = new Float64Array(4)
+  let from = 0
+  const apart = (boxes: Float64Array, k: number) =>
+    box[2]! < boxes[4 * k]! ||
+    box[3]! < boxes[4 * k + 1]! ||
+    box[0]! > boxes[4 * k + 2]! ||
+    box[1]! > boxes[4 * k + 3]!
+  const leafFinds = (k: number) => {
+    let finds = 0
+    const end = Math.min((k + 1) * NEAR_LEAF_POINTS, xs.length)
+    for (let i = k * NEAR_LEAF_POINTS; i < end; i++) {
+      const finding =
+        found[i] === 0 &&
+        !apart(corners, i) &&
+        distanceToSegment(
+          xs[i]!,
+          ys[i]!,
+          line.xs[from]!,
+          line.ys[from]!,
+          line.xs[from + 1]!,
+          line.ys[from + 1]!,
+        ) <= reach
+      found[i] = finding ? 1 : found[i]!
+      finds += finding ? 1 : 0
+    }
+    return finds
+  }
+  const finds = (level: number, k: number): number =>
+    4 * k < levels[level]!.length && !apart(levels[level]!, k)
+      ? level === 0
+        ? leafFinds(k)
+        : finds(level - 1, 2 * k) + finds(level - 1, 2 * k + 1)
+      : 0
+  let near = 0
+  for (; from + 1 < line.xs.length && near <= enough; from++) {
+    const ax = line.xs[from]!
+    const ay = line.ys[from]!
+    const bx = line.xs[from + 1]!
+    const by = line.ys[from + 1]!
+    box[0] = Math.min(ax, bx) - pad
+    box[1] = Math.min(ay, by) - pad
+    box[2] = Math.max(ax, bx) + pad
+    box[3] = Math.max(ay, by) + pad
+    near += finds(levels.length - 1, 0)
+  }
+  return near
+}
+
 export interface Bounds {
   minX: number
   minY: number

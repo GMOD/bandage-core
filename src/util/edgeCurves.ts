@@ -1,5 +1,5 @@
 import { deletionEdges, edgeCurvesOf } from '../deletionEdges'
-import { APEX_FRACTION, curvePointAt, distanceToSegment } from './geometry'
+import { APEX_FRACTION, curvePointAt, pointsNearPolyline } from './geometry'
 import { groupBy } from './groups'
 import { partitionPoint } from './partitionPoint'
 import { weakMemo } from './weakMemo'
@@ -58,33 +58,42 @@ export function runsAlong(
   nodePositions: Record<string, NodeSegment[]>,
   axis: AxisScale,
 ) {
-  const screen = (p: { x: number; y: number }) => ({
-    x: p.x * axis.scaleX,
-    y: p.y * axis.scaleY,
-  })
   const first = curves[0]!
   const last = curves.at(-1)!
-  const stretch = [
-    screen({ x: first.x0, y: first.y0 }),
-    ...bypassed.flatMap(id => (nodePositions[id] ?? []).map(screen)),
-    screen({ x: last.x1, y: last.y1 }),
-  ]
-  let near = 0
-  let all = 0
-  for (const c of curves) {
-    for (let k = 0; k <= ALONG_SAMPLES; k++) {
-      const p = screen(curvePointAt(c, k / ALONG_SAMPLES))
-      let onStretch = false
-      for (let i = 1; i < stretch.length && !onStretch; i++) {
-        const a = stretch[i - 1]!
-        const b = stretch[i]!
-        onStretch =
-          distanceToSegment(p.x, p.y, a.x, a.y, b.x, b.y) <= ALONG_STRETCH_PX
-      }
-      all++
-      near += onStretch ? 1 : 0
+  const length =
+    bypassed.reduce((n, id) => n + (nodePositions[id]?.length ?? 0), 0) + 2
+  const xs = new Float64Array(length)
+  const ys = new Float64Array(length)
+  xs[0] = first.x0 * axis.scaleX
+  ys[0] = first.y0 * axis.scaleY
+  let at = 1
+  for (const id of bypassed) {
+    for (const p of nodePositions[id] ?? []) {
+      xs[at] = p.x * axis.scaleX
+      ys[at] = p.y * axis.scaleY
+      at++
     }
   }
+  xs[at] = last.x1 * axis.scaleX
+  ys[at] = last.y1 * axis.scaleY
+  const perCurve = ALONG_SAMPLES + 1
+  const all = curves.length * perCurve
+  const sampleXs = new Float64Array(all)
+  const sampleYs = new Float64Array(all)
+  for (let s = 0; s < all; s++) {
+    const p = curvePointAt(
+      curves[Math.floor(s / perCurve)]!,
+      (s % perCurve) / ALONG_SAMPLES,
+    )
+    sampleXs[s] = p.x * axis.scaleX
+    sampleYs[s] = p.y * axis.scaleY
+  }
+  const near = pointsNearPolyline(
+    { xs: sampleXs, ys: sampleYs },
+    { xs, ys },
+    ALONG_STRETCH_PX,
+    Math.floor(all / 2),
+  )
   return near * 2 > all
 }
 
