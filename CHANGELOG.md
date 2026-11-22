@@ -1,3 +1,9 @@
+## [14.3.4](https://github.com/GMOD/bandage-core/compare/v14.3.3...v14.3.4) (2026-11-22)
+
+### Other Changes
+
+- ClosedStretches tests a join's span against a running count of unlinked reference neighbours, so FMMM's arch seeds read each like-end join once where they walked its whole span, and the 14,142-node window of HPRC release 2's pggb chrY graph seeds its layout in about 0.5 s in Node where it took about 5 s, with byte-identical engine input. The span walk came in with archSeeds (45da3af, 14.0.0); a test of 15,000 joins over a 40,000-node reference, which the walk took about 50 s on, and a check against a rank-by-rank walk on random cuts keep it out ([84a78ee](https://github.com/GMOD/bandage-core/commit/84a78eec35afbd4d76fa8d876a7775c1d4ecbb7e))
+
 ## [14.3.3](https://github.com/GMOD/bandage-core/compare/v14.3.2...v14.3.3) (2026-11-22)
 
 ### Other Changes
