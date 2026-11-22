@@ -94,6 +94,7 @@ export {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
   computeReferenceRamp,
+  geometryFold,
 } from './renderer/GeometryBuilder'
 export { Canvas2DRenderer } from './renderer/Canvas2DRenderer'
 // the ratio the renderer sizes its backing store with, which the transform

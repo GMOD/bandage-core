@@ -1103,6 +1103,55 @@ const headInBounds = (
   )
 }
 
+// The offset-zero curve of every edge, from the one place that derives it —
+// shared with the hit index, which draws its boxes from the same objects.
+const sharedCurvesOf = ({
+  nodePositions,
+  graph,
+  axis,
+  deletions,
+  version = 0,
+  deletionRoutes,
+  stranded,
+}: BuildOptions) =>
+  baseEdgeCurves(
+    nodePositions,
+    graph,
+    axis,
+    deletions,
+    version,
+    deletionRoutes,
+    stranded,
+  )
+
+const foldOf = (
+  {
+    graph,
+    nodePositions,
+    axis,
+    deletions,
+    hiddenEdges,
+    contigThickness,
+    nodeWidth = 'uniform',
+    smallSites = 'hidden',
+  }: BuildOptions,
+  curves: EdgeCurves,
+) =>
+  smallSites === 'hidden'
+    ? foldedSites(graph, nodePositions, axis, curves, deletions, hiddenEdges, {
+        contigThickness,
+        nodeWidth,
+      })
+    : NO_FOLD
+
+// What a build with these options folds as too small to draw, without
+// building it: a key naming the fold is sized before the build, and the fit
+// beside that key sets the scale the build folds at. Cached with the build's
+// own curves and fold, so the build that follows reuses both.
+export function geometryFold(options: BuildOptions) {
+  return foldOf(options, sharedCurvesOf(options))
+}
+
 export function buildGeometry(options: BuildOptions): RenderBatch {
   const {
     nodePositions,
@@ -1120,40 +1169,17 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     viewportBounds,
     referenceRamp,
     deletions,
-    deletionRoutes,
     stranded,
     hiddenEdges,
     version = 0,
-    smallSites = 'hidden',
   } = options
   const widthScale = widthNorm(graph, nodeWidth)
   const busiest = edgeWidth === 'walks' ? busiestEdge(graph) : 0
   const scale = axis.scaleX
   const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
   const yToX = yToXOf(axis)
-  // The offset-zero curve of every edge, from the one place that derives it —
-  // shared with the hit index, which draws its boxes from the same objects.
-  const sharedCurves = baseEdgeCurves(
-    nodePositions,
-    graph,
-    axis,
-    deletions,
-    version,
-    deletionRoutes,
-    stranded,
-  )
-  const collapse =
-    smallSites === 'hidden'
-      ? foldedSites(
-          graph,
-          nodePositions,
-          axis,
-          sharedCurves,
-          deletions,
-          hiddenEdges,
-          { contigThickness, nodeWidth },
-        )
-      : NO_FOLD
+  const sharedCurves = sharedCurvesOf(options)
+  const collapse = foldOf(options, sharedCurves)
   const siteAt = new Map<number, Site>()
   for (const site of collapse.sites) {
     for (const edge of site.edges) {
