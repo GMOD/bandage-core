@@ -23,12 +23,12 @@ import {
   occupancy,
   placeLabels,
 } from './overlayLabels'
+import { SpatialIndex } from './util/SpatialIndex'
 import {
   otherNodeUnderBox,
   segmentInBox,
   segmentMeetsBox,
 } from './util/hitDetection'
-import { SpatialIndex } from './util/SpatialIndex'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
 import type { Frame, InkBatch } from './drawnInk'
