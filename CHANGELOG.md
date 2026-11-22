@@ -1,3 +1,9 @@
+## [14.3.2](https://github.com/GMOD/bandage-core/compare/v14.3.1...v14.3.2) (2026-11-22)
+
+### Other Changes
+
+- Exon outlines and drawn ink are tested against a grid that holds each piece with its reach-grown bounds, so a label refuses a spot on four comparisons before the exact test; exon cells are 8 px, so a gene name a row off a zoomed-out reference line meets none of them, and the pane's offsets for a leader are kept between frames. Panning the HPRC GRCh38 session over 414 RefSeq genes lays out its labels in a few ms a frame where it took ~700 ([239f2d6](https://github.com/GMOD/bandage-core/commit/239f2d643be3abe22da4e557be3190893f793eee))
+
 ## [14.3.1](https://github.com/GMOD/bandage-core/compare/v14.3.0...v14.3.1) (2026-11-22)
 
 ### Other Changes
