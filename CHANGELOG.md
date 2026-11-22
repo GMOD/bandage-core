@@ -1,3 +1,9 @@
+## [14.3.3](https://github.com/GMOD/bandage-core/compare/v14.3.2...v14.3.3) (2026-11-22)
+
+### Other Changes
+
+- The hit-test grids keep a box that would cover more than 1,024 cells in a short list tested whole on each query, sorted into the order stamping it would have given, so the two links across the force layout of HPRC GRCh38's MHC no longer stamp 22 million cells each and the first pointer move over that drawing leaves the heap near 250 MB where it ran Chrome's tab out of its 4 GB, with every query returning the same entries in the same order ([166e352](https://github.com/GMOD/bandage-core/commit/166e352e43193a7312e6bdadd904b326bd687507))
+
 ## [14.3.2](https://github.com/GMOD/bandage-core/compare/v14.3.1...v14.3.2) (2026-11-22)
 
 ### Other Changes
