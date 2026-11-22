@@ -84,8 +84,26 @@ function resolveCellSize(
       : given
 }
 
-function getOrCreateCell<T>(
-  cells: Map<number, Map<number, T[]>>,
+// A box over more cells than this, such as a link across a whole force
+// layout, is kept in a list tested whole on each query; stamped, two such links
+// at the MHC took 22 million cells each and ran the page out of heap
+const MAX_STAMPED_CELLS = 1024
+
+interface CellRange {
+  cx0: number
+  cx1: number
+  cy0: number
+  cy1: number
+}
+
+interface Found {
+  cx: number
+  cy: number
+  rank: number
+}
+
+function getOrCreateCell(
+  cells: Map<number, Map<number, number[]>>,
   cx: number,
   cy: number,
 ) {
@@ -102,36 +120,16 @@ function getOrCreateCell<T>(
   return cell
 }
 
-function addToGrid<T>(
-  cells: Map<number, Map<number, T[]>>,
-  cellSize: CellSize,
-  minX: number,
-  minY: number,
-  maxX: number,
-  maxY: number,
-  entry: T,
-) {
-  const cx0 = Math.floor(minX / cellSize.x)
-  const cx1 = Math.floor(maxX / cellSize.x)
-  const cy0 = Math.floor(minY / cellSize.y)
-  const cy1 = Math.floor(maxY / cellSize.y)
-  for (let cx = cx0; cx <= cx1; cx++) {
-    for (let cy = cy0; cy <= cy1; cy++) {
-      getOrCreateCell(cells, cx, cy).push(entry)
-    }
-  }
-}
-
 function* occupiedWithin<V>(
   level: Map<number, V>,
   first: number,
   last: number,
-) {
+): Generator<[number, V]> {
   if (last - first < level.size) {
     for (let key = first; key <= last; key++) {
       const value = level.get(key)
       if (value !== undefined) {
-        yield value
+        yield [key, value]
       }
     }
   } else {
@@ -142,78 +140,112 @@ function* occupiedWithin<V>(
       }
     }
     within.sort((a, b) => a[0] - b[0])
-    for (const [, value] of within) {
-      yield value
+    yield* within
+  }
+}
+
+function overlaps(a: CellRange, b: CellRange) {
+  return a.cx0 <= b.cx1 && b.cx0 <= a.cx1 && a.cy0 <= b.cy1 && b.cy0 <= a.cy1
+}
+
+function byCellThenRank(a: Found, b: Found) {
+  return a.cx - b.cx || a.cy - b.cy || a.rank - b.rank
+}
+
+// A query returns each entry once, in the order a walk of the cells it covers
+// first meets it, column by column and in order of adding within a cell. A
+// wide box sorts in where that walk would have met it had it been stamped.
+class BoxGrid<T> {
+  private cells = new Map<number, Map<number, number[]>>()
+  private wide: { rank: number; range: CellRange }[] = []
+  private entries: T[] = []
+  stamps = 0
+
+  constructor(private cellSize: CellSize) {}
+
+  private rangeOf(minX: number, minY: number, maxX: number, maxY: number) {
+    return {
+      cx0: Math.floor(minX / this.cellSize.x),
+      cx1: Math.floor(maxX / this.cellSize.x),
+      cy0: Math.floor(minY / this.cellSize.y),
+      cy1: Math.floor(maxY / this.cellSize.y),
     }
   }
-}
 
-function* cellsWithin<T>(
-  cells: Map<number, Map<number, T[]>>,
-  cellSize: CellSize,
-  x: number,
-  y: number,
-  radiusX: number,
-  radiusY: number,
-) {
-  const cy0 = Math.floor((y - radiusY) / cellSize.y)
-  const cy1 = Math.floor((y + radiusY) / cellSize.y)
-  for (const column of occupiedWithin(
-    cells,
-    Math.floor((x - radiusX) / cellSize.x),
-    Math.floor((x + radiusX) / cellSize.x),
-  )) {
-    yield* occupiedWithin(column, cy0, cy1)
-  }
-}
-
-// The radius is per axis because the two axes need not be in the same units: a
-// row layout's x is bp and its y is screen px, so the same 5 px of slack is
-// hundreds of bp one way and 5 the other. Passing the x radius on both axes
-// would sweep every row in the band into the candidate set.
-function queryGrid<T>(
-  cells: Map<number, Map<number, T[]>>,
-  cellSize: CellSize,
-  x: number,
-  y: number,
-  radiusX: number,
-  radiusY: number,
-) {
-  const results: T[] = []
-  const seen = new Set<T>()
-  for (const cell of cellsWithin(cells, cellSize, x, y, radiusX, radiusY)) {
-    for (const entry of cell) {
-      if (!seen.has(entry)) {
-        seen.add(entry)
-        results.push(entry)
+  add(minX: number, minY: number, maxX: number, maxY: number, entry: T) {
+    const rank = this.entries.push(entry) - 1
+    const range = this.rangeOf(minX, minY, maxX, maxY)
+    const { cx0, cx1, cy0, cy1 } = range
+    if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > MAX_STAMPED_CELLS) {
+      this.wide.push({ rank, range })
+    } else {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        for (let cy = cy0; cy <= cy1; cy++) {
+          getOrCreateCell(this.cells, cx, cy).push(rank)
+          this.stamps++
+        }
       }
     }
   }
-  return results
-}
 
-function someInGrid<T>(
-  cells: Map<number, Map<number, T[]>>,
-  cellSize: CellSize,
-  x: number,
-  y: number,
-  radiusX: number,
-  radiusY: number,
-  test: (entry: T) => boolean,
-) {
-  let found = false
-  for (const cell of cellsWithin(cells, cellSize, x, y, radiusX, radiusY)) {
-    found = cell.some(test)
-    if (found) {
-      break
+  private *cellsWithin(q: CellRange) {
+    for (const [cx, column] of occupiedWithin(this.cells, q.cx0, q.cx1)) {
+      for (const [cy, cell] of occupiedWithin(column, q.cy0, q.cy1)) {
+        yield { cx, cy, cell }
+      }
     }
   }
-  return found
+
+  // The radius is per axis because the two axes need not be in the same units:
+  // a row layout's x is bp and its y is screen px, so the same 5 px of slack is
+  // hundreds of bp one way and 5 the other. Passing the x radius on both axes
+  // would sweep every row in the band into the candidate set.
+  query(x: number, y: number, radiusX: number, radiusY: number) {
+    const q = this.rangeOf(x - radiusX, y - radiusY, x + radiusX, y + radiusY)
+    const found: Found[] = []
+    const seen = new Set<number>()
+    for (const { cx, cy, cell } of this.cellsWithin(q)) {
+      for (const rank of cell) {
+        if (!seen.has(rank)) {
+          seen.add(rank)
+          found.push({ cx, cy, rank })
+        }
+      }
+    }
+    const wide = this.wide
+      .filter(w => overlaps(w.range, q))
+      .map(({ rank, range }) => ({
+        cx: Math.max(range.cx0, q.cx0),
+        cy: Math.max(range.cy0, q.cy0),
+        rank,
+      }))
+    const ordered =
+      wide.length > 0 ? [...found, ...wide].sort(byCellThenRank) : found
+    return ordered.map(f => this.entries[f.rank]!)
+  }
+
+  some(
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
+    test: (entry: T) => boolean,
+  ) {
+    const q = this.rangeOf(x - radiusX, y - radiusY, x + radiusX, y + radiusY)
+    const passes = (rank: number) => test(this.entries[rank]!)
+    let found = false
+    for (const { cell } of this.cellsWithin(q)) {
+      found = cell.some(passes)
+      if (found) {
+        break
+      }
+    }
+    return found || this.wide.some(w => overlaps(w.range, q) && passes(w.rank))
+  }
 }
 
 export class SpatialIndex {
-  private cellSize: CellSize
-  private cells = new Map<number, Map<number, CellEntry[]>>()
+  private grid: BoxGrid<CellEntry>
 
   constructor(
     nodePositions: Record<string, NodeSegment[]>,
@@ -248,25 +280,21 @@ export class SpatialIndex {
     }
 
     const fitted = resolveCellSize(cellSize, boxes, extentX, extentY)
-    this.cellSize = {
+    this.grid = new BoxGrid({
       x: Math.max(fitted.x, smallestCell.x),
       y: Math.max(fitted.y, smallestCell.y),
-    }
+    })
     for (const b of boxes) {
-      addToGrid(
-        this.cells,
-        this.cellSize,
-        b.minX,
-        b.minY,
-        b.maxX,
-        b.maxY,
-        b.entry,
-      )
+      this.grid.add(b.minX, b.minY, b.maxX, b.maxY, b.entry)
     }
   }
 
+  get stamps() {
+    return this.grid.stamps
+  }
+
   query(x: number, y: number, radiusX: number, radiusY = radiusX) {
-    return queryGrid(this.cells, this.cellSize, x, y, radiusX, radiusY)
+    return this.grid.query(x, y, radiusX, radiusY)
   }
 
   some(
@@ -276,13 +304,12 @@ export class SpatialIndex {
     radiusY: number,
     test: (entry: CellEntry) => boolean,
   ) {
-    return someInGrid(this.cells, this.cellSize, x, y, radiusX, radiusY, test)
+    return this.grid.some(x, y, radiusX, radiusY, test)
   }
 }
 
 export class EdgeSpatialIndex {
-  private cellSize: CellSize
-  private cells = new Map<number, Map<number, number[]>>()
+  private grid: BoxGrid<number>
   // Base curves (offset 0) by edge index — the shared derivation, which the
   // geometry builder draws the same edges from. findHoveredEdge reuses them on
   // every mousemove; path-offset variants translate them (pure translation).
@@ -364,10 +391,14 @@ export class EdgeSpatialIndex {
       }
     }
 
-    this.cellSize = cellSizeFrom(boxes, extentX, extentY)
+    this.grid = new BoxGrid(cellSizeFrom(boxes, extentX, extentY))
     for (const b of boxes) {
-      addToGrid(this.cells, this.cellSize, b.minX, b.minY, b.maxX, b.maxY, b.ei)
+      this.grid.add(b.minX, b.minY, b.maxX, b.maxY, b.ei)
     }
+  }
+
+  get stamps() {
+    return this.grid.stamps
   }
 
   getCurves(ei: number) {
@@ -375,6 +406,6 @@ export class EdgeSpatialIndex {
   }
 
   query(x: number, y: number, radiusX: number, radiusY = radiusX) {
-    return queryGrid(this.cells, this.cellSize, x, y, radiusX, radiusY)
+    return this.grid.query(x, y, radiusX, radiusY)
   }
 }
