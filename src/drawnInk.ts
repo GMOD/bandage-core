@@ -1,5 +1,4 @@
 import { curveBounds } from './util/geometry'
-import { pushTo } from './util/groups'
 import { segmentMeetsBox } from './util/hitDetection'
 import { flattenedPx } from './util/strokeCover'
 import { weakMemo } from './util/weakMemo'
@@ -27,7 +26,7 @@ interface Point {
   y: number
 }
 
-interface Piece extends InkOwner {
+export interface Piece extends InkOwner {
   a: Point
   b: Point
   halfWidth: number
@@ -113,27 +112,69 @@ function piecesOf(batch: InkBatch, f: Frame) {
   return pieces
 }
 
-const cellKey = (cx: number, cy: number) => `${cx} ${cy}`
+interface Bounded {
+  piece: Piece
+  x0: number
+  x1: number
+  y0: number
+  y1: number
+}
 
-const cellOf = (px: number, least: number, most: number) =>
-  Math.floor(Math.min(most, Math.max(least, px)) / CELL_PX)
-
-// Each piece in the cells it may cover on the pane
-function gridOf(pieces: readonly Piece[], f: Frame) {
-  const cells = new Map<string, Piece[]>()
+// Whether any piece, other than those `own` claims, meets a box in screen px,
+// each piece as wide as its half-width; the pieces are held in cells of
+// `cellPx` clamped to `within`, those past it in its edge cells, and each is
+// refused on its bounds before the exact test
+export function piecesUnderBox(
+  pieces: readonly Piece[],
+  within: Box,
+  cellPx = CELL_PX,
+) {
+  const reach = pieces.reduce((most, p) => Math.max(most, p.halfWidth), 0)
+  const first = { x: within.x0 - reach, y: within.y0 - reach }
+  const columns = Math.floor((within.x1 + reach - first.x) / cellPx) + 1
+  const rows = Math.floor((within.y1 + reach - first.y) / cellPx) + 1
+  const cellX = (px: number) =>
+    Math.min(columns - 1, Math.max(0, Math.floor((px - first.x) / cellPx)))
+  const cellY = (px: number) =>
+    Math.min(rows - 1, Math.max(0, Math.floor((px - first.y) / cellPx)))
+  const cells: (Bounded[] | undefined)[] = []
   for (const piece of pieces) {
     const { a, b, halfWidth: h } = piece
-    const cx0 = cellOf(Math.min(a.x, b.x) - h, -h, f.width + h)
-    const cx1 = cellOf(Math.max(a.x, b.x) + h, -h, f.width + h)
-    const cy0 = cellOf(Math.min(a.y, b.y) - h, -h, f.height + h)
-    const cy1 = cellOf(Math.max(a.y, b.y) + h, -h, f.height + h)
-    for (let cx = cx0; cx <= cx1; cx++) {
-      for (let cy = cy0; cy <= cy1; cy++) {
-        pushTo(cells, cellKey(cx, cy), piece)
+    const bounded = {
+      piece,
+      x0: Math.min(a.x, b.x) - h,
+      x1: Math.max(a.x, b.x) + h,
+      y0: Math.min(a.y, b.y) - h,
+      y1: Math.max(a.y, b.y) + h,
+    }
+    const cx1 = cellX(bounded.x1)
+    const cy1 = cellY(bounded.y1)
+    for (let cx = cellX(bounded.x0); cx <= cx1; cx++) {
+      for (let cy = cellY(bounded.y0); cy <= cy1; cy++) {
+        ;(cells[cx * rows + cy] ??= []).push(bounded)
       }
     }
   }
-  return cells
+  return (box: Box, own: (piece: InkOwner) => boolean) => {
+    const cx1 = cellX(box.x1)
+    const cy1 = cellY(box.y1)
+    let found = false
+    for (let cx = cellX(box.x0); cx <= cx1 && !found; cx++) {
+      for (let cy = cellY(box.y0); cy <= cy1 && !found; cy++) {
+        found =
+          cells[cx * rows + cy]?.some(
+            ({ piece, x0, x1, y0, y1 }) =>
+              box.x1 >= x0 &&
+              box.x0 <= x1 &&
+              box.y1 >= y0 &&
+              box.y0 <= y1 &&
+              !own(piece) &&
+              segmentMeetsBox(piece.a, piece.b, grown(box, piece.halfWidth)),
+          ) ?? false
+      }
+    }
+    return found
+  }
 }
 
 const piecesCache = weakMemo<InkBatch['nodeStrokes'], Piece[]>()
@@ -155,31 +196,15 @@ function piecesAt(batch: InkBatch, f: Frame) {
   )
 }
 
-const gridCache = weakMemo<Piece[], Map<string, Piece[]>>()
+const gridCache = weakMemo<Piece[], ReturnType<typeof piecesUnderBox>>()
 
 // Whether any stroke the batch paints, other than those `own` claims, meets a
 // box in screen px, each stroke as wide as it is drawn
 export function inkUnderBox(batch: InkBatch, f: Frame) {
   const pieces = piecesAt(batch, f)
-  const cells = gridCache(pieces, [], () => gridOf(pieces, f))
-  return (box: Box, own: (piece: InkOwner) => boolean) => {
-    const cx1 = Math.floor(box.x1 / CELL_PX)
-    const cy1 = Math.floor(box.y1 / CELL_PX)
-    let found = false
-    for (let cx = Math.floor(box.x0 / CELL_PX); cx <= cx1 && !found; cx++) {
-      for (let cy = Math.floor(box.y0 / CELL_PX); cy <= cy1 && !found; cy++) {
-        found =
-          cells
-            .get(cellKey(cx, cy))
-            ?.some(
-              piece =>
-                !own(piece) &&
-                segmentMeetsBox(piece.a, piece.b, grown(box, piece.halfWidth)),
-            ) ?? false
-      }
-    }
-    return found
-  }
+  return gridCache(pieces, [], () =>
+    piecesUnderBox(pieces, { x0: 0, x1: f.width, y0: 0, y1: f.height }),
+  )
 }
 
 const PIECE_PRECISION = 100

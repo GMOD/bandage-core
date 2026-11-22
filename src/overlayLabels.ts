@@ -118,6 +118,45 @@ function slides(slide: number) {
   return out
 }
 
+const ROW_PX = LABEL_PX + LABEL_PAD * 2
+
+// A label w wide centred on x, its text's baseline at y
+const boxAt = (x: number, y: number, w: number) => ({
+  x0: x - w / 2,
+  x1: x + w / 2,
+  y0: y - LABEL_PX - LABEL_PAD,
+  y1: y + LABEL_PAD,
+})
+
+interface Offset {
+  dx: number
+  dy: number
+  distance: number
+}
+
+// Each row up to `rows` up and down, slid either way by up to `slide`, nearest
+// first
+function offsetsWithin(rows: number, slide: number) {
+  const offsets: Offset[] = []
+  for (let k = -rows; k <= rows; k++) {
+    for (const dx of slides(slide)) {
+      offsets.push({ dx, dy: k * ROW_PX, distance: Math.hypot(dx, k * ROW_PX) })
+    }
+  }
+  return offsets.sort((a, b) => a.distance - b.distance)
+}
+
+// The pane's offsets, kept while the pane stays the size it was, as every
+// frame of a pan asks for them again
+let paneOffsets: { rows: number; width: number; offsets: Offset[] } | undefined
+
+function offsetsAcrossPane(rows: number, width: number) {
+  if (paneOffsets?.rows !== rows || paneOffsets.width !== width) {
+    paneOffsets = { rows, width, offsets: offsetsWithin(rows, width) }
+  }
+  return paneOffsets.offsets
+}
+
 // A row another label took is a crowd, which keeps a dense gene track to one
 // lane; a row only a `reserved` box (the key, the strip, the row labels) took
 // is not, so a label it refuses still tries above
@@ -130,13 +169,6 @@ export function placeLabels<T>(
 ): PlacedLabel<T>[] {
   const out: PlacedLabel<T>[] = []
   let apart = 0
-  const row = LABEL_PX + LABEL_PAD * 2
-  const boxAt = (x: number, y: number, w: number) => ({
-    x0: x - w / 2,
-    x1: x + w / 2,
-    y0: y - LABEL_PX - LABEL_PAD,
-    y1: y + LABEL_PAD,
-  })
   // the label on the free spot nearest its anchor, rows down from `from` and
   // slides sideways measured alike, so a row's long slide waits for the next
   // row's short one; and whether another label took a spot it could otherwise
@@ -150,12 +182,12 @@ export function placeLabels<T>(
     const w = labelWidth(text)
     const spots: { dx: number; y: number; distance: number }[] = []
     for (let tries = 0; tries <= (c.stack ?? 0); tries++) {
-      const y = from + direction * tries * row
+      const y = from + direction * tries * ROW_PX
       if (offFrame(boxAt(c.x, y, w), frame)) {
         break
       }
       for (const dx of slides(c.slide ?? 0)) {
-        spots.push({ dx, y, distance: Math.hypot(dx, tries * row) })
+        spots.push({ dx, y, distance: Math.hypot(dx, tries * ROW_PX) })
       }
     }
     spots.sort((a, b) => a.distance - b.distance)
@@ -180,17 +212,7 @@ export function placeLabels<T>(
       ? first
       : stackFrom(c, text, c.flipY, c.flipY < c.y ? -1 : 1)
   }
-  const rows = Math.ceil(frame.height / row)
-  const offsetsWithin = (slide: number) => {
-    const offsets: { dx: number; dy: number; distance: number }[] = []
-    for (let k = -rows; k <= rows; k++) {
-      for (const dx of slides(slide)) {
-        offsets.push({ dx, dy: k * row, distance: Math.hypot(dx, k * row) })
-      }
-    }
-    return offsets.sort((a, b) => a.distance - b.distance)
-  }
-  let acrossPane: ReturnType<typeof offsetsWithin> | undefined
+  const rows = Math.ceil(frame.height / ROW_PX)
   // rows up and down from `nearest` to the pane's edges, nearest first, and
   // of two as near the higher, then the one to the left; slid either way to
   // the pane's edges from a point on the pane, so a spot past a reserved box
@@ -206,8 +228,8 @@ export function placeLabels<T>(
       { x0: from.x, x1: from.x, y0: from.y, y1: from.y },
       frame,
     )
-      ? (acrossPane ??= offsetsWithin(frame.width))
-      : offsetsWithin(c.slide ?? 0)
+      ? offsetsAcrossPane(rows, frame.width)
+      : offsetsWithin(rows, c.slide ?? 0)
     const firstSpot = (stands: (box: Box) => boolean) => {
       let spot: { x: number; y: number } | undefined
       for (let i = 0; i < offsets.length && !spot; i++) {

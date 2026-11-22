@@ -1,4 +1,4 @@
-import { inkUnderBox, widestStroke } from './drawnInk'
+import { inkUnderBox, piecesUnderBox, widestStroke } from './drawnInk'
 import { EXON_RIM_PX } from './genes/exonOutline'
 import { namedGenePins } from './genes/geneNames'
 import {
@@ -23,15 +23,10 @@ import {
   occupancy,
   placeLabels,
 } from './overlayLabels'
-import { SpatialIndex } from './util/SpatialIndex'
-import {
-  otherNodeUnderBox,
-  segmentInBox,
-  segmentMeetsBox,
-} from './util/hitDetection'
+import { otherNodeUnderBox, segmentInBox } from './util/hitDetection'
 
 import type { BubbleHalo } from './bubbles/bubbleHalos'
-import type { Frame, InkBatch } from './drawnInk'
+import type { Frame, InkBatch, Piece } from './drawnInk'
 import type { NamedGenePin } from './genes/geneNames'
 import type { GenePin } from './genes/genePins'
 import type {
@@ -197,45 +192,34 @@ function shownPin(
     : nearestShownPoint(pin, positions, screen, shown, at)
 }
 
-const EXON_CELL_PX = { x: LABEL_PX * 2, y: LABEL_PX * 2 }
+// Exon outlines crowd a zoomed-out reference line, so they are held in cells
+// fine enough that a name a row off the line meets none of them
+const EXON_CELL_PX = 8
 
-interface ExonStretch {
-  nodeId: string
-  reach: number
-  points: NodeSegment[]
-}
-
-function exonsUnderBox(stretches: ExonStretch[]) {
-  const reach = stretches.reduce((most, s) => Math.max(most, s.reach), 0)
-  const index = once(
-    () =>
-      new SpatialIndex(
-        Object.fromEntries(stretches.map((s, i) => [i, s.points])),
-        undefined,
-        EXON_CELL_PX,
-      ),
+// Each exon outline's stretches as pieces on screen, reaching `reach` past
+// their centreline
+function exonPieces(
+  pins: GenePin[],
+  screen: Screen,
+  reach: (nodeId: string) => number,
+  shows: (nodeId: string) => boolean = () => true,
+): Piece[] {
+  return pins.flatMap(pin =>
+    pin.exonsByNode
+      .filter(({ nodeId }) => shows(nodeId))
+      .flatMap(({ nodeId, stretches }) => {
+        const halfWidth = reach(nodeId)
+        return stretches.flatMap(stretch => {
+          const points = stretch.map(screen)
+          return points.slice(1).map((b, k) => ({
+            a: points[k]!,
+            b,
+            halfWidth,
+            exon: nodeId,
+          }))
+        })
+      }),
   )
-  return (box: Box, skip: (nodeId: string) => boolean = () => false) => {
-    const near = grown(box, reach)
-    return index().some(
-      (near.x0 + near.x1) / 2,
-      (near.y0 + near.y1) / 2,
-      (near.x1 - near.x0) / 2,
-      (near.y1 - near.y0) / 2,
-      ({ nodeId: i, segmentIdx }) => {
-        const stretch = stretches[Number(i)]
-        const a = stretch?.points[segmentIdx]
-        const b = stretch?.points[segmentIdx + 1]
-        return (
-          stretch !== undefined &&
-          a !== undefined &&
-          b !== undefined &&
-          !skip(stretch.nodeId) &&
-          segmentMeetsBox(a, b, grown(box, stretch.reach))
-        )
-      },
-    )
-  }
 }
 
 // The name of each gene namedGenePins names under its pin, or above it where
@@ -261,16 +245,10 @@ export function geneLabelCandidates(
 ) {
   const ink = contigThickness / 2
   const rim = ink + EXON_RIM_PX
-  const exonUnder = exonsUnderBox(
-    pins.flatMap(pin =>
-      pin.exonsByNode.flatMap(({ nodeId, stretches }) =>
-        stretches.map(stretch => ({
-          nodeId,
-          reach: rim,
-          points: stretch.map(screen),
-        })),
-      ),
-    ),
+  const exonUnder = piecesUnderBox(
+    exonPieces(pins, screen, () => rim),
+    shown.box,
+    EXON_CELL_PX,
   )
   return byExtent(
     namedGenePins(pins, liftedWalks).flatMap(named => {
@@ -299,7 +277,7 @@ export function geneLabelCandidates(
       nearest: { x, y },
       fits: (box: Box) =>
         !otherNodeUnder(grown(box, ink), id => pin.nodeIds.has(id)) &&
-        !exonUnder(box),
+        !exonUnder(box, () => false),
     }
   })
 }
@@ -352,19 +330,15 @@ function lengthInk(
     return drawn ? widestStroke(drawn, nodes) : ink
   }
   const exonUnder = once(() =>
-    exonsUnderBox(
-      m.genePins.flatMap(pin =>
-        pin.exonsByNode
-          .filter(({ nodeId }) => !m.folded?.has(nodeId))
-          .flatMap(({ nodeId, stretches }) => {
-            const reach = widest([nodeId]) + EXON_RIM_PX
-            return stretches.map(stretch => ({
-              nodeId,
-              reach,
-              points: stretch.map(screen),
-            }))
-          }),
+    piecesUnderBox(
+      exonPieces(
+        m.genePins,
+        screen,
+        nodeId => widest([nodeId]) + EXON_RIM_PX,
+        nodeId => !m.folded?.has(nodeId),
       ),
+      { x0: 0, x1: frame.width, y0: 0, y1: frame.height },
+      EXON_CELL_PX,
     ),
   )
   return {
@@ -374,7 +348,7 @@ function lengthInk(
         (under
           ? under(box, own)
           : otherNodeUnder(grown(box, ink), node => own({ node }))) ||
-        exonUnder()(box, nodeId => own({ exon: nodeId }))
+        exonUnder()(box, own)
       )
     },
     widest,
