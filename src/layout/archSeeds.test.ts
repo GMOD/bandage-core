@@ -171,6 +171,87 @@ test('a stretch whose joined node the cut does not link along the reference stay
   ).toEqual([{ lo: 2, hi: 7 }])
 })
 
+test('a stretch is closed by links from its lowest to its highest rank, whatever lies beyond', () => {
+  const stretchesOver = (gaps: string[], from: string, to: string) =>
+    closedStretches(
+      ref,
+      [
+        ...chain(ref).filter(e => !gaps.includes(e.from)),
+        rightToRight(from, to),
+      ],
+      OPTS,
+    ).stretches
+  expect(stretchesOver(['2+', '9+'], '3+', '9+')).toEqual([{ lo: 3, hi: 8 }])
+  expect(stretchesOver(['3+'], '3+', '9+')).toEqual([])
+  expect(stretchesOver(['8+'], '3+', '9+')).toEqual([])
+  expect(stretchesOver([], '3+', '12+')).toEqual([{ lo: 3, hi: 11 }])
+  expect(
+    closedStretches(
+      ref,
+      [
+        ...chain(ref),
+        ...chain(ref).map(e => ({ from: e.to, to: e.from })),
+        rightToRight('3+', '9+'),
+        rightToRight('3+', '9+'),
+      ],
+      OPTS,
+    ).stretches,
+  ).toEqual([{ lo: 3, hi: 8 }])
+})
+
+test('closed stretches match a rank-by-rank walk on random cuts', () => {
+  let seed = 11
+  const rand = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31
+  const pick = (n: number) => Math.floor(rand() * n)
+  for (let round = 0; round < 200; round++) {
+    const nodes = reference(2 + pick(30))
+    const links = chain(nodes).filter(() => rand() > 0.1)
+    const joins = Array.from({ length: pick(12) }, () => {
+      const a = nodes[pick(nodes.length)]!.id
+      const b = nodes[pick(nodes.length)]!.id
+      return rand() < 0.5 ? rightToRight(a, b) : leftToLeft(a, b)
+    })
+    const edges = [...links, ...links.slice(0, pick(links.length)), ...joins]
+    const rank = new Map(nodes.map((n, i) => [n.id, i]))
+    const linked = (r: number) =>
+      edges.some(e => {
+        const a = rank.get(e.from)!
+        const b = rank.get(e.to)!
+        return Math.min(a, b) === r && Math.abs(a - b) === 1
+      })
+    const walked = new Map<string, { lo: number; hi: number }>()
+    for (const j of likeEndJoins(nodes, edges, OPTS)) {
+      const a = rank.get(j.from)!
+      const b = rank.get(j.to)!
+      const [lo, hi] = [Math.min(a, b), Math.max(a, b)]
+      let unbroken = a !== b
+      for (let r = lo; r < hi; r++) {
+        unbroken &&= linked(r)
+      }
+      const s = j.fromSide === 'right' ? { lo: lo + 1, hi } : { lo, hi: hi - 1 }
+      if (unbroken && s.lo < s.hi) {
+        walked.set(`${s.lo},${s.hi}`, s)
+      }
+    }
+    expect(closedStretches(nodes, edges, OPTS).stretches).toEqual(
+      [...walked.values()].sort((x, y) => x.lo - y.lo || y.hi - x.hi),
+    )
+  }
+})
+
+// Walking each join's span took 1.5 s on chrY's 14,142-node pggb window, and
+// about 50 s here, past the test timeout
+test('closing stretches over a long reference reads each join once, not its span', () => {
+  const long = reference(40_000)
+  const joins = Array.from({ length: 15_000 }, (_, i) =>
+    rightToRight(long[i]!.id, long[long.length - 1 - i]!.id),
+  )
+  const { stretches } = closedStretches(long, [...chain(long), ...joins], OPTS)
+  expect(stretches).toHaveLength(15_000)
+  expect(stretches[0]).toEqual({ lo: 1, hi: 39_999 })
+  expect(stretches.at(-1)).toEqual({ lo: 15_000, hi: 25_000 })
+})
+
 test('a join through one off-reference node drawn at the minimum length counts, through a longer one does not', () => {
   const short = [offReference('j1', 250), offReference('j2', 850)]
   const through: GraphEdge[] = [

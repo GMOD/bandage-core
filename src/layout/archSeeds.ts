@@ -153,8 +153,12 @@ export function closedStretches(
         : []
     }),
   )
+  const breaksBefore = new Int32Array(reference.length)
+  for (let r = 1; r < reference.length; r++) {
+    breaksBefore[r] = breaksBefore[r - 1]! + (linked.has(r - 1) ? 0 : 1)
+  }
   const unbroken = (lo: number, hi: number) =>
-    Array.from({ length: hi - lo }, (_, k) => lo + k).every(r => linked.has(r))
+    breaksBefore[lo] === breaksBefore[hi]
   const spans = likeEndJoins(nodes, edges, opts).flatMap(j => {
     const a = rank.get(j.from)
     const b = rank.get(j.to)
