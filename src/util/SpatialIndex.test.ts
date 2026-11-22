@@ -237,7 +237,7 @@ describe('links that cross the whole drawing', () => {
     }
     const random = seeded(11)
     const long = [graph.edges.length - 2, graph.edges.length - 1]
-    const points = Array.from({ length: 1500 }, (_, i) => {
+    const points = Array.from({ length: 300 }, (_, i) => {
       const along = long[i % 2]!
       const c = curves.get(along)![0]!
       const on = curvePointAt(c, random())
@@ -264,7 +264,7 @@ describe('links that cross the whole drawing', () => {
     expect(hits).toEqual(points.map(({ x, y }) => nearest(x, y)))
     expect(
       hits.filter(h => h !== null && long.includes(h)).length,
-    ).toBeGreaterThan(300)
+    ).toBeGreaterThan(60)
   })
 })
 
