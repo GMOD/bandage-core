@@ -6,7 +6,7 @@ import { convertGFAToGraph } from './gfa/gfaConverter'
 import { SMALL_SITE_PX, foldedSites } from './levelOfDetail'
 import { haplotypeCount, nodeInk } from './nodeWidths'
 import { anchorGraph } from './pathAnchoring'
-import { buildGeometry } from './renderer/GeometryBuilder'
+import { buildGeometry, geometryFold } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { baseEdgeCurves } from './util/edgeCurves'
 import { curvePointAt } from './util/geometry'
@@ -193,6 +193,26 @@ describe('a piece folds when it is drawn under SMALL_SITE_PX: its own nodes and 
     expect(batch.collapsed?.sites).toEqual([])
     expect(batch.edgeCurveRuns.has(2)).toBe(true)
   })
+})
+
+// A reader's key names the fold, and the fit beside that key sets the scale
+// the build folds at, so it sizes the key before building
+test('geometryFold is the fold the build makes, ahead of it and kept for it', () => {
+  const { graph, positions } = snp(1, 1, undefined, 0)
+  const options = {
+    ...layoutGeometryInputs({ nodePositions: positions }, drawingOf(graph)),
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform' as const,
+    contigThickness: 0.02,
+    connectorThickness: 2,
+    drawPaths: false,
+    axis: { scaleX: 1.3, scaleY: 1.3 },
+  }
+  const fold = geometryFold(options)
+  expect([...fold.nodes]).toEqual(['a1+'])
+  expect(buildGeometry(options).collapsed).toBe(fold)
+  expect(geometryFold({ ...options, smallSites: 'nodes' }).sites).toEqual([])
 })
 
 test('a link is measured along the curve drawn, so a piece folds below the scale at which that curve brings it to SMALL_SITE_PX and is drawn above it', () => {
