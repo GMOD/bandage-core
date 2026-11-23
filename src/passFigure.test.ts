@@ -145,7 +145,6 @@ test("a host's walk rows take each pass's colour from the figure's pass runs, as
       bp: all.map(r => r.bp),
       contig: all.map(r => r.axis?.contig ?? null),
       contigStart: all.map(r => r.axis?.start ?? null),
-      backward: all.map(r => !!r.axis?.reversed),
     },
     { row: offsets.map(() => hap), offset: offsets },
     { ...passRuns, key: passRuns.walk.map(w => keys.walk.indexOf(w)) },

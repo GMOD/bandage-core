@@ -456,7 +456,6 @@ test("walk row tiles take their lifted walk's colours as walk rows draw them", (
     bp: all.map(r => r.bp),
     contig: all.map(r => r.axis?.contig ?? null),
     contigStart: all.map(r => r.axis?.start ?? null),
-    backward: all.map(r => !!r.axis?.reversed),
   }
   const hg1 = all.findIndex(r => r.name === 'HG1#1#ctg1')
   const hg2 = all.findIndex(r => r.name === 'HG2#1#ctg2')

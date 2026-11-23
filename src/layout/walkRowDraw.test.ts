@@ -15,7 +15,7 @@ import {
   readoutTextPx,
   rowGeneBoxes,
   rowPitch,
-  chevronPitch,
+  coalesceRuns,
   reversedStretches,
   rowSpan,
   scaleBarTree,
@@ -57,28 +57,21 @@ const rowNamed = (name: string) => rows().rows.find(r => r.name === name)!
 
 test('a row starts on its contig where the walk leaves the last reference node before the window', () => {
   expect(rowNamed('HG1#1#ctg1').bp).toBe(25)
-  expect(rowNamed('HG1#1#ctg1').axis).toEqual({
-    contig: 'ctg1',
-    start: 510,
-    reversed: false,
-  })
-  expect(rows().reference.axis).toEqual({
-    contig: 'chr1',
-    start: 1010,
-    reversed: false,
-  })
+  expect(rowNamed('HG1#1#ctg1').axis).toEqual({ contig: 'ctg1', start: 510 })
+  expect(rows().reference.axis).toEqual({ contig: 'chr1', start: 1010 })
 })
 
-test('a walk against the reference reads its contig leftward along the row', () => {
+test('a walk against the reference reads its contig rightward along the row, as it is stored', () => {
   const row = rowNamed('HG2#2#ctg2')
-  expect(row.axis).toEqual({ contig: 'ctg2', start: 140, reversed: true })
+  expect(row.axis).toEqual({ contig: 'ctg2', start: 110 })
   expect(rowSpan(row.axis!, row.bp)).toEqual({ start: 110, end: 140 })
+  expect(row.runs.every(run => run.reversed)).toBe(true)
 })
 
 test('a gap between pieces keeps the contig position linear along the row', () => {
   const row = rowNamed('HG3#1#ctg3')
   expect(row.gapBp).toBe(10)
-  expect(row.axis).toEqual({ contig: 'ctg3', start: 10, reversed: false })
+  expect(row.axis).toEqual({ contig: 'ctg3', start: 10 })
 })
 
 test('pieces that overlap give the row no axis', () => {
@@ -387,7 +380,7 @@ test('the readout states length, change and what the cut left out', () => {
       { bp: 167_867, gapBp: 19_156, complete: true },
       { bp: 240_365 },
     ),
-  ).toBe('168 kb (−72 kb), of which 19 kb out of view')
+  ).toBe('168 kb (−72 kb), of which 19 kb not drawn')
 })
 
 test('a change under a kilobase reads in bp rather than rounding to 0.0 kb', () => {
@@ -423,14 +416,13 @@ test('the reference from elsewhere under a kilobase reads in bp rather than roun
   )
 })
 
-test('a pass across a window edge calls only its bases off the reference its own, names those on it, and says where its contig is drawn right to left', () => {
+test('a pass across a window edge calls only its bases off the reference its own and names those on it', () => {
   const reference = {
     bp: 6600,
     windowBp: 6600,
     sample: 'GRCh38',
     revisited: 0,
   }
-  const axis = { contig: 'c', start: 0, reversed: true }
   expect(
     walkRowReadout(
       {
@@ -439,12 +431,10 @@ test('a pass across a window edge calls only its bases off the reference its own
         onReferenceBp: 6600,
         gapBp: 0,
         complete: true,
-        axis,
-        flipped: true,
       },
       reference,
     ),
-  ).toBe('6.6 kb on GRCh38 · contig drawn right to left')
+  ).toBe('6.6 kb on GRCh38')
   expect(
     walkRowReadout(
       {
@@ -465,13 +455,11 @@ test('a pass across a window edge calls only its bases off the reference its own
         onReferenceBp: 1200,
         gapBp: 500,
         complete: true,
-        axis,
-        flipped: true,
       },
       reference,
     ),
   ).toBe(
-    "1.2 kb on GRCh38 in place of GRCh38's 1.4 kb, of which 500 bp out of view · contig drawn right to left",
+    "1.2 kb on GRCh38 in place of GRCh38's 1.4 kb, of which 500 bp not drawn",
   )
 })
 
@@ -542,7 +530,7 @@ test('a partial walk states a lower bound and why it stops', () => {
       reference,
       51,
     ),
-  ).toBe('≥ 1.5 kb ≈ 29 units · does not rejoin the reference in view')
+  ).toBe('≥ 1.5 kb ≈ 29 units · goes on away from the repeat')
   expect(
     walkRowReadout(
       {
@@ -605,15 +593,17 @@ test('the key says the colours are the graph’s alignment', () => {
   expect(key.map(e => e.label)).toEqual([
     "on GRCh38#0's path",
     "off GRCh38#0's path",
-    'out of view: in the graph, beyond the part drawn here',
+    "walked against GRCh38#0's direction",
+    'not drawn: between two pieces of the walk, with no step of it here',
     'gene',
     'no gene track for 2 rows',
   ])
 })
 
 // HG5 walks b and c inverted between forward flanks, as a carrier of an
-// inversion does; HG2's contig is stored back to front
-test('a stretch walked against the reference draws chevrons, the readout states its bp and the key names them', () => {
+// inversion does; HG2's contig is stored back to front, so every step it
+// takes on the reference is against it
+test('a stretch walked against the reference draws chevrons, the readout states its bp over the window and the key names them', () => {
   const bars = walkRows(
     loadGraph(
       [...GFA.split('\n'), 'W\tHG5\t1\tctg5\t0\t50\t>a<c<b>d>e'].join('\n'),
@@ -623,7 +613,7 @@ test('a stretch walked against the reference draws chevrons, the readout states 
   )!
   const inverted = bars.rows.find(r => r.label === 'HG5#1')!
   expect(walkRowReadout(inverted, bars.reference)).toBe(
-    '26 bp, of which 20 bp reversed',
+    '26 bp, of which 18 bp reversed',
   )
   const chevrons = (row: typeof inverted) =>
     serializeEl(
@@ -640,13 +630,16 @@ test('a stretch walked against the reference draws chevrons, the readout states 
       ),
     ).match(/<polyline /g)?.length ?? 0
   expect(chevrons(inverted)).toBeGreaterThan(0)
-  expect(chevrons(bars.rows.find(r => r.label === 'HG2#2')!)).toBe(0)
+  expect(chevrons(bars.rows.find(r => r.label === 'HG2#2')!)).toBeGreaterThan(0)
   expect(walkRowsKey(bars).map(e => e.label)).toContain(
     "walked against GRCh38#0's direction",
   )
-  expect(walkRowsKey(rows()).map(e => e.label)).not.toContain(
-    "walked against GRCh38#0's direction",
-  )
+  expect(
+    walkRowsKey({
+      ...bars,
+      rows: bars.rows.filter(r => !r.runs.some(run => run.reversed)),
+    }).map(e => e.label),
+  ).not.toContain("walked against GRCh38#0's direction")
 })
 
 test('a scale bar takes a round length about as wide as asked', () => {
@@ -690,7 +683,7 @@ test('chevrons run along a stretch walked against the reference however small si
   )
   const chevrons = (svg.match(/<polyline /g)?.length ?? 0) / 2
   expect(chevrons).toBeGreaterThanOrEqual(60)
-  const stretches = reversedStretches(runs, chevronPitch(12) / scaleX)
+  const stretches = reversedStretches(coalesceRuns(runs, scaleX))
   const reversedBp = runs.filter(r => r.reversed).reduce((n, r) => n + r.bp, 0)
   const chevroned = stretches
     .filter(
@@ -709,7 +702,7 @@ test('chevrons run along a stretch walked against the reference however small si
 
 // H-TSPY of the HPRC v2.1 audit: HG01109#1 walks 111 kb of the window
 // against GRCh38, 489 kb of its own, then 104 kb more against it
-test('chevrons stop at a stretch off the reference wide enough to hold one', () => {
+test('chevrons stop at a wide stretch off the reference', () => {
   const runs: WalkRun[] = [
     {
       start: 0,
@@ -749,6 +742,54 @@ test('chevrons stop at a stretch off the reference wide enough to hold one', () 
   const widest = steps.reduce((w, step, k) => (step > steps[w]! ? k : w), 0)
   expect(steps[widest]! * 1364).toBeGreaterThan(450_000)
   expect([widest + 1, tips.length - widest - 1].every(n => n > 0)).toBe(true)
+})
+
+// H-MAPT of the HPRC v2.1 audit: HG01123#1's own sequence between two
+// stretches walked against GRCh38 draws as a dark block about 14 px wide,
+// narrower than the room between two chevrons
+test('chevrons never sit on ink off the reference, however narrow', () => {
+  const scaleX = 1 / 1000
+  const runs: WalkRun[] = [
+    {
+      start: 0,
+      bp: 100_000,
+      onReference: true,
+      referenceStart: 200_000,
+      reversed: true,
+    },
+    { start: 100_000, bp: 14_000, onReference: false },
+    {
+      start: 114_000,
+      bp: 100_000,
+      onReference: true,
+      referenceStart: 86_000,
+      reversed: true,
+    },
+  ]
+  const row = { ...rowNamed('HG1#1#ctg1'), runs, bp: 214_000 }
+  const svg = serializeEl(
+    walkRowsTree(
+      { ...rows(), rows: [row] },
+      {
+        scaleX,
+        scaleY: 1,
+        translateX: 0,
+        translateY: 20,
+        width: 1400,
+        height: 400,
+      },
+    ),
+  )
+  const spans = [...svg.matchAll(/<polyline points="([^"]+)"/g)].map(m =>
+    m[1]!.split(' ').map(point => Number(point.split(',')[0])),
+  )
+  const x = (bp: number) => (rows().origin + bp) * scaleX
+  const over = (lo: number, hi: number) =>
+    spans.filter(xs => xs.some(at => at > x(lo)) && xs.some(at => at < x(hi)))
+      .length
+  expect(over(0, 100_000)).toBeGreaterThan(0)
+  expect(over(114_000, 214_000)).toBeGreaterThan(0)
+  expect(over(100_000, 114_000)).toBe(0)
 })
 
 test('the key names the boxes by the annotation the host read', () => {
@@ -809,6 +850,64 @@ test('rows fill their room down past a pixel, losing labels, readouts and gaps a
   expect(rowPitch(1000, 400, 3).rowPx).toBe(3)
 })
 
+// A row of 2 kb walked with 5 kb away from the window between, drawn 50 bp
+// wide: unit ticks and a call's tick count the bp walked, and a gene that
+// lies in the stretch away has no room to draw in
+test('ticks, a call and genes skip a break', () => {
+  const bars = rows()
+  const row = {
+    ...bars.rows[0]!,
+    bp: 7000,
+    runs: [
+      { start: 0, bp: 1000, onReference: true, referenceStart: 0 },
+      {
+        start: 1000,
+        bp: 50,
+        onReference: false,
+        gap: true as const,
+        cause: 'away' as const,
+        heldBp: 5000,
+      },
+      { start: 1050, bp: 1000, onReference: true, referenceStart: 1000 },
+    ],
+    axis: {
+      contig: 'c',
+      start: 0,
+      breaks: [{ at: 1000, bp: 5000, drawn: 50 }],
+    },
+    call: { bp: 1500 },
+  }
+  const svg = serializeEl(
+    walkRowsTree(
+      { ...bars, origin: 0, unit: 300, rows: [row] },
+      {
+        scaleX: 1,
+        scaleY: 1,
+        translateX: 0,
+        translateY: 40,
+        width: 4000,
+        height: 400,
+        rowPx: 20,
+        barPx: 12,
+      },
+    ),
+  )
+  const ticks = svg.split('data-testid="graph-walk-row"')[1]!
+  expect(
+    [...ticks.matchAll(/<line x1="([\d.]+)"[^>]*stroke="white"/g)].map(m =>
+      Number(m[1]),
+    ),
+  ).toEqual([300, 600, 900, 1250, 1550, 1850])
+  expect(svg).toMatch(/data-testid="graph-walk-call" x="1549"/)
+  const placed = placeRowGenes(
+    [row],
+    new Map([[row.name, [gene('IN', 3000, 4000), gene('OVER', 500, 7000)]]]),
+  )
+  expect(placed.get(row.name)!.map(g => [g.name, g.start, g.end])).toEqual([
+    ['OVER', 500, 2050],
+  ])
+})
+
 test('a dense row keeps its call inside the row, and marks a disagreeing call red', () => {
   const bars = rows()
   const [first, ...rest] = bars.rows
@@ -836,7 +935,9 @@ test('a dense row keeps its call inside the row, and marks a disagreeing call re
     /data-testid="graph-walk-call"[^>]*height="2"[^>]*fill="#c62828"/,
   )
   expect(svg).not.toContain('<text ')
-  expect(svg).not.toContain('<line ')
+  expect(
+    svg.replaceAll(/<g data-testid="graph-walk-break">.*?<\/g>/g, ''),
+  ).not.toContain('<line ')
 })
 
 test('gene boxes fit the rows’ pitch, and crowded rows draw none', () => {
@@ -961,7 +1062,13 @@ function longRow(): WalkRowsWithCalls {
             gap: true,
             cause: 'away',
           },
-          { start: 5_275_000, bp: 86_000, onReference: false, gap: true },
+          {
+            start: 5_275_000,
+            bp: 86_000,
+            onReference: false,
+            gap: true,
+            cause: 'unread',
+          },
         ],
       },
     ],
@@ -972,7 +1079,7 @@ function longRow(): WalkRowsWithCalls {
 test('a readout too long for the room beside its bar on rows too close to wrap drops whole parts of its breakdown from the end, and says it was cut', () => {
   const bars = longRow()
   const text =
-    '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb away from the window, 86 kb out of view'
+    '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb away from the window, 86 kb not drawn'
   const cut = '5361 kb (+5360 kb), of which 5096 kb left out of graph, …'
   const frame = (width: number) => ({
     scaleX: 100 / 5_361_000,
@@ -1026,7 +1133,7 @@ test('a readout too long for the room beside its bar on rows too close to wrap d
       },
     ),
   )
-  expect(full).toBe('26 bp, of which 10 bp out of view')
+  expect(full).toBe('26 bp, of which 10 bp not drawn')
   expect(svg).toContain(
     `<g data-testid="graph-walk-row"><title>${full}</title>`,
   )
@@ -1114,7 +1221,7 @@ test('a readout too long for the room beside its bar wraps onto two lines at ful
     }).lines,
   ).toEqual([
     '5361 kb (+5360 kb), of which 5096 kb left out of graph,',
-    '178 kb away from the window, 86 kb out of view',
+    '178 kb away from the window, 86 kb not drawn',
   ])
   // too narrow for two lines, or rows too close for a second, it is cut
   expect(walkRowReadoutAt(bars, 1, frame(beside + 220))).toMatchObject({
@@ -1168,7 +1275,7 @@ function pggbRows(): WalkRowsWithCalls {
         windowBp: 400,
         replacedBp: 6400,
         onReferenceBp: 390,
-        axis: { contig: 'c', start: 0, reversed: true },
+        axis: { contig: 'c', start: 0 },
         runs: [{ ...on, bp: 400 }],
       }),
       row('HG002#1', { placementChoice: true }),
@@ -1330,13 +1437,13 @@ test("a stepless row reads as its departure's facts", () => {
       reference,
     )
   expect(readout({ rejoinPos: 22_930_412 })).toBe(
-    'no step on GRCh38 across 150 kb · 0 bp of its own',
+    'no step on GRCh38 across 150 kb',
   )
   expect(readout({ rejoinPos: 23_267_960, ownBp: 120_000 })).toBe(
     'no step on GRCh38 across 490 kb · 120 kb of its own',
   )
   expect(readout({ rejoinPos: 24_014_567 }, { bp: 50_000, revisited: 0 })).toBe(
-    'no step on the reference across 1.2 Mb · 0 bp of its own',
+    'no step on the reference across 1.2 Mb',
   )
   expect(readout({ rejoinPos: 22_780_850, missingBp: 40, ownBp: 40 })).toBe(
     'no step on GRCh38 across 850 bp · 40 bp left out of graph',
@@ -1391,7 +1498,7 @@ describe('rows in the lifted walks colours', () => {
   )
   const rowSvg = (name: string) => {
     const i = [bars.reference, ...bars.rows].findIndex(r => r.name === name)
-    return svg.split('<g data-testid="graph-walk-')[i + 1]!
+    return svg.split(/<g data-testid="graph-walk-(?:row|reference)"/)[i + 1]!
   }
 
   test("a lifted walk's row runs along its walk's ramp over the stretch of contig the bar covers", () => {
@@ -1531,19 +1638,19 @@ describe('the row of a walk lifted by pass', () => {
     expect(rowInkAt(ink, row, 3000)).toBe(own)
   })
 
-  test('a backward row finds its passes by contig position', () => {
-    // hap runs down ctg, so the cut's bar runs from contig 4900 down, and the
-    // repeat's two passes, at contig 4000 to 4200 and 4200 to 4400, lie 700
-    // to 900 and 500 to 700 bp along it
+  test('a row of a contig stored back to front finds its passes by contig position', () => {
+    // hap's contig runs down the reference as stored, so the cut's bar runs
+    // from contig 1000 up, and the repeat's two passes, at contig 4000 to
+    // 4200 and 4200 to 4400, lie 3000 to 3200 and 3200 to 3400 bp along it
     const { row, ink, color, own } = lifted('s5-,u-,r-,r-,s2-,s1-', {
       start: 1200,
       end: 4500,
     })
-    expect(row.axis).toEqual({ contig: 'ctg', start: 4900, reversed: true })
-    expect(rowInkAt(ink, row, 400)).toBe(own)
-    expect(rowInkAt(ink, row, 600)).toBe(color(1))
-    expect(rowInkAt(ink, row, 800)).toBe(color(0))
-    expect(rowInkAt(ink, row, 1000)).toBe(own)
+    expect(row.axis).toEqual({ contig: 'ctg', start: 1000 })
+    expect(rowInkAt(ink, row, 2900)).toBe(own)
+    expect(rowInkAt(ink, row, 3100)).toBe(color(0))
+    expect(rowInkAt(ink, row, 3300)).toBe(color(1))
+    expect(rowInkAt(ink, row, 3500)).toBe(own)
   })
 
   test("a row with no contig position to place the passes by keeps the walk's own colour, and its pass bar", () => {

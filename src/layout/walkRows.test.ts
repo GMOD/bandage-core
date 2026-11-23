@@ -6,6 +6,8 @@ import { anchorGraph, pathOrigin } from '../pathAnchoring'
 import { loadGraph } from '../pipeline'
 import { filterSamples, walkRows } from './walkRows'
 
+import type { WalkRun } from './walkRows'
+
 function pggbGraph() {
   const gfa = readFileSync(
     require.resolve('../../test_data/ecoli_pggb_subgraph.gfa'),
@@ -331,7 +333,16 @@ test('a cut that stops at the window leaves whole walks, not partial ones', () =
   expect(rows.reference.complete).toBe(true)
 })
 
-test('a walk that crosses the window backwards reads in reference direction', () => {
+// a path's runs read back to front: each on the reference reversed where its
+// mirror is not
+const mirrored = (runs: WalkRun[], turn: boolean) =>
+  runs.map(r => [
+    r.bp,
+    r.referenceStart,
+    r.onReference && (r.reversed === true) !== turn,
+  ])
+
+test('a walk that crosses the window backwards reads in stored order, its runs mirrored and reversed', () => {
   const graph = pggbGraph()
   const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
   const reference = graph.paths!.find(
@@ -362,12 +373,14 @@ test('a walk that crosses the window backwards reads in reference direction', ()
   )!
   const row = cut.rows.find(r => r.name === 'backwards')!
   expect(row.complete).toBe(true)
-  expect(row.runs).toEqual(forward.runs)
+  expect(mirrored(row.runs, true)).toEqual(
+    mirrored(forward.runs, false).toReversed(),
+  )
 })
 
-// a path read only against the reference reads back to front with no
+// a path read only against the reference reads in stored order with no
 // window as with one
-test('a walk crossing the reference backwards with no cut reads flipped, its runs whole', () => {
+test('a walk crossing the reference backwards with no cut reads in stored order, its runs whole and reversed', () => {
   const graph = pggbGraph()
   const forward = walkRows(graph)!.rows.find(r =>
     r.runs.some(run => run.onReference && run.bp > 100 && !run.reversed),
@@ -382,10 +395,9 @@ test('a walk crossing the reference backwards with no cut reads flipped, its run
     ...graph,
     paths: [...graph.paths!, backwards],
   })!.rows.find(r => r.name === 'backwards')!
-  expect(row.runs.map(r => [r.bp, r.referenceStart])).toEqual(
-    forward.runs.map(r => [r.bp, r.referenceStart]),
+  expect(mirrored(row.runs, true)).toEqual(
+    mirrored(forward.runs, false).toReversed(),
   )
-  expect(row.flipped).toBe(true)
 })
 
 test('a reference walking a node again stays one run on its own coordinates', () => {

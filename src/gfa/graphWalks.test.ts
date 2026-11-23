@@ -37,7 +37,6 @@ async function rowsOf(name: string, start: number, end: number, context = 0) {
             start: r.start,
             bp: r.bp,
             cause: r.cause,
-            back: r.back,
           })),
         row,
       }
@@ -49,8 +48,8 @@ async function rowsOf(name: string, start: number, end: number, context = 0) {
 test('a haplotype with no step in the window is a row of its departure', async () => {
   const { row } = await rowsOf('skip.GRCh38', 40, 60)
   expect(row('HG002#1')).toMatchObject({
-    readout: 'no step on GRCh38 across 60 bp · 0 bp of its own',
-    gaps: [{ start: 0, bp: 20, cause: 'departure', back: undefined }],
+    readout: 'no step on GRCh38 across 60 bp',
+    gaps: [{ start: 0, bp: 20, cause: 'departure' }],
     row: { bp: 0, offReferenceBp: 0, stepless: true },
   })
 })
@@ -60,8 +59,8 @@ test('a haplotype with no step in the window is a row of its departure', async (
 test('a haplotype whose steps in the cut are the flanks alone is a row of its departure', async () => {
   const { row } = await rowsOf('skip.GRCh38', 31, 60, 1000)
   expect(row('HG002#1')).toMatchObject({
-    readout: 'no step on GRCh38 across 60 bp · 0 bp of its own',
-    gaps: [{ start: 0, bp: 30, cause: 'departure', back: undefined }],
+    readout: 'no step on GRCh38 across 60 bp',
+    gaps: [{ start: 0, bp: 30, cause: 'departure' }],
     row: { bp: 0, offReferenceBp: 0, stepless: true, complete: true },
   })
   expect(row('HG002#1').row.departures).toMatchObject([
@@ -118,9 +117,8 @@ test('a gap states what the departure across it says: bp the graph lacks, own bp
   })
   const away = await rowsOf('records.GRCh38', 1000, 3000)
   expect(away.row('HG003#1')).toMatchObject({
-    readout:
-      '3.0 kb of its contig, of which 1.0 kb away from the window, back from near chr1:2 kb',
-    gaps: [{ start: 500, bp: 30, cause: 'away', back: 1500 }],
+    readout: '3.0 kb of its contig, of which 1.0 kb away from the window',
+    gaps: [{ start: 500, bp: 30, cause: 'away' }],
   })
 })
 
@@ -156,7 +154,7 @@ test("a walk ending at the window's edge reads as a contig end only with no depa
     },
   })
   expect(row('HG003#1')).toMatchObject({
-    readout: '≥ 500 bp · does not rejoin the reference in view',
+    readout: '≥ 500 bp · goes on away from the window',
     row: {
       complete: false,
       stops: { right: { contigEnds: false, shortBp: 0 } },
@@ -200,7 +198,7 @@ test('with no context, a walk that stops inside the window states how, and a who
     },
   })
   expect(row('HG003#1')).toMatchObject({
-    readout: '≥ 500 bp · does not rejoin the reference in view',
+    readout: '≥ 500 bp · goes on away from the window',
     row: { bp: 500, complete: false, stops: { right: { contigEnds: false } } },
   })
   expect(row('HG002#2')).toMatchObject({
@@ -228,7 +226,7 @@ test('with no context, a walk that stops inside the window states how, and a who
 test('a walk whose only step is a flank has no bp in the window and says how it goes on from there', async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 1500, 2000, 500)
   expect(row('HG003#1')).toMatchObject({
-    readout: 'does not rejoin the reference in view',
+    readout: 'goes on away from the window',
     row: { bp: 0, complete: false, stops: { right: { contigEnds: false } } },
   })
   expect(row('HG002#2')).toMatchObject({
@@ -294,9 +292,7 @@ describe('a row over a window its walk crosses more than once', () => {
     return {
       readout,
       runs: drawn.runs.map(r =>
-        r.gap
-          ? [r.bp, r.cause, r.back]
-          : [r.bp, r.referenceStart, r.reversed === true],
+        r.gap ? [r.bp, r.cause] : [r.bp, r.referenceStart, r.reversed === true],
       ),
     }
   }
@@ -307,10 +303,10 @@ describe('a row over a window its walk crosses more than once', () => {
         '9.5 kb of its contig, of which 4.0 kb reversed, 500 bp left out of graph, 2.0 kb away from the window · no more of the contig on GRCh38 chr1',
       runs: [
         [2000, 2000, false],
-        [500, 'missing', undefined],
-        [90, 'away', undefined],
+        [500, 'missing'],
+        [90, 'away'],
         [4000, 4000, true],
-        [90, 'away', undefined],
+        [90, 'away'],
         [1000, 2000, false],
       ],
     })
@@ -319,22 +315,21 @@ describe('a row over a window its walk crosses more than once', () => {
         '11 kb of its contig, of which 1.0 kb away from the window · no more of the contig on GRCh38 chr1',
       runs: [
         [6000, 2000, false],
-        [90, 'away', undefined],
+        [90, 'away'],
         [500, undefined, false],
         [3000, 4000, false],
       ],
     })
   })
 
-  test('paints an inverted walk reversed, and a contig stored back to front forward and drawn right to left', async () => {
+  test('paints an inverted walk reversed, and a contig stored back to front reversed end to end', async () => {
     expect(await runsOf('HG00097#1')).toEqual({
-      readout:
-        '≥ 6.0 kb, of which 6.0 kb reversed · goes on near chr1:9 kb · 0 bp of its own',
+      readout: '≥ 6.0 kb, of which 6.0 kb reversed · goes on near chr1:9 kb',
       runs: [[6000, 2000, true]],
     })
     expect(await runsOf('HG00099#1')).toEqual({
-      readout: '6.0 kb · contig drawn right to left',
-      runs: [[6000, 2000, false]],
+      readout: '6.0 kb, of which 6.0 kb reversed',
+      runs: [[6000, 2000, true]],
     })
   })
 })

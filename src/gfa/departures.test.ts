@@ -207,7 +207,7 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
   ]
   expect(texts).toEqual([
     'no step on GRCh38 across 54 kb · 120 kb of its own',
-    'rejoins GRCh38 1 kb back · 0 bp of its own',
+    'rejoins GRCh38 1 kb back',
     'rejoins the reference on the other strand, 1 kb away · 1 kb of its own, 400 bp of it left out of graph · placement choice',
     'between adjacent steps on GRCh38 · 300 bp of its own',
   ])
@@ -267,27 +267,22 @@ test('a gap across W lines is the bp the departure says the graph lacks', () => 
 })
 
 // HG002 leaves at 2000 for chr1:20.3 Mb and comes back from there at 3000,
-// where a record says it rejoins; the bp away draw one fixed width
-test('a gap away from the window states its bp and where a record says the walk comes back, and no other place', () => {
+// where a record says it rejoins; the bp away draw at most one width, and no
+// place is named, since the rejoin is where the walk lands, not where it was
+test('a gap away from the window states its bp and no place', () => {
   const away = (rejoinPos: number) => [
     departure({ ownBp: 0, rejoinPos }),
     departure({ hapStart: 2900, ownBp: 100, leavePos: rejoinPos + 900 }),
   ]
   const { row, gap, rows } = gapOf(twoFragments(away(20_316_160)))
-  expect(gap).toMatchObject({ bp: 75, heldBp: 1000, cause: 'away', back: 3000 })
+  expect(gap).toMatchObject({ bp: 75, heldBp: 1000, cause: 'away' })
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb of its contig, of which 1.0 kb away from the window, back from near chr1:3 kb',
+    '5.0 kb of its contig, of which 1.0 kb away from the window',
   )
   const late = gapOf(
     twoFragments([departure({ hapStart: 2600, ownBp: 400, leavePos: 9000 })]),
   )
-  expect(late.gap).toMatchObject({ cause: 'away', back: 3000 })
-  const open = gapOf(
-    twoFragments([departure({ hapStart: 2000, ownBp: 400, rejoinPos: 9000 })]),
-  )
-  expect(open.gap).toMatchObject({ cause: 'away' })
-  expect(open.gap.back).toBeUndefined()
-  expect(walkRowReadout(open.row, open.rows.reference)).toBe(
+  expect(walkRowReadout(late.row, late.rows.reference)).toBe(
     '5.0 kb of its contig, of which 1.0 kb away from the window',
   )
 })
@@ -304,24 +299,23 @@ test('bp left out of graph are a lower bound where the departures read do not ru
 })
 
 // On chr22 at 12 Mb, a haplotype runs on past what the cut keeps, then its
-// W line ends: the bp it ran on are graph sequence, the rest are not
-test('a gap past a trimmed walk splits into what the cut left out and what the graph lacks', () => {
+// W line ends: the bp it ran on are away from the window, the rest the graph
+// lacks; bp trimmed beside bp away are one break
+test('a gap past a trimmed walk splits into what the graph lacks and what lies away from the window', () => {
   const tables = twoFragments([departure({ missingBp: 600 })], { after: 400 })
   expect(parts(tables)).toEqual([
-    [400, undefined],
+    [75, 'away'],
     [600, 'missing'],
   ])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 600 bp left out of graph, 400 bp out of view',
+    '5.0 kb of its contig, of which 600 bp left out of graph, 400 bp away from the window',
   )
-  expect(
-    parts(
-      twoFragments([departure({ ownBp: 0, rejoinPos: 9000 })], { after: 300 }),
-    ),
-  ).toEqual([
-    [300, undefined],
-    [75, 'away'],
+  const { gaps } = gapOf(
+    twoFragments([departure({ ownBp: 0, rejoinPos: 9000 })], { after: 300 }),
+  )
+  expect(gaps.map(({ bp, heldBp, cause }) => [bp, heldBp, cause])).toEqual([
+    [75, 1000, 'away'],
   ])
 })
 
@@ -332,12 +326,12 @@ test('the key gives one entry to each way a gap draws', () => {
   const gaps = walkRowsKey(rows).filter(e => e.swatch.kind === 'gap')
   expect(gaps.map(e => [e.label, e.swatch])).toEqual([
     [
-      'out of view: in the graph, beyond the part drawn here',
-      { kind: 'gap', fill: WALK_OUTSIDE_CUT, px: WALK_GAP_PX },
-    ],
-    [
       'left out of graph: in the assembly, but the graph builder dropped it',
       { kind: 'gap', fill: MISSING_INK, px: MISSING_PX },
+    ],
+    [
+      'away from the window: elsewhere on GRCh38#0 or left out of graph',
+      { kind: 'gap', fill: WALK_OUTSIDE_CUT, px: WALK_GAP_PX },
     ],
     [
       'own sequence not drawn: in the graph off the reference, between two stretches drawn here',
@@ -385,7 +379,7 @@ test('a departure inside a piece neither explains a gap nor lists beside the row
     rejoinReversed: true,
   })
   const { row, gap } = gapOf(twoFragments([inside]))
-  expect(gap.cause).toBeUndefined()
+  expect(gap.cause).toBe('away')
   expect(row.departures).toBeUndefined()
   expect(
     gapParts(2000, 3000, {}, [inside, departure({ missingBp: 1000 })]),
@@ -407,7 +401,7 @@ test('a row with a departure the writer placed says so, and the key why', () => 
   ).toBeUndefined()
 })
 
-test('a row walked backwards meets the parts of a gap last first', () => {
+test('a contig stored back to front reads in stored order, meeting the parts of a gap as they lie on it', () => {
   const tables = gfaTables(
     gfa(
       'H\tVN:Z:1.1',
@@ -440,10 +434,14 @@ test('a row walked backwards meets the parts of a gap last first', () => {
     { referencePath: REFERENCE },
   )
   const row = walkRows(graph, { start: 1000, end: 6000 })!.rows[0]!
-  expect(row.axis?.reversed).toBe(true)
-  expect(row.runs.filter(r => r.gap).map(r => [r.bp, r.cause])).toEqual([
+  expect(row.axis).toMatchObject({ contig: 'chr1', start: 1000 })
+  expect(row.axis).not.toHaveProperty('reversed')
+  expect(row.runs.filter(r => !r.gap).every(r => r.reversed)).toBe(true)
+  expect(
+    row.runs.filter(r => r.gap).map(r => [r.heldBp ?? r.bp, r.cause]),
+  ).toEqual([
+    [400, 'away'],
     [600, 'missing'],
-    [400, undefined],
   ])
 })
 
@@ -470,14 +468,21 @@ test('a lifted walk states the bp its departures say the graph lacks, and its bp
   expect(keyOf(Number.NaN)).toBe(keyOf(2))
 })
 
-test('a gap with no departure in it is out of view', () => {
+test('a gap with no departure in it is away from the window', () => {
   const { row, gap, rows } = gapOf(twoFragments([], { after: 400 }))
-  expect(gap).toEqual({ start: 2000, bp: 1000, onReference: false, gap: true })
+  expect(gap).toEqual({
+    start: 2000,
+    bp: 75,
+    onReference: false,
+    gap: true,
+    cause: 'away',
+    heldBp: 1000,
+  })
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 1.0 kb out of view',
+    '5.0 kb of its contig, of which 1.0 kb away from the window',
   )
   expect(walkRowsKey(rows).map(e => e.label)).toContain(
-    'out of view: in the graph, beyond the part drawn here',
+    'away from the window: elsewhere on GRCh38#0 or left out of graph',
   )
 })
 

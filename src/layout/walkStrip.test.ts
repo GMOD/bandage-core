@@ -55,12 +55,12 @@ test('a node off the bar leaves no mark', () => {
   expect(stripMarks(graph, bars.rows, node('a'))).toEqual([])
 })
 
-test('the node under a point on a bar, forward, reversed and past a gap', () => {
+test('the node under a point on a bar, forward, stored back to front and past a gap', () => {
   const { graph, node, row } = setup()
   const id = (name: string) => node(name).id
   expect(segmentAt(graph, row('HG1#1#ctg1'), 2, 10)).toBe(id('x'))
   expect(segmentAt(graph, row('HG1#1#ctg1'), 7, 10)).toBe(id('c'))
-  expect(segmentAt(graph, row('HG2#2#ctg2'), 2, 10)).toBe(id('b'))
+  expect(segmentAt(graph, row('HG2#2#ctg2'), 2, 10)).toBe(id('d'))
   expect(segmentAt(graph, row('HG3#1#ctg3'), 25, 10)).toBe(id('d'))
   expect(segmentAt(graph, row('HG3#1#ctg3'), 15, 10)).toBeUndefined()
 })

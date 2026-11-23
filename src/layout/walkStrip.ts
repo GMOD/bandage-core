@@ -158,7 +158,7 @@ export function segmentAt(
   if (!axis || !spans || along < 0 || along > row.bp) {
     return undefined
   }
-  const at = axis.reversed ? axis.start - along : axis.start + along
+  const at = axis.start + along
   const tol = 0.5 / pxPerBp
   const bar = rowSpan(axis, row.bp)
   const from = Math.max(at - tol, bar.start)

@@ -32,23 +32,19 @@ export interface WalkRun {
   // graph threads this copy through, which need not be the one it most
   // resembles.
   referenceStart?: number
-  // the walk crosses that reference from its end back to its start
+  // the walk's steps run against the reference's strand at their nodes
   reversed?: true
   // bases of the walk's contig between two pieces the cut returned, which the
   // cut holds nothing of
   gap?: true
-  // why (gfa/departures.ts gapParts); a gap with no cause is graph sequence
-  // out of view
+  // why (gfa/departures.ts gapParts)
   cause?: GapCause
-  // for an `away` gap, where a departure record states the walk rejoins the
-  // reference at its end
-  back?: number
   // for a `mixed` gap, its bp left out of graph
   missingBp?: number
   // set where the bp left out of graph are a lower bound: the cut did not
   // read every departure across the gap
   atLeast?: true
-  // for an `away` gap, drawn at a fixed width, the bp it holds
+  // for an `away` gap, drawn at most a fixed width, the bp it holds
   heldBp?: number
   unloaded?: true
   // off the reference in the cut, the source stating its steps on the
@@ -58,11 +54,10 @@ export interface WalkRun {
 }
 
 // Where a row's bar lies on the walk's own contig: the contig position at the
-// bar's left end, and whether positions fall rightward along it
+// bar's left end, positions rising rightward along it
 export interface WalkAxis {
   contig: string
   start: number
-  reversed: boolean
   // where the bar starts under the reference row
   offset?: number
   // the stretches away from the window, `bp` of contig from `at` bp along
@@ -107,12 +102,10 @@ export function contigAlong(axis: WalkAxis, x: number) {
 }
 
 // A contig span as offsets along a row's bar
-export function alongRow(axis: WalkAxis, start: number, end: number) {
-  const [from, to] = axis.reversed
-    ? [axis.start - end, axis.start - start]
-    : [start - axis.start, end - axis.start]
-  return { start: drawnAlong(axis, from), end: drawnAlong(axis, to) }
-}
+export const alongRow = (axis: WalkAxis, start: number, end: number) => ({
+  start: drawnAlong(axis, start - axis.start),
+  end: drawnAlong(axis, end - axis.start),
+})
 
 // How a row's walk stops at one end of its bar inside the window: the graph
 // holds no more of its contig on the reference past that step (`contigEnds`),
@@ -139,14 +132,12 @@ export interface WalkStops {
 }
 
 // One pass of a walk over the window, from a flank on one side to the next on
-// the other: its bp, its bp over the window or, where its own sequence crosses
-// a window edge, the reference's bp it replaces, and whether it runs against
-// the reference
+// the other: its bp, and its bp over the window or, where its own sequence
+// crosses a window edge, the reference's bp it replaces
 export interface WalkPass {
   bp: number
   windowBp: number
   replacedBp?: number
-  reversed: boolean
   // of `bp`, the bp of steps on the reference from elsewhere
   fromElsewhereBp?: number
   // where it has `replacedBp`, its bp on the reference in the cut, and its bp
@@ -180,6 +171,9 @@ export interface WalkRow {
   fromElsewhereBp?: number
   // bp of the gap runs, counted in `bp` and not in `offReferenceBp`
   gapBp: number
+  // bp of its runs walked against the reference, over the window alone where
+  // it has `windowBp`
+  reversedBp?: number
   // false when the walk does not reach both flanking reference nodes; one
   // that reaches one flank is measured from it, a lower bound
   complete: boolean
@@ -196,8 +190,8 @@ export interface WalkRow {
   // set where the bar reaches over steps on the reference outside the window,
   // drawn as gaps near where they lie, so its bp are no length over the window
   passesOutside?: true
-  // set where the row reads its contig right to left
-  flipped?: true
+  // every pass over the window, in contig order, where there are several
+  passes?: WalkPass[]
   // how the walk stops at each end of its bar where it does not leave the
   // window there by a flank
   stops?: WalkStops

@@ -2,13 +2,20 @@ import fs from 'node:fs'
 
 import { bubbleSubgraph } from '../bubbles/popBubble'
 import { deletionEdges } from '../deletionEdges'
+import { serializeEl } from '../el'
 import { departureTable } from '../gfa/departures'
 import { gfaTables } from '../gfa/gfaTables'
 import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
 import { trimToWindow } from './trimToWindow'
-import { placeRowGenes, walkRowReadout, walkRowsKey } from './walkRowDraw'
+import {
+  barEnd,
+  placeRowGenes,
+  walkRowReadout,
+  walkRowsKey,
+  walkRowsTree,
+} from './walkRowDraw'
 import { walkRowLinks } from './walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { contigAlong, walkRows } from './walkRows'
@@ -103,7 +110,7 @@ test('a walk that ends inside the repeat measures from the flank it enters by', 
     })
   }
   expect(byLabel['C#1']!.stops).toEqual({
-    left: { contigEnds: false, shortBp: 0 },
+    right: { contigEnds: false, shortBp: 0 },
   })
   expect(byLabel['D#1']).toMatchObject({
     bp: 1000,
@@ -115,16 +122,8 @@ test('a walk that ends inside the repeat measures from the flank it enters by', 
     complete: false,
     stops: { right: { contigEnds: true, shortBp: 0 } },
   })
-  expect(byLabel['A#1']!.axis).toEqual({
-    contig: 'a',
-    start: 2000,
-    reversed: false,
-  })
-  expect(byLabel['C#1']!.axis).toEqual({
-    contig: 'c',
-    start: 2300,
-    reversed: true,
-  })
+  expect(byLabel['A#1']!.axis).toEqual({ contig: 'a', start: 2000 })
+  expect(byLabel['C#1']!.axis).toEqual({ contig: 'c', start: 2000 })
 })
 
 // D's contig ending on the repeat's node and E's on the left flank, with D
@@ -243,12 +242,7 @@ test('a row whose walk starts inside the window starts under the reference at it
     { start: 1000, bp: 2000, onReference: true, referenceStart: 2000 },
   ])
   expect(row!.visits!.map(v => v.start)).toEqual([1000, 2000])
-  expect(row!.axis).toEqual({
-    contig: 'g',
-    start: 0,
-    reversed: false,
-    offset: 1000,
-  })
+  expect(row!.axis).toEqual({ contig: 'g', start: 0, offset: 1000 })
   expect(
     placeRowGenes(
       rows.rows,
@@ -281,7 +275,7 @@ test('a row whose walk starts inside the window starts under the reference at it
 // Mb of contig away from it between, which drew every other bar a fifth as
 // wide. W walks chr1:1000-4000's nodes 1 and 2, then 7 kb away from the
 // window by two departures, then 2 and 3 again.
-test('a stretch away from the window draws as a break of one width, and the axis keeps genes and the strip on the contig', () => {
+test('a stretch away from the window draws as a break at most one width, and the axis keeps genes and the strip on the contig', () => {
   const twice: GraphTables = {
     ...tables,
     departures: departureTable([
@@ -316,7 +310,6 @@ test('a stretch away from the window draws as a break of one width, and the axis
       onReference: false,
       gap: true,
       cause: 'away',
-      back: 2000,
       heldBp: 7000,
     },
     { start: 2045, bp: 2000, onReference: true, referenceStart: 2000 },
@@ -324,11 +317,10 @@ test('a stretch away from the window draws as a break of one width, and the axis
   expect(row!.axis).toEqual({
     contig: 'w',
     start: 1000,
-    reversed: false,
     breaks: [{ at: 2000, bp: 7000, drawn: 45 }],
   })
   expect(walkRowReadout(row!, rows.reference)).toBe(
-    '11 kb of its contig, of which 7.0 kb away from the window, back from near chr1:2 kb',
+    '11 kb of its contig, of which 7.0 kb away from the window',
   )
   expect(
     placeRowGenes(
@@ -352,7 +344,7 @@ test('a stretch away from the window draws as a break of one width, and the axis
   ).toEqual([{ name: 'X', start: 2545, end: 2745, exons: [] }])
   expect(contigAlong(row!.axis!, 2545)).toBe(9500)
   expect(walkRowsKey(rows).at(-1)!.label).toBe(
-    '// marks a stretch away from the window; the text beside the row sums the bp it spends away',
+    '// marks a stretch away from the window drawn shorter than its bp; the text beside the row sums the bp it spends away',
   )
 })
 
@@ -392,7 +384,7 @@ const walkFile = (
 
 // S's contig is stored back to front and crosses chr1:1000-4000 twice: nodes
 // 3 to 1 against the reference, then, 5 kb on, 3 and 2 again
-test('a row stored back to front that crosses the window twice reads flipped, with no stretch marked reversed', () => {
+test('a row stored back to front that crosses the window twice reads in stored order, every step on the reference reversed', () => {
   const rows = rowsOf(
     walkFile([
       {
@@ -406,11 +398,13 @@ test('a row stored back to front that crosses the window twice reads flipped, wi
     { start: 1000, end: 4000 },
   )
   const [row] = rows.rows
-  expect(row!.flipped).toBe(true)
-  expect(row!.runs.some(run => run.reversed)).toBe(false)
-  expect(walkRowReadout(row!, rows.reference)).toContain(
-    'contig drawn right to left',
-  )
+  expect(row).not.toHaveProperty('flipped')
+  const walked = row!.runs.filter(run => !run.gap)
+  expect(walked.length).toBeGreaterThan(0)
+  expect(walked.every(run => run.reversed)).toBe(true)
+  const text = walkRowReadout(row!, rows.reference)
+  expect(text).toContain('5.0 kb reversed')
+  expect(text).not.toContain('right to left')
 })
 
 // I walks chr1:0-5000 with nodes 1 to 3 inverted between forward flanks
@@ -427,7 +421,6 @@ test('a row with an inversion between forward flanks reads forward and marks the
     { start: 1000, end: 4000 },
   )
   const [row] = rows.rows
-  expect(row!.flipped).toBeUndefined()
   expect(row!.runs).toEqual([
     {
       start: 0,
@@ -440,9 +433,9 @@ test('a row with an inversion between forward flanks reads forward and marks the
 })
 
 // J's contig starts on node 3 inside chr1:1000-4000 and walks 3 and 2 against
-// the reference, then switches strand back to 4: its first base on the
-// reference is node 3's end
-test('a row whose walk starts inside the window against the reference starts under its first base', () => {
+// the reference, then switches strand back to 4: its first run on the
+// reference, chr1:2000-4000, sits under the span it covers
+test('a row whose walk starts inside the window against the reference keeps its first run under the span it covers', () => {
   const rows = rowsOf(
     walkFile(
       [{ name: 'J#1#j', start: 0, steps: [3, 2, 4], reversed: [1, 1, 0] }],
@@ -458,8 +451,13 @@ test('a row whose walk starts inside the window against the reference starts und
     { start: 1000, end: 4000 },
   )
   const [row] = rows.rows
-  expect(row!.runs[0]).toMatchObject({ start: 3000, reversed: true })
-  expect(row!.axis?.offset).toBe(3000)
+  expect(row!.runs[0]).toMatchObject({
+    start: 1000,
+    bp: 2000,
+    referenceStart: 2000,
+    reversed: true,
+  })
+  expect(row!.axis?.offset).toBe(1000)
 })
 
 // K starts on node 2, chr1:2000-3000, across the left edge of chr1:2500-4000;
@@ -504,7 +502,306 @@ test('a walk forward along the reference that reaches only the right flank reads
     { start: 0, bp: 300, onReference: false, referenceStart: undefined },
     { start: 300, bp: 1000, onReference: true, referenceStart: 2000 },
   ])
-  expect(row!.axis).toEqual({ contig: 'f', start: 0, reversed: false })
+  expect(row!.axis).toEqual({ contig: 'f', start: 0 })
+})
+
+// GRCh38 over chr1:0-10,000 in ten 1 kb nodes, 0 to 9, and node 10, 300 bp
+// off it; each other walk is one piece of a walk file from contig 0, stepped
+// as `>0>1<2` writes it
+const tenKb = (walks: Record<string, string>): GraphTables => {
+  const parse = (path: string) =>
+    [...path.matchAll(/([<>])(\d+)/g)].map(m => ({
+      node: Number(m[2]),
+      reversed: m[1] === '<' ? 1 : 0,
+    }))
+  const all = [
+    ['GRCh38#0#chr1', '>0>1>2>3>4>5>6>7>8>9'],
+    ...Object.entries(walks),
+  ].map(([name, path]) => ({ name: name!, steps: parse(path!) }))
+  const lengths = [...Array.from({ length: 10 }, () => 1000), 300]
+  const offsets = [0]
+  for (const w of all) {
+    offsets.push(offsets.at(-1)! + w.steps.length)
+  }
+  return {
+    nodes: {
+      names: lengths.map((_, i) => String(i)),
+      lengths: Int32Array.from(lengths),
+      refs: Int32Array.from(lengths, (_, i) => (i < 10 ? 0 : -1)),
+      starts: Float64Array.from(lengths, (_, i) => (i < 10 ? i * 1000 : 0)),
+      ranks: Int32Array.from(lengths, (_, i) => (i < 10 ? 0 : 1)),
+      refNames: ['chr1'],
+    },
+    links: {
+      from: new Int32Array(0),
+      to: new Int32Array(0),
+      strands: new Uint8Array(0),
+    },
+    walks: {
+      names: all.map(w => w.name),
+      starts: new Float64Array(all.length),
+      ends: Float64Array.from(all, w =>
+        w.steps.reduce((bp, step) => bp + lengths[step.node]!, 0),
+      ),
+      offsets: Int32Array.from(offsets),
+      steps: Int32Array.from(all.flatMap(w => w.steps.map(step => step.node))),
+      reversed: Uint8Array.from(
+        all.flatMap(w => w.steps.map(step => step.reversed)),
+      ),
+      trimmedBefore: new Float64Array(all.length),
+      trimmedAfter: new Float64Array(all.length),
+    },
+    departures: departureTable(),
+    revisited: 0,
+  }
+}
+
+const runsOf = (row: WalkRow) =>
+  row.runs.map(run =>
+    run.gap
+      ? [run.cause, run.bp, run.heldBp]
+      : [run.referenceStart, run.bp, run.onReference, run.reversed === true],
+  )
+
+describe('a row reads its contig as stored, each step reversed where its strand is against the reference', () => {
+  // S's contig runs down chr1:1000-9000 against the reference but for nodes
+  // 4 to 7, which it walks along it
+  test('a contig stored back to front, with a stretch walked along GRCh38', () => {
+    const rows = rowsOf(tenKb({ 'S#1#s': '<9<8>4>5>6>7<3<2<1<0' }), {
+      start: 1000,
+      end: 9000,
+    })
+    const [row] = rows.rows
+    expect(runsOf(row!)).toEqual([
+      [8000, 1000, true, true],
+      [4000, 4000, true, false],
+      [1000, 3000, true, true],
+    ])
+    expect(walkRowReadout(row!, rows.reference)).toBe(
+      '8.0 kb, of which 4.0 kb reversed',
+    )
+  })
+
+  // H-8p23 of the HPRC v2.1 audit: HG02055#1's forward contig walks 18 kb
+  // into the window along GRCh38, then the 8p23.1 inversion, which fills the
+  // rest of it, against GRCh38
+  test('an inversion that fills the window after a forward stub', () => {
+    const rows = rowsOf(tenKb({ 'H#1#h': '>0>1<8<7<6<5<4<3<2>9' }), {
+      start: 1000,
+      end: 9000,
+    })
+    const [row] = rows.rows
+    expect(walkRowReadout(row!, rows.reference)).toBe(
+      '8.0 kb, of which 7.0 kb reversed',
+    )
+    expect(runsOf(row!)).toEqual([
+      [1000, 1000, true, false],
+      [2000, 7000, true, true],
+    ])
+    expect(row!.axis).toEqual({ contig: 'h', start: 1000 })
+  })
+
+  // H-8p23 and R1M-06 of the audit overlap, and once gave chr8:11.72-12.0 Mb
+  // of HG02055#1's contig opposite marks
+  test('one contig in two overlapping windows gives its steps the same marks', () => {
+    const t = tenKb({ 'H#1#h': '>0>1<8<7<6<5<4<3<2>9' })
+    const marks = (region: { start: number; end: number }) => {
+      const [row] = walkRowsOf(walkRowRuns(t, region, { visits: true })!).rows
+      return new Map(
+        row!.visits!.flatMap(visit => {
+          const run = row!.runs.find(
+            r => r.start <= visit.start && visit.start < r.start + r.bp,
+          )
+          return run?.onReference ? [[visit.node, run.reversed === true]] : []
+        }),
+      )
+    }
+    const wide = marks({ start: 1000, end: 6000 })
+    const narrow = marks({ start: 4000, end: 9000 })
+    const shared = [...narrow.keys()].filter(node => wide.has(node))
+    expect(shared).toEqual(['5+', '4+'])
+    for (const node of shared) {
+      expect(narrow.get(node)).toBe(true)
+      expect(wide.get(node)).toBe(true)
+    }
+  })
+})
+
+// pggb's chrY at the 18.5 Mb palindrome arm, cut to chr18,500,000-18,600,000
+// and written as GFA, with three haplotypes: HG01261#1 and NA20806#1 walk
+// every step of the window along GRCh38, and HG01358#1 crosses it once along
+// it and once against it
+test('chevrons mark the steps whose strand is against the reference, and no other, at a pggb chrY palindrome', () => {
+  const gfa = fs.readFileSync(
+    require.resolve('../../test_data/pggb_chrY_palindrome.gfa'),
+    'utf8',
+  )
+  const graph = loadGraph(gfa, 'palindrome')
+  const rows = walkRows(
+    graph,
+    { start: 18_500_000, end: 18_600_000 },
+    undefined,
+    { visits: true },
+  )!
+  // each walk's steps as the GFA states them, and the strand the reference
+  // takes at each segment, both where it passes it both ways
+  const lines = gfa.split('\n').filter(line => line.startsWith('W\t'))
+  const stepsOf = (sample: string) =>
+    lines
+      .filter(line => line.split('\t')[1] === sample)
+      .flatMap(line =>
+        [...line.split('\t')[6]!.matchAll(/([<>])([^<>]+)/g)].map(m => ({
+          segment: m[2]!,
+          against: m[1] === '<',
+        })),
+      )
+  const referenceStrand = new Map<string, boolean | 'both'>()
+  for (const { segment, against } of stepsOf('GRCh38')) {
+    const was = referenceStrand.get(segment)
+    referenceStrand.set(
+      segment,
+      was === undefined || was === against ? against : 'both',
+    )
+  }
+  const nameOf = new Map(graph.nodes.map(node => [node.id, node.name]))
+  const reversedBp = (label: string) => {
+    const row = rows.rows.find(r => r.label === label)!
+    const steps = stepsOf(label.split('#')[0]!)
+    let at = 0
+    let truth = 0
+    for (const visit of row.visits!) {
+      const segment = nameOf.get(visit.node)
+      while (at < steps.length && steps[at]!.segment !== segment) {
+        at++
+      }
+      const strand = referenceStrand.get(segment ?? '')
+      truth +=
+        visit.onReference &&
+        strand !== undefined &&
+        strand !== 'both' &&
+        steps[at]?.against !== strand
+          ? visit.bp
+          : 0
+      at++
+    }
+    const flagged = row.runs
+      .filter(run => run.reversed && run.onReference && !run.gap)
+      .reduce((bp, run) => bp + run.bp, 0)
+    return { truth, flagged, text: walkRowReadout(row, rows.reference) }
+  }
+  for (const label of ['HG01261#1', 'NA20806#1']) {
+    const { truth, flagged, text } = reversedBp(label)
+    expect([truth, flagged]).toEqual([0, 0])
+    expect(text).not.toContain('reversed')
+  }
+  const carrier = reversedBp('HG01358#1')
+  expect(carrier.truth).toBeGreaterThan(50_000)
+  expect(carrier.flagged).toBe(carrier.truth)
+  expect(carrier.text).toContain(
+    `${Math.round(carrier.truth / 1000)} kb reversed`,
+  )
+})
+
+describe('a stretch away from the window', () => {
+  const region = { start: 1000, end: 9000 }
+
+  // W walks chr1:1000-9000 in two pieces: a 50 bp stretch of its contig lies
+  // between the first two, 5 kb between the second and third
+  test('draws as long as its bp up to one width, with a break mark only where it draws shorter', () => {
+    const t = tenKb({
+      'W#1#w': '>0>1>2>3',
+      'W#2#w': '>4>5>6',
+      'W#3#w': '>7>8>9',
+    })
+    const pieces: GraphTables = {
+      ...t,
+      walks: {
+        ...t.walks,
+        names: ['GRCh38#0#chr1', 'W#1#w', 'W#1#w', 'W#1#w'],
+        starts: Float64Array.of(0, 0, 4050, 12_050),
+        ends: Float64Array.of(10_000, 4000, 7050, 15_050),
+      },
+    }
+    const rows = rowsOf(pieces, region)
+    const [row] = rows.rows
+    expect(runsOf(row!)).toEqual([
+      [1000, 3000, true, false],
+      ['away', 50, 50],
+      [4000, 3000, true, false],
+      ['away', 120, 5000],
+      [7000, 2000, true, false],
+    ])
+    expect(row!.axis?.breaks).toEqual([{ at: 6050, bp: 5000, drawn: 120 }])
+    const svg = serializeEl(
+      walkRowsTree(rows, {
+        scaleX: 0.1,
+        scaleY: 1,
+        translateX: 0,
+        translateY: 20,
+        width: 2000,
+        height: 400,
+      }),
+    )
+    expect(svg.match(/data-testid="graph-walk-break"/g)).toHaveLength(1)
+  })
+
+  // pggb chrY:9.3-9.6 Mb, where rows leave the window and come back up to a
+  // hundred times: V steps outside chr1:1000-9000 eight times, each a kb
+  test('one each trip out of the window, so a row that leaves it often stays near the reference bar', () => {
+    const trips = Array.from({ length: 8 }, (_, k) => `>${k + 1}>0`).join('')
+    const rows = rowsOf(tenKb({ 'V#1#v': `>0${trips}>9` }), region)
+    const [row] = rows.rows
+    const away = row!.runs.filter(run => run.cause === 'away')
+    expect(away).toHaveLength(7)
+    expect(away.every(run => run.bp === 120 && run.heldBp === 1000)).toBe(true)
+    expect(barEnd(row!)).toBe(8000 + 7 * 120)
+    expect(walkRowReadout(row!, rows.reference)).toMatch(
+      /^15 kb of its contig, of which 7\.0 kb away from the window/,
+    )
+  })
+
+  // T crosses chr1:2000-8000, comes back to its left flank, takes 300 bp of
+  // its own to the right flank in place of the window, or nothing, then
+  // crosses it again
+  test('is not where a pass that replaces or deletes the window goes', () => {
+    const passes = (middle: string) => {
+      const through = '>0>1>2>3>4>5>6>7>8>9'
+      const rows = rowsOf(
+        tenKb({ 'T#1#t': `${through}>0>1${middle}>8>9${through}` }),
+        { start: 2000, end: 8000 },
+      )
+      const [row] = rows.rows
+      return { runs: runsOf(row!), text: walkRowReadout(row!, rows.reference) }
+    }
+    expect(passes('>10')).toEqual({
+      runs: [
+        [2000, 6000, true, false],
+        ['away', 90, 4000],
+        [undefined, 300, false, false],
+        ['away', 90, 4000],
+        [2000, 6000, true, false],
+      ],
+      text: '20 kb of its contig, of which 8.0 kb away from the window · first pass: 6.0 kb · passes again: 300 bp (−5.7 kb) · passes again: 6.0 kb',
+    })
+    expect(passes('')).toEqual({
+      runs: [
+        [2000, 6000, true, false],
+        ['away', 90, 8000],
+        [2000, 6000, true, false],
+      ],
+      text: '20 kb of its contig, of which 8.0 kb away from the window · first pass: 6.0 kb · passes again: 0 bp (−6.0 kb) · passes again: 6.0 kb',
+    })
+  })
+
+  test('with no window is not drawn, neither away from one nor at a place', () => {
+    const rows = walkRowsOf(walkRowRuns(gappedCut())!)
+    const texts = rows.rows.map(row => walkRowReadout(row, rows.reference))
+    expect(texts.join(' ')).not.toMatch(/near chr|away from the window/)
+    expect(texts.some(text => text.includes('not drawn'))).toBe(true)
+    expect(rows.rows.flatMap(row => row.runs).some(run => run.heldBp)).toBe(
+      false,
+    )
+  })
 })
 
 test('tables and the Graph they load to give the same rows', () => {
@@ -620,17 +917,13 @@ function gappedCut(): GraphTables {
   }
 }
 
-test("a gap's parts keep their causes and where a record says the walk comes back", () => {
+test("a gap's parts keep their causes, in the order the contig is stored", () => {
   const gaps = (rows: WalkRow[]) =>
     rows.map(r => [
       r.label,
       r.runs
         .filter(run => run.gap)
-        .map(({ bp, heldBp, cause, back }) => ({
-          bp: heldBp ?? bp,
-          cause,
-          back,
-        })),
+        .map(({ bp, heldBp, cause }) => ({ bp: heldBp ?? bp, cause })),
     ])
   expect(
     Object.fromEntries(
@@ -638,12 +931,12 @@ test("a gap's parts keep their causes and where a record says the walk comes bac
     ),
   ).toEqual({
     'A#1': [
-      { bp: 400, cause: undefined, back: undefined },
-      { bp: 600, cause: 'missing', back: undefined },
+      { bp: 400, cause: 'away' },
+      { bp: 600, cause: 'missing' },
     ],
     'B#1': [
-      { bp: 700, cause: 'away', back: 3000 },
-      { bp: 300, cause: 'missing', back: undefined },
+      { bp: 300, cause: 'missing' },
+      { bp: 700, cause: 'away' },
     ],
   })
 })
@@ -736,19 +1029,15 @@ test('a gap a walk-file cut states draws its attached steps as steps and its oth
         r.label,
         r.runs
           .filter(run => run.gap)
-          .map(({ bp, heldBp, cause, back }) => ({
-            bp: heldBp ?? bp,
-            cause,
-            back,
-          })),
+          .map(({ bp, heldBp, cause }) => ({ bp: heldBp ?? bp, cause })),
       ]),
     )
   const fromTables = rowsOf(statedCut(), region).rows
   expect(gapsOf(fromTables)).toEqual({
-    'A#1': [{ bp: 600, cause: 'missing', back: undefined }],
+    'A#1': [{ bp: 600, cause: 'missing' }],
     'B#1': [
-      { bp: 400, cause: 'mixed', back: undefined },
-      { bp: 600, cause: 'unread', back: undefined },
+      { bp: 600, cause: 'unread' },
+      { bp: 400, cause: 'mixed' },
     ],
   })
   const a = fromTables.find(r => r.label === 'A#1')!
@@ -960,7 +1249,7 @@ test("a partial row draws its stated row end past its last fragment, and its rea
   expect(row.complete).toBe(false)
   expect(row.runs.slice(-2)).toMatchObject([
     { bp: 400, onReference: false },
-    { bp: 100, gap: true },
+    { bp: 15, heldBp: 100, gap: true },
   ])
   expect(row.stops?.right?.goesOn).toMatchObject({ near: 9000, drawn: true })
   expect(
@@ -1447,8 +1736,8 @@ describe('a walk row over a window between 1 kb nodes', () => {
       ),
     ).toEqual({
       'T#1':
-        '8.1 kb of its contig, of which 3.0 kb reversed, 2.1 kb away from the window · turns back out of the window',
-      'R#1': '2.0 kb · contig drawn right to left',
+        '8.1 kb of its contig, of which 3.0 kb reversed, 2.1 kb away from the window · first pass: 2.0 kb · passes again: 2.0 kb (+35 bp) · turns back out of the window',
+      'R#1': '2.0 kb, of which 2.0 kb reversed',
     })
   })
 
@@ -1465,15 +1754,15 @@ describe('a walk row over a window between 1 kb nodes', () => {
     ).toEqual({
       'O#1': '≥ 1.5 kb',
       'H#1':
-        '≥ 1.1 kb, of which 1.0 kb reversed · turns back out of the window',
+        '≥ 1.1 kb, of which 500 bp reversed · turns back out of the window',
     })
   })
 })
 
 // Six 1 kb reference nodes and a window from 1.5 kb to 3.5 kb. J and K each
-// reach the right flank r5 alone and step r6 beyond it at the end their bars
-// start from: J first, running along the reference, and K last, against it
-test("a row that turns back at the end its bar starts from places its axis at the bar's first step", () => {
+// reach the right flank r5 alone and step r6 beyond it: J first, running
+// along the reference, and K last, against it
+test("a row that turns back out of the window reads in stored order and places its axis at the bar's first step", () => {
   const gfa = [
     'H\tVN:Z:1.1',
     ...[0, 1, 2, 3, 4, 5].map(
@@ -1489,30 +1778,18 @@ test("a row that turns back at the end its bar starts from places its axis at th
     visits: true,
   })!
   const byLabel = Object.fromEntries(rows.rows.map(r => [r.label, r]))
-  for (const [label, end] of [
-    ['J#1', 'right'],
-    ['K#1', 'left'],
+  for (const [label, end, nodes] of [
+    ['J#1', 'right', ['r2+', 'r3+', 'r4+']],
+    ['K#1', 'right', ['r4+', 'r3+', 'r2+']],
   ] as const) {
     expect(byLabel[label]).toMatchObject({
       bp: 3000,
       stops: { [end]: { turnsBack: true } },
     })
-    expect(byLabel[label]!.visits!.map(v => v.node)).toEqual([
-      'r2+',
-      'r3+',
-      'r4+',
-    ])
+    expect(byLabel[label]!.visits!.map(v => v.node)).toEqual(nodes)
   }
-  expect(byLabel['J#1']!.axis).toEqual({
-    contig: 'j',
-    start: 1000,
-    reversed: false,
-  })
-  expect(byLabel['K#1']!.axis).toEqual({
-    contig: 'k',
-    start: 4000,
-    reversed: true,
-  })
+  expect(byLabel['J#1']!.axis).toEqual({ contig: 'j', start: 1000 })
+  expect(byLabel['K#1']!.axis).toEqual({ contig: 'k', start: 1000 })
 })
 
 // The reference walks node 1 twice, at chr:0-10 and chr:30-40, filed as two
@@ -1599,7 +1876,7 @@ describe('a reference that passes one node twice', () => {
     const { row, readout } = over(20, 30)['late#1']!
     expect(readout).toBe('≥ 10 bp')
     expect(row.visits?.map(v => v.node)).toEqual(['3+'])
-    expect(row.axis).toEqual({ contig: 'l', start: 0, reversed: false })
+    expect(row.axis).toEqual({ contig: 'l', start: 0 })
   })
 
   test('a walk starting on its second pass is placed from the node after it', () => {
@@ -1634,7 +1911,7 @@ describe('a reference that passes one node twice', () => {
       expect(rows[label]!.row.windowBp).toBe(10)
       expect(rows[label]!.row.visits?.map(v => v.node)).toHaveLength(1)
     }
-    expect(rows['rev#1']!.row.axis?.reversed).toBe(true)
+    expect(rows['rev#1']!.row.runs.every(run => run.reversed)).toBe(true)
   })
 
   // the reference walks a at chr:0-10 and chr:20-30, with b between

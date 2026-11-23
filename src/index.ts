@@ -341,6 +341,8 @@ export {
   unitTicks,
   walkRowReadout,
   walkRowReadoutAt,
+  walkedAlong,
+  walkedBp,
   walkRowsKey,
   walkRowsKeyTree,
   walkRowsTree,

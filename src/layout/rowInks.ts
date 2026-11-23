@@ -80,14 +80,9 @@ function rampEnds(ink: RowInk, row: InkedRow) {
   return axis && range && axis.contig === range.contig && span > 0
     ? {
         from: (axis.start - range.start) / span,
-        to:
-          ((axis.reversed ? axis.start - row.bp : axis.start + row.bp) -
-            range.start) /
-          span,
+        to: (axis.start + row.bp - range.start) / span,
       }
-    : axis?.reversed
-      ? { from: 1, to: 0 }
-      : { from: 0, to: 1 }
+    : { from: 0, to: 1 }
 }
 
 function stopsAt(stops: readonly string[], t: number) {
