@@ -10,7 +10,8 @@ import { NO_FOLD, SMALL_SITE_PX, foldedSites } from '../levelOfDetail'
 import {
   drawnNodeWidth,
   nodeWidthPx,
-  passesAtContigThickness,
+  linkPasses,
+  mostPasses,
   runWidthPx,
   countLanes,
   walkLaneWidthPx,
@@ -1174,7 +1175,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const edgeWidth = drawnEdgeWidth(graph, options.edgeWidth ?? 'uniform')
   const widthScale = widthNorm(graph, nodeWidth)
   const perPass =
-    edgeWidth === 'walks' ? contigThickness / passesAtContigThickness(graph) : 0
+    edgeWidth === 'walks'
+      ? contigThickness / mostPasses(graph, nodeWidth === 'walks')
+      : 0
   const linkPx = (walks: number) =>
     linkWidthPx(walks, perPass, edgeWidth, connectorThickness)
   const scale = axis.scaleX
@@ -2066,7 +2069,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
                     edgeHalfWidth:
                       (drawPaths && numPaths > 0
                         ? connectorThickness
-                        : linkPx(numPaths)) / 2,
+                        : linkPx(linkPasses(edge))) / 2,
                     nodeHalfWidth:
                       (toNode ? widthOf(toNode) : contigThickness) / 2,
                     scale,
@@ -2156,7 +2159,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // link drawn alone widens by its walks. A skip is as thick as a link of
     // its walks: its dashes alone say it skips
     const ribbonThickness = connectorThickness / 2
-    const edgeThickness = linkPx(numPaths) / 2
+    const edgeThickness = linkPx(linkPasses(edge)) / 2
 
     // An arrowhead states which way a LINK is read, which is a property of the
     // edge and not of each path crossing it. Drawn per ribbon it says one thing
@@ -2597,28 +2600,20 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
-  // Heads along each reference node a shown walk reads against the
-  // reference, pointing that way (againstReference.ts); a lift's lanes carry
-  // their own
+  // heads along each drawn reference node a shown walk reads against the
+  // reference, at every zoom; a lift's lanes carry their own
   const against = highlight?.walks.length
     ? undefined
     : walksAgainstReference(graph)
-  if (showArrows && against?.size) {
+  if (against?.size) {
     const place = laneHeadPlacer(scale, yToX)
     for (const id of against.keys()) {
       const node = nodeById.get(id)
       const run = nodeStrokeRuns.get(id)
       const stroke = run && nodeStrokes[run.start]
-      if (
-        node &&
-        isBackbone(node) &&
-        stroke &&
-        !stroke.placeholder &&
-        !collapse.nodes.has(id) &&
-        !collapse.through.has(id)
-      ) {
+      if (node && isBackbone(node) && stroke && !stroke.placeholder) {
         for (const head of place({
-          points: nodePositions[id] ?? [],
+          points: stroke.points,
           halfWidth: stroke.thickness,
           color: stroke.color,
           walk: 0,

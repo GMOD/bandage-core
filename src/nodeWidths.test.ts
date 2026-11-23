@@ -142,3 +142,33 @@ test('the depth key shows the thickest and thinnest nodes at the widths they dra
   ])
   expect(depthKey(graph, 6, new Set())).toEqual([])
 })
+
+// The layout clears alleles off the reference by the widths depth draws it
+// at (layout/referenceClearance.ts), so walks must draw no node wider
+test('a node by walks is never wider than by depth, so the clearance the layout leaves holds', () => {
+  for (const depths of [
+    [9, 9, 1, 8],
+    [72, 9, 1, 3],
+    [1, 1, 1, 1],
+    [2, 30, 30, 1],
+  ]) {
+    const graph = {
+      name: 'g',
+      nodes: depths.map((depth, i) => ({
+        id: `${i}+`,
+        name: `${i}`,
+        length: 100 * (i + 1),
+        depth,
+      })),
+      edges: [],
+      paths: [{ name: 'w#1#c', nodeIds: ['0+'] }],
+    }
+    const walks = widthNorm(graph, 'walks')
+    const depth = widthNorm(graph, 'depth')
+    for (const each of graph.nodes) {
+      expect(nodeWidthPx(each, 6, 'walks', walks)).toBeLessThanOrEqual(
+        nodeWidthPx(each, 6, 'depth', depth) + 1e-9,
+      )
+    }
+  }
+})

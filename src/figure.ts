@@ -272,7 +272,7 @@ function headingSvg(text: string): KeyAt {
   })
 }
 
-const HEADED = new Set(['Node thickness', 'Link thickness'])
+const HEADED = new Set(['Thickness', 'Node thickness', 'Link thickness'])
 
 function graphKeySvg(sections: GraphKeySection[], idPrefix: string) {
   return sections.flatMap(({ id, group, entries }) => [

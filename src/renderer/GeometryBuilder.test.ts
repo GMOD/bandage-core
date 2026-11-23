@@ -1,3 +1,4 @@
+import { loadGraph } from '../pipeline'
 import {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
@@ -139,7 +140,7 @@ function forkDrawing(
     colorScheme: 'uniform',
     // A to C spans 40 px, long enough to dash
     axis: iso(4),
-    contigThickness: 6,
+    contigThickness: 9,
     connectorThickness: 2,
     drawPaths: false,
     nodeWidth,
@@ -170,17 +171,81 @@ test('a skip one walk of nine takes draws at one walk, and uniform links draw a 
   expect(linkWidth(uniform, 2)).toBe(linkWidth(uniform, 0))
 })
 
-test('a node many passes cross scales every pass down, and no walked mark draws under 1 px', () => {
+test('the most passes draw contigThickness, every pass on one linear scale, and no walked mark under 1 px', () => {
   const repeat = {
     ...fork,
     nodes: fork.nodes.map(n => (n.id === 'B+' ? { ...n, depth: 36 } : n)),
   }
   const batch = forkDrawing('walks', 'walks', repeat)
-  // 36 passes at three times the 6 px a node six passes cross: 1/2 px a pass
-  expect(nodeWidth(batch, 'B+')).toBe(18)
-  expect(nodeWidth(batch, 'A+')).toBe(4.5)
-  expect(linkWidth(batch, 0)).toBe(4)
+  expect(nodeWidth(batch, 'B+')).toBe(9)
+  expect(nodeWidth(batch, 'A+')).toBe(2.25)
+  expect(linkWidth(batch, 0)).toBe(2)
   expect(linkWidth(batch, 2)).toBe(1)
+})
+
+// AMY1: five of eight haplotypes walk about 1,800 nodes twice, which counted
+// 14 passes on a node and 9 walks on the links between
+test('a walk taking a link twice counts twice, so node and link widths add up at a fork on a repeat', () => {
+  const g = loadGraph(
+    [
+      'S\ta\tAAAAAAAAAA',
+      'S\tb\tCCCCCCCCCC',
+      'S\tc\tGGGGGGGGGG',
+      'L\ta\t+\tb\t+\t0M',
+      'L\tb\t+\ta\t+\t0M',
+      'L\tb\t+\tc\t+\t0M',
+      'W\tGRCh38\t0\tchr1\t0\t30\t>a>b>c',
+      'W\tcopy\t1\tc\t0\t50\t>a>b>a>b>c',
+    ].join('\n'),
+    'repeat',
+  )
+  const id = (name: string) => g.nodes.find(n => n.name === name)!.id
+  const edge = (from: string, to: string) =>
+    g.edges.findIndex(e => e.from === id(from) && e.to === id(to))
+  const batch = buildGeometry({
+    nodePositions: {
+      [id('a')]: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      [id('b')]: [
+        { x: 20, y: 0 },
+        { x: 30, y: 0 },
+      ],
+      [id('c')]: [
+        { x: 40, y: 0 },
+        { x: 50, y: 0 },
+      ],
+    },
+    graph: g,
+    nodeById: new Map(g.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    axis: iso(),
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth: 'walks',
+    edgeWidth: 'walks',
+  })
+  expect(g.edges.map(e => e.passes)).toEqual([3, 1, 2])
+  expect(nodeWidth(batch, id('b'))).toBe(6)
+  expect(linkWidth(batch, edge('a', 'b'))).toBe(nodeWidth(batch, id('b')))
+  expect(
+    linkWidth(batch, edge('b', 'a')) + linkWidth(batch, edge('b', 'c')),
+  ).toBe(nodeWidth(batch, id('b')))
+})
+
+// R100k-02: GRCh38's walk alone, at 1 px a pass, drew the reference a hairline
+test('a graph of one walk draws it contigThickness thick', () => {
+  const lone = {
+    ...fork,
+    nodes: fork.nodes.map(n => ({ ...n, depth: 1 })),
+    edges: fork.edges.slice(0, 2).map(e => ({ ...e, pathIds: ['w0'] })),
+    paths: fork.paths.slice(0, 1),
+  }
+  const batch = forkDrawing('walks', 'walks', lone)
+  expect(nodeWidth(batch, 'A+')).toBe(9)
+  expect(linkWidth(batch, 0)).toBe(9)
 })
 
 test('walks draw uniform while a walk holds nodes not loaded, and by depth in a graph without walks', () => {
@@ -192,8 +257,9 @@ test('walks draw uniform while a walk holds nodes not loaded, and by depth in a 
     ],
   }
   const unloaded = forkDrawing('walks', 'walks', held)
-  expect(nodeWidth(unloaded, 'A+')).toBe(6)
-  expect(nodeWidth(unloaded, 'B+')).toBe(6)
+  expect(nodeWidth(unloaded, 'A+')).toBe(9)
+  expect(nodeWidth(unloaded, 'B+')).toBe(9)
+  expect(nodeWidth(forkDrawing('depth', 'uniform', held), 'A+')).toBe(9)
   expect(linkWidth(unloaded, 2)).toBe(2)
   const { paths: _, ...walkless } = fork
   const depth = forkDrawing('walks', 'walks', walkless)

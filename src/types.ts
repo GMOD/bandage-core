@@ -47,6 +47,8 @@ export interface GraphEdge {
   fromStrand?: '+' | '-'
   toStrand?: '+' | '-'
   pathIds?: string[]
+  // the steps crossing the link, a walk crossing it twice counted twice
+  passes?: number
   // a skip under the fold that foldVariants kept only because nothing else
   // joins its ends, so it is drawn as a link and not as a deletion
   foldBridge?: boolean

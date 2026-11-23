@@ -74,7 +74,8 @@ export {
   nodeFrequency,
   nodeInk,
   nodeWidthPx,
-  passesAtContigThickness,
+  linkPasses,
+  mostPasses,
   widthNorm,
   withFrequencies,
 } from './nodeWidths'

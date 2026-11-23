@@ -1,23 +1,19 @@
 import { panSNHaplotype } from './pansn'
 
 import type { Run } from './levelOfDetail'
-import type { Graph, GraphNode, GraphPath } from './types'
+import type { Graph, GraphEdge, GraphNode, GraphPath } from './types'
 import type { NodeInk } from './util/hitDetection'
 
-// How thick a node draws. Bandage widens a node by its depth, the square root
-// of its depth against the graph's mean, so a contig every read covers is fat
-// and a spurious one is a hair. In a pangenome cut depth is carriage, how many
-// walks go through the node, and the walks mode draws that count on a linear
-// scale shared with links by walks, so the thicknesses at a fork add up. The
-// frequency mode draws carriage on a fixed scale, so a node every haplotype
-// passes once is `contigThickness` wide in any graph. One table drives the
-// persisted enum and the dropdown, the way BUBBLE_SPREADS does.
+// How thick a node draws: by the passes the walks make, linear and shared
+// with links by walks; Bandage's depth, the square root of depth against the
+// mean; the share of haplotypes; or uniform. One table drives the persisted
+// enum and the dropdown, the way BUBBLE_SPREADS does.
 export const NODE_WIDTHS = [
   {
     value: 'walks',
     label: 'By walks',
     description:
-      'As thick as the passes the walks make through a node, on one linear scale with links by walks, so the thicknesses at a fork add up. Uniform while a walk holds nodes not loaded, and by depth in a graph without walks.',
+      'As thick as the passes the walks make through a node, the most passes contigThickness, on one linear scale with links by walks, so the thicknesses at a fork add up. Uniform while a walk holds nodes not loaded, and by depth in a graph without walks.',
   },
   {
     value: 'depth',
@@ -44,14 +40,9 @@ const MIN_FACTOR = 0.3
 const MAX_FACTOR = 3
 // a hairline, so a 1% allele still draws, and 10% still draws wider
 const MIN_FREQUENCY_FACTOR = 0.05
-// Under `walks`, a node this many passes cross is `contigThickness` thick, so
-// the default 6 px draws a pass 1 px, unless the most passes a node takes
-// would then draw it over MAX_FACTOR times that
-const PASSES_AT_CONTIG_THICKNESS = 6
 // the thinnest a walked node or link draws under `walks`
 export const MIN_WALKS_PX = 1
-// a node or link no walk takes, in a graph that lists one, since nothing
-// travels it
+// a node or link no walk takes, in a graph that lists one
 export const UNWALKED_PX = 0.5
 
 // Length-weighted, as Bandage's mean depth is, so a cut's long reference nodes
@@ -114,50 +105,56 @@ export function withFrequencies(
   return { ...graph, nodes }
 }
 
-// Whether a walk holds nodes the cut did not load, whose passes no node's
-// depth counts: what its placeholders stand in for are nodes it passes
+// A walk holds nodes the cut did not load, whose passes no depth counts
 export const passesUncounted = (graph: Graph) =>
   graph.nodes.some(node => node.placeholder)
 
-// What a width setting draws on a graph: `walks` counts passes only where
-// the graph has walks, its file states no depths, and every pass of its walks
-// is loaded; by depth without walks, and uniform while passes go uncounted
-export function drawnNodeWidth(graph: Graph, nodeWidth: NodeWidth): NodeWidth {
-  return nodeWidth !== 'walks'
-    ? nodeWidth
-    : !graph.paths?.length || graph.depthStated
-      ? 'depth'
-      : passesUncounted(graph)
-        ? 'uniform'
-        : 'walks'
+// What a width setting draws on a graph. Walks and depths count passes, so
+// with walks and no stated depths they draw uniform while passes go
+// uncounted; `walks` draws by depth in a graph without walks
+export function drawnNodeWidth(graph: Graph, nodeWidth: NodeWidth) {
+  const counted = !!graph.paths?.length && !graph.depthStated
+  return nodeWidth === 'walks' && !counted
+    ? 'depth'
+    : counted &&
+        passesUncounted(graph) &&
+        (nodeWidth === 'walks' || nodeWidth === 'depth')
+      ? 'uniform'
+      : nodeWidth
 }
 
-// The passes a `contigThickness`-thick node takes under `walks`: six, or
-// where the busiest node would then draw over MAX_FACTOR times as thick, its
-// passes over MAX_FACTOR
-export function passesAtContigThickness(graph: Graph) {
-  let most = 0
-  for (const node of graph.nodes) {
+// The most passes a node or link takes, which draws contigThickness thick
+// under `walks`; links alone where `nodes` is false
+export function mostPasses(graph: Graph, nodes = true) {
+  let most = 1
+  for (const node of nodes ? graph.nodes : []) {
     if (!node.placeholder) {
       most = Math.max(most, node.depth)
     }
   }
-  return Math.max(PASSES_AT_CONTIG_THICKNESS, most / MAX_FACTOR)
+  for (const edge of graph.edges) {
+    most = Math.max(most, linkPasses(edge))
+  }
+  return most
 }
+
+// a link's steps, a walk crossing it twice counted twice
+export const linkPasses = (edge: GraphEdge) =>
+  edge.passes ?? edge.pathIds?.length ?? 0
 
 // How thick `passes` draw under `walks`, at `perPass` px a pass
 export const walksPx = (passes: number, perPass: number) =>
   passes === 0 ? UNWALKED_PX : Math.max(MIN_WALKS_PX, passes * perPass)
 
 // What a width is measured against: the mean depth, the haplotype count, or
-// the passes a contigThickness-thick node takes
+// the most passes
 export function widthNorm(graph: Graph, nodeWidth: NodeWidth) {
   return nodeWidth === 'depth'
     ? meanDepth(graph)
     : nodeWidth === 'frequency'
       ? haplotypeCount(graph)
       : nodeWidth === 'walks'
-        ? passesAtContigThickness(graph)
+        ? mostPasses(graph)
         : 0
 }
 
@@ -228,7 +225,10 @@ export function nodeWidthPx(
 }
 
 export function maxNodeWidthPx(contigThickness: number, nodeWidth: NodeWidth) {
-  return contigThickness * (nodeWidth === 'uniform' ? 1 : MAX_FACTOR)
+  return (
+    contigThickness *
+    (nodeWidth === 'uniform' || nodeWidth === 'walks' ? 1 : MAX_FACTOR)
+  )
 }
 
 // A lifted walk's lane is never thinner than this, so a node carrying three

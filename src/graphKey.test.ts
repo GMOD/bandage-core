@@ -261,16 +261,21 @@ test('under a lift each skip row shows the ink its skips are stroked in', () => 
   }
 })
 
-test('drawn marks read every skip off the batch as one mark however short, leaving lanes to their walks', () => {
+test('drawn marks read every skip a pixel or more across as one dashed mark however short, leaving lanes to their walks', () => {
   const curve = (o: object) => ({ curves: [], thickness: 1, color: 0, ...o })
   const marks = (edgeCurves: RenderBatch['edgeCurves']) =>
     drawnMarks([{ edgeCurves, nodeStrokes: [] }])
-  for (const span of [200, 5, 0]) {
+  for (const span of [200, 5]) {
     expect(marks([curve({ skip: true, span })])).toMatchObject({
       dashedSkip: true,
       plainLink: false,
     })
   }
+  // under a pixel a skip is stroked plain, which no dashed entry keys
+  expect(marks([curve({ skip: true, span: 0 })])).toMatchObject({
+    dashedSkip: false,
+    plainLink: false,
+  })
   expect(marks([curve({ skip: true, span: 200, walk: 0 })])).toMatchObject({
     dashedSkip: false,
   })
@@ -551,7 +556,7 @@ test("the thickness keys give the scale's two ends, links only where they widen 
     keyOf(graph, {}, { edgeWidth: 'walks' })
       .find(s => s.id === 'link-width')!
       .entries.map(e => e.text),
-  ).toEqual(['2 walks', '1 walk'])
+  ).toEqual(['1 walk'])
 })
 
 // Eight walks through v2 and one through a1, as at a 1-walk allele
@@ -578,13 +583,13 @@ const scaleOf = (section?: GraphKeySection) =>
     e.swatch?.kind === 'width' ? Math.round(e.swatch.px * 100) / 100 : NaN,
   ])
 
-test('nodes and links by walks key one thickness: every walk, half of them and one, at a px a walk', () => {
+test('nodes and links by walks key one thickness: the most passes at contigThickness, half and one', () => {
   const nine = load(NINE, 'GRCh38')
   const thick = thicknessKey(nine)
   expect(thick?.group).toBe('Thickness')
   expect(scaleOf(thick)).toEqual([
-    ['9 walks', 9],
-    ['5 walks', 5],
+    ['9 walks', 6],
+    ['5 walks', 3.33],
     ['1 walk', 1],
   ])
   expect(
@@ -593,26 +598,20 @@ test('nodes and links by walks key one thickness: every walk, half of them and o
   expect(thicknessKey(nine, { edgeWidth: 'uniform' })?.group).toBe(
     'Node thickness',
   )
-  // a haplotype asked for that has no walk here is on the scale
-  expect(scaleOf(thicknessKey(nine, { haplotypes: ['gone#1'] }))?.[0]).toEqual([
-    '10 walks',
-    10,
-  ])
 })
 
 test('the thinnest walks swatch says how many walks its 1 px floor holds, and a repeat keys its passes', () => {
   const nine = load(NINE, 'GRCh38')
   expect(scaleOf(thicknessKey(nine, {}, 3))).toEqual([
-    ['9 walks', 4.5],
-    ['5 walks', 2.5],
-    ['1 to 2 walks', 1],
+    ['9 walks', 3],
+    ['5 walks', 1.67],
+    ['1 to 3 walks', 1],
   ])
   const repeat = withNodes(nine, name => (name === 'v2' ? { depth: 30 } : {}))
   expect(scaleOf(thicknessKey(repeat))).toEqual([
-    ['30 walk passes', 18],
-    ['9 walks', 5.4],
-    ['5 walks', 3],
-    ['1 walk', 1],
+    ['30 walk passes', 6],
+    ['15 walk passes', 3],
+    ['1 to 5 walk passes', 1],
   ])
 })
 
@@ -666,8 +665,8 @@ test('a link no drawn walk takes keys its own row under link thickness, below th
     s => s.id === 'link-width',
   )!.entries
   const px = rows.map(e => (e.swatch?.kind === 'width' ? e.swatch.px : NaN))
-  expect(rows.map(e => e.text)).toEqual(['2 walks', '1 walk', '0 walks'])
-  expect(px[2]).toBeLessThan(px[1]!)
+  expect(rows.map(e => e.text)).toEqual(['1 walk', '0 walks'])
+  expect(px[1]).toBeLessThan(px[0]!)
 })
 
 // The walk takes a+ to b+ and b+ to c+, and the inversion links between the
@@ -696,7 +695,7 @@ test('an inversion link no walk takes draws at the floor, under the link the wal
   const { batch } = drawn(inversions, { edgeWidth: 'walks' })
   const thickness = (edge: number) =>
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
-  expect([0, 1, 2, 3].map(thickness)).toEqual([0.5, 0.25, 0.5, 0.25])
+  expect([0, 1, 2, 3].map(thickness)).toEqual([3, 0.25, 3, 0.25])
 })
 
 test("an inversion link no walk takes draws as a plain link, not in the walk's ribbon colour", () => {
@@ -722,7 +721,7 @@ test('link thickness is not keyed where a ribbon per walk draws the links', () =
     keyOf(shared, { drawPaths, edgeWidth: 'walks' }, { edgeWidth: 'walks' })
       .find(s => s.id === 'link-width')
       ?.entries.map(e => e.text)
-  expect(linkWidths(false)).toEqual(['3 walks', '2 walks', '1 walk'])
+  expect(linkWidths(false)).toEqual(['2 walks', '1 walk'])
   expect(linkWidths(true)).toBeUndefined()
 })
 
@@ -927,13 +926,22 @@ function thicknessesKeyed(batch: RenderBatch) {
 
 // The census: each key entry of a drawn mark's class against the marks of
 // that class in the batch, which it classes by the strokes' own fields
-function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
+// A cut with placeholders draws no thickness by walks or depth, and says why,
+// wherever its placeholders lie
+function census(
+  sections: GraphKeySection[],
+  batch: RenderBatch,
+  s: Scene,
+  g?: Graph,
+) {
   const plain = batch.nodeStrokes.filter(
     n => n.walk === undefined && !n.placeholder,
   )
   const widths = thicknessesKeyed(batch)
   const lanes = new Set(batch.nodeStrokes.flatMap(n => n.walk ?? []))
-  const skips = batch.edgeCurves.filter(e => e.skip && e.walk === undefined)
+  const skips = batch.edgeCurves.filter(
+    e => e.skip && e.span && e.walk === undefined,
+  )
   const charcoal = batch.nodeStrokes.some(
     n => n.color === REFERENCE_RAMP_ALT_COLOR,
   )
@@ -967,6 +975,9 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
     ...(skips.length > 0 ? ['deletion'] : []),
     ...(batch.nodeStrokes.some(n => n.placeholder) ? ['not-shown'] : []),
     ...(widths.size > 1 ? ['width-thickest', 'width-thinnest'] : []),
+    ...(g?.paths?.length && g.nodes.some(n => n.placeholder)
+      ? ['width-not-drawn']
+      : []),
     ...(batch.collapsed?.sites.length ? ['too-small'] : []),
   ])
   const keyed = new Set(
@@ -1200,7 +1211,7 @@ test.each(CUTS)(
       referenceRamp: s.referenceRamp,
       marks: drawnMarks([batch]),
     })
-    expect(census(sections, batch, s)).toEqual({ extra: [], missing: [] })
+    expect(census(sections, batch, s, g)).toEqual({ extra: [], missing: [] })
   },
 )
 

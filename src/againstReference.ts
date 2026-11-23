@@ -1,33 +1,22 @@
-import { isBackbone } from './anchoredNodes'
+import { isLoadedBackbone } from './anchoredNodes'
 import { panSNHaplotype } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { weakMemo } from './util/weakMemo'
 
-import type { AnchoredNode } from './anchoredNodes'
 import type { Graph } from './types'
-
-// The graph names no event, so an inversion's only mark was its strand-turn
-// links, which the force layout draws at no length where its loop crosses:
-// an inversion and a bypassed loop drew alike. What a walk does on a node is
-// exact, though: each visit states the strand it reads the node on, and so
-// does the reference's. A reference node some shown walk reads against the
-// reference's direction carries heads pointing that way (GeometryBuilder),
-// strand on a node and no event's name.
 
 const cache = weakMemo<Graph, ReadonlyMap<string, readonly string[]>>()
 
-// The haplotypes whose walks read each reference node against the way the
-// reference reads it there, by node id, for every node some walk does: each
-// visit's strand, a departure's own steps' included, against the strand the
-// reference's visits there read it on, or where the reference has none in
-// the cut, the strand it states for the node
+// By reference node id, the haplotypes whose walks read the node against the
+// strand the reference reads it on: each visit's strand, a departure's own
+// steps' included, against the reference's visits there, or its stated strand
+// where the cut holds none. A node the reference reads on both strands has no
+// one direction to be against.
 export function walksAgainstReference(graph: Graph) {
   return cache(graph, [], () => {
     const visits = graph.pathVisits
     const out = new Map<string, readonly string[]>()
-    const backbone = graph.nodes.filter(
-      (node): node is AnchoredNode => isBackbone(node) && !node.placeholder,
-    )
+    const backbone = graph.nodes.filter(isLoadedBackbone)
     const references = new Set(backbone.map(node => node.stable.refName))
     const ofReference = (path: string) =>
       references.has(path) || references.has(pathOrigin(path).name)
@@ -58,13 +47,16 @@ export function walksAgainstReference(graph: Graph) {
         }
       }
       const referenceReversed =
-        along + reversed > 0 ? reversed > along : node.stable.strand === '-'
+        along + reversed > 0 ? reversed > 0 : node.stable.strand === '-'
       const against = new Set(
-        others
-          .filter(visit => visit.reversed !== referenceReversed)
-          .map(
-            visit => panSNHaplotype(visit.path) ?? pathOrigin(visit.path).name,
-          ),
+        along > 0 && reversed > 0
+          ? []
+          : others
+              .filter(visit => visit.reversed !== referenceReversed)
+              .map(
+                visit =>
+                  panSNHaplotype(visit.path) ?? pathOrigin(visit.path).name,
+              ),
       )
       if (against.size > 0) {
         out.set(node.id, [...against].toSorted())
@@ -77,9 +69,7 @@ export function walksAgainstReference(graph: Graph) {
 export const againstKey = (reference = 'the reference') =>
   `walked against ${reference}'s direction`
 
-// What a hovered reference node says of the walks reading it against the
-// reference: `walked against GRCh38's direction by 2 haplotypes: HG00099#1,
-// HG01123#1`
+// `walked against GRCh38's direction by 2 haplotypes: HG00099#1, HG01123#1`
 export function againstHoverText(
   graph: Graph,
   nodeId: string,

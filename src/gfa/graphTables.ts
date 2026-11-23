@@ -491,6 +491,7 @@ export function graphFromTables(
   const crossedName = new Int32Array(crossedLink.length)
   let crossings = 0
   const lastWalk = new Int32Array(edges.length).fill(-1)
+  const linkPasses = new Int32Array(edges.length)
   const paths: GraphPath[] = []
   const anchorPaths: PathOrigin[] = []
   // each segment's visits, a block sized by its traversals that is placed at
@@ -543,6 +544,9 @@ export function graphFromTables(
       pos += node < declared ? n.lengths[node]! : 0
       if (prev >= 0) {
         const link = linkOf(prev, node, w.reversed[s - 1], w.reversed[s])
+        if (link >= 0) {
+          linkPasses[link]!++
+        }
         if (link >= 0 && lastWalk[link] !== p) {
           lastWalk[link] = p
           crossedLink[crossings] = link
@@ -568,6 +572,7 @@ export function graphFromTables(
           ? -1
           : linkOf(steps[i - 1]!, steps[i]!, reversed[i - 1], reversed[i])
       if (link >= 0) {
+        linkPasses[link]!++
         crossedLink[crossings] = link
         crossedName[crossings++] = edgeNamed
       }
@@ -583,6 +588,7 @@ export function graphFromTables(
     const names = linkNames[i]!
     if (names.length > 0) {
       edge.pathIds = names
+      edge.passes = linkPasses[i]
     }
   })
 

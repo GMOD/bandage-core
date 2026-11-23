@@ -282,6 +282,8 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     }
     sides[strands] = set
   }
+  // each link's steps, a walk taking it twice counted twice
+  const linkPasses = new Map<Set<string>, number>()
   const edgePaths = edges.map(edge => {
     const set = new Set<string>()
     const strands = strandsOf(edge.fromStrand, edge.toStrand)
@@ -296,10 +298,13 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     pathName: string,
   ) {
     for (let i = 0; i < nodeIds.length - 1; i++) {
-      pathsByLink
-        .get(nodeIds[i]!)
-        ?.get(nodeIds[i + 1]!)
-        ?.[strandsOf(steps[i]!.strand, steps[i + 1]!.strand)]?.add(pathName)
+      const set = pathsByLink.get(nodeIds[i]!)?.get(nodeIds[i + 1]!)?.[
+        strandsOf(steps[i]!.strand, steps[i + 1]!.strand)
+      ]
+      if (set) {
+        set.add(pathName)
+        linkPasses.set(set, (linkPasses.get(set) ?? 0) + 1)
+      }
     }
   }
 
@@ -330,6 +335,7 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     const pathIds = edgePaths[i]!
     if (pathIds.size > 0) {
       edge.pathIds = [...pathIds]
+      edge.passes = linkPasses.get(pathIds)
     }
   })
 
