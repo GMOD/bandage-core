@@ -1,3 +1,4 @@
+import { walksAgainstReference } from '../againstReference'
 import {
   drawnAlongStable,
   isBackbone,
@@ -2597,6 +2598,57 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   for (const head of walkWide?.heads ?? []) {
     if (!viewportBounds || headInBounds(head, viewportBounds, scale, yToX)) {
       arrows.push(head)
+    }
+  }
+
+  // Heads along each reference node a shown walk reads against the
+  // reference, pointing that way (againstReference.ts); a lift's lanes carry
+  // their own
+  const against = highlight?.walks.length
+    ? undefined
+    : walksAgainstReference(graph)
+  if (showArrows && against?.size) {
+    const place = laneHeadPlacer(scale, yToX)
+    for (const id of against.keys()) {
+      const node = nodeById.get(id)
+      const run = nodeStrokeRuns.get(id)
+      const stroke = run && nodeStrokes[run.start]
+      if (
+        node &&
+        isBackbone(node) &&
+        stroke &&
+        !stroke.placeholder &&
+        !collapse.nodes.has(id) &&
+        !collapse.through.has(id)
+      ) {
+        for (const head of place({
+          points: nodePositions[id] ?? [],
+          halfWidth: stroke.thickness,
+          color: stroke.color,
+          walk: 0,
+          thread: 0,
+          threads: 1,
+          node: id,
+          against: laidAlongReference(node),
+        })) {
+          if (
+            !viewportBounds ||
+            headInBounds(head, viewportBounds, scale, yToX)
+          ) {
+            arrows.push({
+              x: head.x,
+              y: head.y,
+              angle: head.angle,
+              length: head.length,
+              halfWidth: head.halfWidth,
+              color: head.color,
+              node: id,
+              turned: true,
+              ...(head.halo ? { halo: true } : {}),
+            })
+          }
+        }
+      }
     }
   }
 

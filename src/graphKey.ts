@@ -1,3 +1,4 @@
+import { againstKey } from './againstReference'
 import { COMPRESSED_KEY } from './bubbleSpreads'
 import { BUBBLE_HALO_COLOR } from './bubbles/bubbleLabel'
 import { deletionKey } from './deletionEdges'
@@ -199,6 +200,7 @@ export function drawnMarks(
     headsAgainst: false,
     headsAlong: false,
     headsHaloed: false,
+    turned: false,
     runsOn: false,
     foldedNodes: new Set<string>(),
     foldedSkips: new Set<number>(),
@@ -282,12 +284,13 @@ export function drawnMarks(
         }
       }
     }
-    for (const { walk, against, halo, runsOn } of arrows) {
+    for (const { walk, against, halo, runsOn, turned } of arrows) {
       if (walk !== undefined) {
         marks.headsAgainst ||= !!against
         marks.headsAlong ||= !against
         marks.headsHaloed ||= !!halo
       }
+      marks.turned ||= !!turned
       marks.runsOn ||= !!runsOn
     }
   }
@@ -820,6 +823,15 @@ export function graphKey(
             kind: 'line',
             ink: skipInk,
             dashed: true,
+          }),
+        ]
+      : []),
+    ...(o.marks.turned
+      ? [
+          entry('against', againstKey(reference), {
+            kind: 'heads',
+            ink: THREAD_INK,
+            haloed: false,
           }),
         ]
       : []),
