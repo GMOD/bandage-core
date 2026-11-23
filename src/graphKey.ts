@@ -242,7 +242,7 @@ export function drawnMarks(
     const sites = (collapsed?.sites ?? []).filter(site => inView([site]))
     marks.foldedUnderBp = Math.max(
       marks.foldedUnderBp,
-      foldedUnderBp({ sites }),
+      foldedUnderBp({ sites, pxPerBp: collapsed?.pxPerBp ?? 0 }),
     )
     for (const { nodes, edges } of sites) {
       for (const id of nodes) {

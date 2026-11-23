@@ -3,40 +3,23 @@ import { departureTails } from './gfa/departures'
 import {
   haplotypeIndex,
   haplotypeOf,
-  nodeWidthPx,
-  widthNorm,
 } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
-import { cubicLengthPx } from './util/curveLength'
 import { polylinePx } from './util/geometry'
 import { addTo, pushTo } from './util/groups'
 import { partitionPoint } from './util/partitionPoint'
-import { flattenedPx, pointInStroke, segmentInStroke } from './util/strokeCover'
 import { weakMemo } from './util/weakMemo'
 import { MAX_ZOOM } from './zoomLimits'
 
 import type { AnchoredNode } from './anchoredNodes'
-import type { NodeWidth } from './nodeWidths'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, GraphNode, NodeSegment } from './types'
 import type { EdgeCurves } from './util/edgeCurves'
-import type { AxisScale, BezierCurve } from './util/geometry'
-import type { Stroke } from './util/strokeCover'
+import type { AxisScale } from './util/geometry'
 
 export const SMALL_SITE_PX = 3
 
 export type SmallSites = 'hidden' | 'nodes'
-
-// how the drawing sets a node's width, which says how wide the reference's
-// stroke is
-export interface NodeStrokes {
-  contigThickness: number
-  nodeWidth: NodeWidth
-}
-
-// how far a link's curve may be flattened from the curve drawn, in px, when
-// asking whether it lies inside the reference's stroke
-const FLATNESS_PX = 0.01
 
 interface Point {
   x: number
@@ -57,9 +40,6 @@ interface Unit {
   walks: number[]
   bp: number
   skip: number | undefined
-  // a departure's tail the cut did not load, which states its bp and nothing
-  // more
-  tail: boolean
 }
 
 export interface Site {
@@ -238,7 +218,6 @@ function unitsOf(
       walks: [],
       bp: 0,
       skip: undefined,
-      tail: false,
       tied: false,
     }
     if (!known) {
@@ -321,7 +300,6 @@ function unitsOf(
           walks: [...walks],
           bp: spread(attachments),
           skip: edge,
-          tail: false,
         })
       }
     }
@@ -346,7 +324,6 @@ function unitsOf(
         ...component,
         bp: component.bp + spread(component.attachments),
         walks: [...walks],
-        tail,
       })
     }
   }
@@ -522,71 +499,6 @@ const mean = (points: readonly Point[]) => ({
   y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
 })
 
-// how long a link's curve is drawn on screen
-const curvePx = (curves: readonly BezierCurve[], axis: AxisScale) =>
-  curves.reduce((px, c) => px + cubicLengthPx(c, axis.scaleX, axis.scaleY), 0)
-
-// the straight distance between a link's ends on screen, which no drawing
-// of it at any zoom is shorter than
-function chordPx(curves: readonly BezierCurve[], axis: AxisScale) {
-  const first = curves[0]
-  const last = curves.at(-1)
-  return first && last
-    ? Math.hypot(
-        (last.x1 - first.x0) * axis.scaleX,
-        (last.y1 - first.y0) * axis.scaleY,
-      )
-    : 0
-}
-
-// How long a piece is drawn on screen: its own nodes and links, and the
-// reference between its attachments as that is drawn, its nodes and its own
-// links there, never the straight distance between the attachments, so a
-// long skip whose ends the layout set close together is not small
-function drawnSize(
-  unit: Unit,
-  reference: ReferenceSequence | undefined,
-  nodePx: (id: string) => number,
-  edgePx: (edge: number) => number,
-) {
-  const start = least(unit.attachments)
-  const end = most(unit.attachments)
-  const links = reference?.links ?? []
-  let px = 0
-  for (const id of unit.nodes) {
-    px += nodePx(id)
-  }
-  for (const edge of unit.edges) {
-    px += edgePx(edge)
-  }
-  for (const span of reference
-    ? spansInside(reference.spans, start, end)
-    : []) {
-    px += nodePx(span.id)
-  }
-  for (
-    let i = partitionPoint(links.length, j => links[j]!.at < start);
-    i < links.length && links[i]!.at <= end;
-    i++
-  ) {
-    px += edgePx(links[i]!.edge)
-  }
-  return px
-}
-
-// each key measured the first time it is asked for, and held
-function once<K>(measure: (key: K) => number) {
-  const held = new Map<K, number>()
-  return (key: K) => {
-    const known = held.get(key)
-    const px = known ?? measure(key)
-    if (known === undefined) {
-      held.set(key, px)
-    }
-    return px
-  }
-}
-
 function referencePxPerBp(
   backbone: readonly string[],
   backboneBp: number,
@@ -626,41 +538,6 @@ export function referencePxPerBpAt(
   )
 }
 
-const onScreen = (p: Point, axis: AxisScale) => ({
-  x: p.x * axis.scaleX,
-  y: p.y * axis.scaleY,
-})
-
-// whether every point of a piece's nodes as laid and its links as drawn lies
-// inside a stroke, at this axis
-function laidInside(
-  unit: Unit,
-  stroke: Stroke,
-  positions: Record<string, NodeSegment[]>,
-  curves: EdgeCurves,
-  axis: AxisScale,
-) {
-  const lines = unit.nodes.map(id =>
-    (positions[id] ?? []).map(p => onScreen(p, axis)),
-  )
-  const along = (line: readonly Point[], inset: number) =>
-    line.every(
-      (p, i) => i === 0 || segmentInStroke(line[i - 1]!, p, stroke, inset),
-    )
-  return (
-    lines.every(line => line.every(p => pointInStroke(p, stroke))) &&
-    lines.every(line => along(line, 0)) &&
-    unit.edges.every(edge =>
-      (curves.get(edge) ?? []).every(c =>
-        along(
-          flattenedPx(c, axis.scaleX, axis.scaleY, FLATNESS_PX),
-          FLATNESS_PX,
-        ),
-      ),
-    )
-  )
-}
-
 function foldOf(
   graph: Graph,
   positions: Record<string, NodeSegment[]>,
@@ -668,7 +545,6 @@ function foldOf(
   curves: EdgeCurves,
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
-  strokes: NodeStrokes,
 ): Fold {
   const { units, total, backbone, backboneBp, references } = unitsCache(
     graph,
@@ -687,110 +563,6 @@ function foldOf(
     positions,
     deepest,
   )
-  const placeholders = new Set(
-    graph.nodes.flatMap(n => (n.placeholder ? [n.id] : [])),
-  )
-  const measured = (
-    axisOf: AxisScale,
-    linkPx: (curves: readonly BezierCurve[], axis: AxisScale) => number,
-  ) => ({
-    node: once((id: string) =>
-      polylinePx(positions[id] ?? [], axisOf.scaleX, axisOf.scaleY),
-    ),
-    edge: once((edge: number) => linkPx(curves.get(edge) ?? [], axisOf)),
-  })
-  const atAxis = measured(axis, curvePx)
-  const atDeepest = measured(deepest, chordPx)
-  // A piece is small as it is drawn, at this axis, and comes back at the
-  // deepest zoom, drawn no shorter there than its links' straight ends. A
-  // not-loaded stretch is drawn at the layout's least length whatever its
-  // bp, so a piece holding one is also measured by its bp at the
-  // reference's px a bp, and the smaller measure counts; a departure's tail
-  // the cut did not load is measured by its bp alone
-  const sizeOf = (unit: Unit, refName: string) => {
-    const reference = references.get(refName)
-    const shown = drawnSize(unit, reference, atAxis.node, atAxis.edge)
-    const back = drawnSize(unit, reference, atDeepest.node, atDeepest.edge)
-    const stated = unit.nodes.some(id => placeholders.has(id)) && pxPerBp > 0
-    return unit.tail
-      ? { shown: unit.bp * pxPerBp, back: unit.bp * deepestPxPerBp }
-      : {
-          shown: stated ? Math.min(shown, unit.bp * pxPerBp) : shown,
-          back: stated ? Math.min(back, unit.bp * deepestPxPerBp) : back,
-        }
-  }
-  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const norm = widthNorm(graph, strokes.nodeWidth)
-  const halfWidthOf = (id: string) => {
-    const node = nodeById.get(id)
-    return node
-      ? nodeWidthPx(node, strokes.contigThickness, strokes.nodeWidth, norm) / 2
-      : 0
-  }
-  // The reference's stroke between a piece's attachments, on screen at an
-  // axis: the laid lines of the reference nodes lying wholly between them and
-  // the points where its links meet the reference, each widened by half the
-  // least drawn width of those nodes and the reference nodes its links meet
-  const referenceStroke = (
-    unit: Unit,
-    reference: ReferenceSequence | undefined,
-    feet: readonly Point[],
-    axisOf: AxisScale,
-  ): Stroke => {
-    const between = reference
-      ? spansInside(
-          reference.spans,
-          least(unit.attachments),
-          most(unit.attachments),
-        ).map(span => span.id)
-      : []
-    const met = unit.feet.flatMap(({ edge, atEnd }) => {
-      const link = graph.edges[edge]
-      return link ? [atEnd ? link.to : link.from] : []
-    })
-    return {
-      lines: between.map(id =>
-        (positions[id] ?? []).map(p => onScreen(p, axisOf)),
-      ),
-      points: feet.map(p => onScreen(p, axisOf)),
-      halfWidth: [...between, ...met].reduce(
-        (half, id) => Math.min(half, halfWidthOf(id)),
-        Infinity,
-      ),
-    }
-  }
-  // A piece drawn inside the reference's stroke between its attachments
-  // shows no length of its own, so it is measured by its bp at the
-  // reference's px a bp, and folds where that is small and, at the deepest
-  // zoom, that comes to SMALL_SITE_PX and a point of its nodes as laid comes
-  // out of that stroke
-  const coveredOf = (
-    unit: Unit,
-    reference: ReferenceSequence | undefined,
-    feet: readonly Point[],
-  ) => {
-    const comesOut = () => {
-      const deepStroke = referenceStroke(unit, reference, feet, deepest)
-      return unit.nodes.some(id =>
-        (positions[id] ?? []).some(
-          p => !pointInStroke(onScreen(p, deepest), deepStroke),
-        ),
-      )
-    }
-    return (
-      unit.nodes.length > 0 &&
-      unit.bp * pxPerBp < SMALL_SITE_PX &&
-      unit.bp * deepestPxPerBp >= SMALL_SITE_PX &&
-      laidInside(
-        unit,
-        referenceStroke(unit, reference, feet, axis),
-        positions,
-        curves,
-        axis,
-      ) &&
-      comesOut()
-    )
-  }
   const nodes = new Set<string>()
   const edges = new Set<number>()
   const siteOf = new Map<string, Site>()
@@ -800,21 +572,20 @@ function foldOf(
       const point = footPoint(curves, foot)
       return point ? [point] : []
     })
+    // A piece is small by its bp at the reference's px a bp, whatever length
+    // the layout drew it at, and comes back at the deepest zoom: the fold
+    // measured it as drawn, and the force layout draws a node shorter than
+    // its bp, which folded a 312 bp insertion at a 100 kb window, and longer,
+    // which drew a 3 bp site as a curl
     const [refName] = unit.refNames
-    const size =
+    if (
       refName !== undefined &&
       unit.refNames.size === 1 &&
       unit.bp > 0 &&
       feet.length === unit.feet.length &&
-      unit.nodes.every(id => positions[id]?.length)
-        ? sizeOf(unit, refName)
-        : undefined
-    if (
-      refName !== undefined &&
-      size &&
-      size.back >= SMALL_SITE_PX &&
-      (size.shown < SMALL_SITE_PX ||
-        coveredOf(unit, references.get(refName), feet))
+      unit.nodes.every(id => positions[id]?.length) &&
+      unit.bp * pxPerBp < SMALL_SITE_PX &&
+      unit.bp * deepestPxPerBp >= SMALL_SITE_PX
     ) {
       const site: Site = {
         nodes: unit.nodes,
@@ -853,9 +624,12 @@ function foldOf(
 
 const foldCache = weakMemo<EdgeCurves, Fold>()
 
-// A bp every folded site is under: the largest folded site's bp and one more
-export const foldedUnderBp = (fold: Pick<Fold, 'sites'>) =>
-  fold.sites.reduce((bp, site) => Math.max(bp, site.bp + 1), 0)
+// The bp every folded site is under, and every site at or over is drawn at:
+// SMALL_SITE_PX at the reference's px a bp, where any site is folded
+export const foldedUnderBp = (fold: Pick<Fold, 'sites' | 'pxPerBp'>) =>
+  fold.sites.length > 0 && fold.pxPerBp > 0
+    ? Math.ceil(SMALL_SITE_PX / fold.pxPerBp)
+    : 0
 
 // The sites too small to draw at this scale: a pure function of the graph,
 // its layout and the axis, held against the curves derived for that axis
@@ -866,19 +640,8 @@ export function foldedSites(
   curves: EdgeCurves,
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
-  strokes: NodeStrokes,
 ) {
-  return foldCache(
-    curves,
-    [
-      graph,
-      positions,
-      deletions,
-      hiddenEdges,
-      strokes.contigThickness,
-      strokes.nodeWidth,
-    ],
-    () =>
-      foldOf(graph, positions, axis, curves, deletions, hiddenEdges, strokes),
+  return foldCache(curves, [graph, positions, deletions, hiddenEdges], () =>
+    foldOf(graph, positions, axis, curves, deletions, hiddenEdges),
   )
 }

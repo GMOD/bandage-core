@@ -665,10 +665,13 @@ test('the sites table lists each folded site, its nodes and links each once and 
   }
   expect(d.meta.smallSites?.mode).toBe('hidden')
   expect(d.meta.smallSites?.px).toBe(SMALL_SITE_PX)
-  expect(d.meta.smallSites?.bp).toBe(3)
+  // the fold's threshold, over every site folded
+  expect(d.meta.smallSites?.bp).toBeGreaterThan(
+    (d.sites?.bp ?? []).reduce((a, b) => Math.max(a, b), 0),
+  )
   const keyRow = d.meta.graphKey.key.indexOf('too-small')
   expect(d.meta.graphKey.text[keyRow]).toBe(
-    '1 node and 1 skip under 3 bp not drawn',
+    `1 node and 1 skip under ${d.meta.smallSites?.bp} bp not drawn`,
   )
   expect(d.meta.graphKey.swatch[keyRow]).toBe('')
   const nodes = figureData(graph, layout, { smallSites: 'nodes' })

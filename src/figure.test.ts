@@ -641,10 +641,11 @@ test('by default a figure folds its small sites, draws the allele, and says how 
   }
   const folded = figureSvg(sites, beside)
   const drawn = figureSvg(sites, beside, { smallSites: 'nodes' })
-  const line = '<text y="13">2 nodes and 1 skip under 3 bp not drawn</text>'
-  expect(folded).toContain(line)
+  const line = /<text y="13">2 nodes and 1 skip under (\d+) bp not drawn<\/text>/
+    .exec(folded)?.[0]
+  expect(line).toBeDefined()
   expect(drawn).not.toContain('not drawn')
-  const key = folded.slice(0, folded.indexOf(line))
+  const key = folded.slice(0, folded.indexOf(line!))
   expect(key).not.toMatch(/Tick/)
   const strokes = (svg: string) =>
     svg

@@ -1134,17 +1134,12 @@ const foldOf = (
     axis,
     deletions,
     hiddenEdges,
-    contigThickness,
-    nodeWidth = 'uniform',
     smallSites = 'hidden',
   }: BuildOptions,
   curves: EdgeCurves,
 ) =>
   smallSites === 'hidden'
-    ? foldedSites(graph, nodePositions, axis, curves, deletions, hiddenEdges, {
-        contigThickness,
-        nodeWidth: drawnNodeWidth(graph, nodeWidth),
-      })
+    ? foldedSites(graph, nodePositions, axis, curves, deletions, hiddenEdges)
     : NO_FOLD
 
 // What a build with these options folds as too small to draw, without

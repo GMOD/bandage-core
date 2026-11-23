@@ -1272,10 +1272,17 @@ test('the key says how many nodes and skips are too small to draw, in one line w
   }
   const sections = graphKey(SMALL, layout, { marks: drawnMarks([batch]) })
   const last = sections.at(-1)
+  const under = Math.ceil(3 / batch.collapsed!.pxPerBp)
+  for (const { bp } of batch.collapsed?.sites ?? []) {
+    expect(bp).toBeLessThan(under)
+  }
   expect(last).toEqual({
     id: 'too-small',
     entries: [
-      { key: 'too-small', text: '1 node and 1 skip under 3 bp not drawn' },
+      {
+        key: 'too-small',
+        text: `1 node and 1 skip under ${under} bp not drawn`,
+      },
     ],
   })
   expect(keys(SMALL, { ...smallSites(), smallSites: 'nodes' })).not.toContain(
@@ -1301,12 +1308,12 @@ const site = (nodes: string[], edges: number[], bp = 2): Site => ({
   total: 1,
 })
 
-const foldOf = (sites: Site[]): Fold => ({
+const foldOf = (sites: Site[], pxPerBp = 1): Fold => ({
   sites,
   nodes: new Set(sites.flatMap(s => s.nodes)),
   edges: new Set(sites.flatMap(s => s.edges)),
   siteOf: new Map(),
-  pxPerBp: 1,
+  pxPerBp,
   within: new Map(),
   through: new Map(),
   bridges: new Map(),
@@ -1331,9 +1338,13 @@ test("the key's counts are the folded nodes and skip links, each once, however m
   expect(graphKey(SMALL, {}, { marks: skipsOnly }).at(-1)?.entries).toEqual([
     { key: 'too-small', text: '1 skip under 3 bp not drawn' },
   ])
+  // the N is the fold's threshold, SMALL_SITE_PX at the reference's px a bp
   const at18 = drawnMarks([
-    { ...panel, collapsed: foldOf([site(['a1'], [1], 18), site([], [7])]) },
-    { ...panel, collapsed: foldOf([site(['a3'], [4], 6)]) },
+    {
+      ...panel,
+      collapsed: foldOf([site(['a1'], [1], 18), site([], [7])], 3 / 19),
+    },
+    { ...panel, collapsed: foldOf([site(['a3'], [4], 6)], 3 / 19) },
   ])
   expect(at18.foldedUnderBp).toBe(19)
   expect(graphKey(SMALL, {}, { marks: at18 }).at(-1)?.entries[0]?.text).toBe(
@@ -1343,7 +1354,7 @@ test("the key's counts are the folded nodes and skip links, each once, however m
 
 // L6-amy zoomed in said "233 nodes under 4 bp not drawn" with none of them
 // on the pane
-test('the not-drawn line counts the sites folded where the view lies, under the largest of them', () => {
+test("the not-drawn line counts the sites folded where the view lies, under the fold's threshold", () => {
   const at = (x: number, nodes: string[], edges: number[], bp: number) => ({
     ...site(nodes, edges, bp),
     x,
@@ -1351,12 +1362,15 @@ test('the not-drawn line counts the sites folded where the view lies, under the 
   const panel = {
     edgeCurves: [],
     nodeStrokes: [],
-    collapsed: foldOf([
-      at(0, ['a1'], [1], 2),
-      at(0, [], [7], 5),
-      at(100, ['a2', 'a3'], [2, 3], 30),
-      at(100, [], [8], 40),
-    ]),
+    collapsed: foldOf(
+      [
+        at(0, ['a1'], [1], 2),
+        at(0, [], [7], 5),
+        at(100, ['a2', 'a3'], [2, 3], 30),
+        at(100, [], [8], 40),
+      ],
+      3 / 41,
+    ),
   }
   const line = (view?: Bounds) =>
     graphKey(SMALL, {}, { marks: drawnMarks([panel], view) }).find(
@@ -1364,7 +1378,7 @@ test('the not-drawn line counts the sites folded where the view lies, under the 
     )?.entries[0]?.text
   expect(line()).toBe('3 nodes and 2 skips under 41 bp not drawn')
   expect(line({ minX: -1, maxX: 1, minY: -1, maxY: 1 })).toBe(
-    '1 node and 1 skip under 6 bp not drawn',
+    '1 node and 1 skip under 41 bp not drawn',
   )
   expect(line({ minX: 99, maxX: 101, minY: -1, maxY: 1 })).toBe(
     '2 nodes and 1 skip under 41 bp not drawn',
