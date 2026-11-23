@@ -1,3 +1,11 @@
+## [14.5.0](https://github.com/GMOD/bandage-core/compare/v14.4.1...v14.5.0) (2026-11-23)
+
+### Other Changes
+
+- A fold of a cut keeps a short allele that leaves the window without rejoining, since the reference it replaces cannot be measured there, where it folded away a 93 bp allele standing for a 7 kb deletion ([812717e](https://github.com/GMOD/bandage-core/commit/812717e6f4c98533fe72322944cfb46355b87cc4))
+- A tube map box off the reference says its length where the box is wide and tall enough to hold it, since the log width scale draws a 9 kb box and a 46 kb box alike ([520c9e6](https://github.com/GMOD/bandage-core/commit/520c9e6ac048e5e9dfdb3fa4324cb99ef4f4390f))
+- A graph with walks folds to threads: foldThreads merges every difference under a size into the reference through @jbrowse/graph-fold and draws one lane per route, as wide as the haplotypes that take it ([43e2f73](https://github.com/GMOD/bandage-core/commit/43e2f734bba8a65a325fe74d9faed9f28b2e9e67))
+
 ## [14.4.1](https://github.com/GMOD/bandage-core/compare/v14.4.0...v14.4.1) (2026-11-23)
 
 ### Other Changes
