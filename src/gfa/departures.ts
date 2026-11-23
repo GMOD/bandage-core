@@ -267,7 +267,7 @@ export interface GraphGap {
  * read and kept out, out of view; a record's own sequence it did not read,
  * left out of graph where all of it lies between W lines,
  * else one part stating both amounts in no order; and pieces it did not
- * read, near where the walk was last seen
+ * read, not drawn
  */
 export function segmentPart(segment: GapSegment): GapPart {
   const { kind, bp, missingBp } = segment
