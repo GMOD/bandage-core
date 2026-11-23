@@ -50,14 +50,18 @@ function forwardSkip(
 // The links of each walk's run of steps off the reference between two steps
 // on it, none a placeholder, where the run is a forward skip whose own bp is
 // under PADDED_SHARE of what it replaces: its first and last links that no
-// other run takes, or that only runs replacing as much take. Graphs without
-// walks pad nothing.
+// other run takes, or that only runs replacing as much take. A graph without
+// walks pads nothing, nor does one whose reference passes a node twice, a
+// collapsed repeat, where a run's ends lie on more than one pass.
 export function paddedFeet(cut: Graph) {
   const graph = unclipped(cut)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
   const visits = graph.pathVisits
   const visitsOf = referenceVisits(graph)
   const passesOf = (node: AnchoredNode) => visitsOf(node).length
+  const collapsed = graph.nodes.some(
+    node => isLoadedBackbone(node) && passesOf(node) > 1,
+  )
   const linkAt = new Map<string, number>()
   graph.edges.forEach((e, i) => {
     linkAt.set(
@@ -75,7 +79,7 @@ export function paddedFeet(cut: Graph) {
   // run not padded takes it
   const replacing = new Map<number, number>()
   const next = visits?.replay()
-  for (const { name, nodeIds } of graph.paths ?? []) {
+  for (const { name, nodeIds } of collapsed ? [] : (graph.paths ?? [])) {
     const walk = visits?.pathIndex(pathOrigin(name).name) ?? -1
     const strands = nodeIds.map(id => {
       const node = byId.get(id)
