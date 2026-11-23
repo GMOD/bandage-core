@@ -225,17 +225,22 @@ test('a walk that leaves the reference and does not come back stops off it, and 
 })
 
 // The reference walks node b forward and, past c, back against it, as a
-// pggb palindrome's arms; H follows the reference exactly
+// pggb palindrome's arms; H follows the reference exactly, and I inverts c
 test('a node the reference passes both ways draws no stretch reversed on a walk that follows it', () => {
   const gfa = [
     'H\tVN:Z:1.1',
     ...['a', 'b', 'c', 'd'].map(id => `S\t${id}\tAAAAAAAAAA`),
     'W\tGRCh38\t0\tchr1\t0\t50\t>a>b>c<b>d',
     'W\tH\t1\th\t0\t50\t>a>b>c<b>d',
+    'W\tI\t1\ti\t0\t50\t>a>b<c<b>d',
   ].join('\n')
   const graph = loadGraph(gfa, 'test', { referencePath: 'GRCh38#0#chr1' })
-  const row = walkRows(graph, { start: 0, end: 50 })!.rows[0]!
-  expect(row.runs.some(run => run.reversed)).toBe(false)
+  const reversedBp = (name: string) =>
+    walkRows(graph, { start: 0, end: 50 })!
+      .rows.find(row => row.name.startsWith(name))!
+      .runs.filter(run => run.reversed)
+      .reduce((sum, run) => sum + run.bp, 0)
+  expect([reversedBp('H#'), reversedBp('I#')]).toEqual([0, 10])
 })
 
 test('a walk that skips the flanking node is cut at the next one it visits', () => {
