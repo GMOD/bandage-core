@@ -466,3 +466,39 @@ test('without `cut` a short skip folds even where it is the only link', () => {
   ])
   expect(foldVariants(graph, 432).edges).toEqual([])
 })
+
+const LEAVES_THE_CUT = [
+  seg('a', 'ref#chr', 0, 1000, 0),
+  seg('b', 'ref#chr', 1000, 7000, 0),
+  seg('x', 'alt#chr', 0, 93, 1),
+  link('a', 'b'),
+  link('a', 'x'),
+]
+
+test('a short allele that leaves a cut without rejoining stays, its size unknown', () => {
+  const folded = foldVariants(rgfa(LEAVES_THE_CUT), 5000, { cut: true })
+  expect(names(folded)).toEqual(['a', 'b', 'x'])
+  expect(folded.edges.map(e => [e.from, e.to])).toContainEqual(['a+', 'x+'])
+})
+
+test('a short allele that rejoins inside a cut still folds', () => {
+  const folded = foldVariants(
+    rgfa([
+      seg('a', 'ref#chr', 0, 1000, 0),
+      seg('b', 'ref#chr', 1000, 1000, 0),
+      seg('c', 'ref#chr', 2000, 1000, 0),
+      seg('y', 'alt#chr', 0, 93, 1),
+      link('a', 'b'),
+      link('b', 'c'),
+      link('a', 'y'),
+      link('y', 'c'),
+    ]),
+    5000,
+    { cut: true },
+  )
+  expect(names(folded)).toEqual(['a'])
+})
+
+test('without `cut` a short dead end folds, as a whole graph has all of it', () => {
+  expect(names(foldVariants(rgfa(LEAVES_THE_CUT), 5000))).toEqual(['a'])
+})

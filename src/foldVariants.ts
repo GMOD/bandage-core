@@ -30,8 +30,12 @@ import type { Graph, GraphEdge, GraphNode } from './types'
 //
 // `cut` is for a window cut out of a graph, whose reference can end inside a
 // small skip: the fold then keeps the shortest skip that rejoins what the kept
-// links leave apart (`bridges`). Without it the fold is gfa-to-tabix's, which
-// builds the coarse tiers, and foldParity.test.ts holds the two together.
+// links leave apart (`bridges`). An allele can also leave the window and
+// rejoin outside it, so that the reference it replaces cannot be measured: the
+// fold keeps every allele with an end no link leaves (`leavesCut`), however
+// short. Without `cut` the fold is gfa-to-tabix's, which builds the coarse
+// tiers from whole graphs, where such an end is a real dead end, and
+// foldParity.test.ts holds the two together.
 export function foldVariants(
   graph: Graph,
   belowBp: number,
@@ -54,7 +58,10 @@ export function foldVariants(
   const kept = new Uint8Array(nodes.length)
   const big: number[][] = []
   for (const group of members.values()) {
-    if (alleleContent(group, nodes, links, allele) >= belowBp) {
+    if (
+      alleleContent(group, nodes, links, allele) >= belowBp ||
+      (cut && leavesCut(group, nodes, links, allele))
+    ) {
       for (const i of group) {
         kept[i] = 1
       }
@@ -312,6 +319,20 @@ function alleleContent(
     }
   }
   return oneSequence && hi > lo ? Math.max(length, hi - lo) : length
+}
+
+function leavesCut(
+  group: number[],
+  nodes: GraphNode[],
+  links: Link[][],
+  allele: number[],
+) {
+  return (
+    !isBackbone(nodes[group[0]!]!) &&
+    alleleEnds(group, nodes, links, allele).some(
+      ([i, side]) => !links[i]!.some(link => link.side === side),
+    )
+  )
 }
 
 // Where an allele meets the rest of the graph: each side of its first and
