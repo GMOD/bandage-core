@@ -604,6 +604,44 @@ test('the key says the colours are the graph’s alignment', () => {
   ])
 })
 
+// HG5 walks b and c inverted between forward flanks, as a carrier of an
+// inversion does; HG2's contig is stored back to front
+test('a stretch walked against the reference draws chevrons, the readout states its bp and the key names them', () => {
+  const bars = walkRows(
+    loadGraph(
+      [...GFA.split('\n'), 'W\tHG5\t1\tctg5\t0\t50\t>a<c<b>d>e'].join('\n'),
+      'test',
+    ),
+    region,
+  )!
+  const inverted = bars.rows.find(r => r.label === 'HG5#1')!
+  expect(walkRowReadout(inverted, bars.reference)).toBe(
+    '26 bp, of which 20 bp reversed',
+  )
+  const chevrons = (row: typeof inverted) =>
+    serializeEl(
+      walkRowsTree(
+        { ...bars, rows: [row] },
+        {
+          scaleX: 20,
+          scaleY: 1,
+          translateX: -20_000,
+          translateY: 20,
+          width: 1200,
+          height: 400,
+        },
+      ),
+    ).match(/<polyline /g)?.length ?? 0
+  expect(chevrons(inverted)).toBeGreaterThan(0)
+  expect(chevrons(bars.rows.find(r => r.label === 'HG2#2')!)).toBe(0)
+  expect(walkRowsKey(bars).map(e => e.label)).toContain(
+    "walked against GRCh38#0's direction",
+  )
+  expect(walkRowsKey(rows()).map(e => e.label)).not.toContain(
+    "walked against GRCh38#0's direction",
+  )
+})
+
 test('the key names the boxes by the annotation the host read', () => {
   const key = walkRowsKey(rows(), {
     genes: { untracked: 2, unread: 1 },

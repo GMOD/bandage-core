@@ -259,10 +259,16 @@ export function walkRowReadout(
   const elsewhereText = (stretchBp: number) =>
     `${sized(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
   const elsewhere = row.fromElsewhereBp ?? 0
+  const reversedBp = (row.runs ?? [])
+    .filter(reversedOnPath)
+    .reduce((sum, run) => sum + run.bp, 0)
   const parts = partsText(
-    row.replacedBp === undefined && elsewhere > 0
-      ? [elsewhereText(elsewhere)]
-      : [],
+    [
+      ...(reversedBp > 0 ? [`${sized(reversedBp)} reversed`] : []),
+      ...(row.replacedBp === undefined && elsewhere > 0
+        ? [elsewhereText(elsewhere)]
+        : []),
+    ],
     gapBp,
     row.runs,
     reference.name,
@@ -926,8 +932,8 @@ export function rowGeneBoxes(
 
 export type KeySwatch =
   // `ramp` bars paint the reference-position ramp, which `fill` holds as CSS;
-  // a hollow bar has a `rim`
-  | { kind: 'bar'; fill: string; ramp?: true; rim?: string }
+  // a hollow bar has a `rim`, and one walked against the reference chevrons
+  | { kind: 'bar'; fill: string; ramp?: true; rim?: string; chevrons?: true }
   | { kind: 'gap'; fill: string; px: number }
   | { kind: 'gene' }
 
@@ -1013,6 +1019,12 @@ export function walkRowsKey(
       label: onPathStripText(reference),
     })
   }
+  if (bars.rows.some(row => row.runs.some(reversedOnPath))) {
+    entries.push({
+      swatch: { kind: 'bar', fill: CHEVRON_SWATCH_FILL, chevrons: true },
+      label: reversedText(reference),
+    })
+  }
   if (o.markUnloaded && rows.some(row => row.runs.some(run => run.unloaded))) {
     entries.push({
       swatch: { kind: 'bar', fill: NOT_LOADED_FILL_CSS, rim: NOT_LOADED_CSS },
@@ -1095,6 +1107,61 @@ export function walkRowsKey(
   return entries
 }
 
+export const reversedText = (reference: string) =>
+  `walked against ${reference}'s direction`
+
+const reversedOnPath = (run: WalkRun) =>
+  run.reversed === true && run.onReference && !run.gap
+
+export const CHEVRON_INK = 'white'
+export const CHEVRON_HALO = 'rgba(0, 0, 0, 0.45)'
+const CHEVRON_SWATCH_FILL = '#9e9e9e'
+
+/**
+ * Chevrons pointing left along a bar from x0 to x1 centred on y, one every
+ * few bar heights, each as polyline points; none where the bar is too short
+ * or thin to hold one
+ */
+export function chevronPoints(
+  x0: number,
+  x1: number,
+  y: number,
+  barPx: number,
+) {
+  const half = barPx * 0.3
+  const depth = Math.max(2, barPx * 0.3)
+  const pitch = Math.max(8, barPx * 1.6)
+  const room = x1 - x0 - depth
+  const count = barPx < MIN_CHEVRON_BAR_PX ? 0 : Math.floor(room / pitch) + 1
+  const first = x0 + (room - (count - 1) * pitch) / 2
+  return room < 0
+    ? []
+    : Array.from({ length: count }, (_, k) => {
+        const x = first + k * pitch
+        return `${x + depth},${y - half} ${x},${y} ${x + depth},${y + half}`
+      })
+}
+
+const MIN_CHEVRON_BAR_PX = 4
+
+const chevronTrees = (points: string[], barPx: number) =>
+  points.flatMap(p => [
+    el('polyline', {
+      points: p,
+      fill: 'none',
+      stroke: CHEVRON_HALO,
+      'stroke-width': Math.max(1.5, barPx / 5),
+      'stroke-linejoin': 'round',
+    }),
+    el('polyline', {
+      points: p,
+      fill: 'none',
+      stroke: CHEVRON_INK,
+      'stroke-width': Math.max(0.8, barPx / 10),
+      'stroke-linejoin': 'round',
+    }),
+  ])
+
 export const onPathStripText = (reference: string) =>
   `grey above: on ${reference}'s path`
 
@@ -1162,6 +1229,10 @@ export function walkRowsKeyTree(
               ? { stroke: e.swatch.rim, 'stroke-width': NOT_LOADED_RIM_PX }
               : {}),
           })
+    const chevrons =
+      !e.note && e.swatch.kind === 'bar' && e.swatch.chevrons
+        ? chevronTrees(chevronPoints(at, at + 18, 9, 8), 8)
+        : []
     const text = el(
       'text',
       {
@@ -1173,7 +1244,7 @@ export function walkRowsKeyTree(
       e.label,
     )
     at += (e.note ? 0 : 23) + e.label.length * LABEL_CHAR_PX + 16
-    return [ramp, swatch, text].filter(p => p !== undefined)
+    return [ramp, swatch, ...chevrons, text].filter(p => p !== undefined)
   })
   return {
     width: at,
@@ -1500,6 +1571,14 @@ export function walkRowsTree(
             }),
           )
         : []
+    const chevrons = chevronTrees(
+      coalesceRuns(row.runs, frame.scaleX, marked)
+        .filter(reversedOnPath)
+        .flatMap(run =>
+          chevronPoints(along(run.start), along(run.start + run.bp), y, barPx),
+        ),
+      barPx,
+    )
     const { call } = row
     const readout =
       (frame.readouts ?? true)
@@ -1514,6 +1593,7 @@ export function walkRowsTree(
       runs,
       strip,
       ticks,
+      chevrons,
       rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y, {
         rowPx,
         barPx,

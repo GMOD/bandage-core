@@ -37,7 +37,9 @@ inside the region, and the four bars are drawn 18 kb shorter than GRCh38:
 ## The text beside a bar
 
 In a bar, the rainbow colors are positions on the reference, and charcoal is
-sequence off the reference.
+sequence off the reference. White chevrons pointing left mark a stretch the
+haplotype walks against the reference's direction, where its colors run
+backwards.
 
 | Text                                              | Meaning                                                                                                                                                                                                                                                                                         |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -50,6 +52,7 @@ sequence off the reference.
 | `contig starts inside the window`                 | the haplotype's contig begins at the bar's end                                                                                                                                                                                                                                                  |
 | `9.2 Mb before it not drawn or left out of graph` | the haplotype's contig goes on before the bar's end, in sequence that is missing from the graph or in pieces that never follow the reference                                                                                                                                                    |
 | `no more of the contig on GRCh38's path`          | the graph holds none of the haplotype's contig past the bar's end on the reference                                                                                                                                                                                                              |
+| `of which 4.0 kb reversed`                        | the bar's bp walked against the reference's direction, drawn with chevrons                                                                                                                                                                                                                      |
 | `left out of graph`                               | sequence of the haplotype that is missing from the graph                                                                                                                                                                                                                                        |
 | `out of view`                                     | sequence past the edge of the region                                                                                                                                                                                                                                                            |
 | `near chr22:20.3 Mb`, inside a gap                | sequence the haplotype spends on another part of the reference, returning near that position, as between two passes over the region                                                                                                                                                             |

@@ -1171,7 +1171,7 @@ describe('a walk row over a window between 1 kb nodes', () => {
       ),
     ).toEqual({
       'T#1':
-        '≥ 8.1 kb, of which 2.1 kb near chr1:4 kb · turns back out of the window',
+        '≥ 8.1 kb, of which 3.0 kb reversed, 2.1 kb near chr1:4 kb · turns back out of the window',
       'R#1': '2.0 kb',
     })
   })
@@ -1188,7 +1188,8 @@ describe('a walk row over a window between 1 kb nodes', () => {
       ),
     ).toEqual({
       'O#1': "≥ 1.5 kb · no more of the contig on GRCh38's path",
-      'H#1': '≥ 1.1 kb · turns back out of the window',
+      'H#1':
+        '≥ 1.1 kb, of which 1.0 kb reversed · turns back out of the window',
     })
   })
 })
