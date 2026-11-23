@@ -9,6 +9,7 @@ import { NO_FOLD, SMALL_SITE_PX, foldedSites } from '../levelOfDetail'
 import {
   nodeWidthPx,
   runWidthPx,
+  countLanes,
   walkLaneWidthPx,
   widthNorm,
 } from '../nodeWidths'
@@ -1403,6 +1404,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const threaded = threadsPasses(liftedWalks)
   const lanePasses = liftedWalks.map(w => w.mostPasses)
   const thinned = threaded ? bandScale(lanePasses) : 1
+  const counted = threaded ? undefined : countLanes(liftedWalks)
   const fields =
     highlight && (liftedWalks.length > 1 || threaded)
       ? lanesCache(
@@ -1447,7 +1449,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   ) =>
     threaded
       ? (centresOf(nodeId)[lane]! + pass * THREAD_PITCH_PX) * thinned
-      : (lane - (liftedWalks.length - 1) / 2) * laneWidth
+      : counted
+        ? counted.offsets[lane]!
+        : (lane - (liftedWalks.length - 1) / 2) * laneWidth
   // a thread's offset at one point of a node, eased along its walk
   const threadOffsetAt = (
     frame: VisitFrame | undefined,
@@ -1462,7 +1466,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       MIN_LANE_STROKE_PX / 2,
       threaded
         ? threadHalfWidthPx(thinned, !!liftedWalks[lane]?.walkPasses?.bundled)
-        : laneWidth / 2,
+        : counted
+          ? counted.widths[lane]! / 2
+          : laneWidth / 2,
     )
   const passMark = (lane: number, nodeId: string, thread: number) => {
     const visit = visitOf(lane, nodeId, thread)
@@ -1573,7 +1579,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
     const offset = threaded
       ? bandPx
-      : ((liftedWalks.length - 1) / 2) * laneWidthOf(fromId)
+      : counted
+        ? counted.band / 2
+        : ((liftedWalks.length - 1) / 2) * laneWidthOf(fromId)
     const reach = LONGEST_NORMAL * offset * worldPerScreenPx
     return isBezierInBounds(
       curves,
@@ -2503,18 +2511,20 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         : lanes
           ? sharedWithOthers?.has(nodeId)
             ? [nodeThickness]
-            : liftedWalks.flatMap((walk, lane) =>
-                walk.colors.get(nodeId) === undefined ||
-                (threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS)
-                  .length === 0
-                  ? []
-                  : [
-                      laneHalfWidth(
-                        walkLaneWidthPx(width, liftedWalks.length),
-                        lane,
-                      ),
-                    ],
-              )
+            : counted
+              ? []
+              : liftedWalks.flatMap((walk, lane) =>
+                  walk.colors.get(nodeId) === undefined ||
+                  (threads?.[lane]?.nodeThreads.get(nodeId) ?? ONE_PASS)
+                    .length === 0
+                    ? []
+                    : [
+                        laneHalfWidth(
+                          walkLaneWidthPx(width, liftedWalks.length),
+                          lane,
+                        ),
+                      ],
+                )
           : [striped ? slotWidth / 2 : nodeThickness]
     for (const thickness of thicknesses) {
       thinnestStroke = Math.min(thinnestStroke, thickness)
@@ -2682,6 +2692,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     collapsed: collapse,
     laneOnly,
     nodeThicknessesVary: thinnestStroke < thickestStroke,
+    ...(counted ? { countedLanes: true } : {}),
     pathRibbons,
   }
 }

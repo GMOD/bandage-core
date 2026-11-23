@@ -112,6 +112,9 @@ export interface RenderBatch {
   nodeThicknessesVary?: boolean
   // whether any link is drawn as a ribbon per walk, not as one stroke
   pathRibbons?: boolean
+  // whether each lane is as wide as its walk's haplotype count says
+  // (nodeWidths.ts countLanes), so a lane's width says nothing of its node
+  countedLanes?: boolean
 }
 
 export interface TransformUniform {

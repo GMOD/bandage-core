@@ -17,6 +17,9 @@ importers:
       '@jbrowse/graph-fmmm-layout':
         specifier: ^1.0.2
         version: 1.0.2
+      '@jbrowse/graph-fold':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@jbrowse/graph-stress-layout':
         specifier: ^1.1.0
         version: 1.1.0
@@ -289,6 +292,9 @@ packages:
   '@jbrowse/graph-fmmm-layout@1.0.2':
     resolution: {integrity: sha512-/wIO50DsK87me7qTlo1D6h65Onjk2LMxaWSP19jk220kJp8bic8hL6ITz1+NTi+CttKm0CyzNWJ/eDwgSayGJw==}
     engines: {node: '>=20'}
+
+  '@jbrowse/graph-fold@1.1.0':
+    resolution: {integrity: sha512-Oa9rp055ACkD52R8IeEjAONlitEkxHj6Fot48VIggt4xUy4U8bwTS3LcP7Lbmi6+5seNQm512PtwK6IEG+dPZA==}
 
   '@jbrowse/graph-stress-layout@1.1.0':
     resolution: {integrity: sha512-qP/VqpFViuCs1XUaXZdvbmfisCdl7Ti4MRn+7G2TqEgRLtQ0ZWkcMnkXqo049+qbiYE2ggFdYTLkwTYlAxYnIQ==}
@@ -1404,6 +1410,8 @@ snapshots:
       generic-filehandle2: 2.5.1
 
   '@jbrowse/graph-fmmm-layout@1.0.2': {}
+
+  '@jbrowse/graph-fold@1.1.0': {}
 
   '@jbrowse/graph-stress-layout@1.1.0': {}
 

@@ -10,7 +10,7 @@ import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
 import { drawnMarks, graphKey, walkKeyEntry } from './graphKey'
-import { labelledNodeLengths, sizeLeader } from './graphLabels'
+import { formatBp, labelledNodeLengths, sizeLeader } from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { FIT_PADDING } from './layout/fitAssumptions'
 import { liftedRowInks } from './layout/rowInks'
@@ -26,7 +26,7 @@ import {
   walkStripLabelsTree,
 } from './layout/walkStrip'
 import { nodesNotDrawn } from './levelOfDetail'
-import { nodeInk } from './nodeWidths'
+import { countLanes, nodeInk } from './nodeWidths'
 import { LABEL_CHAR_PX, LABEL_PAD, LABEL_PX } from './overlayLabels'
 import { PASS_BAR_HEIGHT, passBarTree, passBars } from './passBar'
 import { passLabelCandidates, passLeader } from './passLabels'
@@ -117,6 +117,9 @@ export interface FigureOptions {
     translateX: number
     translateY: number
   }
+  // a bar of a round length of reference at the pane's lower right, on a
+  // layout whose x is reference bp
+  scaleBar?: boolean
   // genes on the backbone's refNames (featuresOnBackbone), outlined on the
   // nodes that carry their exons and named under them
   genes?: GeneModel[]
@@ -154,6 +157,14 @@ const ROW_NAME_X = 6
 const GENE_INK = '#1c1c22'
 const SIZE_PX = 10
 const SIZE_INK = '#18181c'
+const SCALE_BAR_PX = 120
+const SCALE_BAR_INSET_PX = 8
+
+// the longest of 1, 2 or 5 times a power of ten that `bp` holds
+function scaleBarBp(bp: number) {
+  const power = 10 ** Math.floor(Math.log10(Math.max(bp, 1)))
+  return ([5, 2, 1].find(n => n * power <= bp) ?? 1) * power
+}
 
 const inkAttrs = (attr: 'fill' | 'stroke', ink: number) => {
   const alpha = abgrAlpha(ink)
@@ -377,6 +388,12 @@ export function figureSvg(
       Math.max(most, 2 * ROW_NAME_X + label.length * LABEL_CHAR_PX),
     FIT_PADDING,
   )
+  // how far a band of lanes as wide as their counts reaches past the pads a
+  // node's own width fits in
+  const laneReach = Math.max(
+    0,
+    (countLanes(lift?.walks ?? [])?.band ?? 0) - FIT_PADDING,
+  )
   let masks = 0
 
   // Exons outlined round their stretch of each node, clear of its ink, the
@@ -401,7 +418,7 @@ export function figureSvg(
       nodeById,
       contigThickness,
       nodeWidth,
-      0,
+      highlight?.walks ?? 0,
       batch.collapsed?.through,
     )
     const outlines = exonOutlineTree(
@@ -466,6 +483,16 @@ export function figureSvg(
         ),
       )
     }
+    if (o.scaleBar && layout.referenceAxis) {
+      const bp = scaleBarBp(SCALE_BAR_PX / t.scaleX)
+      const y = h - SCALE_BAR_INSET_PX
+      const x2 = w - SCALE_BAR_INSET_PX
+      const x1 = x2 - bp * t.scaleX
+      out.push(
+        `<path d="M${x1} ${y - 4}V${y}H${x2}V${y - 4}" fill="none" stroke="${SIZE_INK}"/>`,
+        `<text x="${x2}" y="${y - 7}" ${FONT} text-anchor="end">${escapeAttr(`${formatBp(bp)} of ${referenceName ?? 'the reference'}`)}</text>`,
+      )
+    }
     for (const { label, y } of rowLabels) {
       const sy = y * t.scaleY + t.translateY
       if (sy >= 0 && sy <= h) {
@@ -504,7 +531,11 @@ export function figureSvg(
                 padRight: FACET_PAD_PX,
                 padBottom: FACET_PAD_PX,
               }
-            : { padLeft: nameGutter },
+            : {
+                padLeft: nameGutter,
+                padTop: FIT_PADDING + laneReach,
+                padBottom: FIT_PADDING + laneReach,
+              },
         )
     if (fit) {
       const axis = frame
@@ -534,7 +565,8 @@ export function figureSvg(
           genePins: pins,
           liftedWalks: highlight?.walks.map(walk => walk.name),
           nodePositions: layout.nodePositions,
-          labelsNodeSizes: !layout.tubeMap && !highlight,
+          labelsNodeSizes:
+            !layout.tubeMap && (!highlight || !!graph.threadFold),
           nodeLengths,
           nodeById,
           graph,
@@ -655,7 +687,7 @@ export function figureSvg(
       const walk = panel.walks[0]!
       parts.push(
         entrySvg(
-          walkKeyEntry(walk, labelOf(walk.name), walkReference),
+          walkKeyEntry(walk, labelOf(walk.name), walkReference, labelOf),
           `key${i}`,
         )(x + 6, y + 2).markup,
         `<svg x="${x}" y="${y + FACET_TITLE_PX}" width="${grid.width}" height="${grid.height}">${drawing(laidOut.views[i], grid.width, grid.height)}</svg>`,
@@ -672,7 +704,10 @@ export function figureSvg(
         ? room
         : Math.max(
             160,
-            Math.min(room - header, Math.ceil(drawn + 2 * FIT_PADDING)),
+            Math.min(
+              room - header,
+              Math.ceil(drawn + 2 * (FIT_PADDING + laneReach)),
+            ),
           )
     const { drawn: laidOut, header } = settled(
       hAt,

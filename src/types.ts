@@ -32,6 +32,8 @@ export interface GraphNode {
   // own steps that no fragment of theirs holds there, which `depth` counts
   // beside the fragments' steps (gfa/departures.ts ownStepRuns)
   departureVisits?: PathVisit[]
+  // set on a node foldThreads merged: the names of the nodes it holds
+  members?: string[]
 }
 
 export interface GraphEdge {
@@ -63,6 +65,15 @@ export interface GraphPath {
   // set on a record bundleRoutes kept for a route several walks take: the
   // walks it stands for, its own first
   members?: string[]
+  // set on a thread of foldThreads: the haplotypes that take it, each once
+  // however many of its records the thread holds, which its lane is as wide
+  // as, and what graph-fold's variationLabel says they differ by under the
+  // fold
+  count?: number
+  variation?: string
+  // set on a thread of one walk whose haplotype has more walks in the graph:
+  // how many it has
+  pieces?: number
   // set on a walk-file cut's walk from its tables: the bp of the walk the cut
   // read but kept out, before its first step and after its last, 0 where it
   // kept all; absent where the source states none, as GFA text does
@@ -119,6 +130,16 @@ export interface Graph {
   // set where a node's depth is one its file states, a dp/DP tag or an
   // RC/FC/KC count over its length, and not a count of the walks through it
   depthStated?: boolean
+  // set by foldThreads: the size under which differences between walks were
+  // merged into the reference, the haplotypes and the walk records its
+  // threads stand for, a haplotype in pieces being one haplotype and several
+  // records, and the records left out for stepping nothing here
+  threadFold?: {
+    belowBp: number
+    haplotypes: number
+    walks: number
+    stepless: number
+  }
   // reads aligned to the graph, which the tube map draws under its paths
   reads?: GafRecord[]
   // every departure from the reference over a walk-file cut, which

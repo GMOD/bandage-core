@@ -187,6 +187,36 @@ export function walkLaneWidthPx(width: number, lanes: number) {
   return Math.max(width / lanes, MIN_WALK_LANE_PX)
 }
 
+// A lane that states how many haplotypes it stands for, as a thread of a
+// folded graph does (threadFold.ts), is as wide as that count says, on a log
+// scale as the tube map's tubes are, so a thread of one haplotype and a thread
+// of hundreds both show
+export const COUNT_LANE_PX = 3
+export const COUNT_LANE_LOG_PX = 2
+
+export function countLaneWidthPx(count: number) {
+  return COUNT_LANE_PX + COUNT_LANE_LOG_PX * Math.log(Math.max(count, 1))
+}
+
+// Each lane's width and its middle's offset from the middle of the band they
+// make side by side, where any lane states a count: the same on every node,
+// whatever the node's own width, so a lane runs straight from node to node
+export function countLanes(lanes: readonly { count?: number }[]) {
+  const widths = lanes.map(lane => countLaneWidthPx(lane.count ?? 1))
+  const band = widths.reduce((a, b) => a + b, 0)
+  let at = -band / 2
+  return lanes.some(lane => lane.count !== undefined)
+    ? {
+        widths,
+        band,
+        offsets: widths.map(width => {
+          at += width
+          return at - width / 2
+        }),
+      }
+    : undefined
+}
+
 // The width the reference through a run of folded sites is drawn at: the
 // thinner of the drawn reference nodes at its two ends, or `own` where
 // neither is known
@@ -206,7 +236,8 @@ export function runWidthPx(
 
 // How far each node's ink reaches from its centreline, for the hit test: the
 // widths the geometry draws with, from the same function. With `lanes` lifted
-// walks the node draws as that many side-by-side lanes, which can reach
+// walks, their number or the walks themselves where they may state counts,
+// the node draws as that many side-by-side lanes, which can reach
 // further than the node's own width. A reference node inside a run of folded
 // sites, `through` the batch's collapsed.through, reaches as far as the run
 // is drawn.
@@ -215,12 +246,18 @@ export function nodeInk(
   nodeById: ReadonlyMap<string, GraphNode> | undefined,
   contigThickness: number,
   nodeWidth: NodeWidth,
-  lanes = 0,
+  lanes: number | readonly { count?: number }[] = 0,
   through?: ReadonlyMap<string, Run>,
 ): NodeInk {
   const norm = graph ? widthNorm(graph, nodeWidth) : 0
+  const laneCount = typeof lanes === 'number' ? lanes : lanes.length
+  const counted = typeof lanes === 'number' ? undefined : countLanes(lanes)
   const reach = (width: number) =>
-    lanes > 0 ? (walkLaneWidthPx(width, lanes) * lanes) / 2 : width / 2
+    counted
+      ? Math.max(counted.band, width) / 2
+      : laneCount > 0
+        ? (walkLaneWidthPx(width, laneCount) * laneCount) / 2
+        : width / 2
   const widthOf = (id: string) => {
     const node = nodeById?.get(id)
     return node

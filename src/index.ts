@@ -77,6 +77,20 @@ export {
   withFrequencies,
 } from './nodeWidths'
 export type { NodeWidth } from './nodeWidths'
+export { countLaneWidthPx, countLanes } from './nodeWidths'
+export {
+  eventsAtLink,
+  eventsAtNode,
+  foldThreads,
+  foldedGraph,
+  threadEvents,
+  threadFoldInput,
+  threadLayers,
+  threadsOf,
+  threadsThrough,
+} from './threadFold'
+export type { ThreadEvent, ThreadFoldResult } from './threadFold'
+export { threadFoldKey, threadLabel } from './threadKey'
 export { EDGE_WIDTHS, busiestEdge, edgeWidthFactor } from './edgeWidths'
 export type { EdgeWidth } from './edgeWidths'
 export { BUBBLE_SPREADS, COMPRESSED_KEY } from './bubbleSpreads'

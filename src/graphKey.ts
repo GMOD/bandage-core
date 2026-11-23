@@ -6,7 +6,8 @@ import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
-import { depthKey, frequencyKey } from './nodeWidths'
+import { countLaneWidthPx, depthKey, frequencyKey } from './nodeWidths'
+import { panSNHaplotype } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { referenceLabel } from './reference'
 import {
@@ -29,6 +30,7 @@ import {
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
+import { threadFoldKey, threadLabel } from './threadKey'
 import { skipDashes } from './util/edgeCurves'
 import { curvePointAt } from './util/geometry'
 import { addTo } from './util/groups'
@@ -164,6 +166,7 @@ export function drawnMarks(
         | 'nodeStrokeRuns'
         | 'laneOnly'
         | 'nodeThicknessesVary'
+        | 'countedLanes'
         | 'pathRibbons'
       >
     >)[],
@@ -214,8 +217,9 @@ export function drawnMarks(
     const arrows = (batch.arrows ?? []).filter(a => inView([a]))
     const edgeCurves = batch.edgeCurves.filter(curveInView)
     const underLanes = lanesOverUnderlays(batch)
-    for (const [i, { placeholder, thickness }] of nodeStrokes.entries()) {
-      if (!placeholder && !underLanes.has(i)) {
+    for (const [i, { placeholder, thickness, walk }] of nodeStrokes.entries()) {
+      const counted = batch.countedLanes && walk !== undefined
+      if (!placeholder && !underLanes.has(i) && !counted) {
         marks.widthsVary ||= width !== undefined && width !== thickness
         width = thickness
       }
@@ -423,6 +427,13 @@ const keyStops = (walk: LiftedWalk) =>
     ink: abgr,
   }))
 
+// A pick's name in a thread's entry: the host's label for it, or where the
+// host has none, as for a walk the fold merged into a thread, its haplotype
+const pickLabel = (labelOf: (name: string) => string) => (name: string) => {
+  const label = labelOf(name)
+  return label === name ? (panSNHaplotype(name) ?? name) : label
+}
+
 // A lifted walk's entry: a short bar of its colour or of the scale its lane
 // shades by, its name and what its pieces leave out, and the stretch the scale
 // runs over
@@ -430,19 +441,33 @@ export function walkKeyEntry(
   walk: LiftedWalk,
   label: string,
   reference: { name?: string; start: number; end: number } | undefined,
+  labelOf: (name: string) => string = name => name,
 ): GraphKeyEntry {
   const key = walkKey(walk, reference)
   const stops = keyStops(walk)
+  const thread = walk.count !== undefined
   return {
     key: `walk-${walk.name}`,
-    strong: label,
+    strong: thread
+      ? threadLabel(
+          walk,
+          walk.members?.[0] === undefined ? label : labelOf(walk.members[0]),
+          walk.picked?.map(pickLabel(labelOf)),
+        )
+      : label,
     text: key.gaps,
     under: key.scale,
-    hover: key.hover,
+    hover: thread && walk.count !== 1 ? walk.variation : key.hover,
     swatch:
       stops.length > 1
         ? { kind: 'scale', stops }
-        : { kind: 'swatch', ink: stops[0]!.ink },
+        : thread
+          ? {
+              kind: 'width',
+              ink: stops[0]!.ink,
+              px: countLaneWidthPx(walk.count ?? 1),
+            }
+          : { kind: 'swatch', ink: stops[0]!.ink },
     walk,
   }
 }
@@ -547,9 +572,12 @@ export function graphKey(
     ...(o.panels
       ? []
       : (o.lift?.walks ?? []).flatMap((w, lane) => [
-          walkKeyEntry(w, label(w.name), walkReference),
+          walkKeyEntry(w, label(w.name), walkReference, label),
           ...passEntries(w, lane),
         ])),
+    ...(lifted && graph.threadFold
+      ? [entry('thread-fold', threadFoldKey(graph.threadFold))]
+      : []),
     ...(lifted && o.marks.offReference ? [offReference('lift-off')] : []),
     ...faded,
     ...(!o.panels && o.lift && o.marks.threads
@@ -573,9 +601,9 @@ export function graphKey(
 
   const widthEntry = (key: string, text: string, px: number, ink: number) =>
     entry(key, text, { kind: 'width', ink, px })
-  const walkCount = new Set(
-    graph.paths?.map(path => pathOrigin(path.name).name),
-  ).size
+  const walkCount =
+    graph.threadFold?.walks ??
+    new Set(graph.paths?.map(path => pathOrigin(path.name).name)).size
   const depths = depthKey(graph, thickness, o.marks.nodes)
   // a walk looping through a repeat passes its nodes more than once, and
   // each pass counts

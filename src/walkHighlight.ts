@@ -64,6 +64,13 @@ export interface WalkHighlight {
   revisited: number | undefined
   // where a walk-file cut states its stretches: bp it read and kept out
   readBp?: number
+  // on a thread of a folded graph (threadFold.ts): the haplotypes it stands
+  // for, which its lane is as wide as, their walks' names, what they differ
+  // by under the fold, and how many walks its one haplotype has
+  count?: number
+  members?: readonly string[]
+  variation?: string
+  pieces?: number
 }
 
 export interface LiftedWalk extends WalkHighlight {
@@ -73,6 +80,8 @@ export interface LiftedWalk extends WalkHighlight {
   colors: Map<string, number>
   // the colour at each visit, in the order the walk makes them
   passColors: Map<string, number[]>
+  // WalkLayer.picked
+  picked?: readonly string[]
 }
 
 // The walks lifted together, reference first and the rest in the order they
@@ -401,6 +410,14 @@ function highlightOf(
     referencePath: graph.referencePath,
     revisited: graph.revisited,
     ...(stated.length > 0 ? { readBp } : {}),
+    ...(first?.count === undefined
+      ? {}
+      : {
+          count: first.count,
+          members: first.members,
+          variation: first.variation,
+          pieces: first.pieces,
+        }),
   }
 }
 
@@ -554,7 +571,12 @@ export function walkLift(
     for (const { ink } of colored.walkPasses?.passes ?? []) {
       taken.push(abgrHex(ink))
     }
-    return { ...walk, encoding, ...colored }
+    return {
+      ...walk,
+      encoding,
+      ...colored,
+      ...(layer.picked ? { picked: layer.picked } : {}),
+    }
   })
   return liftOf(walks, ramp)
 }

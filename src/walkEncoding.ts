@@ -78,6 +78,9 @@ export interface WalkLayer {
   // for a walk that steps no node twice here
   passes?: readonly PassSpan[]
   passNames?: readonly string[]
+  // on a thread of a folded graph: the walks a host picked that it holds
+  // (threadFold.ts threadLayers)
+  picked?: readonly string[]
 }
 
 // the families lifted haplotypes take by default, in the order they were picked

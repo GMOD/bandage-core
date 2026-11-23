@@ -13,6 +13,7 @@ import { build } from 'esbuild'
 const ALLOWED = [
   /^@jbrowse\/tubemap-core\/(dist|esm)\//,
   /^@jbrowse\/graph-fmmm-layout\/esm\//,
+  /^@jbrowse\/graph-fold\/esm\//,
   /^@jbrowse\/graph-stress-layout\/esm\//,
   /^@gmod\/gbz-base\/(dist|esm)\//,
 ]
