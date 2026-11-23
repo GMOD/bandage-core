@@ -34,7 +34,7 @@ const INVERSION = [
 const graph = loadGraph(INVERSION, 'inversion')
 const idOf = (name: string) => graph.nodes.find(n => n.name === name)!.id
 
-function drawn(g: Graph, lifted?: string[]) {
+function drawn(g: Graph, lifted?: string[], scale = 20) {
   const layout = layoutModeByValue('ordered').run(g, undefined)!
   return buildGeometry({
     ...layoutGeometryInputs(layout, deletionDrawing(g, deletionEdges(g))),
@@ -44,7 +44,7 @@ function drawn(g: Graph, lifted?: string[]) {
     contigThickness: 6,
     connectorThickness: 2,
     drawPaths: false,
-    axis: { scaleX: 20, scaleY: 20 },
+    axis: { scaleX: scale, scaleY: scale },
     ...(lifted
       ? {
           highlight: walkLift(
@@ -116,6 +116,22 @@ test('heads against the reference draw in the one haloed ink their key swatch sh
 test('under a lift the lanes carry their own heads, and no node takes these', () => {
   const batch = drawn(graph, ['inv#1#c'])
   expect(batch.arrows.filter(a => a.turned)).toEqual([])
+})
+
+// a 1 bp node read backwards drew a 6 px head at overview, where its site
+// had otherwise vanished
+test('a stretch read against the reference shorter than the fold draws takes no head, and one as long does', () => {
+  const pxPerBpAt = (scale: number) =>
+    drawn(graph, undefined, scale).collapsed!.pxPerBp
+  const stretchBp = 30
+  const tiny = 2 / (stretchBp * pxPerBpAt(1))
+  expect(stretchBp * pxPerBpAt(tiny)).toBeLessThan(3)
+  expect(drawn(graph, undefined, tiny).arrows.filter(a => a.turned)).toEqual([])
+  const shown = 4 / (stretchBp * pxPerBpAt(1))
+  expect(stretchBp * pxPerBpAt(shown)).toBeGreaterThanOrEqual(3)
+  expect(
+    drawn(graph, undefined, shown).arrows.filter(a => a.turned).length,
+  ).toBeGreaterThan(0)
 })
 
 // SV-inv-10k-100k: the fit of its force layout is under the 0.45 px a unit
