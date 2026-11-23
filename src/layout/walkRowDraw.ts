@@ -470,7 +470,7 @@ const wrapsAt = (rowPx = ROW_HEIGHT_PX) => rowPx >= 2 * READOUT_LINE_PX
 // Each way a readout breaks onto two lines between two of its parts, and the
 // px of its wider line
 const twoLines = (text: string, measure: (text: string) => number) =>
-  [...text.matchAll(/ · |, /g)].map(m => {
+  [...text.matchAll(/ \u00b7 |, /g)].map(m => {
     const first = `${text.slice(0, m.index)}${m[0] === ', ' ? ',' : ''}`
     const second = text.slice(m.index + m[0].length)
     const lines: [string, string] = [first, second]
