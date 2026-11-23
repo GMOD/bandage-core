@@ -1175,18 +1175,18 @@ export const reversedText = (reference: string) =>
 
 /**
  * The stretches of a row walked against the reference: its reversed runs on
- * the reference's path, each joined to the next across runs off the path, as
- * the alleles of small sites split them, and broken by a run along the path
- * or a gap
+ * the reference's path, each joined to the next across runs off the path
+ * shorter than `joinBp`, as the alleles of small sites split them, and broken
+ * by a run along the path, a gap, or a run off the path `joinBp` or longer
  */
-export function reversedStretches(runs: readonly WalkRun[]) {
+export function reversedStretches(runs: readonly WalkRun[], joinBp: number) {
   const stretches: { start: number; end: number }[] = []
   let open: { start: number; end: number } | undefined
   for (const run of runs) {
     if (reversedOnPath(run)) {
       open ??= { start: run.start, end: run.start }
       open.end = run.start + run.bp
-    } else if (open && (run.gap || run.onReference)) {
+    } else if (open && (run.gap || run.onReference || run.bp >= joinBp)) {
       stretches.push(open)
       open = undefined
     }
@@ -1217,7 +1217,7 @@ export function chevronPoints(
 ) {
   const half = barPx * 0.3
   const depth = Math.max(2, barPx * 0.3)
-  const pitch = Math.max(8, barPx * 1.6)
+  const pitch = chevronPitch(barPx)
   const room = x1 - x0 - depth
   const count = barPx < MIN_CHEVRON_BAR_PX ? 0 : Math.floor(room / pitch) + 1
   const first = x0 + (room - (count - 1) * pitch) / 2
@@ -1230,6 +1230,9 @@ export function chevronPoints(
 }
 
 const MIN_CHEVRON_BAR_PX = 4
+
+// the px from one chevron to the next on a bar barPx high
+export const chevronPitch = (barPx: number) => Math.max(8, barPx * 1.6)
 
 const chevronTrees = (points: string[], barPx: number) =>
   points.flatMap(p => [
@@ -1662,7 +1665,10 @@ export function walkRowsTree(
             )
         : []
     const chevrons = chevronTrees(
-      reversedStretches(row.runs).flatMap(stretch =>
+      reversedStretches(
+        row.runs,
+        chevronPitch(barPx) / frame.scaleX,
+      ).flatMap(stretch =>
         chevronPoints(along(stretch.start), along(stretch.end), y, barPx),
       ),
       barPx,

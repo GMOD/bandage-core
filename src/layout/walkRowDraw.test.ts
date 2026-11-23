@@ -15,6 +15,7 @@ import {
   readoutTextPx,
   rowGeneBoxes,
   rowPitch,
+  chevronPitch,
   reversedStretches,
   rowSpan,
   scaleBarTree,
@@ -689,7 +690,7 @@ test('chevrons run along a stretch walked against the reference however small si
   )
   const chevrons = (svg.match(/<polyline /g)?.length ?? 0) / 2
   expect(chevrons).toBeGreaterThanOrEqual(60)
-  const stretches = reversedStretches(runs)
+  const stretches = reversedStretches(runs, chevronPitch(12) / scaleX)
   const reversedBp = runs.filter(r => r.reversed).reduce((n, r) => n + r.bp, 0)
   const chevroned = stretches
     .filter(
@@ -704,6 +705,50 @@ test('chevrons run along a stretch walked against the reference however small si
       0,
     )
   expect(chevroned / reversedBp).toBeGreaterThanOrEqual(0.9)
+})
+
+// H-TSPY of the HPRC v2.1 audit: HG01109#1 walks 111 kb of the window
+// against GRCh38, 489 kb of its own, then 104 kb more against it
+test('chevrons stop at a stretch off the reference wide enough to hold one', () => {
+  const runs: WalkRun[] = [
+    {
+      start: 0,
+      bp: 111_000,
+      onReference: true,
+      referenceStart: 9_489_000,
+      reversed: true,
+    },
+    { start: 111_000, bp: 489_000, onReference: false },
+    {
+      start: 600_000,
+      bp: 104_000,
+      onReference: true,
+      referenceStart: 9_300_000,
+      reversed: true,
+    },
+  ]
+  const row = { ...rowNamed('HG1#1#ctg1'), runs, bp: 704_000 }
+  const scaleX = 1 / 1364
+  const svg = serializeEl(
+    walkRowsTree(
+      { ...rows(), rows: [row] },
+      {
+        scaleX,
+        scaleY: 1,
+        translateX: 0,
+        translateY: 20,
+        width: 1400,
+        height: 400,
+      },
+    ),
+  )
+  const tips = [...svg.matchAll(/<polyline points="[^ ]+ ([0-9.]+),/g)]
+    .map(m => Number(m[1]))
+    .toSorted((a, b) => a - b)
+  const steps = tips.slice(1).map((x, k) => x - tips[k]!)
+  const widest = steps.reduce((w, step, k) => (step > steps[w]! ? k : w), 0)
+  expect(steps[widest]! * 1364).toBeGreaterThan(450_000)
+  expect([widest + 1, tips.length - widest - 1].every(n => n > 0)).toBe(true)
 })
 
 test('the key names the boxes by the annotation the host read', () => {
