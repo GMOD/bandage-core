@@ -1,5 +1,4 @@
 import { COMPRESSED_KEY } from './bubbleSpreads'
-import { SHORT_SKIP_KEY } from './deletionEdges'
 import { FACET_TITLE_PX } from './facetGrid'
 import { figureSvg } from './figure'
 import { figureData } from './figureData'
@@ -343,10 +342,10 @@ test('one figure draws as it did', async () => {
   ).toMatchFileSnapshot('__snapshots__/figure_walks.svg')
 })
 
-// d719794 draws a skip whose span on screen holds fewer than three dashes as
-// one plain stroke, which the key left out; each row is there only where
-// its mark is drawn
-test('a figure keys the dashed links it draws as skipped reference sequence, and the plain stroke of a skip too short to dash', () => {
+// d719794 drew a skip whose span on screen holds fewer than three dashes as
+// one plain stroke keyed "short skip"; it is dashed shorter, under the one
+// entry, and the row is there only where a skip is drawn
+test('a figure keys the dashed links it draws as skipped reference sequence, however short', () => {
   const skipped = anchorGraph(
     convertGFAToGraph(
       parseGFA(`${GFA}\nL\tv1\t+\tv3\t+\t0M\nW\tdel\t1\tchr\t0\t7\t>v1>v3`),
@@ -354,19 +353,13 @@ test('a figure keys the dashed links it draws as skipped reference sequence, and
     'ref',
   )
   const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
-  const wide = figureSvg(skipped, skippedLayout, { width: 600 })
-  expect(wide).toMatch(
-    /stroke-dasharray="4 3"\/><text[^>]*>skips .+? sequence</,
-  )
-  expect(wide).not.toContain(SHORT_SKIP_KEY)
-  const narrow = figureSvg(skipped, skippedLayout, { width: 120 })
-  expect(narrow).toMatch(
-    /<line [^>]*stroke-width="1.5"\/><text[^>]*>short skip</,
-  )
-  expect(narrow).not.toMatch(/skips .+? sequence/)
+  for (const width of [600, 120]) {
+    const svg = figureSvg(skipped, skippedLayout, { width })
+    expect(svg).toMatch(/stroke-dasharray="4 3"\/><text[^>]*>skips .+? sequence</)
+    expect(svg).not.toContain('short skip')
+  }
   const plain = figureSvg(graph, layout, { width: 600 })
   expect(plain).not.toMatch(/skips .+? sequence/)
-  expect(plain).not.toContain(SHORT_SKIP_KEY)
 })
 
 test("at a host's frame a figure draws that pane: its height, the drawing where the frame puts it, and the key of what it shows", () => {
@@ -471,7 +464,9 @@ L\tp1\t+\tr3\t+\t0M
 W\tR\t0\tchr\t0\t75000\t>r1>r2>r3
 W\tA\t1\tchr\t0\t120000\t>r1>p1>r3`
 
-test("a figure writes every node's length by default, and a placeholder's alone with node lengths off", () => {
+// the reference's lengths stood beside the variants as if they were theirs:
+// "539 bp" beside a curl at SV-del-100k+ that was a 3 kb skip
+test("a figure writes the length of every node but the reference's by default, and a placeholder's alone with node lengths off", () => {
   const unloaded = anchorGraph(convertGFAToGraph(parseGFA(UNLOADED)), 'R')
   const unloadedLayout = layoutModeByValue('auto').run(unloaded, undefined)!
   expect(figureSvg(unloaded, unloadedLayout)).toContain(
@@ -484,9 +479,9 @@ test("a figure writes every node's length by default, and a placeholder's alone 
         nodeLengths,
       }).matchAll(/>(\d+ kb)<\/text>/g),
     ].map(m => m[1])
-  expect(written()).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
+  expect(written()).toEqual(['75 kb'])
   expect(written(false)).toEqual(['75 kb'])
-  expect(written(true)).toEqual(['75 kb', '30 kb', '25 kb', '20 kb'])
+  expect(written(true)).toEqual(['75 kb'])
 })
 
 // two haplotypes' 75 kb placeholders, laid on one loop 30 px over the

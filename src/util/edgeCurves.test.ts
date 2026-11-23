@@ -425,13 +425,13 @@ describe('skips at one site', () => {
     ).toBeGreaterThanOrEqual(widestSkipPx)
   })
 
-  test('two skips whose spans only abut keep the paths their layout gave them', () => {
+  test('two short skips whose spans only abut each rise one level, not stacked', () => {
     const curves = skips([
       [0, 2, [1]],
       [1, 3, [2]],
     ])
     for (const arc of [curves.get(0)!, curves.get(1)!]) {
-      expect(heightPx(arc)).toBeLessThan(1)
+      expect(heightPx(arc)).toBeCloseTo(SKIP_LEVEL_PX, 5)
     }
   })
 
@@ -463,7 +463,7 @@ describe('skips at one site', () => {
       { from: 'n3+', to: 'n5+' },
     ])
     for (const arc of [apart.get(0)!, apart.get(1)!]) {
-      expect(heightPx(arc)).toBeLessThan(1)
+      expect(heightPx(arc)).toBeCloseTo(SKIP_LEVEL_PX, 5)
     }
   })
 
@@ -481,7 +481,7 @@ describe('skips at one site', () => {
     }
   })
 
-  test('a skip over one whose route already rises far rises a stroke above it', () => {
+  test('a skip over one whose route rose far rises a stroke above its low arch', () => {
     const curves = baseEdgeCurves(
       positions(),
       {
@@ -503,8 +503,10 @@ describe('skips at one site', () => {
         1: [{ x: 25, y: -400 }],
       },
     )
+    // the inner skip, too short on screen for full dashes, is a low arch
+    // whatever its route, and the outer rises a stroke above it
     const inner = heightPx(curves.get(1)!)
-    expect(inner).toBeGreaterThan(15 * SKIP_LEVEL_PX)
+    expect(inner).toBeCloseTo(SKIP_LEVEL_PX, 5)
     expect(heightPx(curves.get(0)!) - inner).toBeGreaterThanOrEqual(
       widestSkipPx,
     )
@@ -557,14 +559,16 @@ describe('skips at one site', () => {
     expect([inner!.x0, inner!.y0, inner!.x1, inner!.y1]).toEqual([20, 0, 30, 0])
   })
 
-  test('a skip whose span overlaps no other keeps the path its layout gave it', () => {
+  // SV-del-100k+: a 3 kb skip followed its route node, never shorter than the
+  // layout's least node, into a curl larger than the reference it skips
+  test('a skip too short on screen for full dashes whose span overlaps no other is a low arch a level above its chord', () => {
     const curves = skips([
       [0, 2, [1]],
       [3, 5, [4]],
     ])
     for (const arc of [curves.get(0)!, curves.get(1)!]) {
-      expect(arc.length).toBeGreaterThan(1)
-      expect(heightPx(arc)).toBeLessThan(1)
+      expect(arc).toHaveLength(1)
+      expect(heightPx(arc)).toBeCloseTo(SKIP_LEVEL_PX, 5)
     }
   })
 
@@ -578,7 +582,7 @@ describe('skips at one site', () => {
     }
   })
 
-  test('a route that already rises past its level keeps its path', () => {
+  test('a short skip whose route rises far is drawn a level above its chord, not along its route', () => {
     const p = positions()
     const curves = baseEdgeCurves(
       p,
@@ -588,8 +592,8 @@ describe('skips at one site', () => {
       0,
       { 0: [{ x: 20, y: 200 }] },
     )
-    expect(curves.get(0)!.length).toBeGreaterThan(1)
-    expect(heightPx(curves.get(0)!)).toBeGreaterThan(30)
+    expect(curves.get(0)!).toHaveLength(1)
+    expect(heightPx(curves.get(0)!)).toBeCloseTo(SKIP_LEVEL_PX, 5)
   })
 })
 
@@ -644,8 +648,9 @@ describe('a dashed skip whose route runs along the reference it skips', () => {
     expect(skipAlong(4, [{ x: 15, y: -10 }])).toBeLessThan(45)
   })
 
-  test('a skip too short on screen for its dashes keeps its route', () => {
-    expect(skipAlong(2, along)).toBeLessThan(2)
+  test('a skip too short on screen for full dashes is a low arch a level above its chord', () => {
+    expect(skipAlong(2, along)).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    expect(skipAlong(2, [{ x: 15, y: -40 }])).toBeCloseTo(SKIP_LEVEL_PX, 5)
   })
 })
 

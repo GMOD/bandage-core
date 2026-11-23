@@ -1,6 +1,6 @@
 import { COMPRESSED_KEY } from './bubbleSpreads'
 import { BUBBLE_HALO_COLOR } from './bubbles/bubbleLabel'
-import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
+import { deletionKey } from './deletionEdges'
 import { drawnEdgeWidth } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
@@ -41,7 +41,6 @@ import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
 import { threadFoldKey, threadLabel } from './threadKey'
-import { skipDashes } from './util/edgeCurves'
 import { curvePointAt } from './util/geometry'
 import { addTo } from './util/groups'
 import { segmentMeetsBox } from './util/hitDetection'
@@ -81,7 +80,7 @@ export type GraphKeySwatch =
   | { kind: 'width'; ink: number; px: number }
   // a node the cut did not load, hollow in its rim
   | { kind: 'hollow'; ink: number; rim: number; rimPx: number }
-  // a link's stroke, dashed or the plain stroke of a skip too short to dash
+  // a link's stroke, dashed for a skip
   | { kind: 'line'; ink: number; dashed: boolean }
   | { kind: 'outline'; ink: number }
   | { kind: 'halo'; ink: number }
@@ -156,9 +155,8 @@ export function lanesOverUnderlays(
   return lanes
 }
 
-// The classes of mark a drawing's batches hold, which the key names: a skip
-// dashed, or one plain stroke where its span on screen is too short to hold
-// the dashes; a node hollow for the bp a cut did not load; a node or link in
+// The classes of mark a drawing's batches hold, which the key names: a skip,
+// dashed however short; a node hollow for the bp a cut did not load; a node or link in
 // no lifted walk's lane, which under a lift is faded; a node in the
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
 // node; nodes of more than one thickness; each lifted walk's passes, by lane;
@@ -190,7 +188,6 @@ export function drawnMarks(
 ) {
   const marks = {
     dashedSkip: false,
-    shortSkip: false,
     placeholder: false,
     plainNode: false,
     plainLink: false,
@@ -255,14 +252,12 @@ export function drawnMarks(
         marks.foldedSkips.add(edge)
       }
     }
-    for (const { skip, span = 0, walk } of edgeCurves) {
+    for (const { skip, walk } of edgeCurves) {
       if (walk === undefined) {
-        if (!skip) {
-          marks.plainLink = true
-        } else if (skipDashes(span)) {
+        if (skip) {
           marks.dashedSkip = true
         } else {
-          marks.shortSkip = true
+          marks.plainLink = true
         }
       }
     }
@@ -825,15 +820,6 @@ export function graphKey(
             kind: 'line',
             ink: skipInk,
             dashed: true,
-          }),
-        ]
-      : []),
-    ...(o.marks.shortSkip
-      ? [
-          entry('short-skip', SHORT_SKIP_KEY, {
-            kind: 'line',
-            ink: skipInk,
-            dashed: false,
           }),
         ]
       : []),

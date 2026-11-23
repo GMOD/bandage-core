@@ -2152,12 +2152,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
 
     const isDeletion = sharedCurves.arcs.has(ei)
-    // Dashed where the span a skip jumps on screen holds three dashes, one
-    // plain headless stroke where shorter. Its length along the curve would
-    // count the legs a short skip rises and falls on, whose dashes are dots
-    // under a head: a dart
+    // Every skip drawn as an arc is dashed, its dashes shortened to fit where
+    // the span it jumps on screen holds fewer than three full ones, and
+    // headless there, where a head would sit on dots
     const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
-    const dashed = skipDashes(arcPx)
+    const dashed = isDeletion
+    const headed = skipDashes(arcPx)
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks. A skip is as thick as a link of
     // its walks: its dashes alone say it skips
@@ -2247,7 +2247,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
     const arrowOn = (curves: BezierCurve[]) => {
       const head =
-        showArrows && (dashed || !isDeletion) && !headsDropped.has(ei)
+        showArrows && (headed || !isDeletion) && !headsDropped.has(ei)
           ? arrowheadFor({
               curves,
               edgeHalfWidth:

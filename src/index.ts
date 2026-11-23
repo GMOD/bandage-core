@@ -171,7 +171,6 @@ export { bundleRoutes } from './tubeMap/bundle'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export {
-  SHORT_SKIP_KEY,
   deletionDrawing,
   deletionEdges,
   deletionKey,

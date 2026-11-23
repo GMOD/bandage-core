@@ -28,8 +28,8 @@ export const DELETION_DASH_PX = 11
 // dashSpans draws a dash, a gap and a dash at the fewest
 const MIN_DASHED_SKIP_PX = 3 * DELETION_DASH_PX
 
-// Whether a skip whose span on screen is `span` px holds its dashes, or draws
-// as one plain stroke
+// Whether a skip whose span on screen is `span` px holds full dashes, or is
+// drawn as a low arch with its dashes shortened to fit
 export const skipDashes = (span: number) => span >= MIN_DASHED_SKIP_PX
 
 // How much higher each skip nesting another rises than the highest it nests:
@@ -160,17 +160,27 @@ export function baseEdgeCurves(
           bypassed || route
             ? edgeCurvesOf(nodePositions, edge, axis, bypassed, route, stranded)
             : undefined
+        // A skip too short on screen for full dashes is a low arch between
+        // its feet: its route node is never shorter than the layout's least
+        // node, so following it drew a bulge or a curl larger than the
+        // reference skipped, which read as sequence
         const arc =
-          bypassed &&
-          route &&
-          routed &&
-          skipDashes(spanPx(routed, axis)) &&
-          runsAlong(routed, bypassed, nodePositions, axis)
-            ? archOf(
-                routed,
-                axis,
-                ALONG_ARCH_PX * archSide(routed, bypassed, nodePositions, axis),
-              )
+          bypassed && route && routed
+            ? !skipDashes(spanPx(routed, axis))
+              ? archOf(
+                  routed,
+                  axis,
+                  SKIP_LEVEL_PX *
+                    archSide(routed, bypassed, nodePositions, axis),
+                )
+              : runsAlong(routed, bypassed, nodePositions, axis)
+                ? archOf(
+                    routed,
+                    axis,
+                    ALONG_ARCH_PX *
+                      archSide(routed, bypassed, nodePositions, axis),
+                  )
+                : routed
             : routed
         const drawsArc =
           arc !== undefined && spanPx(arc, axis) >= MIN_ARC_SPAN_PX

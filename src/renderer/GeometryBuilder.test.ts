@@ -970,30 +970,25 @@ describe('arrowhead placement', () => {
 
   // HG02055's 50 bp skip at chr1:27,853,212, about 27 px there, drew as two
   // or three heavy dashes under a head: a black dart on the backbone
-  test('a skip shorter than three dashes on screen is one plain stroke with no head', () => {
+  // a skip too short to dash was one plain stroke, keyed "short skip" apart
+  // from the dashed ones, which read as a link
+  test('a skip shorter than three full dashes on screen is dashed shorter, with no head', () => {
     for (const scale of [0.6, 2.7, 3.2]) {
       const { strokes, heads } = skipAt(scale, [])
-      expect(strokes).toHaveLength(1)
-      expect(strokes[0]!.thickness).toBe(1)
-      expect(strokes[0]!.skip).toBe(true)
+      expect(strokes.length).toBeGreaterThanOrEqual(2)
+      for (const stroke of strokes) {
+        expect(stroke.thickness).toBe(1)
+        expect(stroke.skip).toBe(true)
+      }
       expect(heads).toBe(0)
     }
   })
 
   // dashes on the legs a short skip rises and falls on are dots under a head
-  test('a bowed skip is dashed by the span it jumps, not its length along the bow', () => {
+  test('a bowed skip takes its head by the span it jumps, not its length along the bow', () => {
     const bowed = skipAt(2.7, ['M+'])
-    expect(bowed.strokes).toHaveLength(1)
+    expect(bowed.strokes.length).toBeGreaterThanOrEqual(2)
     expect(bowed.heads).toBe(0)
-    let alongPx = 0
-    for (const c of bowed.strokes[0]!.curves) {
-      for (let i = 1; i <= 16; i++) {
-        const a = curvePointAt(c, (i - 1) / 16)
-        const b = curvePointAt(c, i / 16)
-        alongPx += Math.hypot(b.x - a.x, b.y - a.y) * 2.7
-      }
-    }
-    expect(alongPx).toBeGreaterThan(33)
     expect(skipAt(4, ['M+']).strokes.length).toBeGreaterThanOrEqual(2)
   })
 

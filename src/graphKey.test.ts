@@ -1,5 +1,5 @@
 import { COMPRESSED_KEY } from './bubbleSpreads'
-import { SHORT_SKIP_KEY, deletionDrawing, deletionEdges } from './deletionEdges'
+import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
 import { NOT_LOADED_TEXT, departureTable } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
@@ -233,8 +233,10 @@ test('each skip row is there only where the drawing holds that mark', () => {
     keyOf(SKIPPED, { width })
       .filter(section => section.id === 'skips')
       .flatMap(section => section.entries.map(entry => entry.text))
+  // a skip too short on screen for full dashes is dashed shorter, under the
+  // one entry, where it was a plain stroke keyed "short skip"
   expect(skips(600)).toEqual(['skips GRCh38 chr6 sequence'])
-  expect(skips(120)).toEqual([SHORT_SKIP_KEY])
+  expect(skips(120)).toEqual(['skips GRCh38 chr6 sequence'])
   expect(texts(graph)).not.toContainEqual(expect.stringMatching(/^skips /))
 })
 
@@ -259,35 +261,22 @@ test('under a lift each skip row shows the ink its skips are stroked in', () => 
   }
 })
 
-test('drawn marks read dashed and short skips off the batch, leaving lanes to their walks', () => {
+test('drawn marks read every skip off the batch as one mark however short, leaving lanes to their walks', () => {
   const curve = (o: object) => ({ curves: [], thickness: 1, color: 0, ...o })
   const marks = (edgeCurves: RenderBatch['edgeCurves']) =>
     drawnMarks([{ edgeCurves, nodeStrokes: [] }])
-  expect(marks([curve({ skip: true, span: 200 })])).toMatchObject({
-    dashedSkip: true,
-    shortSkip: false,
-  })
-  expect(marks([curve({ skip: true, span: 5 })])).toMatchObject({
-    dashedSkip: false,
-    shortSkip: true,
-  })
+  for (const span of [200, 5, 0]) {
+    expect(marks([curve({ skip: true, span })])).toMatchObject({
+      dashedSkip: true,
+      plainLink: false,
+    })
+  }
   expect(marks([curve({ skip: true, span: 200, walk: 0 })])).toMatchObject({
     dashedSkip: false,
-    shortSkip: false,
   })
-})
-
-test('a skip too short on screen to arc, drawn as its plain link, is a skip too short to dash', () => {
-  expect(
-    drawnMarks([
-      {
-        edgeCurves: [
-          { curves: [], thickness: 1, color: 0, skip: true, span: 0 },
-        ],
-        nodeStrokes: [],
-      },
-    ]),
-  ).toMatchObject({ dashedSkip: false, shortSkip: true, plainLink: false })
+  expect(marks([curve({ skip: true, span: 5 })])).not.toHaveProperty(
+    'shortSkip',
+  )
 })
 
 test("a hollow node's thickness is not a thickness the nodes vary by", () => {
@@ -927,9 +916,6 @@ const UNLOADED = load(
   'R',
 )
 
-// Three dashes at the 11 px period, as GeometryBuilder dashes a skip
-const DASHED_SPAN_PX = 33
-
 // The thicknesses a node's thickness key reads: a node with an underlay of
 // the walks not lifted is as thick as the underlay
 function thicknessesKeyed(batch: RenderBatch) {
@@ -950,7 +936,6 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
   const widths = thicknessesKeyed(batch)
   const lanes = new Set(batch.nodeStrokes.flatMap(n => n.walk ?? []))
   const skips = batch.edgeCurves.filter(e => e.skip && e.walk === undefined)
-  const dashed = (span = 0) => span >= DASHED_SPAN_PX
   const charcoal = batch.nodeStrokes.some(
     n => n.color === REFERENCE_RAMP_ALT_COLOR,
   )
@@ -981,8 +966,7 @@ function census(sections: GraphKeySection[], batch: RenderBatch, s: Scene) {
     ...(!s.lift && batch.edgeCurves.some(e => e.walk === undefined && !e.skip)
       ? ['link']
       : []),
-    ...(skips.some(e => dashed(e.span)) ? ['deletion'] : []),
-    ...(skips.some(e => !dashed(e.span)) ? ['short-skip'] : []),
+    ...(skips.length > 0 ? ['deletion'] : []),
     ...(batch.nodeStrokes.some(n => n.placeholder) ? ['not-shown'] : []),
     ...(widths.size > 1 ? ['width-thickest', 'width-thinnest'] : []),
     ...(batch.collapsed?.sites.length ? ['too-small'] : []),
@@ -1247,13 +1231,13 @@ test('the census fails on a planted extra entry and on a planted missing one', (
   const planted: GraphKeySection[] = [
     ...sections,
     {
-      id: 'skips',
-      entries: [{ key: 'deletion', text: 'skips GRCh38 chr6 sequence' }],
+      id: 'not-shown',
+      entries: [{ key: 'not-shown', text: NOT_LOADED_TEXT }],
     },
   ]
-  expect(census(planted, batch, s).extra).toEqual(['deletion'])
+  expect(census(planted, batch, s).extra).toEqual(['not-shown'])
   const dropped = sections.filter(section => section.id !== 'skips')
-  expect(census(dropped, batch, s).missing).toEqual(['short-skip'])
+  expect(census(dropped, batch, s).missing).toEqual(['deletion'])
 })
 
 test('the key says how many nodes and skips are too small to draw, in one line with no swatch, last', () => {
