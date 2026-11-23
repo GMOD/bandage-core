@@ -7,11 +7,8 @@ import { unclipped } from './trimToWindow'
 import type { AnchoredNode } from '../anchoredNodes'
 import type { Graph } from '../types'
 
-// An allele far shorter than the reference it replaces, 13 bp for 13 kb, is
-// an arm the force layout draws as a speck, and the reference closes on it as
-// a loop. Its links to the reference run through route nodes, as a
-// deletion's bare link does (deletionRoutes.ts), padding the arm to this share
-// of the reference, and draw dashed.
+// An allele far shorter than the reference it replaces is padded by route
+// nodes on its links to this share of that reference, drawn dashed
 export const PADDED_SHARE = 0.5
 
 export interface PaddedFoot {
@@ -24,10 +21,7 @@ export interface PaddedFoot {
   nodes: string[]
 }
 
-// The reference a walk replaces between two steps on it, where it jumps
-// forward on one pass of each node, reading both as the reference does or
-// both against it; 0 for a back-jump, a strand turn or a node the reference
-// passes more than once
+// The bp a walk skips forward on one pass of the reference; 0 otherwise
 function forwardSkip(
   leave: AnchoredNode,
   leaveStrand: '+' | '-',
@@ -47,12 +41,9 @@ function forwardSkip(
     : 0
 }
 
-// The links of each walk's run of steps off the reference between two steps
-// on it, none a placeholder, where the run is a forward skip whose own bp is
-// under PADDED_SHARE of what it replaces: its first and last links that no
-// other run takes, or that only runs replacing as much take. A graph without
-// walks pads nothing, nor does one whose reference passes a node twice, a
-// collapsed repeat, where a run's ends lie on more than one pass.
+// The first and last links of each walk's run off the reference that is a
+// forward skip under PADDED_SHARE of what it replaces, unless a run
+// replacing less takes them. Nothing without walks or on a collapsed repeat.
 export function paddedFeet(cut: Graph) {
   const graph = unclipped(cut)
   const byId = new Map(graph.nodes.map(n => [n.id, n]))
@@ -75,8 +66,6 @@ export function paddedFeet(cut: Graph) {
     )
   })
   const runs: { replacedBp: number; nodes: string[]; links: number[] }[] = []
-  // the least reference a padded run through each link replaces, 0 where a
-  // run not padded takes it
   const replacing = new Map<number, number>()
   const next = visits?.replay()
   for (const { name, nodeIds } of collapsed ? [] : (graph.paths ?? [])) {
@@ -155,23 +144,16 @@ export function paddedFeet(cut: Graph) {
   return [...feet.values()].sort((a, b) => a.edgeIndex - b.edgeIndex)
 }
 
-// The drawn length each padded foot's route wants, half of what pads its
-// arm to PADDED_SHARE of the reference it replaces as drawn, where that is
-// at least `least`, the layout's shortest node: a smaller site would bulge
-// past the reference it replaces, as G4's short skips did
+// Each padded foot's route on the engine's scale, where it is at least the
+// engine's shortest node
 export function footRoutes(
-  graph: Graph,
   feet: readonly PaddedFoot[],
   drawnOf: (bp: number) => number,
-  nodeDrawn: (bp: number) => number,
+  ownDrawn: (nodes: readonly string[]) => number,
   least: number,
 ) {
-  const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
   return feet.flatMap(({ edgeIndex, replacedBp, nodes }) => {
-    const drawn =
-      (drawnOf(replacedBp) * PADDED_SHARE -
-        nodes.reduce((sum, id) => sum + nodeDrawn(lengths.get(id) ?? 0), 0)) /
-      2
+    const drawn = (drawnOf(replacedBp) * PADDED_SHARE - ownDrawn(nodes)) / 2
     return drawn >= least ? [{ edgeIndex, drawn }] : []
   })
 }

@@ -37,6 +37,7 @@ import type { GraphTables } from './gfa/graphTables'
 import type { LayoutScaling } from './layout/drawnScale'
 import type { FitSize } from './layout/fitAssumptions'
 import type { LayoutNode } from './layout/referenceSeeds'
+import type { PaddedFoot } from './layout/replacementFeet'
 import type { LayoutEngineKind } from './layoutEngines'
 import type { ReferenceSpan } from './referenceSpan'
 import type { Graph, LayoutResult, NodeSegment } from './types'
@@ -262,25 +263,44 @@ export async function forceLayout(
     deletionEdges(graph),
     settings.showDeletionEdges !== false,
   )
-  const prelim = layoutScaling(graph, spread)
+  const routedWith = (feet: readonly PaddedFoot[]) => {
+    const routed = withDeletionRoutes(graph, [...deletions, ...feet], dropped)
+    const merged = mergeRuns(routed.graph, routed.ids)
+    const runs = {
+      ...merged.graph,
+      nodes: merged.graph.nodes.filter(n => !routed.ids.has(n.id)),
+    }
+    return { routed, merged, runs }
+  }
+  const unpadded = routedWith([])
+  const scaledAs = layoutScaling(unpadded.runs, spread, loopFloor(sized))
+  const runDrawn = new Map(
+    scaledAs.nodes.map(n => [n.id, drawnNodeLength(scaledAs.opts, n.length)]),
+  )
+  const runOf = new Map(
+    [...unpadded.merged.runs].flatMap(([run, members]) =>
+      members.map((member): [string, string] => [member, run]),
+    ),
+  )
   const candidates = paddedFeet(graph)
   const footDrawn = footRoutes(
-    graph,
     candidates,
-    drawnLengthOf(graph, spread),
-    length => drawnNodeLength(prelim.opts, length),
-    prelim.opts.minimumNodeLength,
+    drawnLengthOf(unpadded.runs, spread),
+    nodes =>
+      [...new Set(nodes.map(id => runOf.get(id) ?? id))].reduce(
+        (sum, id) => sum + (runDrawn.get(id) ?? 0),
+        0,
+      ),
+    scaledAs.opts.minimumNodeLength,
   )
   const feet = candidates.filter(foot =>
     footDrawn.some(({ edgeIndex }) => edgeIndex === foot.edgeIndex),
   )
-  const routed = withDeletionRoutes(graph, [...deletions, ...feet], dropped)
-  const merged = mergeRuns(routed.graph, routed.ids)
-  const runs = {
-    ...merged.graph,
-    nodes: merged.graph.nodes.filter(n => !routed.ids.has(n.id)),
-  }
-  const engineScaling = layoutScaling(runs, spread, loopFloor(sized))
+  const { routed, merged, runs } = feet.length > 0 ? routedWith(feet) : unpadded
+  const engineScaling =
+    runs === unpadded.runs
+      ? scaledAs
+      : layoutScaling(runs, spread, loopFloor(sized))
   const drawnOf = drawnLengthOf(runs, spread)
   const { result, duration } = await engine(
     engineRequest(

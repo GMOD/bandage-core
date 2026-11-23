@@ -172,3 +172,56 @@ test('a replacement too small for a route the layout can draw shorter than the r
   const { result } = await forceLayout(graph, settings, engine)
   expect(result.deletionRoutes).toBeUndefined()
 })
+
+// a 13 bp allele in place of `replaced` bp, between 20 kb flanks each split
+// into `pieces` nodes
+const flanked = (pieces: number, replaced: number) => {
+  const left = Array.from({ length: pieces }, (_, i) => `a${i}`)
+  const right = Array.from({ length: pieces }, (_, i) => `b${i}`)
+  const chain = (ids: string[]) =>
+    ids.slice(1).map((id, i) => `L\t${ids[i]}\t+\t${id}\t+\t0M`)
+  const steps = (ids: string[]) => ids.map(id => `>${id}`).join('')
+  return loadGraph(
+    [
+      ...[...left, ...right].map(
+        id => `S\t${id}\t${bases(Math.round(20_000 / pieces))}`,
+      ),
+      `S\tr\t${bases(replaced)}`,
+      `S\tx\t${bases(13)}`,
+      ...chain(left),
+      ...chain(right),
+      `L\t${left.at(-1)}\t+\tr\t+\t0M`,
+      `L\tr\t+\t${right[0]}\t+\t0M`,
+      `L\t${left.at(-1)}\t+\tx\t+\t0M`,
+      `L\tx\t+\t${right[0]}\t+\t0M`,
+      `W\tGRCh38\t0\tchr7\t0\t*\t${steps([...left, 'r', ...right])}`,
+      `W\tHG1\t1\tc\t0\t*\t${steps([...left, 'x', ...right])}`,
+    ].join('\n'),
+    `flanked${pieces}`,
+  )
+}
+
+test.each([1262, 13_267])(
+  'whether a 13 bp allele for %i bp is padded, and its arm against the reference, do not hang on how its flanks are split into nodes',
+  async replaced => {
+    const drawn: { padded: boolean; ratio: number }[] = []
+    for (const pieces of [1, 10, 100, 400]) {
+      const graph = flanked(pieces, replaced)
+      const { result } = await forceLayout(graph, settings, engine)
+      const id = (name: string) => graph.nodes.find(n => n.name === name)!.id
+      const routes = Object.values(result.deletionRoutes ?? {})
+      const arm =
+        routes.reduce((sum, route) => sum + length(route), 0) +
+        length(result.nodePositions[id('x')]!)
+      drawn.push({
+        padded: routes.length > 0,
+        ratio: arm / length(result.nodePositions[id('r')]!),
+      })
+    }
+    expect(drawn.map(d => d.padded)).toEqual(drawn.map(() => replaced > 10_000))
+    for (const { ratio } of drawn) {
+      expect(ratio).toBeLessThan(1)
+      expect(ratio).toBeCloseTo(drawn[0]!.ratio, 2)
+    }
+  },
+)
