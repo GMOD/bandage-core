@@ -20,17 +20,22 @@ export function readsBackToFront(events: readonly PathEvent[]) {
       ? (last.reversed ? last.lo : last.hi) -
         (first.reversed ? first.hi : first.lo)
       : 0
-  const ends = [stretches[0], stretches.at(-1)].flatMap(e =>
-    e && e.hi === e.lo ? [e] : [],
-  )
   const reversedWalk = against > 0
-  return along > 0 && against > 0
-    ? progress === 0
-      ? against > along
-      : progress < 0
-    : ends.length > 0 && ends.every(e => e.reversed !== reversedWalk)
-      ? !reversedWalk
-      : reversedWalk
+  const bracketed =
+    stretches.length > 2 &&
+    [stretches[0]!, stretches.at(-1)!].every(
+      e => e.hi === e.lo && e.reversed !== reversedWalk,
+    )
+  const reversedEnds = stretches.filter(e => e.reversed).length
+  return walked.length === 0
+    ? reversedEnds > stretches.length - reversedEnds
+    : along > 0 && against > 0
+      ? progress === 0
+        ? against > along
+        : progress < 0
+      : bracketed
+        ? !reversedWalk
+        : reversedWalk
 }
 
 // graph-walks' PathAnchor
