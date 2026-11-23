@@ -1,9 +1,20 @@
-// graph-walks' PathEvent
+// What a contig does along the reference, in contig order: follows it over
+// [lo, hi), along or against it, or runs `bp` of its own
 export type PathEvent =
   | { kind: 'on'; lo: number; hi: number; reversed: boolean }
   | { kind: 'own'; bp: number }
 
-// @jbrowse/graph-walks' readsBackToFront, which a host of core need not load
+/**
+ * Whether a contig reads the reference back to front, from the bp it walks
+ * along the reference and against it. One that walks both ways is forward
+ * where it leaves the reference further along than it entered, so an
+ * inversion filling most of the window does not turn round a contig whose
+ * flanks run forward; the bp decide where it leaves where it entered. One
+ * that walks one way only reads that way, unless departures at both its ends
+ * stand on the reference the other way, as a window inside an inversion sees
+ * it. A departure's end walks no bp and decides nothing else, but for a
+ * contig of departures alone, which reads the way most of their ends stand.
+ */
 export function readsBackToFront(events: readonly PathEvent[]) {
   const stretches = events.filter(e => e.kind === 'on')
   const walked = stretches.filter(e => e.hi > e.lo)
@@ -38,7 +49,9 @@ export function readsBackToFront(events: readonly PathEvent[]) {
         : reversedWalk
 }
 
-// graph-walks' PathAnchor
+// A point on a contig: where it is on the reference until (a piece's last
+// step or a departure's leave, `order` 0) or from (a piece's first step or a
+// departure's rejoin, 1), with the bp of its own that follow a leave
 export interface PathAnchor {
   hap: number
   order: 0 | 1
@@ -48,7 +61,8 @@ export interface PathAnchor {
   own?: number
 }
 
-// graph-walks' anchorEvents
+// A contig's events from its anchors in contig order: between a rejoin and
+// the next leave it follows the reference
 export function anchorEvents(anchors: readonly PathAnchor[]) {
   const sorted = anchors.toSorted((a, b) => a.hap - b.hap || a.order - b.order)
   const events: PathEvent[] = []

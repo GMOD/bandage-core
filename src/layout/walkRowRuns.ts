@@ -459,8 +459,9 @@ const steplessMeta = (
  * reference only where that step is on the reference, the walk has no
  * departure leaving or rejoining at it, and the cut trimmed none of its bp
  * past it; else it goes on (`WalkStop`). A walk file's fragment always ends
- * on the reference, so its end alone says nothing. A row reads its contig
- * back to front only where graph-walks' readsBackToFront would.
+ * on the reference, so its end alone says nothing. A row reads its contig as
+ * a whole, back to front only where readsBackToFront says so of all its
+ * pieces and departures together.
  *
  * The window's side of a lone flank is the way the walk runs along the
  * reference there, read from its nearest other step on it. Where the flank is
@@ -997,8 +998,8 @@ export function walkRowRuns(
         ? stepReversed[i]! !== nodeReversed[steps[i]!]!
         : abutsBelow(i, i - 1) ||
           (!abutsBelow(i - 1, i) && abutsBelow(i + 1, i)))
-    // Whether the row reads its contig back to front, as graph-walks'
-    // pathOrientations reads its path
+    // Whether the row reads its contig back to front, from all its pieces
+    // and departures together
     const readsBack = () => {
       const anchors: PathAnchor[] = []
       const on = (i: number, order: 0 | 1) => {

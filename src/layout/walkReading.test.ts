@@ -1,113 +1,101 @@
-import * as graphWalks from '@jbrowse/graph-walks'
-import { LocalFile } from 'generic-filehandle2'
-
 import { anchorEvents, readsBackToFront } from './walkReading'
-import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 
-import type { PathAnchor, PathEvent } from './walkReading'
+import type { PathEvent } from './walkReading'
 
-// A seeded stream of numbers in [0, 1)
-function seeded(seed: number) {
-  let state = seed
-  return () => {
-    state = (state * 1_103_515_245 + 12_345) % 2 ** 31
-    return state / 2 ** 31
-  }
-}
+const on = (lo: number, hi: number, reversed = false): PathEvent => ({
+  kind: 'on',
+  lo,
+  hi,
+  reversed,
+})
+const own = (bp: number): PathEvent => ({ kind: 'own', bp })
 
-// Event lists of every shape the rule tells apart: stretches along and
-// against the reference, of 0 bp and more, with bp of their own between
-function* eventLists() {
-  const next = seeded(20261123)
-  for (let n = 0; n < 2000; n++) {
-    const events: PathEvent[] = []
-    for (let k = Math.floor(next() * 6); k > 0; k--) {
-      const lo = Math.floor(next() * 100)
-      events.push(
-        next() < 0.25
-          ? { kind: 'own', bp: Math.floor(next() * 50) }
-          : {
-              kind: 'on',
-              lo,
-              hi: lo + Math.floor(next() * 3) * Math.floor(next() * 40),
-              reversed: next() < 0.5,
-            },
-      )
-    }
-    yield events
-  }
-}
-
-// Anchor lists as pieces' ends and departures' ends make them, some at one
-// place on the contig
-function* anchorLists() {
-  const next = seeded(20261124)
-  for (let n = 0; n < 2000; n++) {
-    const anchors: PathAnchor[] = []
-    for (let k = Math.floor(next() * 8); k > 0; k--) {
-      const order = next() < 0.5 ? 0 : 1
-      anchors.push({
-        hap: Math.floor(next() * 5) * 100,
-        order,
-        pos: Math.floor(next() * 1000),
-        reversed: next() < 0.5,
-        ...(order === 0 && next() < 0.5 ? { exit: true } : {}),
-        ...(order === 0 ? { own: Math.floor(next() * 30) } : {}),
-      })
-    }
-    yield anchors
-  }
-}
-
-test("readsBackToFront and anchorEvents read every list as graph-walks' do", () => {
-  for (const events of eventLists()) {
-    expect(readsBackToFront(events)).toBe(graphWalks.readsBackToFront(events))
-  }
-  for (const anchors of anchorLists()) {
-    expect(anchorEvents(anchors)).toEqual(graphWalks.anchorEvents(anchors))
-  }
+test('a contig reads back to front where it walks the reference only against it', () => {
+  expect(readsBackToFront([on(100, 1700, true)])).toBe(true)
+  expect(readsBackToFront([on(600, 1700), own(1700), on(0, 600)])).toBe(false)
+  expect(readsBackToFront([own(300)])).toBe(false)
 })
 
-// Each row of a walk-file fixture's cut reads its contig the way
-// graph-walks' pathOrientations reads that path, from the same pieces and
-// departures
-test.each([
-  ['orient.GRCh38', 2000, 8000, 1000],
-  ['orient.GRCh38', 4500, 5500, 0],
-  ['orient.GRCh38', 0, 10_000, 0],
-  ['rejoin.GRCh38', 1000, 1500, 500],
-  ['rejoin.GRCh38', 1000, 2000, 0],
-  ['records.GRCh38', 1500, 3500, 0],
-  ['records.GRCh38', 5500, 6500, 500],
-  ['revisit.GRCh38', 0, 3000, 0],
-  ['strand.R', 0, 40, 0],
-])(
-  'rows of %s over %i-%i read as graph-walks reads their paths',
-  async (name, start, end, context) => {
-    const reader = graphWalks.WalkReader.open(
-      `test_data/walks8/${name}.walks.gz`,
-      url => new LocalFile(url),
-    )
-    const cut = await reader.cut(
-      `${name.split('.').at(-1)}#0#${name === 'strand.R' ? 'chr' : 'chr1'}`,
-      { start, end },
-      { context },
-    )
-    const orientations = graphWalks.pathOrientations({
-      fragments: cut.fragments,
-      departures: cut.departures,
-      nodes: cut.graph.nodes,
-    })
-    const tables = cut.graph.tables(cut.kept, cut.fragments, cut.departures)
-    const rows = walkRowsOf(walkRowRuns(tables, { start, end })!).rows.filter(
-      row => !row.stepless,
-    )
-    expect(rows.length).toBeGreaterThan(0)
-    for (const row of rows) {
-      expect([row.name, row.flipped === true]).toEqual([
-        row.name,
-        orientations.get(row.name) ?? false,
-      ])
-    }
-  },
-)
+test('a contig walking both ways reads by where it leaves the reference against where it entered, and by bp where it leaves where it entered', () => {
+  expect(
+    readsBackToFront([on(0, 100), on(100, 1700, true), on(1700, 1800)]),
+  ).toBe(false)
+  expect(
+    readsBackToFront([on(1700, 1800, true), on(100, 1700), on(0, 100, true)]),
+  ).toBe(true)
+  expect(readsBackToFront([on(0, 100), own(5), on(0, 100, true)])).toBe(false)
+  expect(readsBackToFront([on(0, 100, true), own(5), on(0, 300)])).toBe(false)
+})
+
+// >3>4<5>6>7 over 1 kb nodes from 2 kb, then a jump back to node 1's start,
+// outside the cut: the departure's end walks no bp
+test('a departure end walks no bp, so a jump back does not turn round a contig mostly along the reference', () => {
+  expect(
+    readsBackToFront([
+      on(2000, 4000),
+      on(4000, 5000, true),
+      on(5000, 7000),
+      own(0),
+      on(0, 0),
+    ]),
+  ).toBe(false)
+})
+
+// a tandem copy longer than the tiles read: the contig starts with the jump
+// back from 9 kb, then walks 1-3 kb along the reference with one node reversed
+test('a contig that starts with a jump back reads by the bp it walks', () => {
+  expect(
+    readsBackToFront([
+      on(9000, 9000),
+      own(0),
+      on(1000, 2000),
+      on(2000, 2100, true),
+      on(2100, 3000),
+    ]),
+  ).toBe(false)
+})
+
+// a window inside an inversion: the contig is against the reference
+// throughout, and the departures into and out of the inversion stand on it
+// along it
+test('a contig one way between departure ends the other way at both its ends reads as an inversion between them, and one such end decides nothing', () => {
+  expect(
+    readsBackToFront([
+      on(7_616_815, 7_616_815),
+      own(0),
+      on(7_393_526, 12_234_236, true),
+      own(0),
+      on(12_338_568, 12_338_568),
+    ]),
+  ).toBe(false)
+  expect(
+    readsBackToFront([
+      on(7_616_815, 7_616_815, true),
+      own(0),
+      on(7_393_526, 12_234_236, true),
+    ]),
+  ).toBe(true)
+  // R1M-05: a contig that comes from the far p arm against the reference by
+  // a record and walks the window along it reads along the reference
+  expect(
+    readsBackToFront([
+      on(11_774_636, 11_774_636, true),
+      own(5_631_835),
+      on(15_154_318, 15_466_138),
+    ]),
+  ).toBe(false)
+})
+
+test('anchorEvents follows the reference from a rejoin to the next leave', () => {
+  expect(
+    anchorEvents([
+      { hap: 1600, order: 0, pos: 100, reversed: true, own: 0 },
+      { hap: 0, order: 1, pos: 1700, reversed: true },
+      { hap: 1600, order: 1, pos: 1700, reversed: false },
+    ]),
+  ).toEqual([
+    { kind: 'on', lo: 100, hi: 1700, reversed: true },
+    { kind: 'own', bp: 0 },
+    { kind: 'on', lo: 1700, hi: 1700, reversed: false },
+  ])
+})

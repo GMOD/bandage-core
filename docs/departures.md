@@ -46,6 +46,13 @@ sequence off the reference. White chevrons pointing left mark a stretch the
 haplotype walks against the reference's direction, where its colors run
 backwards.
 
+A row reads its contig as a whole: forward, or back to front where the contig
+walks the reference only against it or ends further back along it than it
+began, and every stretch walked the other way gets chevrons. The structural forms of `@jbrowse/graph-walks` read each chain
+of a contig on its own, so in a window inside an inversion, or one a contig
+crosses twice in opposite directions, a row can mark a stretch reversed that
+the forms read as along the reference.
+
 | Text                                              | Meaning                                                                                                                                                                                                                                                                                         |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `≥ 3.9 kb`                                        | at least this much of the haplotype is in view, and it continues past the edge of the region                                                                                                                                                                                                    |
