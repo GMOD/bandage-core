@@ -1017,6 +1017,8 @@ interface WalkRowColumns {
   contig: (string | null)[]
   contigStart: (number | null)[]
   backward: boolean[]
+  // where each bar starts, as its runs' offsets count (WalkAxis.offset)
+  offset?: (number | null)[]
 }
 
 // For a host that tiles walk rows itself: the key row naming each walk row's
@@ -1063,7 +1065,12 @@ export function walkRowInks(
           bp: rows.bp[r]!,
           axis:
             contig != null && start != null
-              ? { contig, start, reversed: rows.backward[r]! }
+              ? {
+                  contig,
+                  start,
+                  reversed: rows.backward[r]!,
+                  offset: rows.offset?.[r] ?? 0,
+                }
               : undefined,
         })
       : undefined

@@ -474,6 +474,14 @@ test("walk row tiles take their lifted walk's colours as walk rows draw them", (
     null,
     null,
   ])
+  // a bar that starts 5 bp in, under the reference's base its walk starts
+  // at, has its tiles' offsets counted from there
+  const shifted = walkRowInks(
+    keys,
+    { ...rows, offset: all.map((_, i) => (i === hg1 ? 5 : 0)) },
+    { row: [hg1, hg1], offset: [5, 12] },
+  )
+  expect(shifted.color).toEqual(inks.color.slice(0, 2))
 })
 
 // R walks three reference nodes; A leaves it for a 75 kb loop the cut did not
