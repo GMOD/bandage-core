@@ -16,6 +16,7 @@ import {
   rowGeneBoxes,
   rowPitch,
   rowSpan,
+  scaleBarTree,
   walkRowReadout,
   walkRowReadoutAt,
   walkRowsKey,
@@ -640,6 +641,13 @@ test('a stretch walked against the reference draws chevrons, the readout states 
   expect(walkRowsKey(rows()).map(e => e.label)).not.toContain(
     "walked against GRCh38#0's direction",
   )
+})
+
+test('a scale bar takes a round length about as wide as asked', () => {
+  const svg = serializeEl(scaleBarTree(720 / 1_000_000, 10, 20))
+  expect(svg).toContain('>100 kb</text>')
+  expect(svg).toContain('x2="82"')
+  expect(serializeEl(scaleBarTree(1, 0, 0, 60))).toContain('>50 bp</text>')
 })
 
 test('the key names the boxes by the annotation the host read', () => {

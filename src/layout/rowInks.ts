@@ -103,7 +103,7 @@ function stopsAt(stops: readonly string[], t: number) {
 // walk's contig to place them by
 function placedPasses(ink: RowInk, row: InkedRow) {
   const { range } = ink
-  const axis = row.axis
+  const axis = row.axis && { ...row.axis, offset: 0 }
   return axis && range && axis.contig === range.contig
     ? (ink.passes ?? []).map(pass => ({
         ...alongRow(axis, range.start + pass.start, range.start + pass.end),
@@ -151,9 +151,17 @@ function passStretches(ink: RowInk, row: InkedRow, joinBp: number) {
 export function rowInkAlong(ink: RowInk, row: InkedRow, joinBp = row.bp / 600) {
   const stretches = passStretches(ink, row, joinBp)
   const { from, to } = rampEnds(ink, row)
-  return (offset: number) =>
-    stretches.find(s => offset >= s.from && offset < s.to)?.color ??
-    stopsAt(ink.stops, from + (to - from) * (row.bp > 0 ? offset / row.bp : 0))
+  const start = row.axis?.offset ?? 0
+  return (at: number) => {
+    const offset = at - start
+    return (
+      stretches.find(s => offset >= s.from && offset < s.to)?.color ??
+      stopsAt(
+        ink.stops,
+        from + (to - from) * (row.bp > 0 ? offset / row.bp : 0),
+      )
+    )
+  }
 }
 
 // The row's colour `offset` bp along its bar

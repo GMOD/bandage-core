@@ -1324,6 +1324,8 @@ export function walkRowRuns(
       }
     }
 
+    const firstRun = runs.length
+    const firstVisit = visits?.length ?? 0
     let bp = 0
     let offReferenceBp = 0
     let unloadedBp = 0
@@ -1488,6 +1490,32 @@ export function walkRowRuns(
                 loneLeft ? Infinity : placeStart(loneFlank),
               )
             : undefined
+    // A bar whose walk starts in the window rather than coming in by its
+    // edge starts under the reference row at its first base on the
+    // reference, where that runs along it
+    let offset = 0
+    if (bar && stops.left && !stepless) {
+      for (let k = firstRun; k < runs.length; k++) {
+        const flags = runFlags[k]!
+        if (flags & RUN_ON_REFERENCE) {
+          offset =
+            flags & RUN_REVERSED
+              ? 0
+              : Math.max(0, runRef[k]! - bar.start - runs.values[0]![k]!)
+          break
+        }
+      }
+    }
+    if (offset > 0) {
+      const runStarts = runs.values[0]!
+      for (let k = firstRun; k < runs.length; k++) {
+        runStarts[k]! += offset
+      }
+      const visitStarts = visits?.values[1] ?? []
+      for (let k = firstVisit; k < visitStarts.length; k++) {
+        visitStarts[k]! += offset
+      }
+    }
     const departureGapBp = stepless ? departureRuns(own, bar) : 0
     runs.endRow()
     visits?.endRow()
@@ -1517,7 +1545,7 @@ export function walkRowRuns(
               : {}),
           ...(awayBp > 0 ? { passesOutside: true as const } : {}),
           ...(stops.left || stops.right ? { stops } : {}),
-          axis,
+          axis: axis && offset > 0 ? { ...axis, offset } : axis,
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
           ...(unloadedBp > 0 ? { unloadedBp } : {}),
           ...(fromElsewhereBp > 0 ? { fromElsewhereBp } : {}),

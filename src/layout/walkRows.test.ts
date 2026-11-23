@@ -117,7 +117,8 @@ test("a row's visits step through its bar, each at its bp offset", () => {
     reference.nodeIds.slice(2, n - 2),
   )
   for (const row of [cut.reference, ...cut.rows]) {
-    let bp = 0
+    const from = row.runs[0]!.start
+    let bp = from
     for (const visit of row.visits!) {
       expect(visit.start).toBe(bp)
       const run = row.runs.find(
@@ -126,7 +127,7 @@ test("a row's visits step through its bar, each at its bp offset", () => {
       expect(visit.onReference).toBe(run.onReference)
       bp += byId.get(visit.node)!
     }
-    expect(bp).toBe(row.bp)
+    expect(bp - from).toBe(row.bp)
   }
 })
 

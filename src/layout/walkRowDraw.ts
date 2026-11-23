@@ -568,6 +568,11 @@ export function walkRowReadoutAt(
   }
 }
 
+// Where a row's bar starts: under the reference row's base it starts at, for
+// a walk that starts in the window
+export const barStart = (row: Pick<WalkRow, 'runs' | 'stepless'>) =>
+  row.stepless ? 0 : (row.runs[0]?.start ?? 0)
+
 // Where a row's bar ends: past its runs, since a stepless row has no bp
 export function barEnd(row: Pick<WalkRow, 'bp' | 'runs'>) {
   return row.runs.reduce(
@@ -700,9 +705,10 @@ export function placeRowGenes(
       continue
     }
     const axis = row.axis
+    const from = axis.offset ?? 0
     const clip = ({ start, end }: { start: number; end: number }) => ({
-      start: Math.max(0, start),
-      end: Math.min(row.bp, end),
+      start: Math.max(from, start),
+      end: Math.min(from + row.bp, end),
     })
     placed.set(
       row.name,
@@ -976,6 +982,8 @@ export function walkRowsKey(
     markUnloaded?: boolean
     // the lifted walks' colours, which the rows they name take
     inks?: readonly RowInk[]
+    // set where the rows sit under a ruler of the reference's bp
+    ruler?: boolean
   } = {},
 ): KeyEntry[] {
   const noun = o.annotation ?? 'gene'
@@ -1064,6 +1072,13 @@ export function walkRowsKey(
       note: true,
     })
   }
+  if (o.ruler) {
+    entries.push({
+      swatch: { kind: 'gene' },
+      label: OWN_SCALE_TEXT,
+      note: true,
+    })
+  }
   if (rows.some(row => row.placementChoice)) {
     entries.push({
       swatch: { kind: 'gene' },
@@ -1105,6 +1120,36 @@ export function walkRowsKey(
     }
   }
   return entries
+}
+
+export const OWN_SCALE_TEXT =
+  "each row is that haplotype's own sequence, not on the ruler's scale"
+
+// A scale bar of a round length about `px` wide at `scaleX` px a bp, its
+// left end at (x, y): a line with end ticks and its length above it
+export function scaleBarTree(scaleX: number, x: number, y: number, px = 100) {
+  const want = px / scaleX
+  const step = 10 ** Math.floor(Math.log10(want))
+  const bp = [5, 2, 1].map(k => k * step).find(b => b <= want) ?? step
+  const w = bp * scaleX
+  const ink = '#333'
+  return elOf('g', { 'data-testid': 'graph-walk-scale-bar' }, [
+    el('line', { x1: x, x2: x + w, y1: y, y2: y, stroke: ink }),
+    el('line', { x1: x, x2: x, y1: y - 3, y2: y + 3, stroke: ink }),
+    el('line', { x1: x + w, x2: x + w, y1: y - 3, y2: y + 3, stroke: ink }),
+    el(
+      'text',
+      {
+        x: x + w / 2,
+        y: y - 5,
+        'text-anchor': 'middle',
+        'font-family': 'sans-serif',
+        'font-size': 10,
+        fill: ink,
+      },
+      sized(bp),
+    ),
+  ])
 }
 
 export const reversedText = (reference: string) =>
@@ -1477,6 +1522,7 @@ export function walkRowsTree(
     if (y < -barPx || y > frame.height + barPx) {
       return undefined
     }
+    const from = barStart(row)
     const drawn = frame.bars === false ? [] : row.runs
     const coalesced = coalesceRuns(drawn, frame.scaleX, marked)
     const ink = o.inks && rowInkOf(row, o.inks)
@@ -1490,8 +1536,8 @@ export function walkRowsTree(
         {
           id: inkId,
           gradientUnits: 'userSpaceOnUse',
-          x1: along(0),
-          x2: along(row.bp),
+          x1: along(from),
+          x2: along(from + row.bp),
           y1: 0,
           y2: 0,
         },
@@ -1560,16 +1606,18 @@ export function walkRowsTree(
         : []
     const ticks =
       unit && barPx >= MIN_TILED_BAR_PX
-        ? unitTicks(row.bp, unit, frame.scaleX).map(k =>
-            el('line', {
-              x1: along(k),
-              x2: along(k),
-              y1: y - barPx / 2,
-              y2: y + barPx / 2,
-              stroke: 'white',
-              'stroke-width': 1,
-            }),
-          )
+        ? unitTicks(row.bp, unit, frame.scaleX)
+            .map(tick => from + tick)
+            .map(k =>
+              el('line', {
+                x1: along(k),
+                x2: along(k),
+                y1: y - barPx / 2,
+                y2: y + barPx / 2,
+                stroke: 'white',
+                'stroke-width': 1,
+              }),
+            )
         : []
     const chevrons = chevronTrees(
       coalesceRuns(row.runs, frame.scaleX, marked)
@@ -1598,13 +1646,13 @@ export function walkRowsTree(
         rowPx,
         barPx,
         namesAbove: i === 0 ? frame.width : undefined,
-        ends: { x0: along(0), x1: along(barEnd(row)) },
+        ends: { x0: along(from), x1: along(barEnd(row)) },
       }).map(box => geneTree(box, y, barPx)),
       [
         call &&
           el('rect', {
             'data-testid': 'graph-walk-call',
-            x: along(call.bp) - 1,
+            x: along(from + call.bp) - 1,
             y: y - barPx / 2 - overhang,
             width: 2,
             height: barPx + 2 * overhang,

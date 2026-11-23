@@ -11,6 +11,11 @@ insertion, inversion and duplication is a departure.
 - When one end is outside the region, the bar stops early. From the departure,
   bandage-core writes beside the bar where the haplotype goes next and how long
   it is, so the short bar does not look like a deletion
+- Each bar is the haplotype's own sequence at one scale for every row, not the
+  ruler's: a bar holding an insertion is longer than the region, and one with a
+  deletion shorter. A bar starts at the left edge where the haplotype comes into
+  the region there, and under the reference row's base it starts at where it
+  starts inside the region
 - A haplotype that crosses the region more than once, as a contig with a
   duplication or an inversion can, is one bar from its first base in the region
   to its last. What it does outside the region in between is a thin gap, and a

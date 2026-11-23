@@ -8,7 +8,7 @@ import { graphFromTables } from '../gfa/graphTables'
 import { loadGraph } from '../pipeline'
 import { fadedKey, walkHighlight } from '../walkHighlight'
 import { trimToWindow } from './trimToWindow'
-import { walkRowReadout, walkRowsKey } from './walkRowDraw'
+import { placeRowGenes, walkRowReadout, walkRowsKey } from './walkRowDraw'
 import { walkRowLinks } from './walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
 import { walkRows } from './walkRows'
@@ -213,6 +213,62 @@ test('a walk that goes on by a departure says how much of its own bp the graph l
   expect(readout(1_000_000)).toBe(
     '≥ 1.0 kb · goes on near chr1:4 kb · 5.6 Mb of its own, 1 Mb of it left out of graph',
   )
+})
+
+// R1M-05 of the HPRC v2.1 audit: every row starts 69% into the window. G's
+// contig starts on node 2, 1 kb into chr1:1000-4000
+test('a row whose walk starts inside the window starts under the reference at its first base, and its genes with it', () => {
+  const startsLate: GraphTables = {
+    ...tables,
+    walks: {
+      names: ['GRCh38#0#chr1', 'G#1#g'],
+      starts: Float64Array.of(0, 0),
+      ends: Float64Array.of(5000, 3000),
+      offsets: Int32Array.of(0, 5, 8),
+      steps: Int32Array.from([0, 1, 2, 3, 4, 2, 3, 4]),
+      reversed: new Uint8Array(8),
+    },
+  }
+  const rows = walkRowsOf(
+    walkRowRuns(startsLate, { start: 1000, end: 4000 }, { visits: true })!,
+  )
+  const [row] = rows.rows
+  expect(row!.runs).toEqual([
+    { start: 1000, bp: 2000, onReference: true, referenceStart: 2000 },
+  ])
+  expect(row!.visits!.map(v => v.start)).toEqual([1000, 2000])
+  expect(row!.axis).toEqual({
+    contig: 'g',
+    start: 0,
+    reversed: false,
+    offset: 1000,
+  })
+  expect(
+    placeRowGenes(
+      rows.rows,
+      new Map([
+        [
+          'G#1#g',
+          [
+            {
+              name: 'X',
+              refName: 'g',
+              start: 500,
+              end: 700,
+              strand: 1,
+              exons: [],
+            },
+          ],
+        ],
+      ]),
+    ).get('G#1#g'),
+  ).toEqual([{ name: 'X', start: 1500, end: 1700, exons: [] }])
+  expect(walkRowsKey(rows, { ruler: true }).at(-1)).toEqual({
+    swatch: { kind: 'gene' },
+    label:
+      "each row is that haplotype's own sequence, not on the ruler's scale",
+    note: true,
+  })
 })
 
 test('a walk forward along the reference that reaches only the right flank reads toward it', () => {

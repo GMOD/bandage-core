@@ -93,7 +93,8 @@ export function stripMarks(graph: Graph, rows: WalkRow[], node: GraphNode) {
         continue
       }
       const { start, end } = alongRow(axis, v.start, v.start + node.length)
-      if (end > 0 && start < row.bp) {
+      const from = axis.offset ?? 0
+      if (end > from && start < from + row.bp) {
         marks.push({ row: row.name, start, bp: end - start })
       }
     }
@@ -154,10 +155,11 @@ export function segmentAt(
 ) {
   const axis = row.axis
   const spans = axis && spansOf(graph, row.name)
-  if (!axis || !spans || offset < 0 || offset > row.bp) {
+  const along = offset - (axis?.offset ?? 0)
+  if (!axis || !spans || along < 0 || along > row.bp) {
     return undefined
   }
-  const at = axis.reversed ? axis.start - offset : axis.start + offset
+  const at = axis.reversed ? axis.start - along : axis.start + along
   const tol = 0.5 / pxPerBp
   const bar = rowSpan(axis, row.bp)
   const from = Math.max(at - tol, bar.start)

@@ -62,13 +62,17 @@ export interface WalkAxis {
   contig: string
   start: number
   reversed: boolean
+  // the bar's offset under the reference row, where the walk starts in the
+  // window at its first base on the reference
+  offset?: number
 }
 
 // A contig span as offsets along a row's bar
 export function alongRow(axis: WalkAxis, start: number, end: number) {
+  const offset = axis.offset ?? 0
   return axis.reversed
-    ? { start: axis.start - end, end: axis.start - start }
-    : { start: start - axis.start, end: end - axis.start }
+    ? { start: axis.start - end + offset, end: axis.start - start + offset }
+    : { start: start - axis.start + offset, end: end - axis.start + offset }
 }
 
 // How a row's walk stops at one end of its bar inside the window. The graph
