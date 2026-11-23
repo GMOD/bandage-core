@@ -49,7 +49,12 @@ export type { EdgeOverruns, TrackFit } from './trackFit'
 export { createForceLayoutCache } from './layout/forceCache'
 export { cutsWholeWalks, walkStripApplies } from './layout/walkStrip'
 export type { ForceLayoutCache } from './layout/forceCache'
-export { edgeHoverText, placeholderHoverText, regionLabel } from './hoverText'
+export {
+  edgeHoverText,
+  placeholderHoverText,
+  regionLabel,
+  skipAt,
+} from './hoverText'
 export { layoutGeometryInputs } from './renderer/geometryInputs'
 export { FIGURE_DEFAULTS, figureSpecSettings } from './figureSettings'
 export type { FigureSettings } from './figureSettings'

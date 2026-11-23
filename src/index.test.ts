@@ -114,6 +114,7 @@ const PUBLISHED = [
   'resolveColorScheme',
   'resolveReferenceSample',
   'screenToLayout',
+  'skipAt',
   'tubeMapFrame',
   'tubeMapNodeAt',
   'tubeMapPicture',

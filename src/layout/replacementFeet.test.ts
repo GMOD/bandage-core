@@ -1,11 +1,18 @@
 import { loadFmmm } from '@jbrowse/graph-fmmm-layout'
 
 import { deletionDrawing, deletionEdges } from '../deletionEdges'
+import { figureData } from '../figureData'
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
-import { forceLayout, loadGraph } from '../pipeline'
+import {
+  drawingBounds,
+  fitTransform,
+  forceLayout,
+  loadGraph,
+} from '../pipeline'
 import { buildGeometry } from '../renderer/GeometryBuilder'
 import { layoutGeometryInputs } from '../renderer/geometryInputs'
+import { curvePointAt } from '../util/geometry'
 import { paddedFeet } from './replacementFeet'
 
 import type { LayoutEngine } from '../pipeline'
@@ -161,6 +168,22 @@ test('a 2 bp replacement of 1.8 kb gets a dashed route on each link, and its fee
   expect([0, 1].map(edge => stroke(edge).skip)).toEqual([undefined, undefined])
 })
 
+// figure data read a padded foot as a plain link, so ggbandage painted it
+// under the nodes, where it paints no skip
+test('figure data marks a routed padded foot a skip, as it is drawn', async () => {
+  const graph = replacement(2)
+  const { result } = await forceLayout(graph, settings, engine)
+  const { edges } = figureData(graph, result)
+  const skips = new Set(edges.edge.filter((_, i) => edges.deletion[i]))
+  expect(Object.keys(result.deletionRoutes ?? {}).map(Number)).toEqual([2, 3])
+  expect([0, 1, 2, 3].map(edge => skips.has(edge))).toEqual([
+    false,
+    false,
+    true,
+    true,
+  ])
+})
+
 // a 1 bp allele for 3 bp, padded, drew three of the layout's shortest nodes
 // against one: the bulge of G4's short skips
 test('a replacement too small for a route the layout can draw shorter than the reference is not padded', async () => {
@@ -225,3 +248,178 @@ test.each([1262, 13_267])(
     }
   },
 )
+
+// SV-del-100k+ at its fit: a 3,146 bp skip over 1 bp skips the fold hid drew
+// a teardrop 28 px across over 20 px of the reference it skips, and an arm
+// under 33 px across followed its route wherever the layout bent it
+test('at the fit, a padded arm and a skip over folded skips each draw within the reference between their feet, measured in px', async () => {
+  // flanks of 2 kb pieces between SNPs, which keep them apart as the
+  // engine lays them, as a hosted cut's are
+  const pieces = 60
+  const flank = (side: string) =>
+    Array.from({ length: pieces }, (_, i): [string, number][] => [
+      [`${side}${i}`, 2000],
+      ...(i < pieces - 1
+        ? [[`${side}s${i}`, 1] satisfies [string, number]]
+        : []),
+    ]).flat()
+  const snps = ['a', 'b'].flatMap(side =>
+    Array.from({ length: pieces - 1 }, (_, i) => [
+      `S\t${side}t${i}\tC`,
+      `L\t${side}${i}\t+\t${side}t${i}\t+\t0M`,
+      `L\t${side}t${i}\t+\t${side}${i + 1}\t+\t0M`,
+    ]).flat(),
+  )
+  const last = `a${pieces - 1}`
+  const replaced = Array.from({ length: 5 }, (_, i): [string, number] => [
+    `r${i}`,
+    3000,
+  ])
+  const deleted: [string, number][] = [
+    ['d0', 3000],
+    ['d1', 100],
+    ['d2', 100],
+    ['d3', 100],
+    ['d4', 3000],
+  ]
+  const reference = [
+    ...flank('a'),
+    ...replaced,
+    ['m', 5000] satisfies [string, number],
+    ...deleted,
+    ...flank('b'),
+  ]
+  const names = reference.map(([name]) => name)
+  const chain = (ids: readonly string[]) =>
+    ids.slice(1).map((id, i) => `L\t${ids[i]}\t+\t${id}\t+\t0M`)
+  const steps = (ids: readonly string[]) => ids.map(id => `>${id}`).join('')
+  const without = (...left: string[]) =>
+    steps(names.filter(name => !left.includes(name)))
+  const graph = loadGraph(
+    [
+      ...reference.map(([name, bp]) => `S\t${name}\t${bases(bp)}`),
+      `S\tx\t${bases(13)}`,
+      ...chain(names),
+      ...snps,
+      `L\t${last}\t+\tx\t+\t0M`,
+      'L\tx\t+\tm\t+\t0M',
+      'L\tm\t+\tb0\t+\t0M',
+      'L\td0\t+\td2\t+\t0M',
+      'L\td1\t+\td3\t+\t0M',
+      'L\td2\t+\td4\t+\t0M',
+      `W\tGRCh38\t0\tchr4\t0\t*\t${steps(names)}`,
+      `W\tHG1\t1\tc\t0\t*\t${without('r0', 'r1', 'r2', 'r3', 'r4').replace(`>${last}>`, `>${last}>x>`)}`,
+      `W\tHG2\t1\tc\t0\t*\t${without('d0', 'd1', 'd2', 'd3', 'd4')}`,
+      `W\tHG3\t1\tc\t0\t*\t${without('d1')}`,
+      `W\tHG4\t1\tc\t0\t*\t${without('d2')}`,
+      `W\tHG5\t1\tc\t0\t*\t${without('d3')}`,
+    ].join('\n'),
+    'sv-del',
+  )
+  const pane = { width: 1090, height: 300 }
+  const { result } = await forceLayout(graph, settings, engine, pane)
+  const fit = fitTransform(
+    drawingBounds(result),
+    pane.width,
+    pane.height,
+    false,
+  )!
+  const axis = { scaleX: fit.scale, scaleY: fit.scale }
+  const batch = buildGeometry({
+    ...layoutGeometryInputs(
+      result,
+      deletionDrawing(graph, deletionEdges(graph), true),
+    ),
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth: 'walks',
+    edgeWidth: 'walks',
+    axis,
+  })
+  const id = (name: string) => graph.nodes.find(n => n.name === name)!.id
+  const edgeOf = (from: string, to: string) =>
+    graph.edges.findIndex(e => e.from === id(from) && e.to === id(to))
+  const px = (p: { x: number; y: number }) => ({
+    x: p.x * fit.scale,
+    y: p.y * fit.scale,
+  })
+  // the reference as drawn from one foot through the nodes between to the
+  // other, its links and all
+  const referencePx = (from: string, ids: readonly string[], to: string) =>
+    length([
+      result.nodePositions[id(from)]!.at(-1)!,
+      ...ids.flatMap(name => result.nodePositions[id(name)]!),
+      result.nodePositions[id(to)]![0]!,
+    ]) * fit.scale
+  const drawnPx = (edge: number) => {
+    const run = batch.edgeCurveRuns.get(edge)!
+    return batch.edgeCurves
+      .slice(run.start, run.start + run.count)
+      .flatMap(stroke => stroke.curves)
+      .flatMap(c =>
+        Array.from({ length: 65 }, (_, k) => px(curvePointAt(c, k / 64))),
+      )
+  }
+  const extent = (points: { x: number; y: number }[]) => {
+    const spread = (vs: number[]) =>
+      vs.reduce((most, v) => Math.max(most, v), -Infinity) -
+      vs.reduce((least, v) => Math.min(least, v), Infinity)
+    return Math.max(spread(points.map(p => p.x)), spread(points.map(p => p.y)))
+  }
+  // the most a link strays past its feet along their chord, or off it by
+  // more than the chord is long
+  const overChord = (from: string, to: string, edge: number) => {
+    const a = px(result.nodePositions[id(from)]!.at(-1)!)
+    const b = px(result.nodePositions[id(to)]![0]!)
+    const chord = Math.hypot(b.x - a.x, b.y - a.y)
+    const ux = (b.x - a.x) / chord
+    const uy = (b.y - a.y) / chord
+    const over = drawnPx(edge).reduce((most, p) => {
+      const along = (p.x - a.x) * ux + (p.y - a.y) * uy
+      const across = Math.abs((p.y - a.y) * ux - (p.x - a.x) * uy)
+      return Math.max(most, -along, along - chord, across - chord)
+    }, -Infinity)
+    return { chord, over }
+  }
+
+  const replacedPx = referencePx(
+    last,
+    replaced.map(([name]) => name),
+    'm',
+  )
+  for (const [from, to] of [
+    [last, 'x'],
+    ['x', 'm'],
+  ]) {
+    const arm = edgeOf(from, to)
+    expect(batch.edgeCurveRuns.has(arm)).toBe(true)
+    const { chord, over } = overChord(from, to, arm)
+    expect(chord).toBeLessThan(33)
+    expect(over).toBeLessThan(0.01)
+    expect(extent(drawnPx(arm))).toBeLessThan(replacedPx)
+  }
+  expect(
+    extent([
+      ...drawnPx(edgeOf(last, 'x')),
+      ...result.nodePositions[id('x')]!.map(px),
+      ...drawnPx(edgeOf('x', 'm')),
+    ]),
+  ).toBeLessThan(replacedPx)
+
+  const skip = edgeOf('m', 'b0')
+  expect(batch.edgeCurveRuns.has(skip)).toBe(true)
+  const { chord, over } = overChord('m', 'b0', skip)
+  expect(chord).toBeLessThan(33)
+  expect(over).toBeLessThan(0.01)
+  expect(extent(drawnPx(skip))).toBeLessThanOrEqual(
+    referencePx(
+      'm',
+      deleted.map(([name]) => name),
+      'b0',
+    ),
+  )
+}, 60_000)

@@ -1,9 +1,13 @@
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
+import { paddedFeet } from './layout/replacementFeet'
 import { panSNHaplotype } from './pansn'
+import { weakMemo } from './util/weakMemo'
 
 import type { DeletionEdge } from './deletionEdges'
-import type { GraphEdge, GraphNode } from './types'
+import type { DeletionRoutes } from './layout/deletionRoutes'
+import type { PaddedFoot } from './layout/replacementFeet'
+import type { Graph, GraphEdge, GraphNode } from './types'
 
 // A span as a reader states one: 1-based and inclusive, the way a node's own
 // location reads, so a deletion and the nodes around it can be compared.
@@ -22,14 +26,17 @@ export function regionLabel(loc: {
 // node's name rather than its id, strand and all.
 export function edgeHoverText(
   edge: GraphEdge,
-  deletion: DeletionEdge | undefined,
+  skip: DeletionEdge | PaddedFoot | undefined,
   nameOf: (id: string) => string = id => id,
 ) {
-  return deletion
+  return skip
     ? {
         deletion: {
-          bp: `${groupDigits(deletion.bp)} bp`,
-          where: regionLabel(deletion),
+          bp: `${groupDigits(skip.end - skip.start)} bp`,
+          where: regionLabel(skip),
+          ...('ownBp' in skip
+            ? { replacedBy: `${groupDigits(skip.ownBp)} bp` }
+            : {}),
         },
       }
     : {
@@ -44,4 +51,26 @@ export function placeholderHoverText(node: GraphNode) {
   return node.placeholder
     ? `${formatBp(node.length)} of ${panSNHaplotype(walk) ?? walk}'s route, ${NOT_LOADED_TEXT}`
     : undefined
+}
+
+const feetCache = weakMemo<Graph, ReadonlyMap<number, PaddedFoot>>()
+
+// The skip a link is drawn as: the deletion it is, or a foot a force layout
+// routed of a walk's run in place of longer reference
+export function skipAt(
+  graph: Graph,
+  edgeIndex: number,
+  deletions: readonly DeletionEdge[],
+  routes: DeletionRoutes | undefined,
+) {
+  return (
+    deletions.find(d => d.edgeIndex === edgeIndex) ??
+    (routes?.[edgeIndex]
+      ? feetCache(
+          graph,
+          [],
+          () => new Map(paddedFeet(graph).map(foot => [foot.edgeIndex, foot])),
+        ).get(edgeIndex)
+      : undefined)
+  )
 }

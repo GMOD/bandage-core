@@ -693,7 +693,7 @@ export function figureData(
             alpha: alphaOf(b.color, b.faded),
             faded: b.faded === true,
             width: b.thickness * 2,
-            deletion: drawnDeletions.bypassed.has(edge),
+            deletion: b.skip === true,
             turn: b.turn === true,
             along: b.along === true,
             walk: keyRowOf(b.walk),
