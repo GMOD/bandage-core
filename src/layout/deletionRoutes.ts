@@ -16,12 +16,19 @@ const ROUTE_FRACTION = 0.5
 
 export type DeletionRoutes = Record<number, NodeSegment[]>
 
-const linkKey = (d: DeletionEdge) =>
+// a link that runs through a route node: a deletion's, or a padded foot's
+// (replacementFeet.ts)
+type RoutedLink = Pick<
+  DeletionEdge,
+  'edgeIndex' | 'from' | 'to' | 'fromStrand' | 'toStrand'
+>
+
+const linkKey = (d: RoutedLink) =>
   `${d.from}${d.fromStrand ?? ''}>${d.to}${d.toStrand ?? ''}`
 
 export function withDeletionRoutes(
   graph: Graph,
-  deletions: DeletionEdge[],
+  deletions: RoutedLink[],
   dropped: ReadonlySet<number> = new Set(),
 ) {
   // named for the link, not its place in the file, so the engine is handed
@@ -73,11 +80,12 @@ export function withDeletionRoutes(
 }
 
 // The route nodes as the engine takes them, each `length` in whatever unit
-// `opts` turns into drawn length. Together they draw no longer than `budget`,
-// the drawn length of everything else laid out, shrunk alike to fit: the
-// engine's work grows with drawn length, and a cut with hundreds of deletions
-// to segments far along the reference, as a collapsed repeat's cut has, would
-// otherwise spend nearly all of it on routes.
+// `opts` turns into drawn length: a deletion's half the reference it skips,
+// a padded foot's the drawn length it wants. Together they draw no longer
+// than `budget`, the drawn length of everything else laid out, shrunk alike
+// to fit: the engine's work grows with drawn length, and a cut with hundreds
+// of deletions to segments far along the reference, as a collapsed repeat's
+// cut has, would otherwise spend nearly all of it on routes.
 export function routeNodes(
   graph: Graph,
   deletions: DeletionEdge[],
@@ -85,18 +93,25 @@ export function routeNodes(
   drawnOf: (bp: number) => number,
   opts: BandageScaleOpts,
   budget: number,
+  feet: { edgeIndex: number; drawn: number }[] = [],
 ): GraphNode[] {
   const lengths = new Map(graph.nodes.map(n => [n.id, n.length]))
-  const wanted = deletions.map(d =>
-    Math.max(
-      opts.minimumNodeLength,
-      drawnOf(d.bypassed.reduce((sum, id) => sum + (lengths.get(id) ?? 0), 0)) *
-        ROUTE_FRACTION,
-    ),
+  const routed = [
+    ...deletions.map(d => ({
+      edgeIndex: d.edgeIndex,
+      drawn:
+        drawnOf(
+          d.bypassed.reduce((sum, id) => sum + (lengths.get(id) ?? 0), 0),
+        ) * ROUTE_FRACTION,
+    })),
+    ...feet,
+  ]
+  const wanted = routed.map(({ drawn }) =>
+    Math.max(opts.minimumNodeLength, drawn),
   )
   const total = wanted.reduce((sum, drawn) => sum + drawn, 0)
   const scale = total > budget ? budget / total : 1
-  return deletions
+  return routed
     .map((d, i) => {
       const drawn = Math.max(opts.minimumNodeLength, wanted[i]! * scale)
       const id = routes.get(d.edgeIndex)!

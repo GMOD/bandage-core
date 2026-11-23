@@ -21,6 +21,7 @@ import {
 import { FIT_PADDING, fitOrAssumed, fitRoom } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
+import { footRoutes, paddedFeet } from './layout/replacementFeet'
 import { clearOfReference } from './layout/referenceClearance'
 import { seededNodes } from './layout/referenceSeeds'
 import { smoothChain } from './layout/smoothChains'
@@ -261,7 +262,8 @@ export async function forceLayout(
     deletionEdges(graph),
     settings.showDeletionEdges !== false,
   )
-  const routed = withDeletionRoutes(graph, deletions, dropped)
+  const feet = paddedFeet(graph)
+  const routed = withDeletionRoutes(graph, [...deletions, ...feet], dropped)
   const merged = mergeRuns(routed.graph, routed.ids)
   const runs = {
     ...merged.graph,
@@ -285,6 +287,12 @@ export async function forceLayout(
             engineScaling.nodes.reduce(
               (sum, n) => sum + drawnNodeLength(engineScaling.opts, n.length),
               0,
+            ),
+            footRoutes(
+              graph,
+              feet,
+              drawnOf,
+              length => drawnNodeLength(engineScaling.opts, length),
             ),
           ),
         ],
@@ -335,7 +343,7 @@ export async function forceLayout(
             ),
           }
         : {}),
-      ...(deletions.length
+      ...(deletions.length || feet.length
         ? { deletionRoutes, extent: layoutExtent(deletionRoutes) }
         : {}),
     },

@@ -120,10 +120,14 @@ test('a force layout lays the deletion out as a route between its ends', async (
   expect(result.extent).toBeDefined()
 })
 
+// an allele as long as the reference it replaces, which no route pads
+// (replacementFeet.ts)
+const LONG_ALLELE = RGFA.replace('LN:i:300\t', 'LN:i:20000\t')
+
 test('a graph without deletions lays out as before, with no routes', async () => {
   const plain = convertGFAToGraph(
     parseGFA(
-      RGFA.split('\n')
+      LONG_ALLELE.split('\n')
         .filter(l => l !== 'L\t1\t+\t3\t+\t0M')
         .join('\n'),
     ),
@@ -140,7 +144,7 @@ test('a force layout without deletion edges closes the bubble', async () => {
     return engine(request)
   }
   const { result } = await forceLayout(
-    graph,
+    convertGFAToGraph(parseGFA(LONG_ALLELE)),
     { ...settings, showDeletionEdges: false },
     recording,
   )

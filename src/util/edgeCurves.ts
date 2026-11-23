@@ -155,9 +155,11 @@ export function baseEdgeCurves(
         const edge = graph.edges[ei]!
         const bypassed = deletions?.get(ei)
         const route = routes?.[ei]
-        const routed = bypassed
-          ? edgeCurvesOf(nodePositions, edge, axis, bypassed, route, stranded)
-          : undefined
+        // a padded foot (replacementFeet.ts) has a route and skips no node
+        const routed =
+          bypassed || route
+            ? edgeCurvesOf(nodePositions, edge, axis, bypassed, route, stranded)
+            : undefined
         const arc =
           bypassed &&
           route &&

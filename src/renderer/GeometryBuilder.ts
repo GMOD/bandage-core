@@ -2176,7 +2176,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // So one head per edge, in the edge's own colour rather than a ribbon's,
     // since choosing a ribbon's would privilege one haplotype for a fact that
     // belongs to none of them. `undefined` means this call draws no head.
-    const plainEdgeColor = deletions?.has(ei)
+    // a deletion's link, or a padded foot's drawn along its route
+    // (replacementFeet.ts): each skips the reference between its ends
+    const skips = isDeletion || !!deletions?.has(ei)
+    const plainEdgeColor = skips
       ? EDGE_DELETION_COLOR
       : EDGE_DEFAULT_COLOR
     const edgeFaded = !!highlight && !onWalk
@@ -2198,7 +2201,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // available, unused, and says what it draws: sequence that is not there.
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
-    const skipMark = deletions?.has(ei) ? { skip: true, span: arcPx } : {}
+    const skipMark = skips ? { skip: true, span: arcPx } : {}
     const turnMark = turnsAgainstReference(edge) ? { turn: true } : {}
     const stroke = (
       curves: BezierCurve[],
