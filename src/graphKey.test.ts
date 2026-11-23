@@ -36,6 +36,7 @@ import { walkLift } from './walkHighlight'
 import type { EdgeWidth } from './edgeWidths'
 import type { GraphKeyOptions, GraphKeySection } from './graphKey'
 import type { Fold, Site, SmallSites } from './levelOfDetail'
+import type { NodeWidth } from './nodeWidths'
 import type { Bounds } from './pipeline'
 import type { BuildOptions, ReferenceRamp } from './renderer/GeometryBuilder'
 import type { RenderBatch } from './renderer/types'
@@ -75,6 +76,7 @@ interface Scene {
   smallSites?: SmallSites
   drawPaths?: boolean
   edgeWidth?: EdgeWidth
+  nodeWidth?: NodeWidth
 }
 
 // The drawing a host would paint at a `width` px fit: the batch the key's
@@ -96,7 +98,7 @@ function drawn(g: Graph, s: Scene = {}) {
     contigThickness: 6,
     connectorThickness: 2,
     drawPaths: s.drawPaths ?? false,
-    nodeWidth: 'depth',
+    nodeWidth: s.nodeWidth ?? 'depth',
     ...(s.edgeWidth ? { edgeWidth: s.edgeWidth } : {}),
     highlight: s.lift,
     axis: axisScaleOf(fit.scale, pixelRows),
@@ -665,6 +667,30 @@ test('by frequency with nodes not loaded and no AF tag draws no thickness, as de
   ])
   const tagged = withFrequencies(held, { v2: 0.875 })
   expect(drawnNodeWidth(tagged, 'frequency')).toBe('frequency')
+})
+
+// review 3: by depth with links by walks, both drawn uniform beside a
+// placeholder, the note sat under "Node thickness"
+test('the note that thickness is not drawn heads "Thickness" when neither nodes nor links draw it, and sits with the links when the nodes keep an AF scale', () => {
+  const held = withNodes(load(NINE, 'GRCh38'), name =>
+    name === 'a1' ? { placeholder: true } : {},
+  )
+  const placed = (g: Graph, nodeWidth: 'depth' | 'frequency') =>
+    keyOf(
+      g,
+      { nodeWidth, edgeWidth: 'walks' },
+      { nodeWidth, edgeWidth: 'walks' },
+    )
+      .filter(s => s.entries.length > 0)
+      .flatMap(s =>
+        s.entries.map(e => [s.group ?? s.id, e.key === 'width-not-drawn']),
+      )
+      .filter(([, note]) => note)
+      .map(([group]) => group)
+  expect(placed(held, 'depth')).toEqual(['Thickness'])
+  expect(placed(withFrequencies(held, { v2: 0.875 }), 'frequency')).toEqual([
+    'Link thickness',
+  ])
 })
 
 // A segment no walk steps counted as one walk, its depth floored at 1, so
