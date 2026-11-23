@@ -736,7 +736,7 @@ test('a tube map box of steps not loaded is untinted and dashed, and says its no
     width: 1e6,
   })
   expect(dashes.filter(n => n > 0)).toHaveLength(1)
-  expect(texts).toEqual(['300 bp · nodes not shown'])
+  expect(texts.toSorted()).toEqual(['300 bp · nodes not shown', '500 bp'])
   const textPx = (text: string) => text.length * 6
   expect(notShownCaption(300, 200, textPx)).toBe('300 bp · nodes not shown')
   expect(notShownCaption(300, 120, textPx)).toBe('nodes not shown')

@@ -1,14 +1,17 @@
 import fs from 'fs'
 import path from 'path'
 
+import { isOffReference } from '../anchoredNodes'
 import { parseGaf } from '../gaf/parseGaf'
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
+import { formatBp } from '../graphLabels'
 import { tubeMapLayout } from '../layout/tubeMapLayout'
 import { anchorGraph } from '../pathAnchoring'
 import {
   drawTubeMap,
   drawTubeMapHighlight,
+  lengthCaption,
   parsePath,
   trackColors,
   tubeMapMismatchAt,
@@ -17,7 +20,7 @@ import {
 } from './draw'
 import { FORWARD_READ_COLORS, REVERSE_READ_COLORS } from './reads'
 
-import type { TubeMapPicture } from './draw'
+import type { TubeMapContext, TubeMapPicture } from './draw'
 
 const dir = path.join(__dirname, '../../test_data/cactus')
 const GFA = fs.readFileSync(path.join(dir, 'cactus_240_280.gfa'), 'utf8')
@@ -110,9 +113,11 @@ function strokeRecorder() {
     get: (target, key: string) =>
       key === 'stroke'
         ? () => strokes.push(String(target.strokeStyle))
-        : key in target
-          ? target[key]
-          : () => {},
+        : key === 'measureText'
+          ? () => ({ width: 0 })
+          : key in target
+            ? target[key]
+            : () => {},
     set: (target, key: string, value) => {
       target[key] = value
       return true
@@ -151,9 +156,11 @@ test('the reference fills last, over any tube that crosses it', () => {
     get: (target, key: string) =>
       key === 'fill'
         ? () => fills.push(String(target.fillStyle))
-        : key in target
-          ? target[key]
-          : () => {},
+        : key === 'measureText'
+          ? () => ({ width: 0 })
+          : key in target
+            ? target[key]
+            : () => {},
     set: (target, key: string, value) => {
       target[key] = value
       return true
@@ -258,9 +265,11 @@ function fillRecorder() {
     get: (target, key: string) =>
       key === 'fill'
         ? () => fills.push(String(target.fillStyle))
-        : key in target
-          ? target[key]
-          : () => {},
+        : key === 'measureText'
+          ? () => ({ width: 0 })
+          : key in target
+            ? target[key]
+            : () => {},
     set: (target, key: string, value) => {
       target[key] = value
       return true
@@ -349,4 +358,73 @@ test('what is off screen changes no tube on top', () => {
   drawTubeMap(ctx, scrolled, { ...identity, width: 100 })
   expect(fills).toEqual(['#000001', '#000002', '#000001'])
   expect(tubeMapTrackAt(scrolled, identity, 1, 5)).toBe(1)
+})
+
+function textRecorder() {
+  const texts: string[] = []
+  const ctx: TubeMapContext = {
+    beginPath: () => {},
+    bezierCurveTo: () => {},
+    closePath: () => {},
+    fill: () => {},
+    fillStyle: '',
+    fillText: text => {
+      texts.push(text)
+    },
+    font: '',
+    globalAlpha: 1,
+    lineTo: () => {},
+    lineWidth: 1,
+    moveTo: () => {},
+    quadraticCurveTo: () => {},
+    rect: () => {},
+    setLineDash: () => {},
+    stroke: () => {},
+    strokeStyle: '',
+    strokeText: () => {},
+    textAlign: 'center',
+    textBaseline: 'middle',
+    measureText: text => ({ width: text.length * 6 }),
+  }
+  return { ctx, texts }
+}
+
+test('an off-reference box says its length where the box holds it, and no other box says one', () => {
+  const tubeMap = drawing()
+  const picture = tubeMapPicture(tubeMap)
+  const offReference = tubeMap.graph.nodes.filter(isOffReference)
+  expect(offReference.length).toBeGreaterThan(0)
+  expect(
+    new Map(
+      picture.nodes.flatMap(node =>
+        node.offReference ? [[node.name, node.offReference.bp]] : [],
+      ),
+    ),
+  ).toEqual(new Map(offReference.map(node => [node.id, node.length])))
+  const written = (xScale: number, yScale: number) => {
+    const { ctx, texts } = textRecorder()
+    drawTubeMap(
+      ctx,
+      { ...picture, mismatches: [] },
+      {
+        x: tx => tx * xScale,
+        y: ty => ty * yScale,
+        yScale,
+        width: 1e6,
+      },
+    )
+    return texts
+  }
+  expect(written(20, 1).toSorted()).toEqual(
+    offReference.map(node => formatBp(node.length)).toSorted(),
+  )
+  expect(written(0.1, 1)).toEqual([])
+  expect(written(20, 0.01)).toEqual([])
+})
+
+test('a length is written only in a box as wide as its text and as tall as its line', () => {
+  const textPx = (text: string) => text.length * 6
+  expect(lengthCaption(9446, { width: 44, height: 14 }, textPx)).toBe('9.4 kb')
+  expect(lengthCaption(9446, { width: 43, height: 14 }, textPx)).toBeUndefined()
+  expect(lengthCaption(9446, { width: 44, height: 13 }, textPx)).toBeUndefined()
 })

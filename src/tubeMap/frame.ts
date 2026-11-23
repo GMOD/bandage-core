@@ -23,7 +23,7 @@ export interface TubeMapTransform {
 const MIN_TUBE_Y_SCALE = 0.05
 
 // How far a node's box reaches past its tubes (tubemap-core's nodeOutlinePath)
-const NODE_BOX_PAD = 9
+export const NODE_BOX_PAD = 9
 
 // On the reference axis y is px and a linear view has no vertical pan, so a
 // stack of tubes taller than the track squeezes to fit it; dragging the track

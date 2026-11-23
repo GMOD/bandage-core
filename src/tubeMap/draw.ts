@@ -5,12 +5,14 @@ import {
   readColor,
 } from '@jbrowse/tubemap-core'
 
+import { isOffReference } from '../anchoredNodes'
 import { NOT_LOADED_TEXT } from '../gfa/departures'
 import { formatBp } from '../graphLabels'
 import { referenceWalkName } from '../layout/walkRows'
 import { pathOrigin } from '../pathAnchoring'
 import { groupBy } from '../util/groups'
 import { weakMemo } from '../util/weakMemo'
+import { NODE_BOX_PAD } from './frame'
 import { tubeMapMismatches } from './mismatches'
 import { MAX_GAP_PX } from './warp'
 
@@ -116,6 +118,7 @@ export interface TubeMapPicture {
     x0: number
     x1: number
     notShown?: { bp: number; y: number }
+    offReference?: { bp: number; y0: number; y1: number }
   }[]
   mismatches: TubeMapMismatch[]
 }
@@ -230,11 +233,17 @@ export function tubeMapPicture({
       node.placeholder ? [[node.id, node.length] as const] : [],
     ),
   )
+  const offReference = new Map(
+    (graph?.nodes ?? []).flatMap(node =>
+      isOffReference(node) ? [[node.id, node.length] as const] : [],
+    ),
+  )
   const nodes: TubeMapPicture['nodes'] = []
   layout.nodes.forEach(node => {
     if (node.order >= 0) {
       const commands = parsePath(nodeOutlinePath(node))
       const bp = placeholders.get(node.name)
+      const ownBp = offReference.get(node.name)
       nodes.push({
         name: node.name,
         commands,
@@ -242,6 +251,15 @@ export function tubeMapPicture({
         ...(bp === undefined
           ? {}
           : { notShown: { bp, y: node.y + node.contentHeight / 2 } }),
+        ...(ownBp === undefined
+          ? {}
+          : {
+              offReference: {
+                bp: ownBp,
+                y0: node.y - NODE_BOX_PAD,
+                y1: node.y + node.contentHeight + NODE_BOX_PAD,
+              },
+            }),
       })
     }
   })
@@ -407,33 +425,60 @@ export function notShownCaption(
   )
 }
 
-function drawNotShown(
+const CAPTION_FONT_PX = 11
+const CAPTION_LINE_PX = 14
+
+export function lengthCaption(
+  bp: number,
+  box: { width: number; height: number },
+  textPx: (text: string) => number,
+) {
+  const text = formatBp(bp)
+  return box.height >= CAPTION_LINE_PX &&
+    textPx(text) + CAPTION_PAD_PX <= box.width
+    ? text
+    : undefined
+}
+
+function drawCaptions(
   ctx: TubeMapContext,
   picture: TubeMapPicture,
   { x, y, width, darkMode }: TubeMapFrame,
 ) {
-  ctx.font = '11px sans-serif'
+  ctx.font = `${CAPTION_FONT_PX}px sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.lineWidth = 3
   ctx.strokeStyle = darkMode ? 'rgb(30, 30, 30)' : '#ffffff'
   ctx.fillStyle = darkMode ? '#e0e0e0' : '#000000'
-  for (const node of picture.nodes) {
-    const left = x(node.x0)
-    const right = x(node.x1)
-    const text =
-      node.notShown && right >= 0 && left <= width
-        ? notShownCaption(
-            node.notShown.bp,
-            right - left,
-            caption => ctx.measureText(caption).width,
-          )
-        : undefined
-    if (text && node.notShown) {
-      const cx = (left + right) / 2
-      const cy = y(node.notShown.y)
-      ctx.strokeText(text, cx, cy)
-      ctx.fillText(text, cx, cy)
+  const textPx = (caption: string) => ctx.measureText(caption).width
+  for (const { x0, x1, notShown, offReference } of picture.nodes) {
+    const left = x(x0)
+    const right = x(x1)
+    if (right >= 0 && left <= width) {
+      const caption = notShown
+        ? {
+            text: notShownCaption(notShown.bp, right - left, textPx),
+            cy: y(notShown.y),
+          }
+        : offReference
+          ? {
+              text: lengthCaption(
+                offReference.bp,
+                {
+                  width: right - left,
+                  height: y(offReference.y1) - y(offReference.y0),
+                },
+                textPx,
+              ),
+              cy: (y(offReference.y0) + y(offReference.y1)) / 2,
+            }
+          : undefined
+      if (caption?.text) {
+        const cx = (left + right) / 2
+        ctx.strokeText(caption.text, cx, caption.cy)
+        ctx.fillText(caption.text, cx, caption.cy)
+      }
     }
   }
 }
@@ -494,7 +539,7 @@ export function drawTubeMap(
       ctx.globalAlpha = 1
     }
   }
-  drawNotShown(ctx, picture, frame)
+  drawCaptions(ctx, picture, frame)
   drawTubeMapHighlight(ctx, picture, frame)
   drawMismatches(ctx, picture.mismatches, frame)
 }
