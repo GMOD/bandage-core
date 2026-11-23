@@ -236,8 +236,7 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     // a segment no path traverses has no walk through it, in a graph that
     // has paths; one without them counts every segment once
     const depth =
-      fileDepth ??
-      (traversals.size > 0 ? (traversals.get(gfaNode.id) ?? 0) : 1)
+      fileDepth ?? (traversals.size > 0 ? (traversals.get(gfaNode.id) ?? 0) : 1)
     nodes.push(makeNode(gfaNode, canonical.get(gfaNode.id) ?? '+', depth))
   }
 

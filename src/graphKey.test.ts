@@ -557,10 +557,7 @@ test("the thickness keys give the scale's two ends, links only where they widen 
 // Eight walks through v2 and one through a1, as at a 1-walk allele
 const NINE = [
   GFA.replace('W\talt\t1\tchr6\t0\t13\t>v1>a1>v3', ''),
-  ...Array.from(
-    { length: 7 },
-    (_, i) => `W\th${i}\t1\tchr6\t0\t9\t>v1>v2>v3`,
-  ),
+  ...Array.from({ length: 7 }, (_, i) => `W\th${i}\t1\tchr6\t0\t9\t>v1>v2>v3`),
   'W\talt\t1\tchr6\t0\t13\t>v1>a1>v3',
 ].join('\n')
 
@@ -575,7 +572,7 @@ const thicknessKey = (
     { nodeWidth: 'walks', edgeWidth: 'walks', contigThickness, ...o },
   ).find(s => s.id === 'node-width')
 
-const widths = (section?: GraphKeySection) =>
+const scaleOf = (section?: GraphKeySection) =>
   section?.entries.map(e => [
     e.text,
     e.swatch?.kind === 'width' ? Math.round(e.swatch.px * 100) / 100 : NaN,
@@ -585,7 +582,7 @@ test('nodes and links by walks key one thickness: every walk, half of them and o
   const nine = load(NINE, 'GRCh38')
   const thick = thicknessKey(nine)
   expect(thick?.group).toBe('Thickness')
-  expect(widths(thick)).toEqual([
+  expect(scaleOf(thick)).toEqual([
     ['9 walks', 9],
     ['5 walks', 5],
     ['1 walk', 1],
@@ -597,20 +594,21 @@ test('nodes and links by walks key one thickness: every walk, half of them and o
     'Node thickness',
   )
   // a haplotype asked for that has no walk here is on the scale
-  expect(widths(thicknessKey(nine, { haplotypes: ['gone#1'] }))?.[0]).toEqual(
-    ['10 walks', 10],
-  )
+  expect(scaleOf(thicknessKey(nine, { haplotypes: ['gone#1'] }))?.[0]).toEqual([
+    '10 walks',
+    10,
+  ])
 })
 
 test('the thinnest walks swatch says how many walks its 1 px floor holds, and a repeat keys its passes', () => {
   const nine = load(NINE, 'GRCh38')
-  expect(widths(thicknessKey(nine, {}, 3))).toEqual([
+  expect(scaleOf(thicknessKey(nine, {}, 3))).toEqual([
     ['9 walks', 4.5],
     ['5 walks', 2.5],
     ['1 to 2 walks', 1],
   ])
   const repeat = withNodes(nine, name => (name === 'v2' ? { depth: 30 } : {}))
-  expect(widths(thicknessKey(repeat))).toEqual([
+  expect(scaleOf(thicknessKey(repeat))).toEqual([
     ['30 walk passes', 18],
     ['9 walks', 5.4],
     ['5 walks', 3],
@@ -653,7 +651,7 @@ test('a node no walk steps has no pass, draws as a hairline by walks and keys as
   })
   const run = rebuilt.nodeStrokeRuns.get(u1.id)!
   expect(2 * rebuilt.nodeStrokes[run.start]!.thickness).toBe(0.5)
-  expect(widths(thicknessKey(stray))?.map(([text]) => text)).toEqual([
+  expect(scaleOf(thicknessKey(stray))?.map(([text]) => text)).toEqual([
     '2 walks',
     '1 walk',
     '0 walks',

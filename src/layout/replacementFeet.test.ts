@@ -38,16 +38,22 @@ const engine: LayoutEngine = async request => {
   }
 }
 
-const settings = { quality: 1, linearLayout: false, bubbleSpread: 'auto' as const }
+const settings = {
+  quality: 1,
+  linearLayout: false,
+  bubbleSpread: 'auto' as const,
+}
 
 const length = (points: NodeSegment[]) =>
   points.reduce(
     (sum, p, i) =>
-      i === 0 ? 0 : sum + Math.hypot(p.x - points[i - 1]!.x, p.y - points[i - 1]!.y),
+      i === 0
+        ? 0
+        : sum + Math.hypot(p.x - points[i - 1]!.x, p.y - points[i - 1]!.y),
     0,
   )
 
-test("an allele under half the reference it replaces pads both its links to the reference, and one over half pads none", () => {
+test('an allele under half the reference it replaces pads both its links to the reference, and one over half pads none', () => {
   expect(
     paddedFeet(replacement(2)).map(f => [f.edgeIndex, f.replacedBp, f.ownBp]),
   ).toEqual([
@@ -119,12 +125,18 @@ test('a 2 bp replacement of 1.8 kb gets a dashed route on each link, and its fee
   const { result } = await forceLayout(graph, settings, engine)
   const id = (name: string) => graph.nodes.find(n => n.name === name)!.id
   const routes = result.deletionRoutes ?? {}
-  expect(Object.keys(routes).map(Number).sort()).toEqual([2, 3])
+  expect(
+    Object.keys(routes)
+      .map(Number)
+      .toSorted((a, b) => a - b),
+  ).toEqual([2, 3])
   const replaced = length(result.nodePositions[id('r2')]!)
   const leave = result.nodePositions[id('r1')]!.at(-1)!
   const rejoin = result.nodePositions[id('r3')]![0]!
   const arm =
-    length(routes[2]!) + length(routes[3]!) + length(result.nodePositions[id('x')]!)
+    length(routes[2]!) +
+    length(routes[3]!) +
+    length(result.nodePositions[id('x')]!)
   // the arm is drawn about half the reference it replaces, so the reference
   // does not close on it as a loop
   expect(arm).toBeGreaterThan(replaced * 0.3)

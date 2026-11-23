@@ -1,4 +1,3 @@
-import { curvePointAt } from '../util/geometry'
 import {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,

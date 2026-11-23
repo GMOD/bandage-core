@@ -1,9 +1,6 @@
 import { isBackbone, readsAsReference } from './anchoredNodes'
 import { departureTails } from './gfa/departures'
-import {
-  haplotypeIndex,
-  haplotypeOf,
-} from './nodeWidths'
+import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
 import { polylinePx } from './util/geometry'
 import { addTo, pushTo } from './util/groups'

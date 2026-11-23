@@ -3,6 +3,7 @@ import { panSNHaplotype } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { weakMemo } from './util/weakMemo'
 
+import type { AnchoredNode } from './anchoredNodes'
 import type { Graph } from './types'
 
 // The graph names no event, so an inversion's only mark was its strand-turn
@@ -25,28 +26,30 @@ export function walksAgainstReference(graph: Graph) {
     const visits = graph.pathVisits
     const out = new Map<string, readonly string[]>()
     const backbone = graph.nodes.filter(
-      node => isBackbone(node) && !node.placeholder,
+      (node): node is AnchoredNode => isBackbone(node) && !node.placeholder,
     )
-    const references = new Set(backbone.map(node => node.stable!.refName))
+    const references = new Set(backbone.map(node => node.stable.refName))
     const ofReference = (path: string) =>
       references.has(path) || references.has(pathOrigin(path).name)
     for (const node of backbone) {
-      const slot = visits ? visits.slot(node.name) : -1
       let along = 0
       let reversed = 0
       const others: { path: string; reversed: boolean }[] = []
-      for (
-        let i = visits && slot >= 0 ? visits.offsets[slot]! : 0;
-        visits && slot >= 0 && i < visits.offsets[slot + 1]!;
-        i++
-      ) {
-        const path = visits.paths[visits.path[i]!]!
-        const turned = visits.reversed[i] === 1
-        if (ofReference(path)) {
-          along += turned ? 0 : 1
-          reversed += turned ? 1 : 0
-        } else {
-          others.push({ path, reversed: turned })
+      const slot = visits ? visits.slot(node.name) : -1
+      if (visits && slot >= 0) {
+        for (
+          let i = visits.offsets[slot]!;
+          i < visits.offsets[slot + 1]!;
+          i++
+        ) {
+          const path = visits.paths[visits.path[i]!]!
+          const turned = visits.reversed[i] === 1
+          if (ofReference(path)) {
+            along += turned ? 0 : 1
+            reversed += turned ? 1 : 0
+          } else {
+            others.push({ path, reversed: turned })
+          }
         }
       }
       for (const { path, strand } of node.departureVisits ?? []) {
@@ -55,13 +58,13 @@ export function walksAgainstReference(graph: Graph) {
         }
       }
       const referenceReversed =
-        along + reversed > 0
-          ? reversed > along
-          : node.stable!.strand === '-'
+        along + reversed > 0 ? reversed > along : node.stable.strand === '-'
       const against = new Set(
         others
           .filter(visit => visit.reversed !== referenceReversed)
-          .map(visit => panSNHaplotype(visit.path) ?? pathOrigin(visit.path).name),
+          .map(
+            visit => panSNHaplotype(visit.path) ?? pathOrigin(visit.path).name,
+          ),
       )
       if (against.size > 0) {
         out.set(node.id, [...against].toSorted())

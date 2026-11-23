@@ -9,14 +9,12 @@ import { anchorGraph } from './pathAnchoring'
 import { buildGeometry, geometryFold } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { baseEdgeCurves } from './util/edgeCurves'
-import { curvePointAt } from './util/geometry'
 import { findHoveredEdge, findHoveredNode } from './util/hitDetection'
 import { walkLift } from './walkHighlight'
 import { MAX_ZOOM } from './zoomLimits'
 
 import type { BuildOptions } from './renderer/GeometryBuilder'
 import type { Graph, NodeSegment, PathVisit } from './types'
-import type { BezierCurve } from './util/geometry'
 
 const load = (lines: string[]) =>
   anchorGraph(convertGFAToGraph(parseGFA(lines.join('\n'))), 'ref')
@@ -223,9 +221,7 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     const scale = 1000 / 100_000
     const batch = build(graph, positions, scale)
     expect(100 * scale).toBeLessThan(SMALL_SITE_PX)
-    expect(312 * batch.collapsed!.pxPerBp).toBeGreaterThanOrEqual(
-      SMALL_SITE_PX,
-    )
+    expect(312 * batch.collapsed!.pxPerBp).toBeGreaterThanOrEqual(SMALL_SITE_PX)
     expect(folded(batch)).toEqual([])
     expect(drawnNodes(batch).has('i1+')).toBe(true)
   })
@@ -257,9 +253,7 @@ test('a site drawn longer than SMALL_SITE_PX folds while its bp comes to less, a
   const { graph, positions: laid } = snp(1, 1)
   const positions = { ...laid, 'a1+': at(1000, 1100, 30) }
   const batch = build(graph, positions, 0.2, hairline)
-  expect(polylineLength(positions['a1+']!) * 0.2).toBeGreaterThan(
-    SMALL_SITE_PX,
-  )
+  expect(polylineLength(positions['a1+']) * 0.2).toBeGreaterThan(SMALL_SITE_PX)
   expect(folded(batch)).toEqual(['a1+'])
   expect(folded(build(graph, positions, MAX_ZOOM, hairline))).toEqual([])
 })
@@ -267,7 +261,9 @@ test('a site drawn longer than SMALL_SITE_PX folds while its bp comes to less, a
 const polylineLength = (line: NodeSegment[]) =>
   line.reduce(
     (sum, p, i) =>
-      i === 0 ? 0 : sum + Math.hypot(p.x - line[i - 1]!.x, p.y - line[i - 1]!.y),
+      i === 0
+        ? 0
+        : sum + Math.hypot(p.x - line[i - 1]!.x, p.y - line[i - 1]!.y),
     0,
   )
 

@@ -1174,9 +1174,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const edgeWidth = drawnEdgeWidth(graph, options.edgeWidth ?? 'uniform')
   const widthScale = widthNorm(graph, nodeWidth)
   const perPass =
-    edgeWidth === 'walks'
-      ? contigThickness / passesAtContigThickness(graph)
-      : 0
+    edgeWidth === 'walks' ? contigThickness / passesAtContigThickness(graph) : 0
   const linkPx = (walks: number) =>
     linkWidthPx(walks, perPass, edgeWidth, connectorThickness)
   const scale = axis.scaleX
@@ -2175,9 +2173,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // a deletion's link, or a padded foot's drawn along its route
     // (replacementFeet.ts): each skips the reference between its ends
     const skips = isDeletion || !!deletions?.has(ei)
-    const plainEdgeColor = skips
-      ? EDGE_DELETION_COLOR
-      : EDGE_DEFAULT_COLOR
+    const plainEdgeColor = skips ? EDGE_DELETION_COLOR : EDGE_DEFAULT_COLOR
     const edgeFaded = !!highlight && !onWalk
     const edgeColor =
       edgeFaded && plainEdgeColor === EDGE_DEFAULT_COLOR

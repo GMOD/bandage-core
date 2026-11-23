@@ -355,7 +355,9 @@ test('a figure keys the dashed links it draws as skipped reference sequence, how
   const skippedLayout = layoutModeByValue('ordered').run(skipped, undefined)!
   for (const width of [600, 120]) {
     const svg = figureSvg(skipped, skippedLayout, { width })
-    expect(svg).toMatch(/stroke-dasharray="4 3"\/><text[^>]*>skips .+? sequence</)
+    expect(svg).toMatch(
+      /stroke-dasharray="4 3"\/><text[^>]*>skips .+? sequence</,
+    )
     expect(svg).not.toContain('short skip')
   }
   const plain = figureSvg(graph, layout, { width: 600 })
@@ -641,8 +643,10 @@ test('by default a figure folds its small sites, draws the allele, and says how 
   }
   const folded = figureSvg(sites, beside)
   const drawn = figureSvg(sites, beside, { smallSites: 'nodes' })
-  const line = /<text y="13">2 nodes and 1 skip under (\d+) bp not drawn<\/text>/
-    .exec(folded)?.[0]
+  const line =
+    /<text y="13">2 nodes and 1 skip under (\d+) bp not drawn<\/text>/.exec(
+      folded,
+    )?.[0]
   expect(line).toBeDefined()
   expect(drawn).not.toContain('not drawn')
   const key = folded.slice(0, folded.indexOf(line!))

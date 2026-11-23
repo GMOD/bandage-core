@@ -21,9 +21,9 @@ import {
 import { FIT_PADDING, fitOrAssumed, fitRoom } from './layout/fitAssumptions'
 import { mergeRuns, splitRuns } from './layout/mergeRuns'
 import { orientToReference } from './layout/orientToReference'
-import { footRoutes, paddedFeet } from './layout/replacementFeet'
 import { clearOfReference } from './layout/referenceClearance'
 import { seededNodes } from './layout/referenceSeeds'
+import { footRoutes, paddedFeet } from './layout/replacementFeet'
 import { smoothChain } from './layout/smoothChains'
 import { anchorGraph } from './pathAnchoring'
 import { buildNeighbors, nodeReferenceSpan } from './referenceSpan'
@@ -288,11 +288,8 @@ export async function forceLayout(
               (sum, n) => sum + drawnNodeLength(engineScaling.opts, n.length),
               0,
             ),
-            footRoutes(
-              graph,
-              feet,
-              drawnOf,
-              length => drawnNodeLength(engineScaling.opts, length),
+            footRoutes(graph, feet, drawnOf, length =>
+              drawnNodeLength(engineScaling.opts, length),
             ),
           ),
         ],

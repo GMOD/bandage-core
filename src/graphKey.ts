@@ -435,6 +435,8 @@ export function tooSmallText(nodes: number, skips: number, underBp = 0) {
     : `${parts.join(' and ')} too small to draw`
 }
 
+const have = (n: number) => (n === 1 ? 'has' : 'have')
+
 // The haplotypes asked for that the graph holds no step of, counted by
 // whether the cut states a departure of theirs over the window, which says
 // they leave the reference across it, or none, so no walk of theirs is near:
@@ -452,7 +454,6 @@ export function absentHaplotypesText(
     graph.departures?.names.some(name => panSNMatchesPrefix(name, prefix)),
   ).length
   const walkless = absent.length - departing
-  const have = (n: number) => (n === 1 ? 'has' : 'have')
   const noStep = `no step on ${reference} here`
   const noWalk = 'no walk here'
   const of = `of ${counted(asked.length, 'haplotype', 'haplotypes')}`
@@ -496,7 +497,12 @@ export function walkScaleEntries(
     1,
   ].filter((n, i, ns) => ns.indexOf(n) === i && (n === 1 || n > floorHolds))
   return counts.map(n => ({
-    key: n === 1 ? 'width-1' : n === most && most > all ? 'width-passes' : `width-${n}`,
+    key:
+      n === 1
+        ? 'width-1'
+        : n === most && most > all
+          ? 'width-passes'
+          : `width-${n}`,
     text:
       n === 1
         ? floorHolds > 1
@@ -590,7 +596,6 @@ export function graphKey(
   const lifted = lifts.length > 0
   const ramp = o.referenceRamp
   const thickness = o.contigThickness ?? 6
-  const connector = o.connectorThickness ?? 2
 
   const offReference = (key: string) =>
     entry(key, `off ${reference}`, {

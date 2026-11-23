@@ -43,7 +43,12 @@ function drawn(g: Graph, lifted?: string[]) {
     drawPaths: false,
     axis: { scaleX: 20, scaleY: 20 },
     ...(lifted
-      ? { highlight: walkLift(g, lifted.map(walk => ({ walk }))) }
+      ? {
+          highlight: walkLift(
+            g,
+            lifted.map(walk => ({ walk })),
+          ),
+        }
       : {}),
   })
 }

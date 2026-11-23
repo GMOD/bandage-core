@@ -101,10 +101,7 @@ function walkedFeet(graph: Graph) {
   const replacing = new Map<number, number>()
   const takes = (links: readonly number[], replacedBp: number) => {
     for (const link of links) {
-      replacing.set(
-        link,
-        Math.min(replacing.get(link) ?? Infinity, replacedBp),
-      )
+      replacing.set(link, Math.min(replacing.get(link) ?? Infinity, replacedBp))
     }
   }
   for (const { nodeIds } of graph.paths ?? []) {
@@ -117,17 +114,20 @@ function walkedFeet(graph: Graph) {
         return link === undefined ? [] : [link]
       })
       const own = nodeIds.slice(last + 1, to)
-      const leave =
-        last >= 0 ? (byId.get(nodeIds[last]!) as AnchoredNode) : undefined
-      const held =
-        !!leave &&
-        !!rejoin &&
+      const leave = last >= 0 ? byId.get(nodeIds[last]!) : undefined
+      const ownBp = own.reduce(
+        (sum, id) => sum + (byId.get(id)?.length ?? 0),
+        0,
+      )
+      const replacedBp =
+        onReference(leave) &&
+        rejoin &&
         own.length > 0 &&
         own.every(id => !byId.get(id)?.placeholder) &&
         leave.stable.refName === rejoin.stable.refName
-      const ownBp = own.reduce((sum, id) => sum + (byId.get(id)?.length ?? 0), 0)
-      const replacedBp = held ? between(leave, rejoin) : 0
-      const padded = held && ownBp < replacedBp * PADDED_SHARE
+          ? between(leave, rejoin)
+          : 0
+      const padded = ownBp < replacedBp * PADDED_SHARE
       takes(links, padded ? replacedBp : 0)
       if (padded) {
         runs.push({ replacedBp, nodes: [...new Set(own)], ownBp, links })
@@ -208,19 +208,23 @@ function componentFeet(graph: Graph): PaddedFoot[] {
     }
   })
   return [...components.values()].flatMap(({ nodes, feet, held }) => {
-    const ends = feet.map(edgeIndex => {
+    const ends = feet.flatMap(edgeIndex => {
       const edge = graph.edges[edgeIndex]!
       const leaving = !parent.has(edge.from)
-      const node = byId.get(leaving ? edge.from : edge.to) as AnchoredNode
-      return {
-        edgeIndex,
-        refName: node.stable.refName,
-        at: attachment(
-          node,
-          leaving ? edge.fromStrand : edge.toStrand,
-          leaving,
-        ),
-      }
+      const node = byId.get(leaving ? edge.from : edge.to)
+      return onReference(node)
+        ? [
+            {
+              edgeIndex,
+              refName: node.stable.refName,
+              at: attachment(
+                node,
+                leaving ? edge.fromStrand : edge.toStrand,
+                leaving,
+              ),
+            },
+          ]
+        : []
     })
     const ownBp = nodes.reduce((sum, id) => sum + byId.get(id)!.length, 0)
     const replacedBp =
