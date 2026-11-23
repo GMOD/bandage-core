@@ -1020,7 +1020,9 @@ function census(
     ...(g?.paths?.length && g.nodes.some(n => n.placeholder)
       ? ['width-not-drawn']
       : []),
-    ...(batch.collapsed?.sites.length ? ['too-small'] : []),
+    ...(batch.collapsed?.sites.length || batch.skipsTooShort?.size
+      ? ['too-small']
+      : []),
   ])
   const keyed = new Set(
     sections.flatMap(section => section.entries.map(entry => entry.key)),
@@ -1316,6 +1318,10 @@ test('the key says how many nodes and skips are too small to draw, in one line w
   )
   expect(tooSmallText(1, 0, 1)).toBe('1 node under 1 bp not drawn')
   expect(tooSmallText(0, 2, 1250)).toBe('2 skips under 1,250 bp not drawn')
+  expect(tooSmallText(3, 0, 19, 2)).toBe(
+    '3 nodes under 19 bp not drawn; 2 skips too short on screen to draw',
+  )
+  expect(tooSmallText(0, 0, 0, 1)).toBe('1 skip too short on screen to draw')
   const { layout, batch } = drawn(SMALL, smallSites())
   expect(batch.collapsed?.sites.map(s => s.nodes)).toEqual([['a1+'], []])
   for (const { bp } of batch.collapsed?.sites ?? []) {
@@ -1336,12 +1342,16 @@ test('the key says how many nodes and skips are too small to draw, in one line w
       },
     ],
   })
-  expect(keys(SMALL, { ...smallSites(), smallSites: 'nodes' })).not.toContain(
-    'too-small',
-  )
-  expect(keys(SMALL, { ...smallSites(), width: 60_000 })).not.toContain(
-    'too-small',
-  )
+  // drawn as nodes or wide, no site folds; a skip its span on screen holds
+  // no arch for is still counted apart
+  for (const scene of [
+    { ...smallSites(), smallSites: 'nodes' as const },
+    { ...smallSites(), width: 60_000 },
+  ]) {
+    expect(texts(SMALL, scene)).not.toContainEqual(
+      expect.stringMatching(/bp not drawn|too small to draw/),
+    )
+  }
   const dropped = sections.filter(s => s.id !== 'too-small')
   expect(census(dropped, batch, smallSites()).missing).toEqual(['too-small'])
 })

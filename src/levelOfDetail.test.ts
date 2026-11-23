@@ -171,7 +171,7 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     const { graph, positions } = skip(2)
     for (const [scale, isFolded] of [
       [0.5, true],
-      [1.5, false],
+      [10, false],
     ] as const) {
       const batch = build(graph, positions, scale)
       expect(batch.collapsed?.sites.map(s => s.edges)).toEqual(
@@ -197,7 +197,8 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     const batch = build(graph, looped, 0.003)
     expect(1000 * batch.collapsed!.pxPerBp).toBeGreaterThan(SMALL_SITE_PX)
     expect(batch.collapsed?.sites).toEqual([])
-    expect(batch.edgeCurveRuns.has(2)).toBe(true)
+    // its ends together on screen, it holds no arch and is counted as such
+    expect(batch.skipsTooShort?.has(2)).toBe(true)
   })
 
   // R100k-01: a 312 bp insertion, drawn a few px long by the force layout,
@@ -840,7 +841,9 @@ describe('the reference is the nodes the cut loaded on it', () => {
       const batch = build(graph, positions, scale)
       expect(batch.collapsed?.sites).toEqual([])
       expect(drawnNodes(batch).has('a1+')).toBe(true)
-      expect(batch.edgeCurveRuns.has(skipToP)).toBe(true)
+      expect(
+        batch.edgeCurveRuns.has(skipToP) || batch.skipsTooShort?.has(skipToP),
+      ).toBe(true)
     }
   })
 })
@@ -936,7 +939,7 @@ test('a site no shown walk steps is drawn, an allele or a skip', () => {
   const skipped = skip(1, [])
   const batch = build(skipped.graph, skipped.positions, 0.01)
   expect(batch.collapsed?.sites).toEqual([])
-  expect(batch.edgeCurveRuns.has(2)).toBe(true)
+  expect(batch.edgeCurveRuns.has(2) || batch.skipsTooShort?.has(2)).toBe(true)
 })
 
 test('the fold follows the skips the drawing holds and hides, on the same graph and curves', () => {
@@ -1355,7 +1358,7 @@ describe('the drawing through a folded site', () => {
       `S\tr1\t${bases(1000)}`,
       'S\tr2\tC',
       'S\tr3\tC',
-      `S\tr4\t${bases(30)}`,
+      `S\tr4\t${bases(300)}`,
       `S\tr5\t${bases(1000)}`,
       'S\ta1\tT',
       'L\tr1\t+\tr2\t+\t0M',
@@ -1365,7 +1368,7 @@ describe('the drawing through a folded site', () => {
       'L\tr1\t+\ta1\t+\t0M',
       'L\ta1\t+\tr3\t+\t0M',
       'L\tr2\t+\tr5\t+\t0M',
-      'W\tref\t0\tchr\t0\t2032\t>r1>r2>r3>r4>r5',
+      'W\tref\t0\tchr\t0\t2302\t>r1>r2>r3>r4>r5',
       'W\tw\t1\tchr\t0\t*\t>r1>a1>r3>r4>r5',
       'W\tw\t2\tchr\t0\t*\t>r1>r2>r5',
     ])
@@ -1376,8 +1379,8 @@ describe('the drawing through a folded site', () => {
         { x: 1001, y: 5 },
       ],
       'r3+': at(1001, 1002),
-      'r4+': at(1002, 1032),
-      'r5+': at(1032, 2032),
+      'r4+': at(1002, 1302),
+      'r5+': at(1302, 2302),
       'a1+': at(1000, 1001, 2),
     }
     const out = edgeIndex(skipping, 'r2+', 'r5+')

@@ -1,11 +1,7 @@
 import { AGAINST_INK, againstKey } from './againstReference'
 import { COMPRESSED_KEY } from './bubbleSpreads'
 import { BUBBLE_HALO_COLOR } from './bubbles/bubbleLabel'
-import {
-  SHORT_SKIP_KEY,
-  SUB_PIXEL_SKIP_KEY,
-  deletionKey,
-} from './deletionEdges'
+import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
 import { drawnEdgeWidth } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
@@ -184,6 +180,7 @@ export function drawnMarks(
         RenderBatch,
         | 'arrows'
         | 'collapsed'
+        | 'skipsTooShort'
         | 'nodeStrokeRuns'
         | 'laneOnly'
         | 'nodeThicknessesVary'
@@ -211,6 +208,7 @@ export function drawnMarks(
     runsOn: false,
     foldedNodes: new Set<string>(),
     foldedSkips: new Set<number>(),
+    skipsTooShort: new Set<number>(),
     foldedUnderBp: 0,
     nodes: undefined as Set<string> | undefined,
     view,
@@ -221,7 +219,10 @@ export function drawnMarks(
     !view || curves.some(curve => curveMeetsView(curve, view))
   let width: number | undefined
   for (const batch of batches) {
-    const { nodeStrokeRuns, nodeStrokes, collapsed } = batch
+    const { nodeStrokeRuns, nodeStrokes, collapsed, skipsTooShort } = batch
+    for (const edge of skipsTooShort ?? []) {
+      marks.skipsTooShort.add(edge)
+    }
     const shown = nodeStrokes.map(stroke => inView(stroke.points))
     if (nodeStrokeRuns) {
       const notDrawn = nodesNotDrawn(batch)
@@ -429,14 +430,28 @@ export function unlabelledText(unlabelled?: UnlabelledPlaceholders) {
         : `${n} unlabelled, ${formatBp(unlabelled.largest)} or less each`
 }
 
-export function tooSmallText(nodes: number, skips: number, underBp = 0) {
+export function tooSmallText(
+  nodes: number,
+  skips: number,
+  underBp = 0,
+  tooShort = 0,
+) {
   const parts = [
     ...(nodes > 0 ? [counted(nodes, 'node', 'nodes')] : []),
     ...(skips > 0 ? [counted(skips, 'skip', 'skips')] : []),
   ]
-  return underBp > 0
-    ? `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`
-    : `${parts.join(' and ')} too small to draw`
+  return [
+    ...(parts.length === 0
+      ? []
+      : underBp > 0
+        ? [
+            `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`,
+          ]
+        : [`${parts.join(' and ')} too small to draw`]),
+    ...(tooShort > 0
+      ? [`${counted(tooShort, 'skip', 'skips')} too short on screen to draw`]
+      : []),
+  ].join('; ')
 }
 
 const have = (n: number) => (n === 1 ? 'has' : 'have')
@@ -822,11 +837,11 @@ export function graphKey(
       : []),
     ...(o.marks.shortSkip
       ? [
-          entry(
-            'short-skip',
-            graph.paths?.length ? SUB_PIXEL_SKIP_KEY : SHORT_SKIP_KEY,
-            { kind: 'line', ink: skipInk, dashed: false },
-          ),
+          entry('short-skip', SHORT_SKIP_KEY, {
+            kind: 'line',
+            ink: skipInk,
+            dashed: false,
+          }),
         ]
       : []),
     ...(o.marks.turned
@@ -928,7 +943,10 @@ export function graphKey(
     {
       id: 'too-small',
       entries:
-        o.marks.foldedNodes.size + o.marks.foldedSkips.size > 0
+        o.marks.foldedNodes.size +
+          o.marks.foldedSkips.size +
+          o.marks.skipsTooShort.size >
+        0
           ? [
               {
                 key: 'too-small',
@@ -936,6 +954,7 @@ export function graphKey(
                   o.marks.foldedNodes.size,
                   o.marks.foldedSkips.size,
                   o.marks.foldedUnderBp,
+                  o.marks.skipsTooShort.size,
                 ),
               },
             ]

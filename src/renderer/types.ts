@@ -108,6 +108,9 @@ export interface RenderBatch {
   edgeCurveRuns: Map<number, Run>
   // the small sites folded at this scale, which draw nothing
   collapsed?: Fold
+  // the skips left out, with walks, where their span on screen holds no arch
+  // their stroke can shape
+  skipsTooShort?: ReadonlySet<number>
   // the reference nodes and links inside a folded site that, with walks
   // lifted, are drawn only by the lanes crossing it
   laneOnly?: { nodes: ReadonlySet<string>; edges: ReadonlySet<number> }

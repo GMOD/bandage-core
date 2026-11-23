@@ -30,8 +30,10 @@ import {
   rampHueAt,
 } from '../referenceRampCss'
 import { referenceMidpoints } from '../referenceSpan'
+import { compareValues } from '../util/canonicalOrder'
 import {
   DELETION_DASH_PX,
+  SKIP_LEVEL_PX,
   baseEdgeCurves,
   skipDashes,
   spanPx,
@@ -1168,6 +1170,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     viewportBounds,
     referenceRamp,
     deletions,
+    deletionRoutes,
     stranded,
     hiddenEdges,
     version = 0,
@@ -1187,6 +1190,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const yToX = yToXOf(axis)
   const sharedCurves = sharedCurvesOf(options)
   const collapse = foldOf(options, sharedCurves)
+  const skipsTooShort = new Set<number>()
   const siteAt = new Map<number, Site>()
   for (const site of collapse.sites) {
     for (const edge of site.edges) {
@@ -2163,6 +2167,16 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       (dashed && !walked
         ? connectorThickness * DELETION_THICKNESS_FACTOR
         : linkPx(linkPasses(edge))) / 2
+    const skips = isDeletion || !!deletions?.has(ei) || !!deletionRoutes?.[ei]
+    if (
+      walked &&
+      skips &&
+      !laneWalks &&
+      (!isDeletion || arcPx < Math.max(SKIP_LEVEL_PX, 6 * edgeThickness))
+    ) {
+      skipsTooShort.add(ei)
+      continue
+    }
 
     // An arrowhead states which way a LINK is read, which is a property of the
     // edge and not of each path crossing it. Drawn per ribbon it says one thing
@@ -2176,7 +2190,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // So one head per edge, in the edge's own colour rather than a ribbon's,
     // since choosing a ribbon's would privilege one haplotype for a fact that
     // belongs to none of them. `undefined` means this call draws no head.
-    const skips = isDeletion || !!deletions?.has(ei)
     const plainEdgeColor = skips ? EDGE_DELETION_COLOR : EDGE_DEFAULT_COLOR
     const edgeFaded = !!highlight && !onWalk
     const edgeColor =
@@ -2729,6 +2742,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     edgeCurves,
     edgeCurveRuns,
     collapsed: collapse,
+    skipsTooShort,
     laneOnly,
     nodeThicknessesVary: thinnestStroke < thickestStroke,
     ...(counted ? { countedLanes: true } : {}),

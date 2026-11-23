@@ -1078,7 +1078,7 @@ describe('arrowhead placement', () => {
   // as loops along the backbone; dropping them left pggb chrY's 88,829 bp
   // skip at 9.3 Mb, which seven haplotypes carry, drawn nowhere
   test("a skip under a pixel on screen is drawn as the plain link it is, over the nodes in a skip's ink", () => {
-    const link = skipAt(0.05)
+    const link = skipAt(0.05, undefined, simpleGraph)
     expect(link.strokes).toHaveLength(1)
     expect(link.strokes[0]!.skip).toBeUndefined()
     const overNodes = {
@@ -1086,23 +1086,52 @@ describe('arrowhead placement', () => {
       strokes: [
         {
           ...link.strokes[0]!,
-          color: skipAt(0.2, []).strokes[0]!.color,
+          color: skipAt(0.2, [], simpleGraph).strokes[0]!.color,
           skip: true,
           span: 0,
         },
       ],
     }
-    expect(skipAt(0.05, [])).toEqual(overNodes)
-    expect(skipAt(0.05, ['M+'])).toEqual(overNodes)
+    expect(skipAt(0.05, [], simpleGraph)).toEqual(overNodes)
+    expect(skipAt(0.05, ['M+'], simpleGraph)).toEqual(overNodes)
   })
 
   test('a skip a twentieth of a px across is stroked in the ink of one 2 px across', () => {
-    const arc = skipAt(0.2, []).strokes[0]!
-    const fallback = skipAt(0.005, []).strokes[0]!
+    const arc = skipAt(0.2, [], simpleGraph).strokes[0]!
+    const fallback = skipAt(0.005, [], simpleGraph).strokes[0]!
     expect(arc.span).toBeCloseTo(2, 5)
     expect(fallback).toMatchObject({ skip: true, span: 0 })
     expect(fallback.color).toBe(arc.color)
-    expect(fallback.color).not.toBe(skipAt(0.005).strokes[0]!.color)
+    expect(fallback.color).not.toBe(
+      skipAt(0.005, undefined, simpleGraph).strokes[0]!.color,
+    )
+  })
+
+  // a 5 px arch over a chord under its stroke drew a blob, and a skip under a
+  // pixel a plain dot keyed apart
+  test('with walks a skip whose span on screen holds no arch its stroke can shape is left out and counted, one that holds it drawn', () => {
+    const batchAt = (scale: number, connectorThickness: number) =>
+      buildGeometry({
+        nodePositions: simplePositions,
+        graph: walked,
+        nodeById: simpleNodeById,
+        colorScheme: 'uniform',
+        contigThickness: 6,
+        connectorThickness,
+        drawPaths: false,
+        axis: iso(scale),
+        deletions: new Map([[0, []]]),
+      })
+    for (const [scale, thickness, left] of [
+      [0.005, 2, true],
+      [0.8, 2, false],
+      [0.8, 6, true],
+      [4, 6, false],
+    ] as const) {
+      const batch = batchAt(scale, thickness)
+      expect(batch.skipsTooShort.has(0)).toBe(left)
+      expect(batch.edgeCurveRuns.has(0)).toBe(!left)
+    }
   })
 
   // a head is 10 px on a plain link, so it waits for 30 px of link

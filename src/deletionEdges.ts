@@ -50,10 +50,9 @@ export const MIN_DELETION_BP = 1
 export const deletionKey = (reference?: string) =>
   `skips ${reference ?? 'the reference'} sequence`
 
-// A skip drawn as one plain stroke: without walks, any too short on screen
-// to dash; with walks, one whose ends lie under a pixel apart
+// What a legend calls a skip drawn as one plain stroke, its span on screen
+// too short to hold the dashes, as a graph without walks draws it
 export const SHORT_SKIP_KEY = 'short skip'
-export const SUB_PIXEL_SKIP_KEY = 'skip, its ends under 1 px apart'
 
 export interface DeletionEdge {
   // index into graph.edges, which is what the renderer keys its curve ranges by

@@ -173,12 +173,12 @@ export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
 export {
   SHORT_SKIP_KEY,
-  SUB_PIXEL_SKIP_KEY,
   deletionDrawing,
   deletionEdges,
   deletionKey,
 } from './deletionEdges'
 export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
+export type { PaddedFoot } from './layout/replacementFeet'
 export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
 export {
   MOST_PASS_THREADS,
