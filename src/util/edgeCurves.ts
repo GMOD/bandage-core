@@ -1,4 +1,5 @@
 import { deletionEdges, edgeCurvesOf } from '../deletionEdges'
+import { SMALL_SITE_PX, referencePxPerBpAt } from '../levelOfDetail'
 import { APEX_FRACTION, curvePointAt, pointsNearPolyline } from './geometry'
 import { groupBy } from './groups'
 import { partitionPoint } from './partitionPoint'
@@ -34,6 +35,9 @@ export const skipDashes = (span: number) => span >= MIN_DASHED_SKIP_PX
 // How much higher each skip nesting another rises than the highest it nests:
 // a dashed skip's width at the default connector, 4.4 px, rounded up
 export const SKIP_LEVEL_PX = 5
+// with walks a skip too short on screen for full dashes rises at least this
+// share of its span, so a stroke a third of that span still reads as an arch
+const LOW_ARCH_SHARE = 1 / 3
 const REACH_SAMPLES = 8
 const RISE_SAMPLES = 64
 // the side, as farthestPx signs it along the reference, the stress engine
@@ -150,6 +154,8 @@ export function baseEdgeCurves(
     ],
     () => {
       const curves = new EdgeCurves()
+      const walked = !!graph.paths?.length
+      const arch = walked ? lowArchOf : archOf
       for (let ei = 0; ei < graph.edges.length; ei++) {
         const edge = graph.edges[ei]!
         const bypassed = deletions?.get(ei)
@@ -158,27 +164,27 @@ export function baseEdgeCurves(
           bypassed || route
             ? edgeCurvesOf(nodePositions, edge, axis, bypassed, route, stranded)
             : undefined
-        // with walks a skip too short on screen for full dashes arches low
+        const span = routed ? spanPx(routed, axis) : 0
         const arc =
-          bypassed && route && routed
-            ? !skipDashes(spanPx(routed, axis))
-              ? !graph.paths?.length
-                ? routed
-                : archOf(
-                    routed,
-                    axis,
-                    SKIP_LEVEL_PX *
-                      archSide(routed, bypassed, nodePositions, axis),
-                  )
-              : runsAlong(routed, bypassed, nodePositions, axis)
-                ? archOf(
+          route && routed && walked && !skipDashes(span)
+            ? lowArchOf(
+                routed,
+                axis,
+                Math.max(SKIP_LEVEL_PX, span * LOW_ARCH_SHARE) *
+                  (bypassed
+                    ? archSide(routed, bypassed, nodePositions, axis)
+                    : Math.sign(farthestPx(routed, axis, REACH_SAMPLES)) || 1),
+              )
+            : bypassed && route && routed && skipDashes(span)
+              ? runsAlong(routed, bypassed, nodePositions, axis)
+                ? arch(
                     routed,
                     axis,
                     ALONG_ARCH_PX *
                       archSide(routed, bypassed, nodePositions, axis),
                   )
                 : routed
-            : routed
+              : routed
         const drawsArc =
           arc !== undefined && spanPx(arc, axis) >= MIN_ARC_SPAN_PX
         const edgeCurves = drawsArc
@@ -202,10 +208,20 @@ export function baseEdgeCurves(
       }
       if (deletions) {
         const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-        const { spans, levels, alone } = sitesCache(deletions, [graph], () =>
-          skipSites(
-            deletionEdges(graph).filter(d => deletions.has(d.edgeIndex)),
-          ),
+        const pxPerBp = walked
+          ? referencePxPerBpAt(graph.nodes, nodePositions, axis, version)
+          : 0
+        const { spans, levels, alone } = sitesCache(
+          deletions,
+          [graph, pxPerBp],
+          () =>
+            skipSites(
+              deletionEdges(graph).filter(
+                d =>
+                  deletions.has(d.edgeIndex) &&
+                  (d.end - d.start) * pxPerBp >= (walked ? SMALL_SITE_PX : 0),
+              ),
+            ),
         )
         const levelOf = (ei: number) => levels.get(ei) ?? 1
         const chords = new Map(
@@ -249,10 +265,12 @@ export function baseEdgeCurves(
                   ? ROUTES_ARCH_ABOVE
                   : -ROUTES_ARCH_ABOVE
                 : Math.sign(farthest) || 1
-              curves.set(ei, archOf(arc, axis, height * side))
+              curves.set(ei, arch(arc, axis, height * side))
             }
             return arches
-              ? height
+              ? walked
+                ? Math.min(height, spanPx(arc, axis))
+                : height
               : Math.abs(farthestPx(arc, axis, RISE_SAMPLES))
           },
         )
@@ -371,6 +389,35 @@ function farthestPx(curves: BezierCurve[], axis: AxisScale, samples: number) {
     }
   }
   return farthest
+}
+
+// One cubic from the arc's feet whose apex strays `rise` screen px from its
+// chord, but never more than the chord is long, its control points over its
+// feet, so it lies within the span between them
+function lowArchOf(
+  curves: BezierCurve[],
+  axis: AxisScale,
+  rise: number,
+): BezierCurve[] {
+  const first = curves[0]!
+  const last = curves.at(-1)!
+  const { ux, uy, length } = screenChord(curves, axis)
+  const bow =
+    (Math.sign(rise) * Math.min(Math.abs(rise), length)) / APEX_FRACTION
+  const dx = (-uy * bow) / axis.scaleX
+  const dy = (ux * bow) / axis.scaleY
+  return [
+    {
+      x0: first.x0,
+      y0: first.y0,
+      cx0: first.x0 + dx,
+      cy0: first.y0 + dy,
+      cx1: last.x1 + dx,
+      cy1: last.y1 + dy,
+      x1: last.x1,
+      y1: last.y1,
+    },
+  ]
 }
 
 // One cubic from the arc's feet whose apex strays `rise` screen px from its

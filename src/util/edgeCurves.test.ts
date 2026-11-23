@@ -254,18 +254,20 @@ describe('a dragged node', () => {
   })
 })
 
-// Six 10 bp backbone segments end to end, drawn 2 px each, with every skip's
-// route laid on the backbone as a force layout lays a short one: sv-49's 16 bp
-// skip and the 1 bp skips sharing its anchors were drawn over each other there
+// Six backbone segments end to end, drawn 5 px each, with every skip's route
+// laid on the backbone as a force layout lays a short one: sv-49's 16 bp skip
+// and the 1 bp skips sharing its anchors were drawn over each other there
 describe('skips at one site', () => {
-  const scale = 0.2
+  const scale = 0.5
   const axis = { scaleX: scale, scaleY: scale }
   // the widest a skip draws at the default connector, dashed
   const widestSkipPx = 2 * 2.2
+  // each node 1 bp of a reference whose coordinates run 10 bp a node, so
+  // each skip spans enough bp at the reference's px a bp to stay unfolded
   const backbone: GraphNode[] = [0, 1, 2, 3, 4, 5].map(i => ({
     id: `n${i}+`,
     name: `n${i}`,
-    length: 10,
+    length: 1,
     depth: 1,
     stable: { refName: 'chr1', start: i * 10, rank: 0 },
   }))
@@ -279,7 +281,7 @@ describe('skips at one site', () => {
         ],
       ]),
     )
-  const skips = (links: [number, number, number[]][]) => {
+  const skips = (links: [number, number, number[]][], paths = WALK) => {
     const edges = links.map(([from, to]) => ({
       from: `n${from}+`,
       to: `n${to}+`,
@@ -295,7 +297,7 @@ describe('skips at one site', () => {
     )
     return baseEdgeCurves(
       positions(),
-      { name: 'site', nodes: backbone, edges, paths: WALK },
+      { name: 'site', nodes: backbone, edges, paths },
       axis,
       new Map(
         links.map(([, , bypassed], ei) => [ei, bypassed.map(i => `n${i}+`)]),
@@ -518,24 +520,27 @@ describe('skips at one site', () => {
 
   test('two skips over one span between the same anchors rise a stroke apart', () => {
     const curves = skips([
-      [0, 2, [1]],
-      [0, 2, [1]],
+      [0, 3, [1, 2]],
+      [0, 3, [1, 2]],
     ])
     expect(
       Math.abs(heightPx(curves.get(1)!) - heightPx(curves.get(0)!)),
     ).toBeGreaterThanOrEqual(widestSkipPx)
   })
 
-  test('two skips over a chord shorter than their rise part along their legs, the higher clear of the lower at its mid-height', () => {
-    const curves = skips([
-      [0, 2, [1]],
-      [0, 2, [1]],
-    ])
+  test('in a graph without walks, two skips over a chord shorter than their rise part along their legs, the higher clear of the lower at its mid-height', () => {
+    const curves = skips(
+      [
+        [0, 2, [1]],
+        [0, 2, [1]],
+      ],
+      [],
+    )
     const [low, high] = [curves.get(0)!, curves.get(1)!].sort(
       (a, b) => heightPx(a) - heightPx(b),
     )
     const chordPx = 10 * scale
-    expect(chordPx).toBeLessThan(heightPx(low!))
+    expect(chordPx).toBeLessThan(heightPx(high!))
     const lows = points(low!, 1024)
     const clearance = (p: { x: number; y: number }) =>
       lows.reduce(
@@ -606,6 +611,77 @@ describe('skips at one site', () => {
   })
 })
 
+// SV-del-100k+: a 3,146 bp skip rose four levels over 1 bp skips the fold
+// hid, a teardrop 28 px across over 20 px of the reference it skips
+test('with walks a skip nesting only folded skips rises one level, every point within the span between its feet', () => {
+  const lengths = [1000, 1, 1, 1, 500, 1000]
+  const starts = lengths.map((_, i) =>
+    lengths.slice(0, i).reduce((sum, bp) => sum + bp, 0),
+  )
+  const backbone: GraphNode[] = lengths.map((length, i) => ({
+    id: `n${i}+`,
+    name: `n${i}`,
+    length,
+    depth: 1,
+    stable: { refName: 'chr1', start: starts[i]!, rank: 0 },
+  }))
+  const positions = Object.fromEntries(
+    backbone.map((n, i) => [
+      n.id,
+      [
+        { x: starts[i]!, y: 0 },
+        { x: starts[i]! + n.length, y: 0 },
+      ],
+    ]),
+  )
+  const links: [number, number][] = [
+    [0, 5],
+    [1, 3],
+    [0, 2],
+    [2, 4],
+  ]
+  const scale = 0.02
+  const curves = baseEdgeCurves(
+    positions,
+    {
+      name: 'site',
+      nodes: backbone,
+      edges: links.map(([from, to]) => ({ from: `n${from}+`, to: `n${to}+` })),
+      paths: WALK,
+    },
+    { scaleX: scale, scaleY: scale },
+    new Map(
+      links.map(([from, to], ei) => [
+        ei,
+        backbone.slice(from + 1, to).map(n => n.id),
+      ]),
+    ),
+    0,
+    Object.fromEntries(
+      links.map(([from, to], ei) => [
+        ei,
+        [
+          { x: starts[from]! + lengths[from]!, y: 0 },
+          { x: starts[to]!, y: 0 },
+        ],
+      ]),
+    ),
+  )
+  const outer = curves.get(0)!
+  const [left, right] = [starts[1]!, starts[5]!].map(x => x * scale)
+  const drawn = outer.flatMap(c =>
+    Array.from({ length: 65 }, (_, k) => curvePointAt(c, k / 64)),
+  )
+  expect(right! - left!).toBeLessThan(33)
+  expect(
+    drawn.reduce((most, p) => Math.max(most, Math.abs(p.y) * scale), 0),
+  ).toBeCloseTo(SKIP_LEVEL_PX, 5)
+  for (const p of drawn) {
+    expect(p.x * scale).toBeGreaterThanOrEqual(left! - 1e-9)
+    expect(p.x * scale).toBeLessThanOrEqual(right! + 1e-9)
+  }
+})
+
 describe('a dashed skip whose route runs along the reference it skips', () => {
   const backbone: GraphNode[] = [0, 1, 2].map(i => ({
     id: `n${i}+`,
@@ -663,8 +739,8 @@ describe('a dashed skip whose route runs along the reference it skips', () => {
   })
 
   test('a skip too short on screen for full dashes is a low arch a level above its chord', () => {
-    expect(skipAlong(2, along)).toBeCloseTo(SKIP_LEVEL_PX, 5)
-    expect(skipAlong(2, [{ x: 15, y: -40 }])).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    expect(skipAlong(1, along)).toBeCloseTo(SKIP_LEVEL_PX, 5)
+    expect(skipAlong(1, [{ x: 15, y: -40 }])).toBeCloseTo(SKIP_LEVEL_PX, 5)
   })
 
   test('in a graph without walks, as the rGFA track draws, a skip too short on screen for full dashes follows its route', () => {
