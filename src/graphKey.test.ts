@@ -562,7 +562,83 @@ test("the thickness keys give the scale's two ends, links only where they widen 
     keyOf(graph, {}, { edgeWidth: 'walks' })
       .find(s => s.id === 'link-width')!
       .entries.map(e => e.text),
-  ).toEqual(['1 walk'])
+  ).toEqual(['2 walks', '1 walk'])
+})
+
+// Eight walks through v2 and one through a1, as at a 1-walk allele
+const NINE = [
+  GFA.replace('W\talt\t1\tchr6\t0\t13\t>v1>a1>v3', ''),
+  ...Array.from(
+    { length: 7 },
+    (_, i) => `W\th${i}\t1\tchr6\t0\t9\t>v1>v2>v3`,
+  ),
+  'W\talt\t1\tchr6\t0\t13\t>v1>a1>v3',
+].join('\n')
+
+const thicknessKey = (
+  g: Graph,
+  o: Partial<GraphKeyOptions> = {},
+  contigThickness = 6,
+) =>
+  keyOf(
+    g,
+    {},
+    { nodeWidth: 'walks', edgeWidth: 'walks', contigThickness, ...o },
+  ).find(s => s.id === 'node-width')
+
+const widths = (section?: GraphKeySection) =>
+  section?.entries.map(e => [
+    e.text,
+    e.swatch?.kind === 'width' ? Math.round(e.swatch.px * 100) / 100 : NaN,
+  ])
+
+test('nodes and links by walks key one thickness: every walk, half of them and one, at a px a walk', () => {
+  const nine = load(NINE, 'GRCh38')
+  const thick = thicknessKey(nine)
+  expect(thick?.group).toBe('Thickness')
+  expect(widths(thick)).toEqual([
+    ['9 walks', 9],
+    ['5 walks', 5],
+    ['1 walk', 1],
+  ])
+  expect(
+    keyOf(nine, {}, { nodeWidth: 'walks', edgeWidth: 'walks' }).map(s => s.id),
+  ).not.toContain('link-width')
+  expect(thicknessKey(nine, { edgeWidth: 'uniform' })?.group).toBe(
+    'Node thickness',
+  )
+  // a haplotype asked for that has no walk here is on the scale
+  expect(widths(thicknessKey(nine, { haplotypes: ['gone#1'] }))?.[0]).toEqual(
+    ['10 walks', 10],
+  )
+})
+
+test('the thinnest walks swatch says how many walks its 1 px floor holds, and a repeat keys its passes', () => {
+  const nine = load(NINE, 'GRCh38')
+  expect(widths(thicknessKey(nine, {}, 3))).toEqual([
+    ['9 walks', 4.5],
+    ['5 walks', 2.5],
+    ['1 to 2 walks', 1],
+  ])
+  const repeat = withNodes(nine, name => (name === 'v2' ? { depth: 30 } : {}))
+  expect(widths(thicknessKey(repeat))).toEqual([
+    ['30 walk passes', 18],
+    ['9 walks', 5.4],
+    ['5 walks', 3],
+    ['1 walk', 1],
+  ])
+})
+
+test('walks with nodes not loaded draw no thickness, and the key says whose stretches are missing', () => {
+  const held = withNodes(load(NINE, 'GRCh38'), name =>
+    name === 'a1' ? { placeholder: true } : {},
+  )
+  expect(thicknessKey(held)?.entries).toEqual([
+    {
+      key: 'width-not-drawn',
+      text: 'thickness not drawn: 1 haplotype has stretches not loaded',
+    },
+  ])
 })
 
 // A cut can list a link no walk drawn takes, such as another haplotype's skip
@@ -573,8 +649,8 @@ test('a link no drawn walk takes keys its own row under link thickness, below th
     s => s.id === 'link-width',
   )!.entries
   const px = rows.map(e => (e.swatch?.kind === 'width' ? e.swatch.px : NaN))
-  expect(rows.map(e => e.text)).toEqual(['1 walk', '0 walks'])
-  expect(px[1]).toBeLessThan(px[0]!)
+  expect(rows.map(e => e.text)).toEqual(['2 walks', '1 walk', '0 walks'])
+  expect(px[2]).toBeLessThan(px[1]!)
 })
 
 // The walk takes a+ to b+ and b+ to c+, and the inversion links between the
@@ -603,7 +679,7 @@ test('an inversion link no walk takes draws at the floor, under the link the wal
   const { batch } = drawn(inversions, { edgeWidth: 'walks' })
   const thickness = (edge: number) =>
     batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
-  expect([0, 1, 2, 3].map(thickness)).toEqual([4, 0.5, 4, 0.5])
+  expect([0, 1, 2, 3].map(thickness)).toEqual([0.5, 0.25, 0.5, 0.25])
 })
 
 test("an inversion link no walk takes draws as a plain link, not in the walk's ribbon colour", () => {
@@ -629,7 +705,7 @@ test('link thickness is not keyed where a ribbon per walk draws the links', () =
     keyOf(shared, { drawPaths, edgeWidth: 'walks' }, { edgeWidth: 'walks' })
       .find(s => s.id === 'link-width')
       ?.entries.map(e => e.text)
-  expect(linkWidths(false)).toEqual(['2 walks', '1 walk'])
+  expect(linkWidths(false)).toEqual(['3 walks', '2 walks', '1 walk'])
   expect(linkWidths(true)).toBeUndefined()
 })
 

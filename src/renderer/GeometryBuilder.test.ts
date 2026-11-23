@@ -8,6 +8,7 @@ import {
 } from './GeometryBuilder'
 import { packAbgr } from './colorBits'
 
+import type { Graph } from '../types'
 import type { RenderBatch } from './types'
 
 // the colour a node is drawn in, off its first stroke
@@ -97,95 +98,110 @@ test('keys the strokes by node and by edge', () => {
   expect(batch.edgeCurveRuns.get(0)).toEqual({ start: 0, count: 1 })
 })
 
-test('a link drawn by walks is thicker the more walks take it', () => {
-  const graph = {
-    name: 'test',
-    nodes: [
-      { id: 'A+', name: 'A', length: 100, depth: 1 },
-      { id: 'B+', name: 'B', length: 200, depth: 1 },
-      { id: 'C+', name: 'C', length: 100, depth: 1 },
-    ],
-    edges: [
-      { from: 'A+', to: 'B+', pathIds: ['w1', 'w2', 'w3', 'w4'] },
-      { from: 'B+', to: 'C+', pathIds: ['w1'] },
-    ],
-  }
-  const positions = {
-    ...simplePositions,
-    'C+': [
-      { x: 40, y: 0 },
-      { x: 50, y: 0 },
-    ],
-  }
-  const thickness = (edgeWidth: 'uniform' | 'walks', edge: number) => {
-    const batch = buildGeometry({
-      nodePositions: positions,
-      graph,
-      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
-      colorScheme: 'uniform',
-      axis: iso(),
-      contigThickness: 5,
-      connectorThickness: 2,
-      drawPaths: false,
-      edgeWidth,
-    })
-    return batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
-  }
-  expect(thickness('uniform', 0)).toBe(thickness('uniform', 1))
-  // the busiest link at the ceiling, one walk of four at half of it
-  expect(thickness('walks', 0)).toBe(4)
-  expect(thickness('walks', 1)).toBe(0.5 + 3.5 * 0.5)
+// Nine walks leave A: eight through B and one skipping B to C, the skip a
+// dashed link. A link by walks is as thick as its walks on the scale nodes
+// by walks are drawn on, so A's two links add up to A, and the skip one walk
+// takes draws at one walk's width, where it drew 4.4 px under the nodes'
+// 6 px whatever its walks
+const FORK_WALKS = Array.from({ length: 9 }, (_, i) => `w${i}`)
+const fork = {
+  name: 'fork',
+  nodes: [
+    { id: 'A+', name: 'A', length: 100, depth: 9 },
+    { id: 'B+', name: 'B', length: 200, depth: 8 },
+    { id: 'C+', name: 'C', length: 100, depth: 9 },
+  ],
+  edges: [
+    { from: 'A+', to: 'B+', pathIds: FORK_WALKS.slice(0, 8) },
+    { from: 'B+', to: 'C+', pathIds: FORK_WALKS.slice(0, 8) },
+    { from: 'A+', to: 'C+', pathIds: FORK_WALKS.slice(8) },
+  ],
+  paths: FORK_WALKS.map((name, i) => ({
+    name: `${name}#1#chr1`,
+    nodeIds: i < 8 ? ['A+', 'B+', 'C+'] : ['A+', 'C+'],
+  })),
+}
+
+function forkDrawing(
+  nodeWidth: 'walks' | 'depth',
+  edgeWidth: 'uniform' | 'walks',
+  graph: Graph = fork,
+) {
+  return buildGeometry({
+    nodePositions: {
+      ...simplePositions,
+      'C+': [
+        { x: 40, y: 0 },
+        { x: 50, y: 0 },
+      ],
+    },
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    // A to C spans 40 px, long enough to dash
+    axis: iso(4),
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth,
+    edgeWidth,
+    deletions: new Map([[2, ['B']]]),
+  })
+}
+
+const linkWidth = (batch: RenderBatch, edge: number) =>
+  2 * batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
+const nodeWidth = (batch: RenderBatch, id: string) =>
+  2 * batch.nodeStrokes[batch.nodeStrokeRuns.get(id)!.start]!.thickness
+
+test('nodes and links by walks share one linear scale, so the widths at a fork add up', () => {
+  const batch = forkDrawing('walks', 'walks')
+  expect(nodeWidth(batch, 'A+')).toBe(9)
+  expect(nodeWidth(batch, 'B+')).toBe(8)
+  expect(linkWidth(batch, 0)).toBe(8)
+  expect(linkWidth(batch, 2)).toBe(1)
+  expect(linkWidth(batch, 0) + linkWidth(batch, 2)).toBe(nodeWidth(batch, 'A+'))
+  expect(batch.edgeCurves[batch.edgeCurveRuns.get(2)!.start]!.skip).toBe(true)
 })
 
-test('a deletion drawn by walks widens with them, no thinner than a link', () => {
-  const graph = {
-    name: 'test',
+test('a skip one walk of nine takes draws at one walk, and uniform links draw a skip as thick as a link', () => {
+  expect(linkWidth(forkDrawing('walks', 'walks'), 2)).toBe(1)
+  const uniform = forkDrawing('depth', 'uniform')
+  expect(linkWidth(uniform, 2)).toBe(2)
+  expect(linkWidth(uniform, 2)).toBe(linkWidth(uniform, 0))
+})
+
+test('a node many passes cross scales every pass down, and no walked mark draws under 1 px', () => {
+  const repeat = {
+    ...fork,
+    nodes: fork.nodes.map(n => (n.id === 'B+' ? { ...n, depth: 36 } : n)),
+  }
+  const batch = forkDrawing('walks', 'walks', repeat)
+  // 36 passes at three times the 6 px a node six passes cross: 1/2 px a pass
+  expect(nodeWidth(batch, 'B+')).toBe(18)
+  expect(nodeWidth(batch, 'A+')).toBe(4.5)
+  expect(linkWidth(batch, 0)).toBe(4)
+  expect(linkWidth(batch, 2)).toBe(1)
+})
+
+test('walks draw uniform while a walk holds nodes not loaded, and by depth in a graph without walks', () => {
+  const held = {
+    ...fork,
     nodes: [
-      { id: 'A+', name: 'A', length: 100, depth: 1 },
-      { id: 'B+', name: 'B', length: 200, depth: 1 },
-      { id: 'C+', name: 'C', length: 100, depth: 1 },
-    ],
-    edges: [
-      { from: 'A+', to: 'B+', pathIds: ['w1'] },
-      { from: 'B+', to: 'C+', pathIds: ['w1'] },
-      {
-        from: 'A+',
-        to: 'C+',
-        pathIds: Array.from({ length: 64 }, (_, i) => `d${i}`),
-      },
+      ...fork.nodes,
+      { id: 'P+', name: 'P', length: 50, depth: 1, placeholder: true as const },
     ],
   }
-  const positions = {
-    ...simplePositions,
-    'C+': [
-      { x: 40, y: 0 },
-      { x: 50, y: 0 },
-    ],
-  }
-  const thickness = (edgeWidth: 'uniform' | 'walks', edge: number) => {
-    const batch = buildGeometry({
-      nodePositions: positions,
-      graph,
-      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
-      colorScheme: 'uniform',
-      // A to B spans 40 px, long enough to dash
-      axis: iso(4),
-      contigThickness: 5,
-      connectorThickness: 2,
-      drawPaths: false,
-      edgeWidth,
-      deletions: new Map([
-        [0, ['B']],
-        [2, ['B']],
-      ]),
-    })
-    return batch.edgeCurves[batch.edgeCurveRuns.get(edge)!.start]!.thickness
-  }
-  expect(thickness('uniform', 2)).toBe(2.2)
-  expect(thickness('walks', 2)).toBe(4)
-  // one walk of 64 would draw 0.5 + 3.5 / 8, under a plain link
-  expect(thickness('walks', 0)).toBe(1)
-  expect(thickness('walks', 1)).toBe(0.5 + 3.5 / 8)
+  const unloaded = forkDrawing('walks', 'walks', held)
+  expect(nodeWidth(unloaded, 'A+')).toBe(6)
+  expect(nodeWidth(unloaded, 'B+')).toBe(6)
+  expect(linkWidth(unloaded, 2)).toBe(2)
+  const { paths: _, ...walkless } = fork
+  const depth = forkDrawing('walks', 'walks', walkless)
+  expect(nodeWidth(depth, 'A+')).toBe(
+    nodeWidth(forkDrawing('depth', 'uniform', walkless), 'A+'),
+  )
+  expect(linkWidth(depth, 2)).toBe(2)
 })
 
 test('handles empty node positions gracefully', () => {

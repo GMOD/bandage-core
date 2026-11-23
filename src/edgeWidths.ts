@@ -1,3 +1,5 @@
+import { passesUncounted, walksPx } from './nodeWidths'
+
 import type { Graph } from './types'
 
 // How thick a link draws. Node width already says how many walks carry a
@@ -15,33 +17,36 @@ export const EDGE_WIDTHS = [
     value: 'walks',
     label: 'By walks',
     description:
-      'Thicker the more walks take a link, on the square root of its count against the busiest link in the cut. A graph without walks draws uniform.',
+      'As thick as the walks taking a link, on the linear scale nodes by walks are drawn on, so the thicknesses at a fork add up. Uniform while a walk holds nodes not loaded, and in a graph without walks.',
   },
 ] as const
 
 export type EdgeWidth = (typeof EDGE_WIDTHS)[number]['value']
 
-const MIN_FACTOR = 0.5
-const MAX_FACTOR = 4
+// a link no walk takes, in a cut that lists one, since nothing travels it
+export const UNWALKED_LINK_PX = 0.5
 
-// the most walks any one link carries, which the widths scale against
-export function busiestEdge(graph: Graph) {
-  let most = 0
-  for (const edge of graph.edges) {
-    most = Math.max(most, edge.pathIds?.length ?? 0)
-  }
-  return most
+// What a link width setting draws on a graph: `walks` counts the walks on
+// links only where the graph has walks and every pass of them is loaded
+export function drawnEdgeWidth(graph: Graph, edgeWidth: EdgeWidth): EdgeWidth {
+  return edgeWidth === 'walks' &&
+    (!graph.paths?.length || passesUncounted(graph))
+    ? 'uniform'
+    : edgeWidth
 }
 
-// A link's width over the connector thickness. A link no walk takes, in a
-// cut that has walks, is drawn at the floor, since nothing travels it.
-export function edgeWidthFactor(
+// A link's width in px: under `walks` its walks at `perPass` px each, the
+// px a pass draws in a node by walks, never under MIN_WALKS_PX, or a
+// hairline where no walk takes it; else the connector thickness
+export function linkWidthPx(
   walks: number,
-  busiest: number,
+  perPass: number,
   edgeWidth: EdgeWidth,
+  connectorThickness: number,
 ) {
-  if (edgeWidth === 'uniform' || busiest === 0) {
-    return 1
-  }
-  return MIN_FACTOR + (MAX_FACTOR - MIN_FACTOR) * Math.sqrt(walks / busiest)
+  return edgeWidth === 'walks' && perPass > 0
+    ? walks === 0
+      ? UNWALKED_LINK_PX
+      : walksPx(walks, perPass)
+    : connectorThickness
 }

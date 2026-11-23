@@ -1,12 +1,21 @@
 import { COMPRESSED_KEY } from './bubbleSpreads'
 import { BUBBLE_HALO_COLOR } from './bubbles/bubbleLabel'
 import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
-import { busiestEdge, edgeWidthFactor } from './edgeWidths'
+import { UNWALKED_LINK_PX, drawnEdgeWidth } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
-import { countLaneWidthPx, depthKey, frequencyKey } from './nodeWidths'
+import {
+  MIN_WALKS_PX,
+  countLaneWidthPx,
+  depthKey,
+  drawnNodeWidth,
+  frequencyKey,
+  haplotypeOf,
+  passesAtContigThickness,
+  walksPx,
+} from './nodeWidths'
 import { panSNHaplotype, panSNMatchesPrefix } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { referenceLabel } from './reference'
@@ -116,7 +125,13 @@ export interface GraphKeySection {
   id: GraphKeySectionId
   // the group a reader may head the section with: a thickness's entries are
   // counts that read only under it
-  group?: 'Color' | 'Walks' | 'Node thickness' | 'Link thickness' | 'Marks'
+  group?:
+    | 'Color'
+    | 'Walks'
+    | 'Thickness'
+    | 'Node thickness'
+    | 'Link thickness'
+    | 'Marks'
   entries: GraphKeyEntry[]
 }
 
@@ -449,6 +464,66 @@ export function absentHaplotypesText(
       : `${absent.length} ${of} ${have(absent.length)} ${departing > 0 ? noStep : noWalk}`
 }
 
+// The walks scale's swatches: the haplotypes the drawing is of, each walk
+// once, half of them, and one walk, all at the px a pass draws; the thickest
+// drawn node's passes first where a repeat takes it past every walk once.
+// Under MIN_WALKS_PX a width is drawn at it, so the thinnest swatch says how
+// many walks that floor holds and a swatch the floor swallows is left out.
+// The haplotypes are those with a walk in the graph and those asked for that
+// have none, so a window none of them steps in keys the scale they would
+// draw on.
+export function walkScaleEntries(
+  graph: Graph,
+  o: Pick<GraphKeyOptions, 'haplotypes' | 'marks'>,
+  contigThickness: number,
+) {
+  const perPass = contigThickness / passesAtContigThickness(graph)
+  const haplotypes = new Set(graph.paths?.map(haplotypeOf))
+  const asked = (o.haplotypes ?? []).filter(
+    prefix => !graph.paths?.some(path => panSNMatchesPrefix(path.name, prefix)),
+  )
+  const all = Math.max(1, haplotypes.size + asked.length)
+  let most = 0
+  for (const node of graph.nodes) {
+    if (!node.placeholder && (!o.marks.nodes || o.marks.nodes.has(node.id))) {
+      most = Math.max(most, node.depth)
+    }
+  }
+  const floorHolds = Math.max(1, Math.floor(MIN_WALKS_PX / perPass + 1e-9))
+  const counts = [
+    ...(most > all ? [most] : []),
+    all,
+    Math.round(all / 2),
+    1,
+  ].filter((n, i, ns) => ns.indexOf(n) === i && (n === 1 || n > floorHolds))
+  return counts.map(n => ({
+    key: n === 1 ? 'width-1' : n === most && most > all ? 'width-passes' : `width-${n}`,
+    text:
+      n === 1
+        ? floorHolds > 1
+          ? `1 to ${floorHolds} walks`
+          : '1 walk'
+        : n === most && most > all
+          ? counted(n, 'walk pass', 'walk passes')
+          : counted(n, 'walk', 'walks'),
+    px: walksPx(n, perPass),
+  }))
+}
+
+// Why the nodes are drawn uniform under `walks`: the haplotypes whose walks
+// hold nodes the cut did not load, whose passes no thickness could count
+export function notLoadedThicknessText(graph: Graph) {
+  const placeholders = new Set(
+    graph.nodes.filter(node => node.placeholder).map(node => node.id),
+  )
+  const haplotypes = new Set(
+    (graph.paths ?? [])
+      .filter(path => path.nodeIds.some(id => placeholders.has(id)))
+      .map(haplotypeOf),
+  )
+  return `thickness not drawn: ${counted(haplotypes.size, 'haplotype has', 'haplotypes have')} stretches not loaded`
+}
+
 const roundDepth = (depth: number) =>
   depth >= 10 ? Math.round(depth) : Math.round(depth * 10) / 10
 
@@ -635,6 +710,8 @@ export function graphKey(
 
   const widthEntry = (key: string, text: string, px: number, ink: number) =>
     entry(key, text, { kind: 'width', ink, px })
+  const nodeWidth = drawnNodeWidth(graph, o.nodeWidth ?? 'depth')
+  const edgeWidth = drawnEdgeWidth(graph, o.edgeWidth ?? 'uniform')
   const walkCount =
     graph.threadFold?.walks ??
     new Set(graph.paths?.map(path => pathOrigin(path.name).name)).size
@@ -642,47 +719,62 @@ export function graphKey(
   // a walk looping through a repeat passes its nodes more than once, and
   // each pass counts
   const passes = (depths[0]?.depth ?? 0) > walkCount
-  const nodeWidthEntries: GraphKeyEntry[] = !(drawsNodes && o.marks.widthsVary)
-    ? []
-    : o.nodeWidth === 'frequency'
-      ? frequencyKey(thickness).map(({ label: share, widthPx }) =>
-          widthEntry(
-            `width-${share}`,
-            graph.nodes.some(n => n.frequency !== undefined)
-              ? `AF ${share}`
-              : `${share} of haplotypes`,
-            widthPx,
-            REFERENCE_RAMP_ALT_COLOR,
-          ),
-        )
-      : (o.nodeWidth ?? 'depth') === 'depth'
-        ? depths.map(({ depth, widthPx }, i) =>
-            widthEntry(
-              i === 0 ? 'width-thickest' : 'width-thinnest',
-              walkCount > 0 && !graph.depthStated
-                ? passes
-                  ? counted(Math.round(depth), 'walk pass', 'walk passes')
-                  : counted(Math.round(depth), 'walk', 'walks')
-                : `depth ${groupDigits(roundDepth(depth))}`,
-              widthPx,
-              REFERENCE_RAMP_ALT_COLOR,
-            ),
-          )
-        : []
-
-  const busiest = busiestEdge(graph)
+  const walksScale = walkScaleEntries(graph, o, thickness)
+  const linksByWalks = edgeWidth === 'walks' && !o.marks.ribbons
   const unwalked = graph.edges.some(edge => !edge.pathIds?.length)
+  const unwalkedEntry = widthEntry(
+    'link-width-0',
+    counted(0, 'walk', 'walks'),
+    UNWALKED_LINK_PX,
+    EDGE_DEFAULT_COLOR,
+  )
+  const nodeWidthEntries: GraphKeyEntry[] = !drawsNodes
+    ? []
+    : nodeWidth === 'walks'
+      ? [
+          ...walksScale.map(({ key, text, px }) =>
+            widthEntry(key, text, px, REFERENCE_RAMP_ALT_COLOR),
+          ),
+          ...(linksByWalks && unwalked ? [unwalkedEntry] : []),
+        ]
+      : o.nodeWidth === 'walks' && nodeWidth === 'uniform'
+        ? [entry('width-not-drawn', notLoadedThicknessText(graph))]
+        : !o.marks.widthsVary
+          ? []
+          : nodeWidth === 'frequency'
+            ? frequencyKey(thickness).map(({ label: share, widthPx }) =>
+                widthEntry(
+                  `width-${share}`,
+                  graph.nodes.some(n => n.frequency !== undefined)
+                    ? `AF ${share}`
+                    : `${share} of haplotypes`,
+                  widthPx,
+                  REFERENCE_RAMP_ALT_COLOR,
+                ),
+              )
+            : nodeWidth === 'depth'
+              ? depths.map(({ depth, widthPx }, i) =>
+                  widthEntry(
+                    i === 0 ? 'width-thickest' : 'width-thinnest',
+                    walkCount > 0 && !graph.depthStated
+                      ? passes
+                        ? counted(Math.round(depth), 'walk pass', 'walk passes')
+                        : counted(Math.round(depth), 'walk', 'walks')
+                      : `depth ${groupDigits(roundDepth(depth))}`,
+                    widthPx,
+                    REFERENCE_RAMP_ALT_COLOR,
+                  ),
+                )
+              : []
+  const linksWithNodes = drawsNodes && nodeWidth === 'walks' && linksByWalks
   const linkWidthEntries: GraphKeyEntry[] =
-    drawsNodes && o.edgeWidth === 'walks' && busiest > 0 && !o.marks.ribbons
-      ? [...(busiest > 1 ? [busiest, 1] : [1]), ...(unwalked ? [0] : [])].map(
-          n =>
-            widthEntry(
-              `link-width-${n}`,
-              counted(n, 'walk', 'walks'),
-              connector * edgeWidthFactor(n, busiest, 'walks'),
-              EDGE_DEFAULT_COLOR,
-            ),
-        )
+    drawsNodes && linksByWalks && !linksWithNodes
+      ? [
+          ...walksScale.map(({ key, text, px }) =>
+            widthEntry(`link-${key}`, text, px, EDGE_DEFAULT_COLOR),
+          ),
+          ...(unwalked ? [unwalkedEntry] : []),
+        ]
       : []
 
   const skipInk = lifted
@@ -754,7 +846,11 @@ export function graphKey(
   const sections: GraphKeySection[] = [
     { id: 'ramp', group: 'Color', entries: rampEntries },
     { id: 'walks', group: 'Walks', entries: walkEntries },
-    { id: 'node-width', group: 'Node thickness', entries: nodeWidthEntries },
+    {
+      id: 'node-width',
+      group: linksWithNodes ? 'Thickness' : 'Node thickness',
+      entries: nodeWidthEntries,
+    },
     { id: 'link-width', group: 'Link thickness', entries: linkWidthEntries },
     {
       id: 'halo',

@@ -66,6 +66,7 @@ export type { ColorScheme, ResolvedColorScheme } from './colorSchemes'
 export {
   NODE_WIDTHS,
   depthKey,
+  drawnNodeWidth,
   frequencyKey,
   haplotypeCount,
   maxNodeWidthPx,
@@ -73,6 +74,7 @@ export {
   nodeFrequency,
   nodeInk,
   nodeWidthPx,
+  passesAtContigThickness,
   widthNorm,
   withFrequencies,
 } from './nodeWidths'
@@ -91,7 +93,7 @@ export {
 } from './threadFold'
 export type { ThreadEvent, ThreadFoldResult } from './threadFold'
 export { threadFoldKey, threadLabel } from './threadKey'
-export { EDGE_WIDTHS, busiestEdge, edgeWidthFactor } from './edgeWidths'
+export { EDGE_WIDTHS, drawnEdgeWidth, linkWidthPx } from './edgeWidths'
 export type { EdgeWidth } from './edgeWidths'
 export { BUBBLE_SPREADS, COMPRESSED_KEY } from './bubbleSpreads'
 export { LAYOUT_QUALITIES } from './layoutQualities'

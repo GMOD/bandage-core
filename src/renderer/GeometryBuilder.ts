@@ -3,11 +3,13 @@ import {
   isBackbone,
   readsAsReference,
 } from '../anchoredNodes'
-import { busiestEdge, edgeWidthFactor } from '../edgeWidths'
+import { drawnEdgeWidth, linkWidthPx } from '../edgeWidths'
 import { linkKey } from '../gfa/linkKey'
 import { NO_FOLD, SMALL_SITE_PX, foldedSites } from '../levelOfDetail'
 import {
+  drawnNodeWidth,
   nodeWidthPx,
+  passesAtContigThickness,
   runWidthPx,
   countLanes,
   walkLaneWidthPx,
@@ -99,7 +101,6 @@ const EDGE_PATH_FALLBACK_COLOR = packAbgr(136, 136, 136, 217) // ~0.533, alpha 0
 // darkness carry it instead of a hue, which is what keeps hue meaning reference
 // position and only that.
 export const EDGE_DELETION_COLOR = packAbgr(24, 24, 28, 240)
-const DELETION_THICKNESS_FACTOR = 2.2
 // The builder draws a lifted walk's links in its lanes' colours and fades the
 // rest, to an alpha that keeps every colour scheme's hues, only dimmer, on any
 // background.
@@ -593,11 +594,12 @@ export interface BuildOptions {
   // the stripes, the ribbons and the key together. Same contract as
   // `colorScheme` above, which arrives with 'auto' already resolved.
   drawPaths: boolean
-  // thicker by depth or frequency, or every node at `contigThickness`; see
+  // thicker by walks, depth or frequency, or every node at
+  // `contigThickness`, as drawnNodeWidth resolves it on the graph; see
   // nodeWidths.ts
   nodeWidth?: NodeWidth
   // thicker by the walks taking a link, or every link at
-  // `connectorThickness`; see edgeWidths.ts
+  // `connectorThickness`, as drawnEdgeWidth resolves it; see edgeWidths.ts
   edgeWidth?: EdgeWidth
   // walks lifted out: each draws a lane of its own along the nodes it visits,
   // their links draw dark and heavy, and everything else fades to a fraction
@@ -1141,7 +1143,7 @@ const foldOf = (
   smallSites === 'hidden'
     ? foldedSites(graph, nodePositions, axis, curves, deletions, hiddenEdges, {
         contigThickness,
-        nodeWidth,
+        nodeWidth: drawnNodeWidth(graph, nodeWidth),
       })
     : NO_FOLD
 
@@ -1162,8 +1164,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     contigThickness,
     connectorThickness,
     drawPaths,
-    nodeWidth = 'uniform',
-    edgeWidth = 'uniform',
     highlight,
     axis,
     linearLayout,
@@ -1174,8 +1174,15 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     hiddenEdges,
     version = 0,
   } = options
+  const nodeWidth = drawnNodeWidth(graph, options.nodeWidth ?? 'uniform')
+  const edgeWidth = drawnEdgeWidth(graph, options.edgeWidth ?? 'uniform')
   const widthScale = widthNorm(graph, nodeWidth)
-  const busiest = edgeWidth === 'walks' ? busiestEdge(graph) : 0
+  const perPass =
+    edgeWidth === 'walks'
+      ? contigThickness / passesAtContigThickness(graph)
+      : 0
+  const linkPx = (walks: number) =>
+    linkWidthPx(walks, perPass, edgeWidth, connectorThickness)
   const scale = axis.scaleX
   const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
   const yToX = yToXOf(axis)
@@ -2063,10 +2070,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
                   arrowheadFor({
                     curves,
                     edgeHalfWidth:
-                      (connectorThickness / 2) *
                       (drawPaths && numPaths > 0
-                        ? 1
-                        : edgeWidthFactor(numPaths, busiest, edgeWidth)),
+                        ? connectorThickness
+                        : linkPx(numPaths)) / 2,
                     nodeHalfWidth:
                       (toNode ? widthOf(toNode) : contigThickness) / 2,
                     scale,
@@ -2153,19 +2159,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
     const dashed = skipDashes(arcPx)
     // a ribbon per walk already shows how many take the link, so only the
-    // link drawn alone widens by its walks
-    const ribbonThickness =
-      (connectorThickness / 2) * (dashed ? DELETION_THICKNESS_FACTOR : 1)
-    const walkFactor = edgeWidthFactor(numPaths, busiest, edgeWidth)
-    // a deletion by walks keeps a plain link's width at least, so its dashes
-    // stay legible when few walks take it
-    const edgeThickness =
-      (connectorThickness / 2) *
-      (!dashed
-        ? walkFactor
-        : edgeWidth === 'walks' && busiest > 0
-          ? Math.max(1, walkFactor)
-          : DELETION_THICKNESS_FACTOR)
+    // link drawn alone widens by its walks. A skip is as thick as a link of
+    // its walks: its dashes alone say it skips
+    const ribbonThickness = connectorThickness / 2
+    const edgeThickness = linkPx(numPaths) / 2
 
     // An arrowhead states which way a LINK is read, which is a property of the
     // edge and not of each path crossing it. Drawn per ribbon it says one thing
