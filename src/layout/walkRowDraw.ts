@@ -549,8 +549,10 @@ export const barStart = (row: Pick<WalkRow, 'runs' | 'stepless'>) =>
   row.stepless ? 0 : (row.runs[0]?.start ?? 0)
 
 // A row's bp walked, those away from the window left out
-export const walkedBp = (runs: readonly WalkRun[]) =>
-  runs.reduce((sum, run) => sum + (run.heldBp === undefined ? run.bp : 0), 0)
+export const walkedBp = (row: {
+  bp: number
+  runs?: readonly Pick<WalkRun, 'heldBp'>[]
+}) => (row.runs ?? []).reduce((bp, run) => bp - (run.heldBp ?? 0), row.bp)
 
 // Where a row's bar draws the base `walked` bp of its walk past the bar's
 // start, counting no bp away from the window, and past the bar's end where
@@ -1671,7 +1673,7 @@ export function walkRowsTree(
         : []
     const ticks =
       unit && barPx >= MIN_TILED_BAR_PX
-        ? unitTicks(walkedBp(row.runs), unit, frame.scaleX)
+        ? unitTicks(walkedBp(row), unit, frame.scaleX)
             .map(tick => walkedAlong(row.runs, tick))
             .map(k =>
               el('line', {
