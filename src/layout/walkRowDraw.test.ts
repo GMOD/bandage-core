@@ -701,6 +701,40 @@ test('chevrons run along a stretch walked against the reference however small si
   expect(chevroned / reversedBp).toBeGreaterThanOrEqual(0.9)
 })
 
+// The plugin paints bars on a canvas and drew H-8p23's 3.97 Mb walked against
+// GRCh38 with no chevron, while its key and readouts said "reversed"
+test('chevrons are drawn where a host paints the bars itself', () => {
+  const row = {
+    ...rowNamed('HG1#1#ctg1'),
+    bp: 100_000,
+    runs: [
+      {
+        start: 0,
+        bp: 100_000,
+        onReference: true,
+        referenceStart: 200_000,
+        reversed: true,
+      },
+    ],
+  }
+  const svg = serializeEl(
+    walkRowsTree(
+      { ...rows(), rows: [row] },
+      {
+        scaleX: 1 / 1000,
+        scaleY: 1,
+        translateX: 0,
+        translateY: 20,
+        width: 1400,
+        height: 400,
+        bars: false,
+      },
+    ),
+  )
+  expect(svg).not.toContain('<rect')
+  expect(svg.match(/<polyline /g)?.length ?? 0).toBeGreaterThan(0)
+})
+
 // H-TSPY of the HPRC v2.1 audit: HG01109#1 walks 111 kb of the window
 // against GRCh38, 489 kb of its own, then 104 kb more against it
 test('chevrons stop at a wide stretch off the reference', () => {

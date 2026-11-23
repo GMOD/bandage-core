@@ -1620,8 +1620,8 @@ export function walkRowsTree(
       return undefined
     }
     const from = barStart(row)
-    const drawn = frame.bars === false ? [] : row.runs
-    const coalesced = coalesceRuns(drawn, frame.scaleX, marked)
+    const asDrawn = coalesceRuns(row.runs, frame.scaleX, marked)
+    const coalesced = frame.bars === false ? [] : asDrawn
     const ink = o.inks && rowInkOf(row, o.inks)
     const inkStops = ink && rowInkStops(ink, row, 1 / frame.scaleX)
     const inkId = `${prefix}-${i}-ink`
@@ -1717,7 +1717,7 @@ export function walkRowsTree(
             )
         : []
     const chevrons = chevronTrees(
-      reversedStretches(coalesced).flatMap(stretch =>
+      reversedStretches(asDrawn).flatMap(stretch =>
         chevronPoints(along(stretch.start), along(stretch.end), y, barPx),
       ),
       barPx,
