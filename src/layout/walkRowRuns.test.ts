@@ -180,7 +180,7 @@ test('a walk whose first W line starts inside the window says where its contig s
     'H#1': '≥ 1.0 kb · contig starts inside the window',
   })
   expect(rows.rows[0]!.stops).toEqual({
-    left: { contigEnds: true, shortBp: 0, contigStart: 9_183_247 },
+    left: { contigEnds: true, shortBp: 0, start: true, contigStart: 9_183_247 },
   })
 })
 
@@ -1153,7 +1153,10 @@ describe('a walk row over a window between 1 kb nodes', () => {
     })
   })
 
-  test('a walk passing twice reads each pass between its own flanks, the reversed one so marked', () => {
+  // T's bar runs from its first step in the window to its last, its steps
+  // on r5 and x outside the window a gap near chr1:4 kb, and its second pass
+  // reversed
+  test('a walk passing twice draws both passes and what lies between them, its stretch outside the window as a gap', () => {
     expect(
       readouts(
         [
@@ -1167,7 +1170,8 @@ describe('a walk row over a window between 1 kb nodes', () => {
         ['r5 x', 'r3 i', 'i r4'],
       ),
     ).toEqual({
-      'T#1': '2.0 kb · passes again, reversed: 2.0 kb (+35 bp)',
+      'T#1':
+        '≥ 8.1 kb, of which 2.1 kb near chr1:4 kb · turns back out of the window',
       'R#1': '2.0 kb',
     })
   })
@@ -1208,10 +1212,13 @@ test("a row that turns back at the end its bar starts from places its axis at th
     visits: true,
   })!
   const byLabel = Object.fromEntries(rows.rows.map(r => [r.label, r]))
-  for (const label of ['J#1', 'K#1']) {
+  for (const [label, end] of [
+    ['J#1', 'right'],
+    ['K#1', 'left'],
+  ] as const) {
     expect(byLabel[label]).toMatchObject({
       bp: 3000,
-      stops: { left: { turnsBack: true } },
+      stops: { [end]: { turnsBack: true } },
     })
     expect(byLabel[label]!.visits!.map(v => v.node)).toEqual([
       'r2+',

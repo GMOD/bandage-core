@@ -460,21 +460,11 @@ test('a pass across a window edge calls only its bases off the reference its own
         gapBp: 500,
         complete: true,
         axis,
-        morePasses: [
-          {
-            bp: 900,
-            windowBp: 0,
-            reversed: true,
-            replacedBp: 900,
-            onReferenceBp: 600,
-            gapBp: 300,
-          },
-        ],
       },
       reference,
     ),
   ).toBe(
-    "1.2 kb on GRCh38, reversed, in place of GRCh38's 1.4 kb · passes again, reversed: 600 bp on GRCh38 and 300 bp not drawn in place of GRCh38's 900 bp, of which 500 bp out of view",
+    "1.2 kb on GRCh38, reversed, in place of GRCh38's 1.4 kb, of which 500 bp out of view",
   )
 })
 
@@ -1035,18 +1025,7 @@ function pggbRows(): WalkRowsWithCalls {
         axis: { contig: 'c', start: 0, reversed: true },
         runs: [{ ...on, bp: 400 }],
       }),
-      row('HG002#1', {
-        placementChoice: true,
-        morePasses: [
-          {
-            bp: 3500,
-            windowBp: 3500,
-            onReferenceBp: 3500,
-            reversed: true,
-            replacedBp: 3500,
-          },
-        ],
-      }),
+      row('HG002#1', { placementChoice: true }),
     ],
   }
 }

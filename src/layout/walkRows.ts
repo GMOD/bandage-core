@@ -85,6 +85,8 @@ export function alongRow(axis: WalkAxis, start: number, end: number) {
 export interface WalkStop {
   contigEnds: boolean
   shortBp: number
+  // set at the end of the bar the walk's contig comes from
+  start?: true
   contigStart?: number
   goesOn?: { departure: Departure; near: number; drawn?: true }
   // the walk comes back to the reference on the side it came in from, which
@@ -152,9 +154,9 @@ export interface WalkRow {
   replacedBp?: number
   // with `replacedBp`, the bp of the pass on the reference in the cut
   onReferenceBp?: number
-  // each further pass the walk makes over the window, in its contig's order,
-  // where it passes more than once; the row draws its first
-  morePasses?: WalkPass[]
+  // set where the bar reaches over steps on the reference outside the window,
+  // drawn as gaps near where they lie, so its bp are no length over the window
+  passesOutside?: true
   // how the walk stops at each end of its bar where it does not leave the
   // window there by a flank
   stops?: WalkStops

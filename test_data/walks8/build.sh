@@ -27,3 +27,4 @@ build blocks blocks.R.gfa --refs R --tile 60 --abridge-bytes 1
 build drawnedge drawnedge.R.gfa --refs R --tile 10000 --abridge-steps 3
 build interleaved interleaved.R.gfa --refs R --tile 10 --stay 0 --abridge-steps 3
 build strand strand.R.gfa --refs R --tile 1000
+build orient orient.GRCh38.gfa --refs GRCh38 --tile 1000

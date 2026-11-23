@@ -173,10 +173,10 @@ test("a walk ending at the window's edge reads as a contig end only with no depa
 
 // HG002#1 reaches chr1:4000-4500's right flank alone, by the departure that
 // rejoins at 4000 from 1500
-test('a walk that comes into the window by a departure goes on where that one leaves', async () => {
+test('a walk that comes into the window by a departure says where it comes from', async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 4000, 4500, 500)
   expect(row('HG002#1')).toMatchObject({
-    readout: '≥ 500 bp · goes on near chr1:2 kb · 4 kb of its own',
+    readout: '≥ 500 bp · comes from near chr1:2 kb · 4 kb of its own',
     row: {
       complete: false,
       stops: { left: { contigEnds: false, goesOn: { near: 1500 } } },
@@ -272,6 +272,68 @@ test("a walk file's contig that ends inside the window with no departure reads a
   expect(whole.row('HG002#2')).toMatchObject({
     readout: '1.0 kb',
     row: { complete: true },
+  })
+})
+
+// orient.GRCh38.gfa: GRCh38 over chr1:0-10,000 in 1 kb nodes 1-10, cut over
+// chr1:2000-8000 with 1 kb of context, each haplotype modelled on a window of
+// the HPRC v2.1 audit:
+// - HG01960#1, H-8p23: forward into the window, then its contig's next W line,
+//   500 bp on, walks it reversed from the right flank, jumps out to node 2
+//   and walks node 3 forward again
+// - HG00097#1, H-8p23: inverted between forward flanks outside the cut, by a
+//   departure that switches strand at either end
+// - HG00099#1: its contig stored back to front, with no inversion
+// - HG01123#1, R1M-06: a whole forward pass, 500 bp of its own, then a second
+//   pass that ends inside the window
+describe('a row over a window its walk crosses more than once', () => {
+  const runsOf = async (label: string) => {
+    const { row } = await rowsOf('orient.GRCh38', 2000, 8000, 1000)
+    const { readout, row: drawn } = row(label)
+    return {
+      readout,
+      runs: drawn.runs.map(r =>
+        r.gap
+          ? [r.bp, r.cause, r.near]
+          : [r.bp, r.referenceStart, r.reversed === true],
+      ),
+    }
+  }
+
+  test('draws every stretch of its contig in the window, and its steps outside it as gaps near where they lie', async () => {
+    expect(await runsOf('HG01960#1')).toEqual({
+      readout:
+        "≥ 9.5 kb, of which 500 bp left out of graph, 2.0 kb near chr1:8 kb and 1 more place · no more of the contig on GRCh38's path",
+      runs: [
+        [2000, 2000, false],
+        [500, 'missing', undefined],
+        [1000, 'elsewhere', 8000],
+        [4000, 4000, true],
+        [1000, 'elsewhere', 1000],
+        [1000, 2000, false],
+      ],
+    })
+    expect(await runsOf('HG01123#1')).toEqual({
+      readout:
+        "≥ 11 kb, of which 1.0 kb near chr1:8 kb · no more of the contig on GRCh38's path",
+      runs: [
+        [6000, 2000, false],
+        [1000, 'elsewhere', 8000],
+        [500, undefined, false],
+        [3000, 4000, false],
+      ],
+    })
+  })
+
+  test('paints an inverted walk reversed, and a contig stored back to front forward', async () => {
+    expect(await runsOf('HG00097#1')).toEqual({
+      readout: '≥ 6.0 kb · goes on near chr1:9 kb · 0 bp of its own',
+      runs: [[6000, 2000, true]],
+    })
+    expect(await runsOf('HG00099#1')).toEqual({
+      readout: '6.0 kb',
+      runs: [[6000, 2000, false]],
+    })
   })
 })
 

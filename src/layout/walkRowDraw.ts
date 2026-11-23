@@ -140,16 +140,18 @@ function causesParts(
   const mixedMissing = gaps
     .filter(g => g.cause === 'mixed')
     .reduce((sum, g) => sum + (g.missingBp ?? 0), 0)
+  // the places the gaps of a cause lie near, the one holding most bp first
   const placesOf = (cause: GapCause) => {
-    const places = [
-      ...new Set(
-        gaps.flatMap(g =>
-          g.cause === cause && g.near !== undefined
-            ? [near(refName, g.near)]
-            : [],
-        ),
-      ),
-    ]
+    const bpNear = new Map<string, number>()
+    for (const g of gaps) {
+      if (g.cause === cause && g.near !== undefined) {
+        const place = near(refName, g.near)
+        bpNear.set(place, (bpNear.get(place) ?? 0) + g.bp)
+      }
+    }
+    const places = [...bpNear.keys()].sort(
+      (a, b) => bpNear.get(b)! - bpNear.get(a)!,
+    )
     return places.length === 0
       ? ''
       : `${places[0]}${places.length > 1 ? ` and ${places.length - 1} more place${places.length > 2 ? 's' : ''}` : ''}`
@@ -225,7 +227,7 @@ export function walkRowReadout(
     | 'fromElsewhereBp'
     | 'onReferenceBp'
     | 'axis'
-    | 'morePasses'
+    | 'passesOutside'
     | 'stops'
     | 'departures'
     | 'placementChoice'
@@ -274,9 +276,9 @@ export function walkRowReadout(
     const of = reference.windowBp ?? reference.bp
     // A pass across a window edge by what it holds: its own bp off the
     // reference, its bp on the reference, the reference's from elsewhere, and
-    // for a pass the row does not draw, or one holding nothing else, its bp
-    // in gaps, which the row's parts state for the pass it draws
-    const replacing = (pass: Crossing, replacedBp: number, drawn: boolean) => {
+    // for a pass holding nothing else, its bp in gaps, which the row's parts
+    // state otherwise
+    const replacing = (pass: Crossing, replacedBp: number) => {
       const on = pass.onReferenceBp ?? 0
       const from = pass.fromElsewhereBp ?? 0
       const gaps = pass.gapBp ?? 0
@@ -296,7 +298,7 @@ export function walkRowReadout(
           : []),
         ...(on > 0 ? [`${sized(on)} on ${name}`] : []),
         ...(from > 0 ? [elsewhereText(from)] : []),
-        ...(gaps > 0 && (!drawn || alone)
+        ...(gaps > 0 && alone
           ? [`${sized(gaps)} ${GAP_CAUSE_TEXT.unread}`]
           : []),
       ]
@@ -312,29 +314,22 @@ export function walkRowReadout(
     const lengthOf = (
       pass: Crossing & Pick<WalkPass, 'replacedBp'>,
       length: number,
-      drawn: boolean,
     ) => {
       const delta = length - of
       return pass.replacedBp !== undefined
-        ? replacing(pass, pass.replacedBp, drawn)
+        ? replacing(pass, pass.replacedBp)
         : `${sized(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
     }
     const length =
       row.windowBp !== undefined && reference.windowBp !== undefined
         ? row.windowBp
         : bp
-    const again = (row.morePasses ?? [])
-      .map(
-        pass =>
-          ` · passes again${pass.reversed ? ', reversed' : ''}: ${lengthOf({ ...pass, reversed: false }, pass.windowBp, false)}`,
-      )
-      .join('')
     const first = {
       ...row,
       gapBp,
       reversed: row.axis?.reversed ?? false,
     }
-    return `${lengthOf(first, length, true)}${again}${parts}${after}${called}`
+    return `${row.passesOutside ? `${sized(bp)}${units(bp, unit)}` : lengthOf(first, length)}${parts}${after}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   const stops = [row.stops?.left, row.stops?.right].filter(
@@ -361,8 +356,10 @@ export function walkRowReadout(
       : stop.turnsBack
         ? `turns back out of the ${region}`
         : stop.goesOn
-          ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${departureOwnText(stop.goesOn.departure, name, revisited)}`}`
-          : 'does not rejoin the reference in view'
+          ? `${stop.start ? 'comes from' : 'goes on'} near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${departureOwnText(stop.goesOn.departure, name, revisited)}`}`
+          : stop.start
+            ? 'comes from out of view'
+            : 'does not rejoin the reference in view'
   const whys = stops.length === 0 ? 'partial walk' : stops.map(why).join(' · ')
   const least = row.windowBp ?? bp
   const exact = stops.length === 2 && stops.every(stop => stop.contigEnds)
