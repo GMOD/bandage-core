@@ -262,7 +262,18 @@ export async function forceLayout(
     deletionEdges(graph),
     settings.showDeletionEdges !== false,
   )
-  const feet = paddedFeet(graph)
+  const prelim = layoutScaling(graph, spread)
+  const candidates = paddedFeet(graph)
+  const footDrawn = footRoutes(
+    graph,
+    candidates,
+    drawnLengthOf(graph, spread),
+    length => drawnNodeLength(prelim.opts, length),
+    prelim.opts.minimumNodeLength,
+  )
+  const feet = candidates.filter(foot =>
+    footDrawn.some(({ edgeIndex }) => edgeIndex === foot.edgeIndex),
+  )
   const routed = withDeletionRoutes(graph, [...deletions, ...feet], dropped)
   const merged = mergeRuns(routed.graph, routed.ids)
   const runs = {
@@ -288,9 +299,7 @@ export async function forceLayout(
               (sum, n) => sum + drawnNodeLength(engineScaling.opts, n.length),
               0,
             ),
-            footRoutes(graph, feet, drawnOf, length =>
-              drawnNodeLength(engineScaling.opts, length),
-            ),
+            footDrawn,
           ),
         ],
       },

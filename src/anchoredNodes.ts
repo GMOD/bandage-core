@@ -28,6 +28,11 @@ export function isBackbone(node: GraphNode): node is AnchoredNode {
   return node.stable?.rank === REFERENCE_RANK
 }
 
+// A reference node the cut loaded
+export const isLoadedBackbone = (
+  node: GraphNode | undefined,
+): node is AnchoredNode => !!node && isBackbone(node) && !node.placeholder
+
 // Anchored and above rank 0: sequence that diverges from the reference. Not
 // simply `!isBackbone`, which would also admit nodes carrying no coordinate,
 // nor a placeholder, whose steps may lie on the reference elsewhere.

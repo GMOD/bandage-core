@@ -1,4 +1,4 @@
-import { isBackbone, readsAsReference } from './anchoredNodes'
+import { isBackbone, isLoadedBackbone, readsAsReference } from './anchoredNodes'
 import { departureTails } from './gfa/departures'
 import { haplotypeIndex, haplotypeOf } from './nodeWidths'
 import { panSNHaplotype } from './pansn'
@@ -125,8 +125,7 @@ interface ReferenceSequence {
   startingAt: Map<number, string[]>
 }
 
-const onReference = (node: GraphNode | undefined): node is AnchoredNode =>
-  !!node && isBackbone(node) && !node.placeholder
+const onReference = isLoadedBackbone
 
 const leavesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
   node.stable.start + (readsAsReference(node, strand) ? node.length : 0)
