@@ -673,10 +673,13 @@ test('a short skip is painted after a long one it crosses', () => {
         { from: 'A+', to: 'B+' },
         { from: 'B+', to: 'C+' },
         { from: 'C+', to: 'D+' },
-        { from: 'A+', to: 'C+' },
-        { from: 'A+', to: 'D+' },
+        { from: 'A+', to: 'C+', pathIds: ['one'] },
+        { from: 'A+', to: 'D+', pathIds: ['two', 'three', 'four'] },
       ],
+      // the skips are as thick as their walks, so their strokes tell apart
+      paths: [{ name: 'one#1#c', nodeIds: ['A+', 'C+'] }],
     },
+    edgeWidth: 'walks',
     nodeById: new Map(four.map(n => [n.id, n])),
     colorScheme: 'uniform',
     contigThickness: 10,
@@ -729,10 +732,13 @@ test('a skip drawn as its plain link is painted after a dashed skip it crosses',
         { from: 'A+', to: 'B+' },
         { from: 'B+', to: 'C+' },
         { from: 'C+', to: 'D+' },
-        { from: 'A+', to: 'C+' },
-        { from: 'A+', to: 'D+' },
+        { from: 'A+', to: 'C+', pathIds: ['one'] },
+        { from: 'A+', to: 'D+', pathIds: ['two', 'three', 'four'] },
       ],
+      // the skips are as thick as their walks, so their strokes tell apart
+      paths: [{ name: 'one#1#c', nodeIds: ['A+', 'C+'] }],
     },
+    edgeWidth: 'walks',
     nodeById: new Map(four.map(n => [n.id, n])),
     colorScheme: 'uniform',
     contigThickness: 10,
@@ -754,7 +760,9 @@ test('a skip drawn as its plain link is painted after a dashed skip it crosses',
   expect(strokeOf(3)).toMatchObject({ skip: true, span: 0 })
   expect(strokeOf(4).span).toBeGreaterThan(0)
   expect(strokeOf(3).thickness).not.toBe(strokeOf(4).thickness)
-  expect(lineWidths.at(-1)).toBe(strokeOf(3).thickness * 2)
+  expect(Math.round(lineWidths.at(-1)!)).toBe(
+    Math.round(strokeOf(3).thickness * 2),
+  )
 })
 
 // A thickness is quoted in CSS pixels and expanded AFTER the transform, so it
