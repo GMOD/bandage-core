@@ -303,7 +303,7 @@ describe('a row over a window its walk crosses more than once', () => {
   test('draws every stretch of its contig in the window, and its steps outside it as gaps near where they lie', async () => {
     expect(await runsOf('HG01960#1')).toEqual({
       readout:
-        "≥ 9.5 kb, of which 4.0 kb reversed, 500 bp left out of graph, 2.0 kb near chr1:8 kb and 1 more place · no more of the contig on GRCh38's path",
+        "9.5 kb of its contig, of which 4.0 kb reversed, 500 bp left out of graph, 2.0 kb near chr1:8 kb and 1 more place · no more of the contig on GRCh38's path",
       runs: [
         [2000, 2000, false],
         [500, 'missing', undefined],
@@ -315,7 +315,7 @@ describe('a row over a window its walk crosses more than once', () => {
     })
     expect(await runsOf('HG01123#1')).toEqual({
       readout:
-        "≥ 11 kb, of which 1.0 kb near chr1:8 kb · no more of the contig on GRCh38's path",
+        "11 kb of its contig, of which 1.0 kb near chr1:8 kb · no more of the contig on GRCh38's path",
       runs: [
         [6000, 2000, false],
         [1000, 'elsewhere', 8000],

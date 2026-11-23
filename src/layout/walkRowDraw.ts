@@ -275,6 +275,8 @@ export function walkRowReadout(
     ownGapText(name, revisited),
   )
   const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
+  // a bar reaching over contig outside the window holds no length over it
+  const ofContig = (length: number) => `${sized(length)} of its contig`
   const called = call
     ? ` · called ${sized(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
@@ -335,7 +337,7 @@ export function walkRowReadout(
       gapBp,
       reversed: row.axis?.reversed ?? false,
     }
-    return `${row.passesOutside ? `${sized(bp)}${units(bp, unit)}` : lengthOf(first, length)}${parts}${after}${called}`
+    return `${row.passesOutside ? ofContig(bp) : lengthOf(first, length)}${parts}${after}${called}`
   }
   const region = unit ? 'repeat' : 'window'
   const stops = [row.stops?.left, row.stops?.right].filter(
@@ -372,7 +374,9 @@ export function walkRowReadout(
   const stated =
     bp === 0
       ? `${whys}${parts}`
-      : `${exact ? '' : '≥ '}${sized(least)}${units(least, unit)}${parts} · ${whys}`
+      : row.passesOutside
+        ? `${ofContig(bp)}${parts} · ${whys}`
+        : `${exact ? '' : '≥ '}${sized(least)}${units(least, unit)}${parts} · ${whys}`
   return `${stated}${after}${called}`
 }
 

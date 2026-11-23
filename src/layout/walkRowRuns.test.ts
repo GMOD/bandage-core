@@ -1258,7 +1258,7 @@ describe('a walk row over a window between 1 kb nodes', () => {
       ),
     ).toEqual({
       'T#1':
-        '≥ 8.1 kb, of which 3.0 kb reversed, 2.1 kb near chr1:4 kb · turns back out of the window',
+        '8.1 kb of its contig, of which 3.0 kb reversed, 2.1 kb near chr1:4 kb · turns back out of the window',
       'R#1': '2.0 kb',
     })
   })
