@@ -50,6 +50,9 @@ const MIN_FREQUENCY_FACTOR = 0.05
 const PASSES_AT_CONTIG_THICKNESS = 6
 // the thinnest a walked node or link draws under `walks`
 export const MIN_WALKS_PX = 1
+// a node or link no walk takes, in a graph that lists one, since nothing
+// travels it
+export const UNWALKED_PX = 0.5
 
 // Length-weighted, as Bandage's mean depth is, so a cut's long reference nodes
 // set the norm and the alleles read against it.
@@ -144,7 +147,7 @@ export function passesAtContigThickness(graph: Graph) {
 
 // How thick `passes` draw under `walks`, at `perPass` px a pass
 export const walksPx = (passes: number, perPass: number) =>
-  Math.max(MIN_WALKS_PX, passes * perPass)
+  passes === 0 ? UNWALKED_PX : Math.max(MIN_WALKS_PX, passes * perPass)
 
 // What a width is measured against: the mean depth, the haplotype count, or
 // the passes a contigThickness-thick node takes
@@ -176,7 +179,7 @@ export function frequencyKey(contigThickness: number) {
 }
 
 function depthWidthFactor(depth: number, mean: number) {
-  if (!(mean > 0) || !(depth > 0)) {
+  if (!(mean > 0) || !(depth >= 0)) {
     return 1
   }
   return Math.min(MAX_FACTOR, Math.max(MIN_FACTOR, Math.sqrt(depth / mean)))

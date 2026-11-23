@@ -1,13 +1,14 @@
 import { COMPRESSED_KEY } from './bubbleSpreads'
 import { BUBBLE_HALO_COLOR } from './bubbles/bubbleLabel'
 import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
-import { UNWALKED_LINK_PX, drawnEdgeWidth } from './edgeWidths'
+import { drawnEdgeWidth } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import {
   MIN_WALKS_PX,
+  UNWALKED_PX,
   countLaneWidthPx,
   depthKey,
   drawnNodeWidth,
@@ -725,7 +726,7 @@ export function graphKey(
   const unwalkedEntry = widthEntry(
     'link-width-0',
     counted(0, 'walk', 'walks'),
-    UNWALKED_LINK_PX,
+    UNWALKED_PX,
     EDGE_DEFAULT_COLOR,
   )
   const nodeWidthEntries: GraphKeyEntry[] = !drawsNodes
@@ -735,7 +736,15 @@ export function graphKey(
           ...walksScale.map(({ key, text, px }) =>
             widthEntry(key, text, px, REFERENCE_RAMP_ALT_COLOR),
           ),
-          ...(linksByWalks && unwalked ? [unwalkedEntry] : []),
+          ...((linksByWalks && unwalked) ||
+          graph.nodes.some(
+            n =>
+              n.depth === 0 &&
+              !n.placeholder &&
+              (!o.marks.nodes || o.marks.nodes.has(n.id)),
+          )
+            ? [unwalkedEntry]
+            : []),
         ]
       : o.nodeWidth === 'walks' && nodeWidth === 'uniform'
         ? [entry('width-not-drawn', notLoadedThicknessText(graph))]

@@ -402,7 +402,7 @@ export function graphFromTables(
       id: ids[i]!,
       name: n.names[i]!,
       length: n.lengths[i]!,
-      depth: Math.max(traversals[i]! + (visits?.length ?? 0), 1),
+      depth: drawnWalks.length > 0 ? traversals[i]! + (visits?.length ?? 0) : 1,
       stable:
         ref < 0
           ? undefined

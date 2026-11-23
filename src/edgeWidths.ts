@@ -23,9 +23,6 @@ export const EDGE_WIDTHS = [
 
 export type EdgeWidth = (typeof EDGE_WIDTHS)[number]['value']
 
-// a link no walk takes, in a cut that lists one, since nothing travels it
-export const UNWALKED_LINK_PX = 0.5
-
 // What a link width setting draws on a graph: `walks` counts the walks on
 // links only where the graph has walks and every pass of them is loaded
 export function drawnEdgeWidth(graph: Graph, edgeWidth: EdgeWidth): EdgeWidth {
@@ -35,9 +32,8 @@ export function drawnEdgeWidth(graph: Graph, edgeWidth: EdgeWidth): EdgeWidth {
     : edgeWidth
 }
 
-// A link's width in px: under `walks` its walks at `perPass` px each, the
-// px a pass draws in a node by walks, never under MIN_WALKS_PX, or a
-// hairline where no walk takes it; else the connector thickness
+// A link's width in px: under `walks` its walks as a node of as many passes
+// draws (nodeWidths.ts walksPx); else the connector thickness
 export function linkWidthPx(
   walks: number,
   perPass: number,
@@ -45,8 +41,6 @@ export function linkWidthPx(
   connectorThickness: number,
 ) {
   return edgeWidth === 'walks' && perPass > 0
-    ? walks === 0
-      ? UNWALKED_LINK_PX
-      : walksPx(walks, perPass)
+    ? walksPx(walks, perPass)
     : connectorThickness
 }

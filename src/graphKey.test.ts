@@ -641,6 +641,36 @@ test('walks with nodes not loaded draw no thickness, and the key says whose stre
   ])
 })
 
+// A segment no walk steps counted as one walk, its depth floored at 1, so
+// thickness by walks drew it as one walk's pass
+test('a node no walk steps has no pass, draws as a hairline by walks and keys as 0 walks', () => {
+  const stray = load(`${GFA}\nS\tu1\tAAA\nL\tv3\t+\tu1\t+\t0M`, 'GRCh38')
+  const u1 = stray.nodes.find(n => n.name === 'u1')!
+  expect(u1.depth).toBe(0)
+  const rebuilt = buildGeometry({
+    ...layoutGeometryInputs(
+      layoutModeByValue('ordered').run(stray, undefined)!,
+      deletionDrawing(stray, deletionEdges(stray), true),
+    ),
+    graph: stray,
+    nodeById: new Map(stray.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth: 'walks',
+    edgeWidth: 'walks',
+    axis: axisScaleOf(1, false),
+  })
+  const run = rebuilt.nodeStrokeRuns.get(u1.id)!
+  expect(2 * rebuilt.nodeStrokes[run.start]!.thickness).toBe(0.5)
+  expect(widths(thicknessKey(stray))?.map(([text]) => text)).toEqual([
+    '2 walks',
+    '1 walk',
+    '0 walks',
+  ])
+})
+
 // A cut can list a link no walk drawn takes, such as another haplotype's skip
 // from v1 to v3, which draws at the floor of the walk thickness scale
 test('a link no drawn walk takes keys its own row under link thickness, below the thinnest walked one', () => {
