@@ -6,6 +6,7 @@ import {
   NOT_LOADED_TEXT,
   OUTSIDE_TEXT,
   PLACEMENT_CHOICE_TEXT,
+  departureOwnText,
   departureSpan,
   departureText,
   offPathText,
@@ -360,7 +361,7 @@ export function walkRowReadout(
       : stop.turnsBack
         ? `turns back out of the ${region}`
         : stop.goesOn
-          ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${ownAmount(roughBp(stop.goesOn.departure.ownBp), name, revisited)}`}`
+          ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${departureOwnText(stop.goesOn.departure, name, revisited)}`}`
           : 'does not rejoin the reference in view'
   const whys = stops.length === 0 ? 'partial walk' : stops.map(why).join(' · ')
   const least = row.windowBp ?? bp

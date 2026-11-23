@@ -153,7 +153,7 @@ export function departureText(
           : `between adjacent steps on ${reference}`
   return [
     ends,
-    `${ownAmount(roughBp(d.ownBp), reference, revisited)}${d.missingBp > 0 ? `, ${d.missingBp >= d.ownBp ? 'all' : roughBp(d.missingBp)} ${GAP_CAUSE_TEXT.missing}` : ''}`,
+    departureOwnText(d, reference, revisited),
     ...(placementChoice(d) ? [PLACEMENT_CHOICE_TEXT] : []),
   ].join(' · ')
 }
@@ -200,6 +200,17 @@ export const ownAmount = (
   ownIsExact(revisited)
     ? `${amount} of its own`
     : `${amount} ${offPathText(reference)}`
+
+// A departure's own bp and the part of them the graph lacks: `5.6 Mb left out
+// of graph`, `350 kb of its own, 180 kb of it left out of graph`
+export const departureOwnText = (
+  d: Pick<Departure, 'ownBp' | 'missingBp'>,
+  reference: string | undefined,
+  revisited: number | undefined,
+) =>
+  d.missingBp > 0 && d.missingBp >= d.ownBp
+    ? `${roughBp(d.ownBp)} ${GAP_CAUSE_TEXT.missing}`
+    : `${ownAmount(roughBp(d.ownBp), reference, revisited)}${d.missingBp > 0 ? `, ${roughBp(d.missingBp)} of it ${GAP_CAUSE_TEXT.missing}` : ''}`
 
 // the words for an `own` gap
 export const ownGapText = (

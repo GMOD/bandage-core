@@ -184,6 +184,37 @@ test('a walk whose first W line starts inside the window says where its contig s
   })
 })
 
+// D leaves on the repeat's node by a departure whose own bp all lie between
+// its contig's W lines, as HG01960#1's 5,631,835 bp do at R1M-05 of the HPRC
+// v2.1 audit, or a part of them
+test('a walk that goes on by a departure says how much of its own bp the graph lacks', () => {
+  const readout = (missingBp: number) => {
+    const goesOn: GraphTables = {
+      ...tables,
+      departures: departureTable([
+        departure('D#1#d', {
+          hapStart: 3000,
+          ownBp: 5_631_835,
+          missingBp,
+          leavePos: 3000,
+          rejoinPos: 4000,
+        }),
+      ]),
+    }
+    const rows = rowsOf(goesOn)
+    return walkRowReadout(
+      rows.rows.find(r => r.label === 'D#1')!,
+      rows.reference,
+    )
+  }
+  expect(readout(5_631_835)).toBe(
+    '≥ 1.0 kb · goes on near chr1:4 kb · 5.6 Mb left out of graph',
+  )
+  expect(readout(1_000_000)).toBe(
+    '≥ 1.0 kb · goes on near chr1:4 kb · 5.6 Mb of its own, 1 Mb of it left out of graph',
+  )
+})
+
 test('a walk forward along the reference that reaches only the right flank reads toward it', () => {
   const rightOnly: GraphTables = {
     ...tables,

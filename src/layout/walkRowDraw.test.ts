@@ -939,7 +939,7 @@ test('a readout too long for the room beside its bar wraps onto two lines at ful
     },
   ]
   const text =
-    'no step on GRCh38 across 120 kb · 49 kb of its own, 19 kb left out of graph'
+    'no step on GRCh38 across 120 kb · 49 kb of its own, 19 kb of it left out of graph'
   const measure = (shown: string) => shown.length * LABEL_CHAR_PX
   const frame = (width: number, rowPx?: number) => ({
     scaleX: 960 / 1500,
@@ -957,14 +957,14 @@ test('a readout too long for the room beside its bar wraps onto two lines at ful
     text,
     lines: [
       'no step on GRCh38 across 120 kb',
-      '49 kb of its own, 19 kb left out of graph',
+      '49 kb of its own, 19 kb of it left out of graph',
     ],
     cut: false,
   })
   expect(at.lines.every(line => measure(line) <= 320)).toBe(true)
   const svg = serializeEl(walkRowsTree(bars, frame(beside + 320)))
   expect(svg).toContain(
-    `<tspan x="${at.x}">no step on GRCh38 across 120 kb</tspan><tspan x="${at.x}" dy="10">49 kb of its own, 19 kb left out of graph</tspan>`,
+    `<tspan x="${at.x}">no step on GRCh38 across 120 kb</tspan><tspan x="${at.x}" dy="10">49 kb of its own, 19 kb of it left out of graph</tspan>`,
   )
   expect(svg).not.toContain(`<title>${text}</title>`)
 
@@ -1214,7 +1214,7 @@ test("a stepless row reads as its departure's facts", () => {
     'no step on the reference across 1.2 Mb · 0 bp of its own',
   )
   expect(readout({ rejoinPos: 22_780_850, missingBp: 40, ownBp: 40 })).toBe(
-    'no step on GRCh38 across 850 bp · 40 bp of its own, all left out of graph',
+    'no step on GRCh38 across 850 bp · 40 bp left out of graph',
   )
   expect(gapStyle('departure')).toEqual({
     fill: MISSING_INK,

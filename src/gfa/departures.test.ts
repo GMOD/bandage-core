@@ -208,7 +208,7 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
   expect(texts).toEqual([
     'no step on GRCh38 across 54 kb · 120 kb of its own',
     'rejoins GRCh38 1 kb back · 0 bp of its own',
-    'rejoins the reference on the other strand, 1 kb away · 1 kb of its own, 400 bp left out of graph · placement choice',
+    'rejoins the reference on the other strand, 1 kb away · 1 kb of its own, 400 bp of it left out of graph · placement choice',
     'between adjacent steps on GRCh38 · 300 bp of its own',
   ])
   for (const text of texts) {
