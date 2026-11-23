@@ -722,7 +722,11 @@ export function graphKey(
   const walksScale = walkScaleEntries(graph, thickness, true)
   const requested = o.nodeWidth ?? 'depth'
   const notDrawn = entry('width-not-drawn', notLoadedThicknessText(graph))
-  const nodesUncounted = requested !== nodeWidth && nodeWidth === 'uniform'
+  const uncounted =
+    (requested !== nodeWidth && nodeWidth === 'uniform') ||
+    (o.edgeWidth === 'walks' &&
+      edgeWidth === 'uniform' &&
+      !!graph.paths?.length)
   const linksByWalks = edgeWidth === 'walks' && !o.marks.ribbons
   const unwalked = graph.edges.some(edge => !edge.pathIds?.length)
   const unwalkedEntry = widthEntry(
@@ -748,37 +752,30 @@ export function graphKey(
             ? [unwalkedEntry]
             : []),
         ]
-      : nodesUncounted
-        ? [notDrawn]
-        : !o.marks.widthsVary
-          ? []
-          : nodeWidth === 'frequency'
-            ? frequencyKey(thickness).map(({ label: share, widthPx }) =>
+      : !o.marks.widthsVary
+        ? []
+        : nodeWidth === 'frequency'
+          ? frequencyKey(thickness).map(({ label: share, widthPx }) =>
+              widthEntry(
+                `width-${share}`,
+                graph.nodes.some(n => n.frequency !== undefined)
+                  ? `AF ${share}`
+                  : `${share} of haplotypes`,
+                widthPx,
+                REFERENCE_RAMP_ALT_COLOR,
+              ),
+            )
+          : nodeWidth === 'depth'
+            ? depths.map(({ depth, widthPx }, i) =>
                 widthEntry(
-                  `width-${share}`,
-                  graph.nodes.some(n => n.frequency !== undefined)
-                    ? `AF ${share}`
-                    : `${share} of haplotypes`,
+                  i === 0 ? 'width-thickest' : 'width-thinnest',
+                  `depth ${groupDigits(roundDepth(depth))}`,
                   widthPx,
                   REFERENCE_RAMP_ALT_COLOR,
                 ),
               )
-            : nodeWidth === 'depth'
-              ? depths.map(({ depth, widthPx }, i) =>
-                  widthEntry(
-                    i === 0 ? 'width-thickest' : 'width-thinnest',
-                    `depth ${groupDigits(roundDepth(depth))}`,
-                    widthPx,
-                    REFERENCE_RAMP_ALT_COLOR,
-                  ),
-                )
-              : []
+            : []
   const linksWithNodes = drawsNodes && nodeWidth === 'walks' && linksByWalks
-  const linksUncounted =
-    o.edgeWidth === 'walks' &&
-    edgeWidth === 'uniform' &&
-    !!graph.paths?.length &&
-    !nodesUncounted
   const linkWidthEntries: GraphKeyEntry[] = !drawsNodes
     ? []
     : linksByWalks && !linksWithNodes
@@ -789,9 +786,13 @@ export function graphKey(
           ),
           ...(unwalked ? [unwalkedEntry] : []),
         ]
-      : linksUncounted
-        ? [notDrawn]
-        : []
+      : []
+  const notDrawnUnder =
+    drawsNodes && uncounted
+      ? nodeWidthEntries.length > 0
+        ? 'link-width'
+        : 'node-width'
+      : undefined
 
   const skipInk = lifted
     ? fadeAbgr(EDGE_DELETION_COLOR, FADED_ALPHA)
@@ -873,10 +874,23 @@ export function graphKey(
     { id: 'walks', group: 'Walks', entries: walkEntries },
     {
       id: 'node-width',
-      group: linksWithNodes ? 'Thickness' : 'Node thickness',
-      entries: nodeWidthEntries,
+      group:
+        linksWithNodes || notDrawnUnder === 'node-width'
+          ? 'Thickness'
+          : 'Node thickness',
+      entries: [
+        ...nodeWidthEntries,
+        ...(notDrawnUnder === 'node-width' ? [notDrawn] : []),
+      ],
     },
-    { id: 'link-width', group: 'Link thickness', entries: linkWidthEntries },
+    {
+      id: 'link-width',
+      group: 'Link thickness',
+      entries: [
+        ...linkWidthEntries,
+        ...(notDrawnUnder === 'link-width' ? [notDrawn] : []),
+      ],
+    },
     {
       id: 'halo',
       group: 'Marks',
