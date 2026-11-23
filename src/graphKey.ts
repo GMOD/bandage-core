@@ -7,7 +7,7 @@ import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import { countLaneWidthPx, depthKey, frequencyKey } from './nodeWidths'
-import { panSNHaplotype } from './pansn'
+import { panSNHaplotype, panSNMatchesPrefix } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { referenceLabel } from './reference'
 import {
@@ -362,6 +362,9 @@ export interface GraphKeyOptions {
   // the drawing runs past the pane's top or bottom, marked on that edge
   // (trackFit's edgeOverruns)
   runsPastEdge?: boolean
+  // the haplotypes the cut was asked for, `sample#haplotype` or a sample:
+  // those it holds no step of are counted in a note under the walks
+  haplotypes?: readonly string[]
   // the placeholders the labels left without a length: layoutLabels'
   // `unlabelled`. A host that sizes its pane by the key before it places the
   // labels passes 'reserved': the line under is kept, blank, whenever
@@ -416,6 +419,34 @@ export function tooSmallText(nodes: number, skips: number, underBp = 0) {
   return underBp > 0
     ? `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`
     : `${parts.join(' and ')} too small to draw`
+}
+
+// The haplotypes asked for that the graph holds no step of, counted by
+// whether the cut states a departure of theirs over the window, which says
+// they leave the reference across it, or none, so no walk of theirs is near:
+// `of 8 haplotypes, 5 have no step on GRCh38 chr1 here and 3 have no walk
+// here`. Undefined where every one has a step.
+export function absentHaplotypesText(
+  graph: Graph,
+  asked: readonly string[],
+  reference: string,
+) {
+  const absent = asked.filter(
+    prefix => !graph.paths?.some(path => panSNMatchesPrefix(path.name, prefix)),
+  )
+  const departing = absent.filter(prefix =>
+    graph.departures?.names.some(name => panSNMatchesPrefix(name, prefix)),
+  ).length
+  const walkless = absent.length - departing
+  const have = (n: number) => (n === 1 ? 'has' : 'have')
+  const noStep = `no step on ${reference} here`
+  const noWalk = 'no walk here'
+  const of = `of ${counted(asked.length, 'haplotype', 'haplotypes')}`
+  return absent.length === 0
+    ? undefined
+    : departing > 0 && walkless > 0
+      ? `${of}, ${departing} ${have(departing)} ${noStep} and ${walkless} ${have(walkless)} ${noWalk}`
+      : `${absent.length} ${of} ${have(absent.length)} ${departing > 0 ? noStep : noWalk}`
 }
 
 const roundDepth = (depth: number) =>
@@ -568,6 +599,8 @@ export function graphKey(
               : [],
           )
   }
+  const absent =
+    o.haplotypes && absentHaplotypesText(graph, o.haplotypes, reference)
   const walkEntries: GraphKeyEntry[] = [
     ...(o.panels
       ? []
@@ -597,6 +630,7 @@ export function graphKey(
           ),
         ]
       : []),
+    ...(absent ? [entry('absent', absent)] : []),
   ]
 
   const widthEntry = (key: string, text: string, px: number, ink: number) =>

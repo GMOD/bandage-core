@@ -1,10 +1,11 @@
 import { COMPRESSED_KEY } from './bubbleSpreads'
 import { SHORT_SKIP_KEY, deletionDrawing, deletionEdges } from './deletionEdges'
 import { parseGFA } from './gfa-core/index'
-import { NOT_LOADED_TEXT } from './gfa/departures'
+import { NOT_LOADED_TEXT, departureTable } from './gfa/departures'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import {
+  absentHaplotypesText,
   drawnMarks,
   graphKey,
   lanesOverUnderlays,
@@ -686,6 +687,53 @@ test('depths the file states are keyed as depths, and counted walks as walks', (
     '1 walk',
   ])
   expect(thicknesses(load(walked, 'GRCh38'))).toEqual(['2 walks', '1 walk'])
+})
+
+// R100k-02: none of the eight haplotypes asked for has a step in the window,
+// five leaving GRCh38 across it, and the drawing was the plain reference that
+// all eight matching GRCh38 would draw
+test('the haplotypes asked for that the cut holds no step of are counted under the walks, by whether they leave the reference here', () => {
+  const departure = (name: string) => ({
+    name,
+    hapStart: 0,
+    ownBp: 1000,
+    missingBp: 0,
+    leavePos: 0,
+    leaveReversed: false,
+    leavePasses: 1,
+    rejoinPos: 20_000,
+    rejoinReversed: false,
+    rejoinPasses: 1,
+    fromSteps: false,
+  })
+  const away: Graph = {
+    ...graph,
+    departures: departureTable([
+      departure('far#1#chr6'),
+      departure('wide#2#chr6'),
+    ]),
+  }
+  const note = (asked: string[]) =>
+    entries(away, {}, { haplotypes: asked }).find(e => e.key === 'absent')
+  expect(note(['alt#1'])).toBeUndefined()
+  expect(note(['alt', 'far#1', 'wide#2', 'none#1'])).toMatchObject({
+    text: 'of 4 haplotypes, 2 have no step on GRCh38 chr6 here and 1 has no walk here',
+  })
+  expect(note(['alt#1', 'far#1'])?.text).toBe(
+    '1 of 2 haplotypes has no step on GRCh38 chr6 here',
+  )
+  expect(note(['none#1', 'none#2'])?.text).toBe(
+    '2 of 2 haplotypes have no walk here',
+  )
+  expect(note(['far#1'])?.swatch).toBeUndefined()
+  expect(
+    keyOf(away, {}, { haplotypes: ['far#1'] }).find(s =>
+      s.entries.some(e => e.key === 'absent'),
+    )?.group,
+  ).toBe('Walks')
+  expect(absentHaplotypesText(away, ['far#2'], 'GRCh38 chr1')).toBe(
+    '1 of 1 haplotype has no walk here',
+  )
 })
 
 test('the key groups digits the same whatever the host locale', () => {
