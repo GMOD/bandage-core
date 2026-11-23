@@ -163,7 +163,7 @@ export const PLACEMENT_CHOICE_TEXT = 'placement choice'
 // why a walk-row gap is empty (layout/walkRows.ts WalkRun)
 export type GapCause =
   | 'missing'
-  | 'elsewhere'
+  | 'away'
   | 'own'
   | 'mixed'
   | 'unread'
@@ -172,7 +172,7 @@ export type GapCause =
 // What a gap's cause says of its bp, and the key's words for it
 export const GAP_CAUSE_TEXT: Record<GapCause, string> = {
   missing: 'left out of graph',
-  elsewhere: 'near where it rejoins',
+  away: 'away from the window',
   own: 'own sequence not drawn',
   mixed: 'not drawn or left out of graph',
   unread: 'not drawn',
@@ -233,10 +233,10 @@ export const FROM_ELSEWHERE_TEXT = 'from elsewhere'
 export interface GapPart {
   bp: number
   cause?: GapCause
-  // for an `elsewhere` or `unread` part, the reference position the walk
-  // goes on, or was last seen, near
-  near?: number
+  // for an `away` part, where a departure record states the walk rejoins
+  back?: number
   missingBp?: number
+  atLeast?: true
 }
 
 export type GapKind = 'steps' | 'read' | 'own' | 'unread'
@@ -270,7 +270,7 @@ export interface GraphGap {
  * read, near where the walk was last seen
  */
 export function segmentPart(segment: GapSegment): GapPart {
-  const { kind, bp, missingBp, before } = segment
+  const { kind, bp, missingBp } = segment
   return kind === 'own'
     ? missingBp >= bp
       ? { bp, cause: 'missing' }
@@ -278,11 +278,7 @@ export function segmentPart(segment: GapSegment): GapPart {
         ? { bp, cause: 'mixed', missingBp }
         : { bp, cause: 'own' }
     : kind === 'unread'
-      ? {
-          bp,
-          cause: 'unread',
-          ...(Number.isNaN(before) ? {} : { near: before }),
-        }
+      ? { bp, cause: 'unread' }
       : { bp }
 }
 
@@ -317,11 +313,11 @@ export function stretchSegments<T>(
 /**
  * A gap of a walk's contig between two of its pieces, `from` to `to`, split
  * by what the cut states: the bp each side's fragment was trimmed of, out of
- * view; then the bp the departures inside the gap say the graph lacks; and
- * the rest, the walk's own sequence the cut did not read where one departure
- * leaves at the gap's start and rejoins at its end, and else near where the
- * first leaves for. With no departure in
- * it, the gap stays whole, with no cause.
+ * view; then the bp the departures inside the gap say the graph lacks, a
+ * lower bound unless they run end to end across it; and the rest, the walk's
+ * own sequence where one departure spans the gap, else away from the window,
+ * back where a departure ending the gap rejoins. With no departure in it,
+ * the gap stays whole, with no cause.
  */
 export function gapParts(
   from: number,
@@ -352,20 +348,29 @@ function splitGap(
     inside.reduce((sum, d) => sum + d.missingBp, 0),
     between,
   )
+  const lastEnd = (d: Departure) => d.hapStart + d.ownBp
   const spans =
-    inside.length === 1 &&
-    first.hapStart === from &&
-    first.hapStart + first.ownBp === to
+    inside.length === 1 && first.hapStart === from && lastEnd(first) === to
+  const read =
+    first.hapStart <= from + left &&
+    lastEnd(inside.at(-1)!) >= to - right &&
+    inside.every(
+      (d, k) =>
+        k === 0 ||
+        d.hapStart - lastEnd(inside[k - 1]!) ===
+          Math.abs(d.leavePos - inside[k - 1]!.rejoinPos),
+    )
+  const ending = inside.find(d => lastEnd(d) === to - right)
   const rest: GapPart = spans
     ? { bp: between - missing, cause: 'own' }
     : {
         bp: between - missing,
-        cause: 'elsewhere',
-        near: first.hapStart === from ? first.rejoinPos : first.leavePos,
+        cause: 'away',
+        ...(ending ? { back: ending.rejoinPos } : {}),
       }
   const parts: GapPart[] = [
     { bp: left },
-    { bp: missing, cause: 'missing' },
+    { bp: missing, cause: 'missing', ...(read ? {} : { atLeast: true }) },
     rest,
     { bp: right },
   ]

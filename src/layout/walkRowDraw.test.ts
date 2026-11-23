@@ -15,8 +15,10 @@ import {
   readoutTextPx,
   rowGeneBoxes,
   rowPitch,
+  reversedStretches,
   rowSpan,
   scaleBarTree,
+  chevronPoints,
   walkRowReadout,
   walkRowReadoutAt,
   walkRowsKey,
@@ -27,6 +29,7 @@ import { walkRows } from './walkRows'
 
 import type { Departure } from '../gfa/departures'
 import type { WalkRowsWithCalls } from './walkRowDraw'
+import type { WalkRun } from './walkRows'
 
 // Five 10 bp reference nodes on chr1 from 1000, and a 5 bp node no reference
 // walk visits
@@ -419,7 +422,7 @@ test('the reference from elsewhere under a kilobase reads in bp rather than roun
   )
 })
 
-test('a pass across a window edge calls only its bases off the reference its own, and names those on it and their direction', () => {
+test('a pass across a window edge calls only its bases off the reference its own, names those on it, and says where its contig is drawn right to left', () => {
   const reference = {
     bp: 6600,
     windowBp: 6600,
@@ -436,10 +439,11 @@ test('a pass across a window edge calls only its bases off the reference its own
         gapBp: 0,
         complete: true,
         axis,
+        flipped: true,
       },
       reference,
     ),
-  ).toBe('6.6 kb on GRCh38, reversed')
+  ).toBe('6.6 kb on GRCh38 · contig drawn right to left')
   expect(
     walkRowReadout(
       {
@@ -461,11 +465,12 @@ test('a pass across a window edge calls only its bases off the reference its own
         gapBp: 500,
         complete: true,
         axis,
+        flipped: true,
       },
       reference,
     ),
   ).toBe(
-    "1.2 kb on GRCh38, reversed, in place of GRCh38's 1.4 kb, of which 500 bp out of view",
+    "1.2 kb on GRCh38 in place of GRCh38's 1.4 kb, of which 500 bp out of view · contig drawn right to left",
   )
 })
 
@@ -524,7 +529,7 @@ test('a partial walk states a lower bound and why it stops', () => {
       51,
       call,
     ),
-  ).toBe("last step on GRCh38's path 580 bp before the repeat · called 8.6 kb")
+  ).toBe('last step on GRCh38 580 bp before the repeat · called 8.6 kb')
   expect(
     walkRowReadout(
       {
@@ -547,7 +552,7 @@ test('a partial walk states a lower bound and why it stops', () => {
       },
       reference,
     ),
-  ).toBe("≥ 1.5 kb · no more of the contig on GRCh38's path")
+  ).toBe('≥ 1.5 kb · no more of the contig on GRCh38')
 })
 
 // R1M-05 of the HPRC v2.1 audit: HG00128#1's first W line starts 9,183,247 bp
@@ -569,7 +574,7 @@ test('a walk that starts inside the window says where its contig starts, and how
     'contig starts 580 bp before the window',
   )
   expect(walkRowReadout({ bp: 0, ...starts(440, 580) }, reference)).toBe(
-    "first step on GRCh38's path 580 bp before the window, 440 bp before it not drawn or left out of graph",
+    'first step on GRCh38 580 bp before the window, 440 bp before it not drawn or left out of graph',
   )
 })
 
@@ -590,7 +595,7 @@ test('a walk whose contig starts and ends inside the window states its length ex
       { bp: 572_000, sample: 'GRCh38' },
     ),
   ).toBe(
-    "64 kb · contig starts inside the window · no more of the contig on GRCh38's path",
+    '64 kb · contig starts inside the window · no more of the contig on GRCh38',
   )
 })
 
@@ -648,6 +653,57 @@ test('a scale bar takes a round length about as wide as asked', () => {
   expect(svg).toContain('>100 kb</text>')
   expect(svg).toContain('x2="82"')
   expect(serializeEl(scaleBarTree(1, 0, 0, 60))).toContain('>50 bp</text>')
+})
+
+// H-8p23 of the HPRC v2.1 audit at 1386 px: a 3.97 Mb stretch walked against
+// GRCh38, split every 400 bp by a 1 bp allele off its path. Chevrons placed
+// per run drew 4-18 where about 70 fit.
+test('chevrons run along a stretch walked against the reference however small sites split it', () => {
+  const runs: WalkRun[] = []
+  for (let at = 0; at < 3_970_000; at += 401) {
+    runs.push(
+      {
+        start: at,
+        bp: 400,
+        onReference: true,
+        referenceStart: 11_999_000 - at,
+        reversed: true,
+      },
+      { start: at + 400, bp: 1, onReference: false },
+    )
+  }
+  const row = { ...rowNamed('HG1#1#ctg1'), runs, bp: 3_970_000 }
+  const scaleX = 1386 / 4_100_000
+  const svg = serializeEl(
+    walkRowsTree(
+      { ...rows(), rows: [row] },
+      {
+        scaleX,
+        scaleY: 1,
+        translateX: 0,
+        translateY: 20,
+        width: 1400,
+        height: 400,
+      },
+    ),
+  )
+  const chevrons = (svg.match(/<polyline /g)?.length ?? 0) / 2
+  expect(chevrons).toBeGreaterThanOrEqual(60)
+  const stretches = reversedStretches(runs)
+  const reversedBp = runs.filter(r => r.reversed).reduce((n, r) => n + r.bp, 0)
+  const chevroned = stretches
+    .filter(
+      s => chevronPoints(s.start * scaleX, s.end * scaleX, 20, 12).length > 0,
+    )
+    .reduce(
+      (n, s) =>
+        n +
+        runs
+          .filter(r => r.reversed && r.start >= s.start && r.start < s.end)
+          .reduce((m, r) => m + r.bp, 0),
+      0,
+    )
+  expect(chevroned / reversedBp).toBeGreaterThanOrEqual(0.9)
 })
 
 test('the key names the boxes by the annotation the host read', () => {
@@ -858,8 +914,7 @@ function longRow(): WalkRowsWithCalls {
             bp: 178_000,
             onReference: false,
             gap: true,
-            cause: 'elsewhere',
-            near: 12_000_000,
+            cause: 'away',
           },
           { start: 5_275_000, bp: 86_000, onReference: false, gap: true },
         ],
@@ -872,7 +927,7 @@ function longRow(): WalkRowsWithCalls {
 test('a readout too long for the room beside its bar on rows too close to wrap drops whole parts of its breakdown from the end, and says it was cut', () => {
   const bars = longRow()
   const text =
-    '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb near chr22:12.0 Mb, 86 kb out of view'
+    '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb away from the window, 86 kb out of view'
   const cut = '5361 kb (+5360 kb), of which 5096 kb left out of graph, …'
   const frame = (width: number) => ({
     scaleX: 100 / 5_361_000,
@@ -1014,7 +1069,7 @@ test('a readout too long for the room beside its bar wraps onto two lines at ful
     }).lines,
   ).toEqual([
     '5361 kb (+5360 kb), of which 5096 kb left out of graph,',
-    '178 kb near chr22:12.0 Mb, 86 kb out of view',
+    '178 kb away from the window, 86 kb out of view',
   ])
   // too narrow for two lines, or rows too close for a second, it is cut
   expect(walkRowReadoutAt(bars, 1, frame(beside + 220))).toMatchObject({
@@ -1079,7 +1134,7 @@ function pggbRows(): WalkRowsWithCalls {
 test("every line of a readout ends before the pane's right edge and starts past its bar, wherever that edge is", () => {
   const bars = pggbRows()
   expect(walkRowReadout(bars.rows[0]!, bars.reference)).toBe(
-    "10 bp off GRCh38's path and 390 bp on GRCh38, reversed, in place of GRCh38's 6.4 kb",
+    "10 bp off GRCh38's path and 390 bp on GRCh38 in place of GRCh38's 6.4 kb",
   )
   for (const fixture of [bars, longRow(), rows()]) {
     const longest = [fixture.reference, ...fixture.rows].reduce(
@@ -1119,11 +1174,11 @@ test('a readout with no breakdown to drop sheds whole clauses and joined amounts
       measure: byChar,
     }
   }
-  expect(walkRowReadoutAt(bars, 1, frame(400)).shown).toBe(
-    "10 bp off GRCh38's path and 390 bp on GRCh38, reversed, …",
+  expect(walkRowReadoutAt(bars, 1, frame(600)).shown).toBe(
+    "10 bp off GRCh38's path and 390 bp on GRCh38 in place of GRCh38's 6.4 kb",
   )
   expect(walkRowReadoutAt(bars, 1, frame(300)).shown).toBe(
-    "10 bp off GRCh38's path and 390 bp on GRCh38, …",
+    "10 bp off GRCh38's path and …",
   )
   expect(walkRowReadoutAt(bars, 1, frame(300)).cut).toBe(true)
   expect(walkRowReadoutAt(bars, 1, frame(200)).shown).toBe(

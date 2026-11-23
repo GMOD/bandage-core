@@ -482,6 +482,16 @@ test("walk row tiles take their lifted walk's colours as walk rows draw them", (
     { row: [hg1, hg1], offset: [5, 12] },
   )
   expect(shifted.color).toEqual(inks.color.slice(0, 2))
+  // and a bar with a stretch away from the window drawn 2 bp wide at 5 bp
+  // along it has a tile past the break at the contig's colour there
+  const broken = walkRowInks(
+    keys,
+    rows,
+    { row: [hg1], offset: [7] },
+    undefined,
+    { row: [hg1], at: [5], bp: [10], drawn: [2] },
+  )
+  expect(broken.color).toEqual([rowInkAt(ink, all[hg1]!, 15)])
 })
 
 // R walks three reference nodes; A leaves it for a 75 kb loop the cut did not

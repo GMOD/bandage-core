@@ -11,7 +11,7 @@ import { trimToWindow } from './trimToWindow'
 import { placeRowGenes, walkRowReadout, walkRowsKey } from './walkRowDraw'
 import { walkRowLinks } from './walkRowLinks'
 import { walkRowRuns, walkRowsOf } from './walkRowRuns'
-import { walkRows } from './walkRows'
+import { contigAlong, walkRows } from './walkRows'
 
 import type { Departure } from '../gfa/departures'
 import type { GraphTables } from '../gfa/graphTables'
@@ -63,6 +63,8 @@ const tables: GraphTables = {
         [0, 0],
       ].flat(),
     ),
+    trimmedBefore: new Float64Array(6),
+    trimmedAfter: new Float64Array(6),
   },
   departures: departureTable(),
   revisited: 0,
@@ -168,6 +170,8 @@ test('a walk whose first W line starts inside the window says where its contig s
       offsets: Int32Array.of(0, 5, 8, 11),
       steps: Int32Array.from([0, 1, 2, 3, 4, 2, 3, 4, 2, 3, 4]),
       reversed: new Uint8Array(11),
+      trimmedBefore: new Float64Array(3),
+      trimmedAfter: new Float64Array(3),
     },
   }
   const rows = rowsOf(startsInside)
@@ -227,6 +231,8 @@ test('a row whose walk starts inside the window starts under the reference at it
       offsets: Int32Array.of(0, 5, 8),
       steps: Int32Array.from([0, 1, 2, 3, 4, 2, 3, 4]),
       reversed: new Uint8Array(8),
+      trimmedBefore: new Float64Array(2),
+      trimmedAfter: new Float64Array(2),
     },
   }
   const rows = walkRowsOf(
@@ -273,10 +279,24 @@ test('a row whose walk starts inside the window starts under the reference at it
 
 // R1M-06 of the HPRC v2.1 audit: rows crossing a 1 Mb window twice hold 3.9
 // Mb of contig away from it between, which drew every other bar a fifth as
-// wide. W walks chr1:1000-4000's nodes 1 and 2, then 7 kb on, 2 and 3 again.
-test('a gap longer than the window draws a quarter of it, at a break, and its readout keeps its bp', () => {
+// wide. W walks chr1:1000-4000's nodes 1 and 2, then 7 kb away from the
+// window by two departures, then 2 and 3 again.
+test('a stretch away from the window draws as a break of one width, and the axis keeps genes and the strip on the contig', () => {
   const twice: GraphTables = {
     ...tables,
+    departures: departureTable([
+      departure('W#1#w', {
+        hapStart: 3000,
+        leavePos: 3000,
+        rejoinPos: 90_000,
+      }),
+      departure('W#1#w', {
+        hapStart: 9500,
+        ownBp: 500,
+        leavePos: 96_500,
+        rejoinPos: 2000,
+      }),
+    ]),
     walks: {
       names: ['GRCh38#0#chr1', 'W#1#w', 'W#1#w'],
       starts: Float64Array.of(0, 0, 10_000),
@@ -290,15 +310,175 @@ test('a gap longer than the window draws a quarter of it, at a break, and its re
   const [row] = rows.rows
   expect(row!.runs).toEqual([
     { start: 0, bp: 2000, onReference: true, referenceStart: 1000 },
-    { start: 2000, bp: 750, onReference: false, gap: true, breakBp: 6250 },
-    { start: 2750, bp: 2000, onReference: true, referenceStart: 2000 },
+    {
+      start: 2000,
+      bp: 45,
+      onReference: false,
+      gap: true,
+      cause: 'away',
+      back: 2000,
+      heldBp: 7000,
+    },
+    { start: 2045, bp: 2000, onReference: true, referenceStart: 2000 },
   ])
-  expect(row!.axis).toBeUndefined()
+  expect(row!.axis).toEqual({
+    contig: 'w',
+    start: 1000,
+    reversed: false,
+    breaks: [{ at: 2000, bp: 7000, drawn: 45 }],
+  })
   expect(walkRowReadout(row!, rows.reference)).toBe(
-    '11 kb (+8.0 kb), of which 7.0 kb out of view',
+    '11 kb of its contig, of which 7.0 kb away from the window, back from near chr1:2 kb',
   )
+  expect(
+    placeRowGenes(
+      rows.rows,
+      new Map([
+        [
+          'W#1#w',
+          [
+            {
+              name: 'X',
+              refName: 'w',
+              start: 10_500,
+              end: 10_700,
+              strand: 1,
+              exons: [],
+            },
+          ],
+        ],
+      ]),
+    ).get('W#1#w'),
+  ).toEqual([{ name: 'X', start: 2545, end: 2745, exons: [] }])
+  expect(contigAlong(row!.axis!, 2545)).toBe(9500)
   expect(walkRowsKey(rows).at(-1)!.label).toBe(
-    '// a gap drawn shorter than it is, whose length the text beside its row states',
+    '// marks a stretch away from the window; the text beside the row sums the bp it spends away',
+  )
+})
+
+// The walks' own pieces on chr1:0-5000, a kb a node, with trimmed bp stated
+const walkFile = (
+  walks: { name: string; start: number; steps: number[]; reversed: number[] }[],
+  departures: Departure[] = [],
+): GraphTables => {
+  const all = [
+    {
+      name: 'GRCh38#0#chr1',
+      start: 0,
+      steps: [0, 1, 2, 3, 4],
+      reversed: [0, 0, 0, 0, 0],
+    },
+    ...walks,
+  ]
+  const offsets = [0]
+  for (const w of all) {
+    offsets.push(offsets.at(-1)! + w.steps.length)
+  }
+  return {
+    ...tables,
+    walks: {
+      names: all.map(w => w.name),
+      starts: Float64Array.from(all, w => w.start),
+      ends: Float64Array.from(all, w => w.start + w.steps.length * 1000),
+      offsets: Int32Array.from(offsets),
+      steps: Int32Array.from(all.flatMap(w => w.steps)),
+      reversed: Uint8Array.from(all.flatMap(w => w.reversed)),
+      trimmedBefore: new Float64Array(all.length),
+      trimmedAfter: new Float64Array(all.length),
+    },
+    departures: departureTable(departures),
+  }
+}
+
+// S's contig is stored back to front and crosses chr1:1000-4000 twice: nodes
+// 3 to 1 against the reference, then, 5 kb on, 3 and 2 again
+test('a row stored back to front that crosses the window twice reads flipped, with no stretch marked reversed', () => {
+  const rows = rowsOf(
+    walkFile([
+      {
+        name: 'S#1#s',
+        start: 0,
+        steps: [4, 3, 2, 1, 0],
+        reversed: [1, 1, 1, 1, 1],
+      },
+      { name: 'S#1#s', start: 10_000, steps: [4, 3, 2], reversed: [1, 1, 1] },
+    ]),
+    { start: 1000, end: 4000 },
+  )
+  const [row] = rows.rows
+  expect(row!.flipped).toBe(true)
+  expect(row!.runs.some(run => run.reversed)).toBe(false)
+  expect(walkRowReadout(row!, rows.reference)).toContain(
+    'contig drawn right to left',
+  )
+})
+
+// I walks chr1:0-5000 with nodes 1 to 3 inverted between forward flanks
+test('a row with an inversion between forward flanks reads forward and marks the inversion reversed', () => {
+  const rows = rowsOf(
+    walkFile([
+      {
+        name: 'I#1#i',
+        start: 0,
+        steps: [0, 3, 2, 1, 4],
+        reversed: [0, 1, 1, 1, 0],
+      },
+    ]),
+    { start: 1000, end: 4000 },
+  )
+  const [row] = rows.rows
+  expect(row!.flipped).toBeUndefined()
+  expect(row!.runs).toEqual([
+    {
+      start: 0,
+      bp: 3000,
+      onReference: true,
+      referenceStart: 1000,
+      reversed: true,
+    },
+  ])
+})
+
+// J's contig starts on node 3 inside chr1:1000-4000 and walks 3 and 2 against
+// the reference, then switches strand back to 4: its first base on the
+// reference is node 3's end
+test('a row whose walk starts inside the window against the reference starts under its first base', () => {
+  const rows = rowsOf(
+    walkFile(
+      [{ name: 'J#1#j', start: 0, steps: [3, 2, 4], reversed: [1, 1, 0] }],
+      [
+        departure('J#1#j', {
+          hapStart: 2000,
+          leavePos: 2000,
+          leaveReversed: true,
+          rejoinPos: 4000,
+        }),
+      ],
+    ),
+    { start: 1000, end: 4000 },
+  )
+  const [row] = rows.rows
+  expect(row!.runs[0]).toMatchObject({ start: 3000, reversed: true })
+  expect(row!.axis?.offset).toBe(3000)
+})
+
+// K starts on node 2, chr1:2000-3000, across the left edge of chr1:2500-4000;
+// L on node 4, past chr1:1000-3500's right edge
+test("a contig's start is said before or past the window where its first node lies outside it", () => {
+  const readout = (steps: number[], region: { start: number; end: number }) => {
+    const rows = rowsOf(
+      walkFile([
+        { name: 'K#1#k', start: 0, steps, reversed: steps.map(() => 0) },
+      ]),
+      region,
+    )
+    return walkRowReadout(rows.rows[0]!, rows.reference)
+  }
+  expect(readout([2, 3], { start: 2500, end: 4000 })).toBe(
+    '1.5 kb · contig starts 500 bp before the window · no more of the contig on GRCh38 chr1',
+  )
+  expect(readout([4], { start: 1000, end: 3500 })).toBe(
+    'last step on GRCh38 chr1 500 bp past the window',
   )
 })
 
@@ -440,13 +620,17 @@ function gappedCut(): GraphTables {
   }
 }
 
-test("a gap's parts keep their causes and where the walk goes on", () => {
+test("a gap's parts keep their causes and where a record says the walk comes back", () => {
   const gaps = (rows: WalkRow[]) =>
     rows.map(r => [
       r.label,
       r.runs
         .filter(run => run.gap)
-        .map(({ bp, cause, near }) => ({ bp, cause, near })),
+        .map(({ bp, heldBp, cause, back }) => ({
+          bp: heldBp ?? bp,
+          cause,
+          back,
+        })),
     ])
   expect(
     Object.fromEntries(
@@ -454,12 +638,12 @@ test("a gap's parts keep their causes and where the walk goes on", () => {
     ),
   ).toEqual({
     'A#1': [
-      { bp: 400, cause: undefined, near: undefined },
-      { bp: 600, cause: 'missing', near: undefined },
+      { bp: 400, cause: undefined, back: undefined },
+      { bp: 600, cause: 'missing', back: undefined },
     ],
     'B#1': [
-      { bp: 700, cause: 'elsewhere', near: 20_316_160 },
-      { bp: 300, cause: 'missing', near: undefined },
+      { bp: 700, cause: 'away', back: 3000 },
+      { bp: 300, cause: 'missing', back: undefined },
     ],
   })
 })
@@ -552,15 +736,19 @@ test('a gap a walk-file cut states draws its attached steps as steps and its oth
         r.label,
         r.runs
           .filter(run => run.gap)
-          .map(({ bp, cause, near }) => ({ bp, cause, near })),
+          .map(({ bp, heldBp, cause, back }) => ({
+            bp: heldBp ?? bp,
+            cause,
+            back,
+          })),
       ]),
     )
   const fromTables = rowsOf(statedCut(), region).rows
   expect(gapsOf(fromTables)).toEqual({
-    'A#1': [{ bp: 600, cause: 'missing', near: undefined }],
+    'A#1': [{ bp: 600, cause: 'missing', back: undefined }],
     'B#1': [
-      { bp: 400, cause: 'mixed', near: undefined },
-      { bp: 600, cause: 'unread', near: 20_316_160 },
+      { bp: 400, cause: 'mixed', back: undefined },
+      { bp: 600, cause: 'unread', back: undefined },
     ],
   })
   const a = fromTables.find(r => r.label === 'A#1')!
@@ -579,7 +767,7 @@ test("a lifted walk counts a stated gap's attached steps as its own nodes and it
   expect(lift.bp).toBe(6400)
 })
 
-test("a stated gap's readout gives a mixed part's amounts and where an unread walk was last seen", () => {
+test("a stated gap's readout gives a mixed part's amounts, a lower bound on what the graph lacks beside pieces the cut did not read, and no place an unread walk was seen", () => {
   const rows = Object.fromEntries(
     rowsOf(statedCut(), { start: 1000, end: 6000 }).rows.map(r => [r.label, r]),
   )
@@ -588,9 +776,10 @@ test("a stated gap's readout gives a mixed part's amounts and where an unread wa
     '600 bp left out of graph',
   )
   const b = walkRowReadout(rows['B#1']!, reference)
-  expect(b).toContain('300 bp left out of graph')
+  expect(b).toContain('at least 300 bp left out of graph')
   expect(b).toContain('100 bp own sequence not drawn')
-  expect(b).toContain('600 bp not drawn (last seen near')
+  expect(b).toContain('600 bp not drawn')
+  expect(b).not.toContain('near')
 })
 
 // GRCh38 over five 1 kb nodes; A on node 0 at 0, then the stated stretch,
@@ -1258,8 +1447,8 @@ describe('a walk row over a window between 1 kb nodes', () => {
       ),
     ).toEqual({
       'T#1':
-        '8.1 kb of its contig, of which 3.0 kb reversed, 2.1 kb near chr1:4 kb · turns back out of the window',
-      'R#1': '2.0 kb',
+        '8.1 kb of its contig, of which 3.0 kb reversed, 2.1 kb away from the window · turns back out of the window',
+      'R#1': '2.0 kb · contig drawn right to left',
     })
   })
 
@@ -1274,7 +1463,7 @@ describe('a walk row over a window between 1 kb nodes', () => {
         ['r2 y'],
       ),
     ).toEqual({
-      'O#1': "≥ 1.5 kb · no more of the contig on GRCh38's path",
+      'O#1': '≥ 1.5 kb',
       'H#1':
         '≥ 1.1 kb, of which 1.0 kb reversed · turns back out of the window',
     })
@@ -1408,21 +1597,23 @@ describe('a reference that passes one node twice', () => {
 
   test('a walk starting in the window reaches its second pass as its right flank', () => {
     const { row, readout } = over(20, 30)['late#1']!
-    expect(readout).toBe('≥ 10 bp · contig starts inside the window')
+    expect(readout).toBe('≥ 10 bp')
     expect(row.visits?.map(v => v.node)).toEqual(['3+'])
     expect(row.axis).toEqual({ contig: 'l', start: 0, reversed: false })
   })
 
   test('a walk starting on its second pass is placed from the node after it', () => {
     const { row, readout } = over(20, 30)['second#1']!
-    expect(readout).toBe('contig starts at the window')
+    expect(readout).toBe('')
     expect(row.complete).toBe(false)
   })
 
-  test('a contig ending on its second pass ends at the window after it', () => {
+  // GFA text states no trimmed bp, so where its path ends says nothing
+  test('a contig ending on its second pass has no bp in the window after it, and GFA text says nothing of its end', () => {
     const { row, readout } = over(40, 50)['short#1']!
-    expect(readout).toBe("last step on ref's path at the window")
-    expect(row.stops).toEqual({ right: { contigEnds: true, shortBp: 0 } })
+    expect(row.bp).toBe(0)
+    expect(readout).toBe('')
+    expect(row.stops).toBeUndefined()
   })
 
   // the reference walks b twice in a row, chr:10-20 and chr:20-30
@@ -1493,7 +1684,7 @@ describe('a reference that passes one node twice', () => {
         ),
       ).toEqual({
         'hap#1': '30 bp',
-        'short#1': "≥ 20 bp · no more of the contig on ref's path",
+        'short#1': '≥ 20 bp · no more of the contig on ref chr',
       })
     })
   })
@@ -1514,9 +1705,7 @@ describe('a reference that passes one node twice', () => {
     )
     expect(rows['ref#0']!.row.windowBp).toBe(10)
     expect(rows['ref#0']!.row.visits?.map(v => v.node)).toEqual(['r+'])
-    expect(rows['hap#1']!.readout).toBe(
-      '≥ 10 bp · contig starts inside the window',
-    )
+    expect(rows['hap#1']!.readout).toBe('≥ 10 bp')
   })
 })
 
@@ -1759,7 +1948,7 @@ describe("tables that state each step's pass", () => {
     ).toEqual([
       [
         'lone2#1',
-        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
+        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere',
         [
           [0, 300, undefined],
           [300, 1000, undefined, 'elsewhere'],
@@ -1769,7 +1958,7 @@ describe("tables that state each step's pass", () => {
       ],
       [
         'lone#1',
-        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere · partial walk',
+        '≥ 4.8 kb, of which 1.0 kb ref from elsewhere',
         [
           [0, 1000, 0],
           [1000, 2500, undefined],

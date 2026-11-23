@@ -2,7 +2,7 @@ import { pathOrigin } from '../pathAnchoring'
 import { abgrHex } from '../renderer/colorBits'
 import { encodingStops, mixHex } from '../walkEncoding'
 import { passInk } from '../walkPasses'
-import { alongRow } from './walkRows'
+import { alongRow, contigAlong, drawnAlong } from './walkRows'
 
 import type { LiftedWalk } from '../walkHighlight'
 import type { WalkAxis } from './walkRows'
@@ -98,12 +98,18 @@ function stopsAt(stops: readonly string[], t: number) {
     : mixHex(stops[i]!, stops[i + 1]!, at - i)
 }
 
+// The row's axis from its bar's own start, and the bar's drawn length
+function barAxis(row: InkedRow) {
+  const axis = row.axis && { ...row.axis, offset: 0 }
+  return { axis, length: axis ? drawnAlong(axis, row.bp) : row.bp }
+}
+
 // The walk's pass runs as offsets along the row's bar, placed by the contig
 // position the bar starts at, and none on a bar with no position on the
 // walk's contig to place them by
 function placedPasses(ink: RowInk, row: InkedRow) {
   const { range } = ink
-  const axis = row.axis && { ...row.axis, offset: 0 }
+  const { axis } = barAxis(row)
   return axis && range && axis.contig === range.contig
     ? (ink.passes ?? []).map(pass => ({
         ...alongRow(axis, range.start + pass.start, range.start + pass.end),
@@ -118,7 +124,7 @@ export function rowShowsPasses(ink: RowInk, row: InkedRow) {
   const placed = placedPasses(ink, row)
   return (
     placed.length > 0 &&
-    placed.every(pass => pass.start >= 0 && pass.end <= row.bp)
+    placed.every(pass => pass.start >= 0 && pass.end <= barAxis(row).length)
   )
 }
 
@@ -129,7 +135,7 @@ function passStretches(ink: RowInk, row: InkedRow, joinBp: number) {
   const stretches = placedPasses(ink, row)
     .map(pass => ({
       from: Math.max(0, pass.start),
-      to: Math.min(row.bp, pass.end),
+      to: Math.min(barAxis(row).length, pass.end),
       color: pass.color,
     }))
     .filter(s => s.to > s.from)
@@ -152,14 +158,13 @@ export function rowInkAlong(ink: RowInk, row: InkedRow, joinBp = row.bp / 600) {
   const stretches = passStretches(ink, row, joinBp)
   const { from, to } = rampEnds(ink, row)
   const start = row.axis?.offset ?? 0
+  const { axis } = barAxis(row)
   return (at: number) => {
     const offset = at - start
+    const along = axis ? contigAlong(axis, offset) : offset
     return (
       stretches.find(s => offset >= s.from && offset < s.to)?.color ??
-      stopsAt(
-        ink.stops,
-        from + (to - from) * (row.bp > 0 ? offset / row.bp : 0),
-      )
+      stopsAt(ink.stops, from + (to - from) * (row.bp > 0 ? along / row.bp : 0))
     )
   }
 }
@@ -175,7 +180,7 @@ export const rowInkAt = (ink: RowInk, row: InkedRow, offset: number) =>
 export function rowInkStops(ink: RowInk, row: InkedRow, joinBp = row.bp / 600) {
   const stretches = passStretches(ink, row, joinBp)
   return stretches.length
-    ? passStops(ink.stops[0]!, stretches, row.bp)
+    ? passStops(ink.stops[0]!, stretches, barAxis(row).length)
     : rampStops(ink, row)
 }
 
@@ -207,10 +212,18 @@ function rampStops(ink: RowInk, row: InkedRow) {
           { length: STEPS_PER_RAMP + 1 },
           (_, k) => (k / STEPS_PER_RAMP - from) / (to - from),
         ).filter(offset => offset > 0 && offset < 1)
+  const { axis, length } = barAxis(row)
+  const edges = (axis?.breaks ?? []).flatMap(b => [
+    b.at / row.bp,
+    (b.at + b.bp) / row.bp,
+  ])
   const offsets =
-    ink.stops.length === 1 ? [0] : [0, ...crossings.sort((a, b) => a - b), 1]
+    ink.stops.length === 1
+      ? [0]
+      : [0, ...[...crossings, ...edges].sort((a, b) => a - b), 1]
   return offsets.map(offset => ({
-    offset,
+    offset:
+      axis && length > 0 ? drawnAlong(axis, offset * row.bp) / length : offset,
     color: stopsAt(ink.stops, from + (to - from) * offset),
   }))
 }

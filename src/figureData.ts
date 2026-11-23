@@ -1030,6 +1030,7 @@ export function walkRowInks(
   rows: WalkRowColumns,
   tiles: { row: number[]; offset: number[] },
   passRuns?: { key: number[]; start: number[]; end: number[]; color: string[] },
+  breaks?: { row: number[]; at: number[]; bp: number[]; drawn: number[] },
 ) {
   const inks = keys.name.map((walk, k): RowInk => {
     const contig = keys.contig[k]
@@ -1070,6 +1071,17 @@ export function walkRowInks(
                   start,
                   reversed: rows.backward[r]!,
                   offset: rows.offset?.[r] ?? 0,
+                  breaks: (breaks?.row ?? []).flatMap((row, b) =>
+                    row === r
+                      ? [
+                          {
+                            at: breaks!.at[b]!,
+                            bp: breaks!.bp[b]!,
+                            drawn: breaks!.drawn[b]!,
+                          },
+                        ]
+                      : [],
+                  ),
                 }
               : undefined,
         })

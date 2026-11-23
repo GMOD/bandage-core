@@ -266,34 +266,41 @@ test('a gap across W lines is the bp the departure says the graph lacks', () => 
   expect(row.departures).toEqual([departure({ missingBp: 1000 })])
 })
 
-// HG002 leaves at 2000 for chr1:20.3 Mb and comes back from there at 3000
-test('a gap the walk spends elsewhere on the reference names where it rejoins', () => {
+// HG002 leaves at 2000 for chr1:20.3 Mb and comes back from there at 3000,
+// where a record says it rejoins; the bp away draw one fixed width
+test('a gap away from the window states its bp and where a record says the walk comes back, and no other place', () => {
   const away = (rejoinPos: number) => [
     departure({ ownBp: 0, rejoinPos }),
     departure({ hapStart: 2900, ownBp: 100, leavePos: rejoinPos + 900 }),
   ]
   const { row, gap, rows } = gapOf(twoFragments(away(20_316_160)))
-  expect(gap).toMatchObject({
-    bp: 1000,
-    cause: 'elsewhere',
-    near: 20_316_160,
-  })
+  expect(gap).toMatchObject({ bp: 75, heldBp: 1000, cause: 'away', back: 3000 })
   expect(walkRowReadout(row, rows.reference)).toBe(
-    '5.0 kb, of which 1.0 kb near chr1:20.3 Mb',
+    '5.0 kb of its contig, of which 1.0 kb away from the window, back from near chr1:3 kb',
   )
-  const small = gapOf(twoFragments(away(9000)))
-  expect(walkRowReadout(small.row, small.rows.reference)).toBe(
-    '5.0 kb, of which 1.0 kb near chr1:9 kb',
+  const late = gapOf(
+    twoFragments([departure({ hapStart: 2600, ownBp: 400, leavePos: 9000 })]),
+  )
+  expect(late.gap).toMatchObject({ cause: 'away', back: 3000 })
+  const open = gapOf(
+    twoFragments([departure({ hapStart: 2000, ownBp: 400, rejoinPos: 9000 })]),
+  )
+  expect(open.gap).toMatchObject({ cause: 'away' })
+  expect(open.gap.back).toBeUndefined()
+  expect(walkRowReadout(open.row, open.rows.reference)).toBe(
+    '5.0 kb of its contig, of which 1.0 kb away from the window',
   )
 })
 
-// HG002 walks on along the reference past the window, to 9000, and jumps
-// back to 3000: the first departure in the gap leaves from where it went
-test('a gap whose first departure starts inside it names where that one leaves', () => {
-  const { gap } = gapOf(
-    twoFragments([departure({ hapStart: 2600, ownBp: 400, leavePos: 9000 })]),
+// The cut read one record across the gap and not the stretch beyond it, so
+// another W line could lie there
+test('bp left out of graph are a lower bound where the departures read do not run end to end across the gap', () => {
+  const { row, rows } = gapOf(
+    twoFragments([departure({ ownBp: 600, missingBp: 600, rejoinPos: 2600 })]),
   )
-  expect(gap).toMatchObject({ cause: 'elsewhere', near: 9000 })
+  expect(walkRowReadout(row, rows.reference)).toBe(
+    '5.0 kb of its contig, of which at least 600 bp left out of graph, 400 bp away from the window',
+  )
 })
 
 // On chr22 at 12 Mb, a haplotype runs on past what the cut keeps, then its
@@ -314,7 +321,7 @@ test('a gap past a trimmed walk splits into what the cut left out and what the g
     ),
   ).toEqual([
     [300, undefined],
-    [700, 'elsewhere'],
+    [75, 'away'],
   ])
 })
 

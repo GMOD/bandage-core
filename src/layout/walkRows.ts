@@ -37,21 +37,19 @@ export interface WalkRun {
   // bases of the walk's contig between two pieces the cut returned, which the
   // cut holds nothing of
   gap?: true
-  // why, where a walk-file cut's departures inside the gap say: `missing`,
-  // bases between the contig's W lines, which the graph lacks; `own`, the
-  // walk's own sequence between one departure's ends that the cut did not
-  // read; `elsewhere`, the walk goes on along the reference near `near`
-  // (gfa/departures.ts gapParts). A row of departures alone draws each one's
-  // stretch of the reference as a `departure` gap. A gap with no cause is
-  // graph sequence out of view
+  // why (gfa/departures.ts gapParts); a gap with no cause is graph sequence
+  // out of view
   cause?: GapCause
-  // a reference position on the reference row's sequence
-  near?: number
+  // for an `away` gap, where a departure record states the walk rejoins the
+  // reference at its end
+  back?: number
   // for a `mixed` gap, its bp left out of graph
   missingBp?: number
-  // a gap's bp left out of its drawing at a break: it draws `bp` long and
-  // holds bp + breakBp
-  breakBp?: number
+  // set where the bp left out of graph are a lower bound: the cut did not
+  // read every departure across the gap
+  atLeast?: true
+  // for an `away` gap, drawn at a fixed width, the bp it holds
+  heldBp?: number
   unloaded?: true
   // off the reference in the cut, the source stating its steps on the
   // reference at passes the cut does not hold: reference sequence from
@@ -65,17 +63,55 @@ export interface WalkAxis {
   contig: string
   start: number
   reversed: boolean
-  // the bar's offset under the reference row, where the walk starts in the
-  // window at its first base on the reference
+  // where the bar starts under the reference row
   offset?: number
+  // the stretches away from the window, `bp` of contig from `at` bp along
+  // the bar drawn `drawn` wide, in order
+  breaks?: WalkBreak[]
+}
+
+export interface WalkBreak {
+  at: number
+  bp: number
+  drawn: number
+}
+
+// Where `along` bp of contig past the bar's start is drawn on the bar
+export function drawnAlong(axis: WalkAxis, along: number) {
+  let shift = 0
+  let inside: number | undefined
+  for (const b of axis.breaks ?? []) {
+    if (inside === undefined && along >= b.at + b.bp) {
+      shift += b.bp - b.drawn
+    } else if (inside === undefined && along > b.at) {
+      inside = b.at - shift + ((along - b.at) * b.drawn) / b.bp
+    }
+  }
+  return (inside ?? along - shift) + (axis.offset ?? 0)
+}
+
+// The bp of contig past the bar's start drawn at `x` on the bar
+export function contigAlong(axis: WalkAxis, x: number) {
+  const along = x - (axis.offset ?? 0)
+  let shift = 0
+  let inside: number | undefined
+  for (const b of axis.breaks ?? []) {
+    const start = b.at - shift
+    if (inside === undefined && along >= start + b.drawn) {
+      shift += b.bp - b.drawn
+    } else if (inside === undefined && along > start) {
+      inside = b.at + ((along - start) * b.bp) / b.drawn
+    }
+  }
+  return inside ?? along + shift
 }
 
 // A contig span as offsets along a row's bar
 export function alongRow(axis: WalkAxis, start: number, end: number) {
-  const offset = axis.offset ?? 0
-  return axis.reversed
-    ? { start: axis.start - end + offset, end: axis.start - start + offset }
-    : { start: start - axis.start + offset, end: end - axis.start + offset }
+  const [from, to] = axis.reversed
+    ? [axis.start - end, axis.start - start]
+    : [start - axis.start, end - axis.start]
+  return { start: drawnAlong(axis, from), end: drawnAlong(axis, to) }
 }
 
 // How a row's walk stops at one end of its bar inside the window: the graph
@@ -88,6 +124,8 @@ export interface WalkStop {
   shortBp: number
   // set at the end of the bar the walk's contig comes from
   start?: true
+  // set where the step lies past the window's right edge, `shortBp` past it
+  past?: true
   contigStart?: number
   goesOn?: { departure: Departure; near: number; drawn?: true }
   // the walk comes back to the reference on the side it came in from, which
@@ -158,6 +196,8 @@ export interface WalkRow {
   // set where the bar reaches over steps on the reference outside the window,
   // drawn as gaps near where they lie, so its bp are no length over the window
   passesOutside?: true
+  // set where the row reads its contig right to left
+  flipped?: true
   // how the walk stops at each end of its bar where it does not leave the
   // window there by a flank
   stops?: WalkStops

@@ -2,9 +2,9 @@ import { el, elOf } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 import { partitionPoint } from '../util/partitionPoint'
-import { barEnd, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
+import { barEnd, barStart, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
 import { READOUT_ROOM, longestBar } from './walkRowLayout'
-import { alongRow } from './walkRows'
+import { alongRow, contigAlong } from './walkRows'
 
 import type { LayoutMode } from '../layoutModes'
 import type { Graph, GraphNode } from '../types'
@@ -93,8 +93,7 @@ export function stripMarks(graph: Graph, rows: WalkRow[], node: GraphNode) {
         continue
       }
       const { start, end } = alongRow(axis, v.start, v.start + node.length)
-      const from = axis.offset ?? 0
-      if (end > from && start < from + row.bp) {
+      if (end > barStart(row) && start < barEnd(row)) {
         marks.push({ row: row.name, start, bp: end - start })
       }
     }
@@ -155,7 +154,7 @@ export function segmentAt(
 ) {
   const axis = row.axis
   const spans = axis && spansOf(graph, row.name)
-  const along = offset - (axis?.offset ?? 0)
+  const along = axis ? contigAlong(axis, offset) : -1
   if (!axis || !spans || along < 0 || along > row.bp) {
     return undefined
   }

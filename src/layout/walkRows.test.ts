@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'fs'
 import { parseGFA } from '../gfa-core/index'
 import { convertGFAToGraph } from '../gfa/gfaConverter'
 import { anchorGraph, pathOrigin } from '../pathAnchoring'
+import { loadGraph } from '../pipeline'
 import { filterSamples, walkRows } from './walkRows'
 
 function pggbGraph() {
@@ -131,7 +132,9 @@ test("a row's visits step through its bar, each at its bp offset", () => {
   }
 })
 
-test('a walk that stops inside a flanked region reads partial', () => {
+// GFA text states no trimmed bp, so where a path ends says nothing of where
+// its contig does
+test('a walk that stops inside a flanked region reads partial, and a GFA says nothing of why', () => {
   const graph = pggbGraph()
   const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
   const reference = graph.paths!.find(
@@ -158,11 +161,11 @@ test('a walk that stops inside a flanked region reads partial', () => {
   )!
   const row = cut.rows.find(r => r.name === 'truncated')!
   expect(row.complete).toBe(false)
-  expect(row.stops).toEqual({ right: { contigEnds: true, shortBp: 0 } })
+  expect(row.stops).toBeUndefined()
   expect(row.bp).toBe(ends[Math.floor(n / 2)]! - region.start)
 })
 
-test('a walk whose contig ends before the region says how far short', () => {
+test('a walk whose path ends before the region has no bp, and a GFA says nothing of why', () => {
   const graph = pggbGraph()
   const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
   const reference = graph.paths!.find(
@@ -187,12 +190,10 @@ test('a walk whose contig ends before the region says how far short', () => {
     region,
   )!.rows.find(r => r.name === 'short')!
   expect(row.bp).toBe(0)
-  expect(row.stops).toEqual({
-    right: { contigEnds: true, shortBp: ends[3]! - ends[2]! },
-  })
+  expect(row.stops).toBeUndefined()
 })
 
-test('a walk that leaves the reference and does not come back stops off it', () => {
+test('a walk that leaves the reference and does not come back stops off it, and a GFA says nothing of why', () => {
   const graph = pggbGraph()
   const byId = new Map(graph.nodes.map(n => [n.id, n.length]))
   const reference = graph.paths!.find(
@@ -219,8 +220,22 @@ test('a walk that leaves the reference and does not come back stops off it', () 
     region,
   )!.rows.find(r => r.name === 'open')!
   expect(row.complete).toBe(false)
-  expect(row.stops).toEqual({ right: { contigEnds: false, shortBp: 0 } })
+  expect(row.stops).toBeUndefined()
   expect(row.bp).toBe(byId.get(reference.nodeIds[2]!)! + off.length)
+})
+
+// The reference walks node b forward and, past c, back against it, as a
+// pggb palindrome's arms; H follows the reference exactly
+test('a node the reference passes both ways draws no stretch reversed on a walk that follows it', () => {
+  const gfa = [
+    'H\tVN:Z:1.1',
+    ...['a', 'b', 'c', 'd'].map(id => `S\t${id}\tAAAAAAAAAA`),
+    'W\tGRCh38\t0\tchr1\t0\t50\t>a>b>c<b>d',
+    'W\tH\t1\th\t0\t50\t>a>b>c<b>d',
+  ].join('\n')
+  const graph = loadGraph(gfa, 'test', { referencePath: 'GRCh38#0#chr1' })
+  const row = walkRows(graph, { start: 0, end: 50 })!.rows[0]!
+  expect(row.runs.some(run => run.reversed)).toBe(false)
 })
 
 test('a walk that skips the flanking node is cut at the next one it visits', () => {
@@ -345,7 +360,9 @@ test('a walk that crosses the window backwards reads in reference direction', ()
   expect(row.runs).toEqual(forward.runs)
 })
 
-test('a walk crossing the reference backwards with no cut keeps its runs whole', () => {
+// a path read only against the reference reads back to front with no
+// window as with one
+test('a walk crossing the reference backwards with no cut reads flipped, its runs whole', () => {
   const graph = pggbGraph()
   const forward = walkRows(graph)!.rows.find(r =>
     r.runs.some(run => run.onReference && run.bp > 100 && !run.reversed),
@@ -361,9 +378,9 @@ test('a walk crossing the reference backwards with no cut keeps its runs whole',
     paths: [...graph.paths!, backwards],
   })!.rows.find(r => r.name === 'backwards')!
   expect(row.runs.map(r => [r.bp, r.referenceStart])).toEqual(
-    forward.runs.map(r => [r.bp, r.referenceStart]).reverse(),
+    forward.runs.map(r => [r.bp, r.referenceStart]),
   )
-  expect(row.runs.filter(r => r.onReference && r.reversed)).not.toHaveLength(0)
+  expect(row.flipped).toBe(true)
 })
 
 test('a reference walking a node again stays one run on its own coordinates', () => {
