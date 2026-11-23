@@ -2,6 +2,7 @@ import { isLoadedBackbone, readsAsReference } from '../anchoredNodes'
 import { linkKey } from '../gfa/linkKey'
 import { pathOrigin, referenceVisits } from '../pathAnchoring'
 import { ownStrand } from '../util/geometry'
+import { partitionPoint } from '../util/partitionPoint'
 import { unclipped } from './trimToWindow'
 
 import type { AnchoredNode } from '../anchoredNodes'
@@ -11,34 +12,66 @@ import type { Graph } from '../types'
 // nodes on its links to this share of that reference, drawn dashed
 export const PADDED_SHARE = 0.5
 
-export interface PaddedFoot {
+interface Skipped {
+  refName: string
+  start: number
+  end: number
+}
+
+export interface PaddedFoot extends Skipped {
   edgeIndex: number
   from: string
   to: string
   fromStrand?: '+' | '-'
   toStrand?: '+' | '-'
+  // the loaded reference between its run's ends, which its arms are sized by
   replacedBp: number
+  ownBp: number
   nodes: string[]
 }
 
-// The bp a walk skips forward on one pass of the reference; 0 otherwise
+// The reference a walk skips forward over on one pass of it
 function forwardSkip(
   leave: AnchoredNode,
   leaveStrand: '+' | '-',
   rejoin: AnchoredNode,
   rejoinStrand: '+' | '-',
   passesOf: (node: AnchoredNode) => number,
-) {
+): Skipped | undefined {
   const along = readsAsReference(leave, leaveStrand)
-  const gap = along
-    ? rejoin.stable.start - (leave.stable.start + leave.length)
-    : leave.stable.start - (rejoin.stable.start + rejoin.length)
+  const [start, end] = along
+    ? [leave.stable.start + leave.length, rejoin.stable.start]
+    : [rejoin.stable.start + rejoin.length, leave.stable.start]
   return leave.stable.refName === rejoin.stable.refName &&
     along === readsAsReference(rejoin, rejoinStrand) &&
     passesOf(leave) === 1 &&
-    passesOf(rejoin) === 1
-    ? Math.max(0, gap)
-    : 0
+    passesOf(rejoin) === 1 &&
+    end > start
+    ? { refName: leave.stable.refName, start, end }
+    : undefined
+}
+
+// The bp of the loaded reference nodes starting within a span, as a
+// deletion's route counts its bypassed nodes
+function loadedReference(nodes: readonly AnchoredNode[]) {
+  const bySequence = new Map<string, { starts: number[]; sums: number[] }>()
+  for (const node of nodes.toSorted(
+    (a, b) => a.stable.start - b.stable.start,
+  )) {
+    const held = bySequence.get(node.stable.refName) ?? {
+      starts: [],
+      sums: [0],
+    }
+    held.starts.push(node.stable.start)
+    held.sums.push(held.sums.at(-1)! + node.length)
+    bySequence.set(node.stable.refName, held)
+  }
+  return ({ refName, start, end }: Skipped) => {
+    const held = bySequence.get(refName)
+    const at = (bp: number) =>
+      held ? partitionPoint(held.starts.length, i => held.starts[i]! < bp) : 0
+    return held ? held.sums[at(end)]! - held.sums[at(start)]! : 0
+  }
 }
 
 // The first and last links of each walk's run off the reference that is a
@@ -53,6 +86,7 @@ export function paddedFeet(cut: Graph) {
   const collapsed = graph.nodes.some(
     node => isLoadedBackbone(node) && passesOf(node) > 1,
   )
+  const loadedBetween = loadedReference(graph.nodes.filter(isLoadedBackbone))
   const linkAt = new Map<string, number>()
   graph.edges.forEach((e, i) => {
     linkAt.set(
@@ -65,7 +99,12 @@ export function paddedFeet(cut: Graph) {
       i,
     )
   })
-  const runs: { replacedBp: number; nodes: string[]; links: number[] }[] = []
+  const runs: (Skipped & {
+    replacedBp: number
+    ownBp: number
+    nodes: string[]
+    links: number[]
+  })[] = []
   const replacing = new Map<number, number>()
   const next = visits?.replay()
   for (const { name, nodeIds } of collapsed ? [] : (graph.paths ?? [])) {
@@ -89,13 +128,14 @@ export function paddedFeet(cut: Graph) {
       const runLinks = links
         .slice(Math.max(last, 0) + 1, to + 1)
         .flatMap(link => (link === undefined ? [] : [link]))
-      const replacedBp =
+      const skipped =
         isLoadedBackbone(leave) &&
         isLoadedBackbone(rejoin) &&
         own.every(id => !byId.get(id)?.placeholder) &&
         new Set(own).size === own.length
           ? forwardSkip(leave, strands[last]!, rejoin, strands[to]!, passesOf)
-          : 0
+          : undefined
+      const replacedBp = skipped ? loadedBetween(skipped) : 0
       const ownBp = own.reduce(
         (sum, id) => sum + (byId.get(id)?.length ?? 0),
         0,
@@ -107,8 +147,14 @@ export function paddedFeet(cut: Graph) {
           Math.min(replacing.get(link) ?? Infinity, padded ? replacedBp : 0),
         )
       }
-      if (padded) {
-        runs.push({ replacedBp, nodes: own, links: runLinks })
+      if (padded && skipped) {
+        runs.push({
+          ...skipped,
+          replacedBp,
+          ownBp,
+          nodes: own,
+          links: runLinks,
+        })
       }
     }
     for (let i = 0; i < nodeIds.length; i++) {
@@ -124,8 +170,8 @@ export function paddedFeet(cut: Graph) {
     }
   }
   const feet = new Map<number, PaddedFoot>()
-  for (const { replacedBp, nodes, links } of runs) {
-    const own = links.filter(link => replacing.get(link)! >= replacedBp)
+  for (const { links, ...run } of runs) {
+    const own = links.filter(link => replacing.get(link)! >= run.replacedBp)
     for (const link of new Set([own[0], own.at(-1)])) {
       if (link !== undefined && !feet.has(link)) {
         const edge = graph.edges[link]!
@@ -135,8 +181,7 @@ export function paddedFeet(cut: Graph) {
           to: edge.to,
           ...(edge.fromStrand ? { fromStrand: edge.fromStrand } : {}),
           ...(edge.toStrand ? { toStrand: edge.toStrand } : {}),
-          replacedBp,
-          nodes,
+          ...run,
         })
       }
     }
@@ -144,16 +189,17 @@ export function paddedFeet(cut: Graph) {
   return [...feet.values()].sort((a, b) => a.edgeIndex - b.edgeIndex)
 }
 
-// Each padded foot's route on the engine's scale, where it is at least the
-// engine's shortest node
+// The padded feet whose route on the engine's scale is at least the engine's
+// shortest node, each with that route's drawn length
 export function footRoutes(
   feet: readonly PaddedFoot[],
   drawnOf: (bp: number) => number,
   ownDrawn: (nodes: readonly string[]) => number,
   least: number,
 ) {
-  return feet.flatMap(({ edgeIndex, replacedBp, nodes }) => {
-    const drawn = (drawnOf(replacedBp) * PADDED_SHARE - ownDrawn(nodes)) / 2
-    return drawn >= least ? [{ edgeIndex, drawn }] : []
+  return feet.flatMap(foot => {
+    const drawn =
+      (drawnOf(foot.replacedBp) * PADDED_SHARE - ownDrawn(foot.nodes)) / 2
+    return drawn >= least ? [{ ...foot, drawn }] : []
   })
 }

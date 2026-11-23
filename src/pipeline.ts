@@ -282,9 +282,8 @@ export async function forceLayout(
       members.map((member): [string, string] => [member, run]),
     ),
   )
-  const candidates = paddedFeet(graph)
-  const footDrawn = footRoutes(
-    candidates,
+  const feet = footRoutes(
+    paddedFeet(graph),
     drawnLengthOf(unpadded.runs, spread),
     nodes =>
       [...new Set(nodes.map(id => runOf.get(id) ?? id))].reduce(
@@ -292,9 +291,6 @@ export async function forceLayout(
         0,
       ),
     scaledAs.opts.minimumNodeLength,
-  )
-  const feet = candidates.filter(foot =>
-    footDrawn.some(({ edgeIndex }) => edgeIndex === foot.edgeIndex),
   )
   const { routed, merged, runs } = feet.length > 0 ? routedWith(feet) : unpadded
   const engineScaling =
@@ -319,7 +315,7 @@ export async function forceLayout(
               (sum, n) => sum + drawnNodeLength(engineScaling.opts, n.length),
               0,
             ),
-            footDrawn,
+            feet,
           ),
         ],
       },
