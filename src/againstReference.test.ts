@@ -96,6 +96,23 @@ test('heads point against the reference along nodes 2 to 4, and the key names th
   })
 })
 
+// the heads took black or white by each node's ink, under a dark grey key
+// swatch
+test('heads against the reference draw in the one haloed ink their key swatch shows', () => {
+  const batch = drawn(graph)
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const swatch = graphKey(graph, layout, { marks: drawnMarks([batch]) })
+    .flatMap(s => s.entries)
+    .find(e => e.key === 'against')?.swatch
+  const turned = batch.arrows.filter(a => a.turned)
+  expect(turned.length).toBeGreaterThan(0)
+  expect(swatch).toMatchObject({ kind: 'heads', haloed: true })
+  for (const head of turned) {
+    expect(swatch).toMatchObject({ ink: head.color })
+    expect(head.halo).toBe(true)
+  }
+})
+
 test('under a lift the lanes carry their own heads, and no node takes these', () => {
   const batch = drawn(graph, ['inv#1#c'])
   expect(batch.arrows.filter(a => a.turned)).toEqual([])

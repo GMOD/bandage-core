@@ -94,7 +94,7 @@ for (const backbone of [1000, 5000]) {
   const graph = benchGraph(backbone)
   const nodePositions = benchLayout(graph)
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
-  const nodeLengths = labelledNodeLengths(graph.nodes, true)
+  const nodeLengths = labelledNodeLengths(graph, true)
   const deletions = deletionEdges(graph)
   const bypassed = new Map(deletions.map(d => [d.edgeIndex, d.bypassed]))
   const referenceRamp = computeReferenceRamp(graph, {

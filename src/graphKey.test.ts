@@ -17,6 +17,7 @@ import { keyColumnBox } from './keyColumn'
 import { layoutLabels } from './labelLayout'
 import { polylinePointAt } from './layout/mergeRuns'
 import { layoutModeByValue } from './layoutModes'
+import { drawnNodeWidth, withFrequencies } from './nodeWidths'
 import { anchorGraph } from './pathAnchoring'
 import { drawingBounds, fitTransform, loadGraph } from './pipeline'
 import { graphBackbone } from './reference'
@@ -261,27 +262,27 @@ test('under a lift each skip row shows the ink its skips are stroked in', () => 
   }
 })
 
-test('drawn marks read every skip a pixel or more across as one dashed mark however short, leaving lanes to their walks', () => {
+test('drawn marks read a skip stroked dashed as dashed and one stroked plain as short, leaving lanes to their walks', () => {
   const curve = (o: object) => ({ curves: [], thickness: 1, color: 0, ...o })
   const marks = (edgeCurves: RenderBatch['edgeCurves']) =>
     drawnMarks([{ edgeCurves, nodeStrokes: [] }])
   for (const span of [200, 5]) {
-    expect(marks([curve({ skip: true, span })])).toMatchObject({
+    expect(marks([curve({ skip: true, span, dashed: true })])).toMatchObject({
       dashedSkip: true,
+      shortSkip: false,
       plainLink: false,
     })
   }
-  // under a pixel a skip is stroked plain, which no dashed entry keys
-  expect(marks([curve({ skip: true, span: 0 })])).toMatchObject({
-    dashedSkip: false,
-    plainLink: false,
-  })
-  expect(marks([curve({ skip: true, span: 200, walk: 0 })])).toMatchObject({
-    dashedSkip: false,
-  })
-  expect(marks([curve({ skip: true, span: 5 })])).not.toHaveProperty(
-    'shortSkip',
-  )
+  for (const span of [5, 0]) {
+    expect(marks([curve({ skip: true, span })])).toMatchObject({
+      dashedSkip: false,
+      shortSkip: true,
+      plainLink: false,
+    })
+  }
+  expect(
+    marks([curve({ skip: true, span: 200, dashed: true, walk: 0 })]),
+  ).toMatchObject({ dashedSkip: false, shortSkip: false })
 })
 
 test("a hollow node's thickness is not a thickness the nodes vary by", () => {
@@ -521,9 +522,9 @@ test('the node thicknesses keyed are the thickest and thinnest the view shows', 
     graphKey(graph, layout, { marks: drawnMarks([batch], view) })
       .find(section => section.id === 'node-width')
       ?.entries.map(entry => entry.text)
-  expect(thicknesses()).toEqual(['2 walks', '1 walk'])
-  expect(thicknesses(middleOf(layout, idOf('a1')))).toEqual(['1 walk'])
-  expect(thicknesses(middleOf(layout, idOf('v1')))).toEqual(['2 walks'])
+  expect(thicknesses()).toEqual(['depth 2', 'depth 1'])
+  expect(thicknesses(middleOf(layout, idOf('a1')))).toEqual(['depth 1'])
+  expect(thicknesses(middleOf(layout, idOf('v1')))).toEqual(['depth 2'])
 })
 
 // A2-del571 zoomed to x43 drew one thick node across the pane, from a batch
@@ -538,13 +539,13 @@ test("the nodes vary in thickness by the whole drawing, not by a viewport's cull
     graphKey(graph, layout, { marks: drawnMarks([batch], view) })
       .find(section => section.id === 'node-width')
       ?.entries.map(entry => entry.text),
-  ).toEqual(['2 walks'])
+  ).toEqual(['depth 2'])
 })
 
 test("the thickness keys give the scale's two ends, links only where they widen by walks", () => {
   const thick = keyOf(graph).find(s => s.id === 'node-width')!
   expect(thick.group).toBe('Node thickness')
-  expect(thick.entries.map(e => e.text)).toEqual(['2 walks', '1 walk'])
+  expect(thick.entries.map(e => e.text)).toEqual(['depth 2', 'depth 1'])
   const ids = (g: Graph, o?: Partial<GraphKeyOptions>) =>
     keyOf(g, {}, o).map(section => section.id)
   expect(ids(graph, { nodeWidth: 'uniform' })).not.toContain('node-width')
@@ -600,18 +601,37 @@ test('nodes and links by walks key one thickness: the most passes at contigThick
   )
 })
 
-test('the thinnest walks swatch says how many walks its 1 px floor holds, and a repeat keys its passes', () => {
-  const nine = load(NINE, 'GRCh38')
-  expect(scaleOf(thicknessKey(nine, {}, 3))).toEqual([
+test('the thinnest walks swatch says how many walks its 1 px floor holds', () => {
+  expect(scaleOf(thicknessKey(load(NINE, 'GRCh38'), {}, 3))).toEqual([
     ['9 walks', 3],
     ['5 walks', 1.67],
     ['1 to 3 walks', 1],
   ])
-  const repeat = withNodes(nine, name => (name === 'v2' ? { depth: 30 } : {}))
-  expect(scaleOf(thicknessKey(repeat))).toEqual([
-    ['30 walk passes', 6],
-    ['15 walk passes', 3],
-    ['1 to 5 walk passes', 1],
+})
+
+// one walk of four passing x twice drew x at 3 px under "4 walks / 2 walks /
+// 1 walk", so x read as two walks
+test('a walk stepping a node twice keys passes, not walks', () => {
+  const twice = loadGraph(
+    [
+      'S\tr1\tAAAA',
+      'S\tr2\tAAAA',
+      'S\tx\tAAAA',
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr1\t+\tx\t+\t0M',
+      'L\tx\t+\tx\t+\t0M',
+      'L\tx\t+\tr2\t+\t0M',
+      'W\tGRCh38\t0\tchr1\t0\t8\t>r1>r2',
+      'W\ta\t1\tc\t0\t8\t>r1>r2',
+      'W\tb\t1\tc\t0\t8\t>r1>r2',
+      'W\tdup\t1\tc\t0\t16\t>r1>x>x>r2',
+    ].join('\n'),
+    'twice',
+  )
+  expect(scaleOf(thicknessKey(twice))).toEqual([
+    ['4 walk passes', 6],
+    ['2 walk passes', 3],
+    ['1 walk pass', 1.5],
   ])
 })
 
@@ -625,6 +645,26 @@ test('walks with nodes not loaded draw no thickness, and the key says whose stre
       text: 'thickness not drawn: 1 haplotype has stretches not loaded',
     },
   ])
+})
+
+// frequency is depth over the haplotypes, so a node every haplotype passes
+// drew narrower beside a placeholder and keyed "50% of haplotypes"
+test('by frequency with nodes not loaded and no AF tag draws no thickness, as depth does', () => {
+  const held = withNodes(load(NINE, 'GRCh38'), name =>
+    name === 'a1' ? { placeholder: true } : {},
+  )
+  expect(drawnNodeWidth(held, 'frequency')).toBe('uniform')
+  expect(
+    keyOf(held, {}, { nodeWidth: 'frequency' }).find(s => s.id === 'node-width')
+      ?.entries,
+  ).toEqual([
+    {
+      key: 'width-not-drawn',
+      text: 'thickness not drawn: 1 haplotype has stretches not loaded',
+    },
+  ])
+  const tagged = withFrequencies(held, { v2: 0.875 })
+  expect(drawnNodeWidth(tagged, 'frequency')).toBe('frequency')
 })
 
 // A segment no walk steps counted as one walk, its depth floored at 1, so
@@ -736,16 +776,16 @@ test('a node more records than walks step is keyed by its walk passes', () => {
     'GRCh38',
   )
   expect(pieces.paths).toHaveLength(3)
-  expect(
-    keyOf(pieces)
-      .find(s => s.id === 'node-width')
-      ?.entries.map(e => e.text),
-  ).toEqual(['3 walk passes', '1 walk pass'])
+  expect(thicknessKey(pieces)?.entries.map(e => e.text)).toEqual([
+    '3 walk passes',
+    '2 walk passes',
+    '1 walk pass',
+  ])
 })
 
 // Three segments tagged DP:f:37.5, 12.2 and 40 under one P line keyed
 // "40 walk passes"
-test('depths the file states are keyed as depths, and counted walks as walks', () => {
+test('depths are keyed as depths, stated or counted from walks', () => {
   const segments = (tag: (depth: number) => string) => [
     `S\ta\tAAAA${tag(37.5)}`,
     `S\tb\tCC${tag(12.2)}`,
@@ -775,10 +815,10 @@ test('depths the file states are keyed as depths, and counted walks as walks', (
   expect(gfaTables(walked)).toBeDefined()
   expect(loadGraph(walked, 'walked').depthStated).toBeUndefined()
   expect(thicknesses(loadGraph(walked, 'walked'))).toEqual([
-    '2 walks',
-    '1 walk',
+    'depth 2',
+    'depth 1',
   ])
-  expect(thicknesses(load(walked, 'GRCh38'))).toEqual(['2 walks', '1 walk'])
+  expect(thicknesses(load(walked, 'GRCh38'))).toEqual(['depth 2', 'depth 1'])
 })
 
 // R100k-02: none of the eight haplotypes asked for has a step in the window,
@@ -809,8 +849,11 @@ test('the haplotypes asked for that the cut holds no step of are counted under t
     entries(away, {}, { haplotypes: asked }).find(e => e.key === 'absent')
   expect(note(['alt#1'])).toBeUndefined()
   expect(note(['alt', 'far#1', 'wide#2', 'none#1'])).toMatchObject({
-    text: 'of 4 haplotypes, 2 have no step on GRCh38 chr6 here and 1 has no walk here',
+    text: 'of 4 haplotypes or samples, 2 have no step on GRCh38 chr6 here and 1 has no walk here',
   })
+  expect(note(['far', 'none'])?.text).toBe(
+    'of 2 samples, 1 has no step on GRCh38 chr6 here and 1 has no walk here',
+  )
   expect(note(['alt#1', 'far#1'])?.text).toBe(
     '1 of 2 haplotypes has no step on GRCh38 chr6 here',
   )
@@ -939,9 +982,7 @@ function census(
   )
   const widths = thicknessesKeyed(batch)
   const lanes = new Set(batch.nodeStrokes.flatMap(n => n.walk ?? []))
-  const skips = batch.edgeCurves.filter(
-    e => e.skip && e.span && e.walk === undefined,
-  )
+  const skips = batch.edgeCurves.filter(e => e.skip && e.walk === undefined)
   const charcoal = batch.nodeStrokes.some(
     n => n.color === REFERENCE_RAMP_ALT_COLOR,
   )
@@ -972,7 +1013,8 @@ function census(
     ...(!s.lift && batch.edgeCurves.some(e => e.walk === undefined && !e.skip)
       ? ['link']
       : []),
-    ...(skips.length > 0 ? ['deletion'] : []),
+    ...(skips.some(e => e.dashed) ? ['deletion'] : []),
+    ...(skips.some(e => !e.dashed) ? ['short-skip'] : []),
     ...(batch.nodeStrokes.some(n => n.placeholder) ? ['not-shown'] : []),
     ...(widths.size > 1 ? ['width-thickest', 'width-thinnest'] : []),
     ...(g?.paths?.length && g.nodes.some(n => n.placeholder)

@@ -387,7 +387,7 @@ export function figureSvg(
       ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
       : []
   const nodeLengths = labelledNodeLengths(
-    graph.nodes,
+    graph,
     o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
   )
   // how far a band of lanes as wide as their counts reaches past the pads a

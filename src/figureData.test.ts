@@ -526,7 +526,7 @@ test("the labels table places the canvas's labels: a placeholder's length always
     genePins: [],
     nodePositions: layout.nodePositions,
     labelsNodeSizes: true,
-    nodeLengths: labelledNodeLengths(graph.nodes, true),
+    nodeLengths: labelledNodeLengths(graph, true),
     nodeById: new Map(graph.nodes.map(n => [n.id, n])),
     graph,
     drawnInk: undefined,

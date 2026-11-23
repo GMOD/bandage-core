@@ -1,7 +1,11 @@
-import { againstKey } from './againstReference'
+import { AGAINST_INK, againstKey } from './againstReference'
 import { COMPRESSED_KEY } from './bubbleSpreads'
 import { BUBBLE_HALO_COLOR } from './bubbles/bubbleLabel'
-import { deletionKey } from './deletionEdges'
+import {
+  SHORT_SKIP_KEY,
+  SUB_PIXEL_SKIP_KEY,
+  deletionKey,
+} from './deletionEdges'
 import { drawnEdgeWidth } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
@@ -14,14 +18,12 @@ import {
   depthKey,
   drawnNodeWidth,
   frequencyKey,
-  haplotypeCount,
   haplotypeOf,
-  linkPasses,
   mostPasses,
   walksPx,
+  walksRevisit,
 } from './nodeWidths'
 import { panSNHaplotype, panSNMatchesPrefix } from './pansn'
-import { pathOrigin } from './pathAnchoring'
 import { referenceLabel } from './reference'
 import {
   REFERENCE_RAMP_LIGHTNESS,
@@ -84,7 +86,7 @@ export type GraphKeySwatch =
   | { kind: 'width'; ink: number; px: number }
   // a node the cut did not load, hollow in its rim
   | { kind: 'hollow'; ink: number; rim: number; rimPx: number }
-  // a link's stroke, dashed for a skip
+  // a link's stroke, dashed or the plain stroke of a skip too short to dash
   | { kind: 'line'; ink: number; dashed: boolean }
   | { kind: 'outline'; ink: number }
   | { kind: 'halo'; ink: number }
@@ -159,8 +161,9 @@ export function lanesOverUnderlays(
   return lanes
 }
 
-// The classes of mark a drawing's batches hold, which the key names: a skip,
-// dashed however short; a node hollow for the bp a cut did not load; a node or link in
+// The classes of mark a drawing's batches hold, which the key names: a skip
+// dashed, or one plain stroke where its span on screen is too short to hold
+// the dashes; a node hollow for the bp a cut did not load; a node or link in
 // no lifted walk's lane, which under a lift is faded; a node in the
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
 // node; nodes of more than one thickness; each lifted walk's passes, by lane;
@@ -192,6 +195,7 @@ export function drawnMarks(
 ) {
   const marks = {
     dashedSkip: false,
+    shortSkip: false,
     placeholder: false,
     plainNode: false,
     plainLink: false,
@@ -257,9 +261,10 @@ export function drawnMarks(
         marks.foldedSkips.add(edge)
       }
     }
-    for (const { skip, span, walk } of edgeCurves) {
+    for (const { skip, dashed, walk } of edgeCurves) {
       if (walk === undefined) {
-        marks.dashedSkip ||= !!skip && !!span
+        marks.dashedSkip ||= !!skip && !!dashed
+        marks.shortSkip ||= !!skip && !dashed
         marks.plainLink ||= !skip
       }
     }
@@ -376,8 +381,7 @@ export interface GraphKeyOptions {
   // the drawing runs past the pane's top or bottom, marked on that edge
   // (trackFit's edgeOverruns)
   runsPastEdge?: boolean
-  // the haplotypes the cut was asked for, `sample#haplotype` or a sample:
-  // those it holds no step of are counted in a note under the walks
+  // the PanSN haplotypes or samples the cut was asked for
   haplotypes?: readonly string[]
   // the placeholders the labels left without a length: layoutLabels'
   // `unlabelled`. A host that sizes its pane by the key before it places the
@@ -437,11 +441,8 @@ export function tooSmallText(nodes: number, skips: number, underBp = 0) {
 
 const have = (n: number) => (n === 1 ? 'has' : 'have')
 
-// The haplotypes asked for that the graph holds no step of, counted by
-// whether the cut states a departure of theirs over the window, which says
-// they leave the reference across it, or none, so no walk of theirs is near:
 // `of 8 haplotypes, 5 have no step on GRCh38 chr1 here and 3 have no walk
-// here`. Undefined where every one has a step.
+// here`: a departure over the window is the first, none the second
 export function absentHaplotypesText(
   graph: Graph,
   asked: readonly string[],
@@ -456,7 +457,14 @@ export function absentHaplotypesText(
   const walkless = absent.length - departing
   const noStep = `no step on ${reference} here`
   const noWalk = 'no walk here'
-  const of = `of ${counted(asked.length, 'haplotype', 'haplotypes')}`
+  const haplotypes = asked.filter(prefix => prefix.includes('#')).length
+  const of = `of ${
+    haplotypes === asked.length
+      ? counted(asked.length, 'haplotype', 'haplotypes')
+      : haplotypes === 0
+        ? counted(asked.length, 'sample', 'samples')
+        : `${groupDigits(asked.length)} haplotypes or samples`
+  }`
   return absent.length === 0
     ? undefined
     : departing > 0 && walkless > 0
@@ -464,11 +472,8 @@ export function absentHaplotypesText(
       : `${absent.length} ${of} ${have(absent.length)} ${departing > 0 ? noStep : noWalk}`
 }
 
-// The walks scale's swatches: the most passes, at contigThickness, half
-// that, and one, all on the scale the drawing uses, nodes and links or links
-// alone. A width under MIN_WALKS_PX draws at it, so the thinnest swatch says
-// how many passes that floor holds and one the floor swallows is left out.
-// Passes are walks where no walk takes a node or link twice.
+// The most passes, half and one; the thinnest swatch says how many passes
+// the MIN_WALKS_PX floor holds
 export function walkScaleEntries(
   graph: Graph,
   contigThickness: number,
@@ -476,11 +481,8 @@ export function walkScaleEntries(
 ) {
   const most = mostPasses(graph, nodes)
   const perPass = contigThickness / most
-  const repeats =
-    graph.edges.some(e => linkPasses(e) > (e.pathIds?.length ?? 0)) ||
-    (nodes && graph.nodes.some(n => n.depth > haplotypeCount(graph)))
   const unit = (n: number) =>
-    repeats
+    walksRevisit(graph)
       ? counted(n, 'walk pass', 'walk passes')
       : counted(n, 'walk', 'walks')
   const floorHolds = Math.max(1, Math.floor(MIN_WALKS_PX / perPass + 1e-9))
@@ -495,8 +497,6 @@ export function walkScaleEntries(
 
 const notLoadedCache = weakMemo<Graph, string>()
 
-// Why thickness by passes is not drawn: the haplotypes with stretches the cut
-// did not load, whose passes no thickness could count
 export function notLoadedThicknessText(graph: Graph) {
   return notLoadedCache(graph, [], () => {
     const placeholders = graph.nodes.filter(node => node.placeholder)
@@ -703,20 +703,11 @@ export function graphKey(
     entry(key, text, { kind: 'width', ink, px })
   const nodeWidth = drawnNodeWidth(graph, o.nodeWidth ?? 'depth')
   const edgeWidth = drawnEdgeWidth(graph, o.edgeWidth ?? 'uniform')
-  const walkCount =
-    graph.threadFold?.walks ??
-    new Set(graph.paths?.map(path => pathOrigin(path.name).name)).size
   const depths = depthKey(graph, thickness, o.marks.nodes)
-  // a walk looping through a repeat passes its nodes more than once, and
-  // each pass counts
-  const passes = (depths[0]?.depth ?? 0) > walkCount
   const walksScale = walkScaleEntries(graph, thickness, true)
   const requested = o.nodeWidth ?? 'depth'
   const notDrawn = entry('width-not-drawn', notLoadedThicknessText(graph))
-  const nodesUncounted =
-    requested !== nodeWidth &&
-    nodeWidth === 'uniform' &&
-    (requested === 'walks' || requested === 'depth')
+  const nodesUncounted = requested !== nodeWidth && nodeWidth === 'uniform'
   const linksByWalks = edgeWidth === 'walks' && !o.marks.ribbons
   const unwalked = graph.edges.some(edge => !edge.pathIds?.length)
   const unwalkedEntry = widthEntry(
@@ -761,11 +752,7 @@ export function graphKey(
               ? depths.map(({ depth, widthPx }, i) =>
                   widthEntry(
                     i === 0 ? 'width-thickest' : 'width-thinnest',
-                    walkCount > 0 && !graph.depthStated
-                      ? passes
-                        ? counted(Math.round(depth), 'walk pass', 'walk passes')
-                        : counted(Math.round(depth), 'walk', 'walks')
-                      : `depth ${groupDigits(roundDepth(depth))}`,
+                    `depth ${groupDigits(roundDepth(depth))}`,
                     widthPx,
                     REFERENCE_RAMP_ALT_COLOR,
                   ),
@@ -833,12 +820,21 @@ export function graphKey(
           }),
         ]
       : []),
+    ...(o.marks.shortSkip
+      ? [
+          entry(
+            'short-skip',
+            graph.paths?.length ? SUB_PIXEL_SKIP_KEY : SHORT_SKIP_KEY,
+            { kind: 'line', ink: skipInk, dashed: false },
+          ),
+        ]
+      : []),
     ...(o.marks.turned
       ? [
           entry('against', againstKey(reference), {
             kind: 'heads',
-            ink: THREAD_INK,
-            haloed: false,
+            ink: AGAINST_INK,
+            haloed: true,
           }),
         ]
       : []),

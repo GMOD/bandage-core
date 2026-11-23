@@ -281,7 +281,6 @@ interface ArrowRow {
   // a tab past `node`'s free end, drawn without the notch: the graph runs on
   // from there past what the drawing holds
   runsOn: boolean
-  // along a reference node a shown walk reads against the reference
   turned: boolean
 }
 
@@ -771,7 +770,7 @@ export function figureData(
     nodePositions: layout.nodePositions,
     labelsNodeSizes: !lift,
     nodeLengths: labelledNodeLengths(
-      graph.nodes,
+      graph,
       o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
     ),
     nodeById,

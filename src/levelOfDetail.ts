@@ -125,8 +125,6 @@ interface ReferenceSequence {
   startingAt: Map<number, string[]>
 }
 
-const onReference = isLoadedBackbone
-
 const leavesAt = (node: AnchoredNode, strand: '+' | '-' | undefined) =>
   node.stable.start + (readsAsReference(node, strand) ? node.length : 0)
 
@@ -240,7 +238,7 @@ function unitsOf(
       const component = componentOf(inside)
       component.edges.push(edge)
       if (!off(outsideId)) {
-        if (onReference(outside)) {
+        if (isLoadedBackbone(outside)) {
           component.feet.push({ edge, atEnd: outsideId === to })
           component.refNames.add(outside.stable.refName)
           component.attachments.push(
@@ -258,8 +256,8 @@ function unitsOf(
         }
       }
     } else if (
-      onReference(fromNode) &&
-      onReference(toNode) &&
+      isLoadedBackbone(fromNode) &&
+      isLoadedBackbone(toNode) &&
       fromNode.stable.refName === toNode.stable.refName &&
       leavesAt(fromNode, fromStrand) === arrivesAt(toNode, toStrand)
     ) {
@@ -269,8 +267,8 @@ function unitsOf(
     } else if (
       deletions?.has(edge) &&
       !hiddenEdges?.has(edge) &&
-      onReference(fromNode) &&
-      onReference(toNode)
+      isLoadedBackbone(fromNode) &&
+      isLoadedBackbone(toNode)
     ) {
       const walks = new Set<number>()
       for (const name of pathIds ?? []) {
@@ -323,7 +321,7 @@ function unitsOf(
       })
     }
   }
-  const backbone = graph.nodes.filter(onReference)
+  const backbone = graph.nodes.filter(isLoadedBackbone)
   const references = new Map<string, ReferenceSequence>()
   const referenceOf = (refName: string) => {
     const known = references.get(refName)
@@ -523,7 +521,7 @@ export function referencePxPerBpAt(
     positions,
     [nodes, axis.scaleX, axis.scaleY, version],
     () => {
-      const backbone = nodes.filter(onReference)
+      const backbone = nodes.filter(isLoadedBackbone)
       return referencePxPerBp(
         backbone.map(node => node.id),
         backbone.reduce((sum, node) => sum + node.length, 0),
@@ -568,11 +566,7 @@ function foldOf(
       const point = footPoint(curves, foot)
       return point ? [point] : []
     })
-    // A piece is small by its bp at the reference's px a bp, whatever length
-    // the layout drew it at, and comes back at the deepest zoom: the fold
-    // measured it as drawn, and the force layout draws a node shorter than
-    // its bp, which folded a 312 bp insertion at a 100 kb window, and longer,
-    // which drew a 3 bp site as a curl
+    // small by its bp at the reference's px a bp, whatever length it is drawn
     const [refName] = unit.refNames
     if (
       refName !== undefined &&
@@ -620,8 +614,7 @@ function foldOf(
 
 const foldCache = weakMemo<EdgeCurves, Fold>()
 
-// The bp every folded site is under, and every site at or over is drawn at:
-// SMALL_SITE_PX at the reference's px a bp, where any site is folded
+// The bp every folded site is under and every site at or over is drawn at
 export const foldedUnderBp = (fold: Pick<Fold, 'sites' | 'pxPerBp'>) =>
   fold.sites.length > 0 && fold.pxPerBp > 0
     ? Math.ceil(SMALL_SITE_PX / fold.pxPerBp)

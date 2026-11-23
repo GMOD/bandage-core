@@ -28,7 +28,6 @@ export function isBackbone(node: GraphNode): node is AnchoredNode {
   return node.stable?.rank === REFERENCE_RANK
 }
 
-// A reference node the cut loaded
 export const isLoadedBackbone = (
   node: GraphNode | undefined,
 ): node is AnchoredNode => !!node && isBackbone(node) && !node.placeholder

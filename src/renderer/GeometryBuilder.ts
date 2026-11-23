@@ -1,4 +1,4 @@
-import { walksAgainstReference } from '../againstReference'
+import { AGAINST_INK, walksAgainstReference } from '../againstReference'
 import {
   drawnAlongStable,
   isBackbone,
@@ -103,6 +103,7 @@ const EDGE_PATH_FALLBACK_COLOR = packAbgr(136, 136, 136, 217) // ~0.533, alpha 0
 // darkness carry it instead of a hue, which is what keeps hue meaning reference
 // position and only that.
 export const EDGE_DELETION_COLOR = packAbgr(24, 24, 28, 240)
+const DELETION_THICKNESS_FACTOR = 2.2
 // The builder draws a lifted walk's links in its lanes' colours and fades the
 // rest, to an alpha that keeps every colour scheme's hues, only dimmer, on any
 // background.
@@ -1173,6 +1174,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   } = options
   const nodeWidth = drawnNodeWidth(graph, options.nodeWidth ?? 'uniform')
   const edgeWidth = drawnEdgeWidth(graph, options.edgeWidth ?? 'uniform')
+  const walked = !!graph.paths?.length
   const widthScale = widthNorm(graph, nodeWidth)
   const perPass =
     edgeWidth === 'walks'
@@ -2149,17 +2151,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
 
     const isDeletion = sharedCurves.arcs.has(ei)
-    // Every skip drawn as an arc is dashed, its dashes shortened to fit where
-    // the span it jumps on screen holds fewer than three full ones, and
-    // headless there, where a head would sit on dots
+    // With walks every arced skip is dashed, as thick as a link of its
+    // walks; without, as the rGFA track draws, one short on screen is plain
     const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
-    const dashed = isDeletion
     const headed = skipDashes(arcPx)
+    const dashed = walked ? isDeletion : headed
     // a ribbon per walk already shows how many take the link, so only the
-    // link drawn alone widens by its walks. A skip is as thick as a link of
-    // its walks: its dashes alone say it skips
+    // link drawn alone widens by its walks
     const ribbonThickness = connectorThickness / 2
-    const edgeThickness = linkPx(linkPasses(edge)) / 2
+    const edgeThickness =
+      (dashed && !walked
+        ? connectorThickness * DELETION_THICKNESS_FACTOR
+        : linkPx(linkPasses(edge))) / 2
 
     // An arrowhead states which way a LINK is read, which is a property of the
     // edge and not of each path crossing it. Drawn per ribbon it says one thing
@@ -2173,8 +2176,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // So one head per edge, in the edge's own colour rather than a ribbon's,
     // since choosing a ribbon's would privilege one haplotype for a fact that
     // belongs to none of them. `undefined` means this call draws no head.
-    // a deletion's link, or a padded foot's drawn along its route
-    // (replacementFeet.ts): each skips the reference between its ends
     const skips = isDeletion || !!deletions?.has(ei)
     const plainEdgeColor = skips ? EDGE_DELETION_COLOR : EDGE_DEFAULT_COLOR
     const edgeFaded = !!highlight && !onWalk
@@ -2196,7 +2197,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // available, unused, and says what it draws: sequence that is not there.
     // A lifted walk's lane stays solid: its thread on the bypass and its
     // absence from the bypassed nodes already say it.
-    const skipMark = skips ? { skip: true, span: arcPx } : {}
+    const skipMark = skips
+      ? { skip: true, span: arcPx, ...(dashed ? { dashed: true } : {}) }
+      : {}
     const turnMark = turnsAgainstReference(edge) ? { turn: true } : {}
     const stroke = (
       curves: BezierCurve[],
@@ -2600,8 +2603,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
   }
 
-  // heads along each drawn reference node a shown walk reads against the
-  // reference, at every zoom; a lift's lanes carry their own
   const against = highlight?.walks.length
     ? undefined
     : walksAgainstReference(graph)
@@ -2632,10 +2633,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               angle: head.angle,
               length: head.length,
               halfWidth: head.halfWidth,
-              color: head.color,
+              color: AGAINST_INK,
               node: id,
               turned: true,
-              ...(head.halo ? { halo: true } : {}),
+              halo: true,
             })
           }
         }

@@ -171,7 +171,13 @@ export type { Connector } from './tubeMap/connectors'
 export { bundleRoutes } from './tubeMap/bundle'
 export type { TubeMapColumn, TubeMapDrawing } from './layout/tubeMapLayout'
 
-export { deletionDrawing, deletionEdges, deletionKey } from './deletionEdges'
+export {
+  SHORT_SKIP_KEY,
+  SUB_PIXEL_SKIP_KEY,
+  deletionDrawing,
+  deletionEdges,
+  deletionKey,
+} from './deletionEdges'
 export type { DeletionDrawing, DeletionEdge } from './deletionEdges'
 export { facetLifts, fadedKey, walkHighlight, walkLift } from './walkHighlight'
 export {

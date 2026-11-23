@@ -1,13 +1,12 @@
 import { panSNHaplotype } from './pansn'
+import { weakMemo } from './util/weakMemo'
 
 import type { Run } from './levelOfDetail'
 import type { Graph, GraphEdge, GraphNode, GraphPath } from './types'
 import type { NodeInk } from './util/hitDetection'
 
-// How thick a node draws: by the passes the walks make, linear and shared
-// with links by walks; Bandage's depth, the square root of depth against the
-// mean; the share of haplotypes; or uniform. One table drives the persisted
-// enum and the dropdown, the way BUBBLE_SPREADS does.
+// One table drives the persisted enum and the dropdown, the way
+// BUBBLE_SPREADS does.
 export const NODE_WIDTHS = [
   {
     value: 'walks',
@@ -19,13 +18,13 @@ export const NODE_WIDTHS = [
     value: 'depth',
     label: 'By depth',
     description:
-      'Thicker the more paths carry a node, on the square root of its depth against the mean. A graph with one depth everywhere draws uniform.',
+      'Thicker the more paths carry a node, on the square root of its depth against the mean. A graph with one depth everywhere draws uniform, and so does one whose walks hold nodes not loaded.',
   },
   {
     value: 'frequency',
     label: 'By frequency',
     description:
-      'As wide as the share of haplotypes that pass a node, or its AF tag: full width at 100%, half at 50%, and wider where a haplotype passes it more than once.',
+      'As wide as the share of haplotypes that pass a node, or its AF tag: full width at 100%, half at 50%, and wider where a haplotype passes it more than once. Uniform while a walk holds nodes not loaded and no AF tag is stated.',
   },
   {
     value: 'uniform',
@@ -40,9 +39,7 @@ const MIN_FACTOR = 0.3
 const MAX_FACTOR = 3
 // a hairline, so a 1% allele still draws, and 10% still draws wider
 const MIN_FREQUENCY_FACTOR = 0.05
-// the thinnest a walked node or link draws under `walks`
 export const MIN_WALKS_PX = 1
-// a node or link no walk takes, in a graph that lists one
 export const UNWALKED_PX = 0.5
 
 // Length-weighted, as Bandage's mean depth is, so a cut's long reference nodes
@@ -105,26 +102,24 @@ export function withFrequencies(
   return { ...graph, nodes }
 }
 
-// A walk holds nodes the cut did not load, whose passes no depth counts
 export const passesUncounted = (graph: Graph) =>
   graph.nodes.some(node => node.placeholder)
 
-// What a width setting draws on a graph. Walks and depths count passes, so
-// with walks and no stated depths they draw uniform while passes go
-// uncounted; `walks` draws by depth in a graph without walks
+// What a width setting draws: uniform where it counts passes a placeholder
+// hides, and by depth for `walks` without walks
 export function drawnNodeWidth(graph: Graph, nodeWidth: NodeWidth) {
   const counted = !!graph.paths?.length && !graph.depthStated
+  const countsPasses =
+    nodeWidth === 'frequency'
+      ? !graph.nodes.some(n => n.frequency !== undefined)
+      : nodeWidth !== 'uniform'
   return nodeWidth === 'walks' && !counted
     ? 'depth'
-    : counted &&
-        passesUncounted(graph) &&
-        (nodeWidth === 'walks' || nodeWidth === 'depth')
+    : counted && countsPasses && passesUncounted(graph)
       ? 'uniform'
       : nodeWidth
 }
 
-// The most passes a node or link takes, which draws contigThickness thick
-// under `walks`; links alone where `nodes` is false
 export function mostPasses(graph: Graph, nodes = true) {
   let most = 1
   for (const node of nodes ? graph.nodes : []) {
@@ -138,16 +133,38 @@ export function mostPasses(graph: Graph, nodes = true) {
   return most
 }
 
-// a link's steps, a walk crossing it twice counted twice
+const revisitCache = weakMemo<Graph, boolean>()
+
+// Whether some walk steps a node more than once
+export function walksRevisit(graph: Graph) {
+  return revisitCache(graph, [], () => {
+    const visits = graph.pathVisits
+    return graph.nodes.some(node => {
+      const slot = visits ? visits.slot(node.name) : -1
+      const paths =
+        visits && slot >= 0
+          ? Array.from(
+              visits.path.subarray(
+                visits.offsets[slot],
+                visits.offsets[slot + 1],
+              ),
+              p => visits.paths[p],
+            )
+          : []
+      for (const visit of node.departureVisits ?? []) {
+        paths.push(visit.path)
+      }
+      return new Set(paths).size < paths.length
+    })
+  })
+}
+
 export const linkPasses = (edge: GraphEdge) =>
   edge.passes ?? edge.pathIds?.length ?? 0
 
-// How thick `passes` draw under `walks`, at `perPass` px a pass
 export const walksPx = (passes: number, perPass: number) =>
   passes === 0 ? UNWALKED_PX : Math.max(MIN_WALKS_PX, passes * perPass)
 
-// What a width is measured against: the mean depth, the haplotype count, or
-// the most passes
 export function widthNorm(graph: Graph, nodeWidth: NodeWidth) {
   return nodeWidth === 'depth'
     ? meanDepth(graph)

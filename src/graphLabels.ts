@@ -63,21 +63,20 @@ interface Point {
 // Collision is measured in SCREEN pixels, because that is where the text has its
 // size: the same two labels clear each other zoomed in and collide zoomed out,
 // so a wide view sheds labels on its own. A node's length is written unless
-// a host turns lengths off (LABEL_DEFAULTS.nodeLengths) or it is the
-// reference's, which the ruler and the ramp already place and whose lengths
-// stood beside the variants as if they were theirs ("539 bp" beside a curl
-// that was a 3 kb skip); a placeholder's always is: nothing else says how
-// much sequence the steps it stands in for hold.
+// a host turns lengths off (LABEL_DEFAULTS.nodeLengths) or, with walks, it
+// is the reference's, which read as the variants'; a placeholder's always
+// is: nothing else says how much sequence the steps it stands in for hold.
 
 export const LABEL_DEFAULTS = { nodeLengths: true }
 
 export function labelledNodeLengths(
-  nodes: readonly GraphNode[],
+  graph: Pick<Graph, 'nodes' | 'paths'> | undefined,
   nodeLengths = LABEL_DEFAULTS.nodeLengths,
 ) {
   const lengths = new Map<string, number>()
-  for (const node of nodes) {
-    if ((nodeLengths && !isBackbone(node)) || node.placeholder) {
+  const walked = !!graph?.paths?.length
+  for (const node of graph?.nodes ?? []) {
+    if ((nodeLengths && !(walked && isBackbone(node))) || node.placeholder) {
       lengths.set(node.id, node.length)
     }
   }

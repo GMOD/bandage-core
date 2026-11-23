@@ -32,6 +32,8 @@ export interface EdgeCurveBatch {
   // a skip's span on screen as built, 0 where it falls back to a plain link;
   // skips paint longest first
   span?: number
+  // a skip drawn dashed, where it is not one plain stroke
+  dashed?: true
   // a stroke of a link between two reference nodes reading one as the
   // reference does and the other against it
   turn?: boolean
@@ -79,8 +81,7 @@ export interface Arrowhead {
   node?: string
   against?: boolean
   halo?: boolean
-  // a head along a reference node a shown walk reads against the reference,
-  // pointing that way (againstReference.ts)
+  // a head along a reference node a walk reads against the reference
   turned?: true
   // a tab past a node's free end: the graph runs on from there past what the
   // drawing holds

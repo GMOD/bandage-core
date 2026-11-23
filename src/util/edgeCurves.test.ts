@@ -7,6 +7,9 @@ import type { DeletionRoutes } from '../layout/deletionRoutes'
 import type { Graph, GraphNode, NodeSegment } from '../types'
 import type { AxisScale, BezierCurve } from './geometry'
 
+// a walk, which makes a graph one whose short skips arch low
+const WALK = [{ name: 'a#1#chr1', nodeIds: ['n0+'] }]
+
 const nodes: GraphNode[] = [
   { id: 'a+', name: 'a', length: 100, depth: 1 },
   { id: 'b+', name: 'b', length: 100, depth: 1 },
@@ -292,7 +295,7 @@ describe('skips at one site', () => {
     )
     return baseEdgeCurves(
       positions(),
-      { name: 'site', nodes: backbone, edges },
+      { name: 'site', nodes: backbone, edges, paths: WALK },
       axis,
       new Map(
         links.map(([, , bypassed], ei) => [ei, bypassed.map(i => `n${i}+`)]),
@@ -447,7 +450,7 @@ describe('skips at one site', () => {
     const drawn = (edges: Graph['edges']) =>
       baseEdgeCurves(
         positions(),
-        { name: 'site', nodes: backbone, edges },
+        { name: 'site', nodes: backbone, edges, paths: WALK },
         axis,
         deletions,
         0,
@@ -491,6 +494,7 @@ describe('skips at one site', () => {
           { from: 'n0+', to: 'n4+' },
           { from: 'n1+', to: 'n3+' },
         ],
+        paths: WALK,
       },
       axis,
       new Map([
@@ -586,7 +590,12 @@ describe('skips at one site', () => {
     const p = positions()
     const curves = baseEdgeCurves(
       p,
-      { name: 'site', nodes: backbone, edges: [{ from: 'n0+', to: 'n3+' }] },
+      {
+        name: 'site',
+        nodes: backbone,
+        edges: [{ from: 'n0+', to: 'n3+' }],
+        paths: WALK,
+      },
       axis,
       new Map([[0, ['n1+', 'n2+']]]),
       0,
@@ -614,10 +623,15 @@ describe('a dashed skip whose route runs along the reference it skips', () => {
       ],
     ]),
   )
-  const skipAlong = (scale: number, route: NodeSegment[]) => {
+  const skipAlong = (scale: number, route: NodeSegment[], paths = WALK) => {
     const curves = baseEdgeCurves(
       positions,
-      { name: 'skip', nodes: backbone, edges: [{ from: 'n0+', to: 'n2+' }] },
+      {
+        name: 'skip',
+        nodes: backbone,
+        edges: [{ from: 'n0+', to: 'n2+' }],
+        paths,
+      },
       { scaleX: scale, scaleY: scale },
       new Map([[0, ['n1+']]]),
       0,
@@ -651,6 +665,12 @@ describe('a dashed skip whose route runs along the reference it skips', () => {
   test('a skip too short on screen for full dashes is a low arch a level above its chord', () => {
     expect(skipAlong(2, along)).toBeCloseTo(SKIP_LEVEL_PX, 5)
     expect(skipAlong(2, [{ x: 15, y: -40 }])).toBeCloseTo(SKIP_LEVEL_PX, 5)
+  })
+
+  test('in a graph without walks, as the rGFA track draws, a skip too short on screen for full dashes follows its route', () => {
+    expect(skipAlong(2, [{ x: 15, y: -40 }], [])).toBeGreaterThan(
+      4 * SKIP_LEVEL_PX,
+    )
   })
 })
 

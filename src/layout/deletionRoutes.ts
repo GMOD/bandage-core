@@ -16,8 +16,6 @@ const ROUTE_FRACTION = 0.5
 
 export type DeletionRoutes = Record<number, NodeSegment[]>
 
-// a link that runs through a route node: a deletion's, or a padded foot's
-// (replacementFeet.ts)
 type RoutedLink = Pick<
   DeletionEdge,
   'edgeIndex' | 'from' | 'to' | 'fromStrand' | 'toStrand'

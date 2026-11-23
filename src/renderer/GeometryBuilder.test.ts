@@ -248,7 +248,7 @@ test('a graph of one walk draws it contigThickness thick', () => {
   expect(linkWidth(batch, 0)).toBe(9)
 })
 
-test('walks draw uniform while a walk holds nodes not loaded, and by depth in a graph without walks', () => {
+test('walks draw uniform while a walk holds nodes not loaded, and by depth in a graph without walks, whose skips draw as thick as they always have', () => {
   const held = {
     ...fork,
     nodes: [
@@ -266,7 +266,7 @@ test('walks draw uniform while a walk holds nodes not loaded, and by depth in a 
   expect(nodeWidth(depth, 'A+')).toBe(
     nodeWidth(forkDrawing('depth', 'uniform', walkless), 'A+'),
   )
-  expect(linkWidth(depth, 2)).toBe(2)
+  expect(linkWidth(depth, 2)).toBe(4.4)
 })
 
 test('handles empty node positions gracefully', () => {
@@ -999,7 +999,11 @@ describe('arrowhead placement', () => {
 
   // A skip at its true span: B starts 10 layout units past A's end, and a
   // bowed one rises over what it bypasses between them
-  const skipAt = (scale: number, bypassed?: string[]) => {
+  const walked: Graph = {
+    ...simpleGraph,
+    paths: [{ name: 'a#1#c', nodeIds: ['A+', 'B+'] }],
+  }
+  const skipAt = (scale: number, bypassed?: string[], graph = walked) => {
     const batch = buildGeometry({
       nodePositions: {
         ...simplePositions,
@@ -1008,7 +1012,7 @@ describe('arrowhead placement', () => {
           { x: 18, y: -8 },
         ],
       },
-      graph: simpleGraph,
+      graph,
       nodeById: simpleNodeById,
       colorScheme: 'uniform',
       contigThickness: 6,
@@ -1047,6 +1051,19 @@ describe('arrowhead placement', () => {
       }
       expect(heads).toBe(0)
     }
+  })
+
+  test('in a graph without walks, as the rGFA track draws, a skip shorter than three dashes on screen is one plain stroke with no head, and a dashed one is thicker', () => {
+    for (const scale of [0.6, 2.7, 3.2]) {
+      const { strokes, heads } = skipAt(scale, [], simpleGraph)
+      expect(strokes).toHaveLength(1)
+      expect(strokes[0]!.thickness).toBe(1)
+      expect(strokes[0]!.dashed).toBeUndefined()
+      expect(heads).toBe(0)
+    }
+    const { strokes } = skipAt(4, [], simpleGraph)
+    expect(strokes.length).toBeGreaterThanOrEqual(2)
+    expect(strokes.every(s => s.thickness === 2.2 && s.dashed)).toBe(true)
   })
 
   // dashes on the legs a short skip rises and falls on are dots under a head

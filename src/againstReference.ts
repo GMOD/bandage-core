@@ -1,17 +1,15 @@
 import { isLoadedBackbone } from './anchoredNodes'
 import { panSNHaplotype } from './pansn'
 import { pathOrigin } from './pathAnchoring'
+import { packAbgr } from './renderer/colorBits'
 import { weakMemo } from './util/weakMemo'
 
 import type { Graph } from './types'
 
 const cache = weakMemo<Graph, ReadonlyMap<string, readonly string[]>>()
 
-// By reference node id, the haplotypes whose walks read the node against the
-// strand the reference reads it on: each visit's strand, a departure's own
-// steps' included, against the reference's visits there, or its stated strand
-// where the cut holds none. A node the reference reads on both strands has no
-// one direction to be against.
+// By reference node id, the haplotypes reading it on the strand the
+// reference does not; none where the reference reads it both ways
 export function walksAgainstReference(graph: Graph) {
   return cache(graph, [], () => {
     const visits = graph.pathVisits
@@ -66,10 +64,11 @@ export function walksAgainstReference(graph: Graph) {
   })
 }
 
+export const AGAINST_INK = packAbgr(68, 68, 68, 255)
+
 export const againstKey = (reference = 'the reference') =>
   `walked against ${reference}'s direction`
 
-// `walked against GRCh38's direction by 2 haplotypes: HG00099#1, HG01123#1`
 export function againstHoverText(
   graph: Graph,
   nodeId: string,

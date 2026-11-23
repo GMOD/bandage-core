@@ -233,8 +233,6 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     lengths.set(gfaNode.id, gfaNode.length)
     const fileDepth = statedDepth(gfaNode)
     depthStated ||= fileDepth !== undefined
-    // a segment no path traverses has no walk through it, in a graph that
-    // has paths; one without them counts every segment once
     const depth =
       fileDepth ?? (traversals.size > 0 ? (traversals.get(gfaNode.id) ?? 0) : 1)
     nodes.push(makeNode(gfaNode, canonical.get(gfaNode.id) ?? '+', depth))
@@ -282,7 +280,6 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     }
     sides[strands] = set
   }
-  // each link's steps, a walk taking it twice counted twice
   const linkPasses = new Map<Set<string>, number>()
   const edgePaths = edges.map(edge => {
     const set = new Set<string>()

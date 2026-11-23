@@ -2,9 +2,7 @@ import { passesUncounted, walksPx } from './nodeWidths'
 
 import type { Graph } from './types'
 
-// How thick a link draws: by the passes the walks make along it, on the scale
-// of nodes by walks, or uniform. One table drives the persisted enum and the
-// dropdown, as NODE_WIDTHS does.
+// One table drives the persisted enum and the dropdown, as NODE_WIDTHS does
 export const EDGE_WIDTHS = [
   {
     value: 'uniform',
@@ -26,8 +24,6 @@ export const drawnEdgeWidth = (graph: Graph, edgeWidth: EdgeWidth) =>
     ? 'uniform'
     : edgeWidth
 
-// A link's width in px: its passes at `perPass` px under `walks`, else the
-// connector thickness
 export const linkWidthPx = (
   passes: number,
   perPass: number,

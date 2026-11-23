@@ -175,7 +175,7 @@ test('a node writes its length unless the host turns lengths off, a placeholder 
             { x: 300, y: 300 },
           ],
         },
-        nodeLengths: labelledNodeLengths(nodes, nodeLengths),
+        nodeLengths: labelledNodeLengths({ nodes }, nodeLengths),
         nodeById: new Map(nodes.map(n => [n.id, n])),
       }),
     ).sizes.map(l => l.text)
@@ -744,7 +744,7 @@ test('a loop stepping a node not loaded writes no length of its own, and its pla
     source({
       nodePositions: loopPositions,
       nodeById: nodesById(graph.nodes),
-      nodeLengths: labelledNodeLengths(graph.nodes, false),
+      nodeLengths: labelledNodeLengths(graph, false),
       graph,
       drawnInk: inkOf(loopPositions),
     }),
@@ -2046,4 +2046,32 @@ test('the labels of a 15,000-node drawing fitted to a track lay out in under a m
   expect(layout.genes).toHaveLength(9)
   expect(layout.sizes).toHaveLength(nodeLabelBudget(1588, 322))
   expect(lookups).toBeLessThan(1_000_000)
+})
+
+// the rGFA segments track, a graph without walks, writes its reference's
+// lengths as it always has
+test("a graph without walks writes its reference nodes' lengths, and one with walks only the others'", () => {
+  const nodes = [
+    {
+      id: 'r+',
+      name: 'r',
+      length: 539,
+      depth: 1,
+      stable: { refName: 'chr1', start: 0, rank: 0 },
+    },
+    {
+      id: 'a+',
+      name: 'a',
+      length: 13,
+      depth: 1,
+      stable: { refName: 'HG1#1#c', start: 0, rank: 1 },
+    },
+  ]
+  expect([...labelledNodeLengths({ nodes }).keys()]).toEqual(['r+', 'a+'])
+  expect([
+    ...labelledNodeLengths({
+      nodes,
+      paths: [{ name: 'HG1#1#c', nodeIds: ['a+'] }],
+    }).keys(),
+  ]).toEqual(['a+'])
 })
