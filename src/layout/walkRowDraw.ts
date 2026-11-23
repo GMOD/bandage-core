@@ -1665,11 +1665,9 @@ export function walkRowsTree(
             )
         : []
     const chevrons = chevronTrees(
-      reversedStretches(
-        row.runs,
-        chevronPitch(barPx) / frame.scaleX,
-      ).flatMap(stretch =>
-        chevronPoints(along(stretch.start), along(stretch.end), y, barPx),
+      reversedStretches(row.runs, chevronPitch(barPx) / frame.scaleX).flatMap(
+        stretch =>
+          chevronPoints(along(stretch.start), along(stretch.end), y, barPx),
       ),
       barPx,
     )
