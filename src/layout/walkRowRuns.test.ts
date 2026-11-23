@@ -271,6 +271,37 @@ test('a row whose walk starts inside the window starts under the reference at it
   })
 })
 
+// R1M-06 of the HPRC v2.1 audit: rows crossing a 1 Mb window twice hold 3.9
+// Mb of contig away from it between, which drew every other bar a fifth as
+// wide. W walks chr1:1000-4000's nodes 1 and 2, then 7 kb on, 2 and 3 again.
+test('a gap longer than the window draws a quarter of it, at a break, and its readout keeps its bp', () => {
+  const twice: GraphTables = {
+    ...tables,
+    walks: {
+      names: ['GRCh38#0#chr1', 'W#1#w', 'W#1#w'],
+      starts: Float64Array.of(0, 0, 10_000),
+      ends: Float64Array.of(5000, 3000, 13_000),
+      offsets: Int32Array.of(0, 5, 8, 11),
+      steps: Int32Array.from([0, 1, 2, 3, 4, 0, 1, 2, 2, 3, 4]),
+      reversed: new Uint8Array(11),
+    },
+  }
+  const rows = rowsOf(twice, { start: 1000, end: 4000 })
+  const [row] = rows.rows
+  expect(row!.runs).toEqual([
+    { start: 0, bp: 2000, onReference: true, referenceStart: 1000 },
+    { start: 2000, bp: 750, onReference: false, gap: true, breakBp: 6250 },
+    { start: 2750, bp: 2000, onReference: true, referenceStart: 2000 },
+  ])
+  expect(row!.axis).toBeUndefined()
+  expect(walkRowReadout(row!, rows.reference)).toBe(
+    '11 kb (+8.0 kb), of which 7.0 kb out of view',
+  )
+  expect(walkRowsKey(rows).at(-1)!.label).toBe(
+    '// a gap drawn shorter than it is, whose length the text beside its row states',
+  )
+})
+
 test('a walk forward along the reference that reaches only the right flank reads toward it', () => {
   const rightOnly: GraphTables = {
     ...tables,

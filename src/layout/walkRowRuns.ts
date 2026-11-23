@@ -52,6 +52,9 @@ const RUN_UNLOADED =
   1 << (CAUSE_SHIFT + Math.ceil(Math.log2(GAP_CAUSES.length)))
 const RUN_FROM_ELSEWHERE = RUN_UNLOADED << 1
 
+// the share of the reference bar's length a gap longer than it draws
+const GAP_CAP_SHARE = 0.25
+
 const causeFlags = (cause: GapCause | undefined) =>
   GAP_CAUSES.indexOf(cause) << CAUSE_SHIFT
 const AWAY = RUN_GAP | causeFlags('elsewhere')
@@ -91,6 +94,8 @@ export interface WalkRowRuns {
   near: Float64Array
   // a `mixed` gap's bp left out of graph, NaN for any other run
   missing: Float64Array
+  // a gap's bp left out of its drawing at a break, 0 for none
+  broken: Float64Array
   visits?: WalkVisitColumns
 }
 
@@ -363,6 +368,7 @@ class Columns {
     if (f !== undefined) {
       v[5]!.push(f)
     }
+    v[6]?.push(0)
   }
 
   endRow() {
@@ -605,7 +611,7 @@ export function walkRowRuns(
   const referenceHolds = (id: number, start: number) =>
     spanStart[id] === start || revisits.get(id)?.includes(start) === true
 
-  const runs = new Columns(6)
+  const runs = new Columns(7)
   const visits = o.visits ? new Columns(5) : undefined
   // the walk's steps, each gap between its pieces a step of -bp; reused
   // across rows
@@ -1506,6 +1512,34 @@ export function walkRowRuns(
         }
       }
     }
+    // A gap longer than the reference's bar draws a share of it long, the
+    // rest of its bp left out at a break, so one stretch away from the window
+    // leaves the bars beside it their width; the row then has no linear map
+    // onto its contig
+    const windowBp = bar ? bar.end - bar.start : Infinity
+    const capBp = GAP_CAP_SHARE * windowBp
+    const breaks: { at: number; bp: number }[] = []
+    if (!stepless && walkName !== reference) {
+      const runStarts = runs.values[0]!
+      const broken = runs.values[6]!
+      let removed = 0
+      for (let k = firstRun; k < runs.length; k++) {
+        runStarts[k]! -= removed
+        if (runFlags[k]! & RUN_GAP && runBp[k]! > windowBp) {
+          const left = runBp[k]! - capBp
+          breaks.push({ at: runStarts[k]! + removed + capBp, bp: left })
+          broken[k] = left
+          runBp[k] = capBp
+          removed += left
+        }
+      }
+      const visitStarts = breaks.length > 0 ? (visits?.values[1] ?? []) : []
+      for (let k = firstVisit; k < visitStarts.length; k++) {
+        visitStarts[k]! -= breaks
+          .filter(b => b.at <= visitStarts[k]!)
+          .reduce((sum, b) => sum + b.bp, 0)
+      }
+    }
     if (offset > 0) {
       const runStarts = runs.values[0]!
       for (let k = firstRun; k < runs.length; k++) {
@@ -1545,7 +1579,12 @@ export function walkRowRuns(
               : {}),
           ...(awayBp > 0 ? { passesOutside: true as const } : {}),
           ...(stops.left || stops.right ? { stops } : {}),
-          axis: axis && offset > 0 ? { ...axis, offset } : axis,
+          axis:
+            breaks.length > 0
+              ? undefined
+              : axis && offset > 0
+                ? { ...axis, offset }
+                : axis,
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
           ...(unloadedBp > 0 ? { unloadedBp } : {}),
           ...(fromElsewhereBp > 0 ? { fromElsewhereBp } : {}),
@@ -1646,6 +1685,7 @@ export function walkRowRuns(
   const flags = runs.reorder(order, 3, uint8)
   const near = runs.reorder(order, 4, float64)
   const missing = runs.reorder(order, 5, float64)
+  const broken = runs.reorder(order, 6, float64)
   return {
     origin: cut ? cut.start : (startOf(first) ?? 0),
     rows: [referenceRow, ...rows.map(r => r.meta)],
@@ -1656,6 +1696,7 @@ export function walkRowRuns(
     flags,
     near,
     missing,
+    broken,
     visits: visits && visitColumns(visits, order, names),
   }
 }
@@ -1736,6 +1777,9 @@ export function runAt(t: WalkRowRuns, k: number): WalkRun {
     const missing = t.missing[k]!
     if (!Number.isNaN(missing)) {
       run.missingBp = missing
+    }
+    if (t.broken[k]! > 0) {
+      run.breakBp = t.broken[k]
     }
   } else {
     run.referenceStart = Number.isNaN(t.referenceStart[k]!)

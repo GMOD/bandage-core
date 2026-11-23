@@ -136,7 +136,7 @@ function causesParts(
   ownGap: string,
 ) {
   const bpOf = (cause: GapCause | undefined) =>
-    gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + g.bp, 0)
+    gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + heldBp(g), 0)
   const mixedMissing = gaps
     .filter(g => g.cause === 'mixed')
     .reduce((sum, g) => sum + (g.missingBp ?? 0), 0)
@@ -146,7 +146,7 @@ function causesParts(
     for (const g of gaps) {
       if (g.cause === cause && g.near !== undefined) {
         const place = near(refName, g.near)
-        bpNear.set(place, (bpNear.get(place) ?? 0) + g.bp)
+        bpNear.set(place, (bpNear.get(place) ?? 0) + heldBp(g))
       }
     }
     const places = [...bpNear.keys()].sort(
@@ -575,11 +575,13 @@ export const barStart = (row: Pick<WalkRow, 'runs' | 'stepless'>) =>
 
 // Where a row's bar ends: past its runs, since a stepless row has no bp
 export function barEnd(row: Pick<WalkRow, 'bp' | 'runs'>) {
-  return row.runs.reduce(
-    (end, run) => Math.max(end, run.start + run.bp),
-    row.bp,
-  )
+  return row.runs.length > 0
+    ? row.runs.reduce((end, run) => Math.max(end, run.start + run.bp), 0)
+    : row.bp
 }
+
+// a gap's bp, those left out of its drawing at a break included
+const heldBp = (run: WalkRun) => run.bp + (run.breakBp ?? 0)
 
 // Bar offsets one unit apart, so copies are countable, none where a unit is
 // under a few px
@@ -1072,6 +1074,9 @@ export function walkRowsKey(
       note: true,
     })
   }
+  if (rows.some(row => row.runs.some(run => run.breakBp))) {
+    entries.push({ swatch: { kind: 'gene' }, label: BREAK_TEXT, note: true })
+  }
   if (o.ruler) {
     entries.push({
       swatch: { kind: 'gene' },
@@ -1120,6 +1125,34 @@ export function walkRowsKey(
     }
   }
   return entries
+}
+
+export const BREAK_TEXT =
+  '// a gap drawn shorter than it is, whose length the text beside its row states'
+
+// A break across a gap shortened in its drawing at x, a white slant edged
+// in the gap's ink, as wide as the bar is tall
+function breakTree(x: number, y: number, barPx: number) {
+  const h = barPx / 2 + 1
+  const lean = Math.max(2, barPx / 3)
+  const w = Math.max(3, barPx / 3)
+  const edge = (dx: number) =>
+    el('line', {
+      x1: x + dx - lean,
+      y1: y + h,
+      x2: x + dx + lean,
+      y2: y - h,
+      stroke: GENE_INK,
+      'stroke-width': 1,
+    })
+  return elOf('g', { 'data-testid': 'graph-walk-break' }, [
+    el('polygon', {
+      points: `${x - w / 2 - lean},${y + h} ${x + w / 2 - lean},${y + h} ${x + w / 2 + lean},${y - h} ${x - w / 2 + lean},${y - h}`,
+      fill: 'white',
+    }),
+    edge(-w / 2),
+    edge(w / 2),
+  ])
 }
 
 export const OWN_SCALE_TEXT =
@@ -1627,6 +1660,9 @@ export function walkRowsTree(
         ),
       barPx,
     )
+    const breaks = row.runs
+      .filter(run => run.breakBp)
+      .map(run => breakTree(along(run.start + run.bp / 2), y, barPx))
     const { call } = row
     const readout =
       (frame.readouts ?? true)
@@ -1642,6 +1678,7 @@ export function walkRowsTree(
       strip,
       ticks,
       chevrons,
+      breaks,
       rowGeneBoxes(o.rowGenes?.get(row.name) ?? [], along, y, {
         rowPx,
         barPx,

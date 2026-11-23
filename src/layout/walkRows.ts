@@ -49,6 +49,9 @@ export interface WalkRun {
   near?: number
   // for a `mixed` gap, its bp left out of graph
   missingBp?: number
+  // a gap's bp left out of its drawing at a break: it draws `bp` long and
+  // holds bp + breakBp
+  breakBp?: number
   unloaded?: true
   // off the reference in the cut, the source stating its steps on the
   // reference at passes the cut does not hold: reference sequence from
