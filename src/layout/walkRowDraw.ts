@@ -38,7 +38,14 @@ import type { El, ElAttrs } from '../el'
 import type { GeneModel } from '../genes/genePins'
 import type { GapCause } from '../gfa/departures'
 import type { RowInk } from './rowInks'
-import type { WalkAxis, WalkPass, WalkRow, WalkRows, WalkRun } from './walkRows'
+import type {
+  WalkAxis,
+  WalkPass,
+  WalkRow,
+  WalkRows,
+  WalkRun,
+  WalkStop,
+} from './walkRows'
 
 // What walk rows draw, shared by the hosts: walkRowsTree is the drawing as an
 // element tree, which the plugin renders as React elements, BandageJS as DOM
@@ -162,6 +169,9 @@ function causesParts(
     .map(([bp, text]) => `${sized(bp)} ${text}`)
 }
 
+const contigBeforeText = (contigStart: number) =>
+  `${roughBp(contigStart)} before it ${GAP_CAUSE_TEXT.mixed}`
+
 const otherContigsText = (counted: WalkRow['otherContigs']) =>
   counted
     ? ` · ${counted.departures} departure${counted.departures > 1 ? 's' : ''} on ${counted.contigs > 1 ? `${counted.contigs} other contigs` : 'another contig'}`
@@ -215,7 +225,7 @@ export function walkRowReadout(
     | 'onReferenceBp'
     | 'axis'
     | 'morePasses'
-    | 'stop'
+    | 'stops'
     | 'departures'
     | 'placementChoice'
     | 'stepless'
@@ -228,7 +238,7 @@ export function walkRowReadout(
   unit?: number,
   call?: ReadoutCall,
 ) {
-  const { bp, gapBp, complete, stop } = row
+  const { bp, gapBp, complete } = row
   const others = otherContigsText(row.otherContigs)
   if (!reference) {
     const length = row.windowBp ?? bp
@@ -326,24 +336,39 @@ export function walkRowReadout(
     return `${lengthOf(first, length, true)}${again}${parts}${after}${called}`
   }
   const region = unit ? 'repeat' : 'window'
-  if (stop?.contigEnds && bp === 0) {
-    const where = stop.shortBp > 0 ? `${sized(stop.shortBp)} before` : 'at'
-    return `contig ends ${where} the ${region}${called}`
+  const stops = [row.stops?.left, row.stops?.right].filter(
+    stop => stop !== undefined,
+  )
+  const short = stops.find(stop => stop.contigEnds)
+  if (short && bp === 0) {
+    const where = `${short.shortBp > 0 ? `${sized(short.shortBp)} before` : 'at'} the ${region}`
+    return `${
+      short.contigStart === undefined
+        ? `last step on ${name}'s path ${where}`
+        : short.contigStart === 0
+          ? `contig starts ${where}`
+          : `first step on ${name}'s path ${where}, ${contigBeforeText(short.contigStart)}`
+    }${called}`
   }
-  const why = !stop
-    ? 'partial walk'
-    : stop.contigEnds
-      ? `contig ends inside the ${region}`
+  const why = (stop: WalkStop) =>
+    stop.contigEnds
+      ? stop.contigStart === undefined
+        ? `no more of the contig on ${name}'s path`
+        : stop.contigStart === 0
+          ? `contig starts inside the ${region}`
+          : contigBeforeText(stop.contigStart)
       : stop.turnsBack
         ? `turns back out of the ${region}`
         : stop.goesOn
           ? `goes on near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ` · ${ownAmount(roughBp(stop.goesOn.departure.ownBp), name, revisited)}`}`
           : 'does not rejoin the reference in view'
+  const whys = stops.length === 0 ? 'partial walk' : stops.map(why).join(' · ')
   const least = row.windowBp ?? bp
+  const exact = stops.length === 2 && stops.every(stop => stop.contigEnds)
   const stated =
     bp === 0
-      ? `${why}${parts}`
-      : `≥ ${sized(least)}${units(least, unit)}${parts} · ${why}`
+      ? `${whys}${parts}`
+      : `${exact ? '' : '≥ '}${sized(least)}${units(least, unit)}${parts} · ${whys}`
   return `${stated}${after}${called}`
 }
 

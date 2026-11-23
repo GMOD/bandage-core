@@ -95,18 +95,23 @@ test('a walk that ends inside the repeat measures from the flank it enters by', 
   expect(byLabel['A#1']).toMatchObject({ bp: 1300, complete: false })
   expect(byLabel['B#1']).toMatchObject({ bp: 1300, complete: false })
   expect(byLabel['C#1']).toMatchObject({ bp: 300, complete: false })
-  for (const label of ['A#1', 'B#1', 'C#1']) {
-    expect(byLabel[label]!.stop).toEqual({ contigEnds: false, shortBp: 0 })
+  for (const label of ['A#1', 'B#1']) {
+    expect(byLabel[label]!.stops).toEqual({
+      right: { contigEnds: false, shortBp: 0 },
+    })
   }
+  expect(byLabel['C#1']!.stops).toEqual({
+    left: { contigEnds: false, shortBp: 0 },
+  })
   expect(byLabel['D#1']).toMatchObject({
     bp: 1000,
     complete: false,
-    stop: { contigEnds: true, shortBp: 0 },
+    stops: { right: { contigEnds: true, shortBp: 0 } },
   })
   expect(byLabel['E#1']).toMatchObject({
     bp: 0,
     complete: false,
-    stop: { contigEnds: true, shortBp: 0 },
+    stops: { right: { contigEnds: true, shortBp: 0 } },
   })
   expect(byLabel['A#1']!.axis).toEqual({
     contig: 'a',
@@ -138,12 +143,45 @@ test('a walk goes on past its last step by a departure there or the bp the cut t
     departures: departureTable([leaves]),
   }
   const byLabel = Object.fromEntries(rowsOf(goesOn).rows.map(r => [r.label, r]))
-  expect(byLabel['D#1']!.stop).toEqual({
-    contigEnds: false,
-    shortBp: 0,
-    goesOn: { departure: leaves, near: 4000 },
+  expect(byLabel['D#1']!.stops).toEqual({
+    right: {
+      contigEnds: false,
+      shortBp: 0,
+      goesOn: { departure: leaves, near: 4000 },
+    },
   })
-  expect(byLabel['E#1']!.stop).toEqual({ contigEnds: false, shortBp: 0 })
+  expect(byLabel['E#1']!.stops).toEqual({
+    right: { contigEnds: false, shortBp: 0 },
+  })
+})
+
+// G's and H's first W lines start on the repeat's node, 9,183,247 bp into G's
+// contig, as HG00128#1's does at R1M-05 of the HPRC v2.1 audit, and at H's
+// contig start
+test('a walk whose first W line starts inside the window says where its contig starts, not that it ends', () => {
+  const startsInside: GraphTables = {
+    ...tables,
+    walks: {
+      names: ['GRCh38#0#chr1', 'G#1#g', 'H#1#h'],
+      starts: Float64Array.of(0, 9_183_247, 0),
+      ends: Float64Array.of(5000, 9_186_247, 3000),
+      offsets: Int32Array.of(0, 5, 8, 11),
+      steps: Int32Array.from([0, 1, 2, 3, 4, 2, 3, 4, 2, 3, 4]),
+      reversed: new Uint8Array(11),
+    },
+  }
+  const rows = rowsOf(startsInside)
+  expect(
+    Object.fromEntries(
+      rows.rows.map(r => [r.label, walkRowReadout(r, rows.reference)]),
+    ),
+  ).toEqual({
+    'G#1': '≥ 1.0 kb · 9.2 Mb before it not drawn or left out of graph',
+    'H#1': '≥ 1.0 kb · contig starts inside the window',
+  })
+  expect(rows.rows[0]!.stops).toEqual({
+    left: { contigEnds: true, shortBp: 0, contigStart: 9_183_247 },
+  })
 })
 
 test('a walk forward along the reference that reaches only the right flank reads toward it', () => {
@@ -182,8 +220,8 @@ test('tables and the Graph they load to give the same rows', () => {
   expect(
     rowsOf(tables, { start: 2500, end: 3000 }).rows.find(
       r => r.label === 'E#1',
-    )!.stop,
-  ).toEqual({ contigEnds: true, shortBp: 500 })
+    )!.stops,
+  ).toEqual({ right: { contigEnds: true, shortBp: 500 } })
 })
 
 test('walks named without a haplotype field are rows of their own, on their contigs', () => {
@@ -617,7 +655,7 @@ test("a partial row draws its stated row end past its last fragment, and its rea
     { bp: 400, onReference: false },
     { bp: 100, gap: true },
   ])
-  expect(row.stop?.goesOn).toMatchObject({ near: 9000, drawn: true })
+  expect(row.stops?.right?.goesOn).toMatchObject({ near: 9000, drawn: true })
   expect(
     walkRowReadout(row, { bp: 5000, name: 'GRCh38#0#chr1', revisited: 0 }),
   ).not.toContain('of its own')
@@ -1114,7 +1152,7 @@ describe('a walk row over a window between 1 kb nodes', () => {
         ['r2 y'],
       ),
     ).toEqual({
-      'O#1': '≥ 1.5 kb · contig ends inside the window',
+      'O#1': "≥ 1.5 kb · no more of the contig on GRCh38's path",
       'H#1': '≥ 1.1 kb · turns back out of the window',
     })
   })
@@ -1142,7 +1180,7 @@ test("a row that turns back at the end its bar starts from places its axis at th
   for (const label of ['J#1', 'K#1']) {
     expect(byLabel[label]).toMatchObject({
       bp: 3000,
-      stop: { turnsBack: true },
+      stops: { left: { turnsBack: true } },
     })
     expect(byLabel[label]!.visits!.map(v => v.node)).toEqual([
       'r2+',
@@ -1244,21 +1282,21 @@ describe('a reference that passes one node twice', () => {
 
   test('a walk starting in the window reaches its second pass as its right flank', () => {
     const { row, readout } = over(20, 30)['late#1']!
-    expect(readout).toBe('≥ 10 bp · contig ends inside the window')
+    expect(readout).toBe('≥ 10 bp · contig starts inside the window')
     expect(row.visits?.map(v => v.node)).toEqual(['3+'])
     expect(row.axis).toEqual({ contig: 'l', start: 0, reversed: false })
   })
 
   test('a walk starting on its second pass is placed from the node after it', () => {
     const { row, readout } = over(20, 30)['second#1']!
-    expect(readout).toBe('contig ends at the window')
+    expect(readout).toBe('contig starts at the window')
     expect(row.complete).toBe(false)
   })
 
   test('a contig ending on its second pass ends at the window after it', () => {
     const { row, readout } = over(40, 50)['short#1']!
-    expect(readout).toBe('contig ends at the window')
-    expect(row.stop).toEqual({ contigEnds: true, shortBp: 0 })
+    expect(readout).toBe("last step on ref's path at the window")
+    expect(row.stops).toEqual({ right: { contigEnds: true, shortBp: 0 } })
   })
 
   // the reference walks b twice in a row, chr:10-20 and chr:20-30
@@ -1329,7 +1367,7 @@ describe('a reference that passes one node twice', () => {
         ),
       ).toEqual({
         'hap#1': '30 bp',
-        'short#1': '≥ 20 bp · contig ends inside the window',
+        'short#1': "≥ 20 bp · no more of the contig on ref's path",
       })
     })
   })
@@ -1351,7 +1389,7 @@ describe('a reference that passes one node twice', () => {
     expect(rows['ref#0']!.row.windowBp).toBe(10)
     expect(rows['ref#0']!.row.visits?.map(v => v.node)).toEqual(['r+'])
     expect(rows['hap#1']!.readout).toBe(
-      '≥ 10 bp · contig ends inside the window',
+      '≥ 10 bp · contig starts inside the window',
     )
   })
 })

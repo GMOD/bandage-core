@@ -27,6 +27,7 @@ import type {
   WalkRows,
   WalkRun,
   WalkStop,
+  WalkStops,
   WalkVisit,
 } from './walkRows'
 
@@ -384,7 +385,6 @@ const steplessMeta = (
   offReferenceBp: own.reduce((sum, d) => sum + d.ownBp, 0),
   gapBp,
   complete: true,
-  stop: undefined,
   axis: undefined,
   departures: own,
   stepless: true,
@@ -770,6 +770,32 @@ export function walkRowRuns(
           : heads[ordered[0]!]!.trimmedBefore,
       }
     }
+    // How the walk stops past its first step, or its last (`after`)
+    const stopAt = (after: boolean): WalkStop => {
+      const { last, departure, trimmed } = endOf(after)
+      const contigEnds = onReference(last) && !departure && !trimmed
+      return {
+        contigEnds,
+        shortBp:
+          contigEnds && cut
+            ? Math.max(
+                0,
+                cut.start - stepPlace[last]! - lengthOf(steps[last]!),
+                stepPlace[last]! - cut.end,
+              )
+            : 0,
+        ...(contigEnds && !after ? { contigStart: stepStart[last]! } : {}),
+        ...(departure
+          ? {
+              goesOn: {
+                departure,
+                near: after ? departure.rejoinPos : departure.leavePos,
+                ...((after ? tails : leads) ? { drawn: true as const } : {}),
+              },
+            }
+          : {}),
+      }
+    }
     // Whether the walk runs rightward along the reference at a lone flank,
     // the window on its right or not, as walkRowRuns' comment reads it;
     // undefined where nothing says
@@ -797,32 +823,12 @@ export function walkRowRuns(
       const rightward = flank === i0
       const forward = flankForward(flank, rightward)
       const after = forward === rightward
-      const { last, departure, trimmed } = endOf(after)
-      const contigEnds = onReference(last) && !departure && !trimmed
-      const stop: WalkStop = {
-        contigEnds,
-        shortBp: contigEnds
-          ? Math.max(
-              0,
-              cut!.start - stepPlace[last]! - lengthOf(steps[last]!),
-              stepPlace[last]! - cut!.end,
-            )
-          : 0,
-        ...(departure
-          ? {
-              goesOn: {
-                departure,
-                near: after ? departure.rejoinPos : departure.leavePos,
-                ...((after ? tails : leads) ? { drawn: true as const } : {}),
-              },
-            }
-          : {}),
-      }
+      const stop = stopAt(after)
       const skip = inside ? 0 : 1
       return forward === undefined
         ? undefined
         : {
-            stop,
+            stops: rightward ? { right: stop } : { left: stop },
             lo: after ? flank + skip : 0,
             hi: after ? length : flank + 1 - skip,
             backward: !forward,
@@ -835,7 +841,7 @@ export function walkRowRuns(
     let complete = true
     let flankFrom = -1
     let flankTo = -1
-    let stop: WalkStop | undefined
+    let stops: WalkStops = {}
     if (stepPlace.length < length) {
       stepPlace = new Float64Array(steps.length)
     }
@@ -891,11 +897,16 @@ export function walkRowRuns(
       placeable(i) &&
       Number.isNaN(stepPlace[i]!) &&
       Number.isFinite(stepStated[i]!)
+    // a stop at the bar's end the walk's last step (`high`) or first reaches
+    const atEnd = (high: boolean, stop: WalkStop): WalkStops =>
+      high === backward ? { left: stop } : { right: stop }
     const stopsInside = (i0: number, i1: number, inside: boolean) => {
       complete = false
       const side = i0 >= 0 || i1 >= 0 ? partialSide(i0, i1, inside) : undefined
       if (side) {
-        ;({ lo, hi, backward, stop } = side)
+        ;({ lo, hi, backward, stops } = side)
+      } else if (i0 < 0 && i1 < 0) {
+        stops = { left: stopAt(false), right: stopAt(true) }
       }
     }
     // The walk's steps on the reference outside the window, in walk order,
@@ -958,15 +969,20 @@ export function walkRowRuns(
         flankTo = pass.i1
       } else {
         stopsInside(i0, i1, false)
-        const sided = stop !== undefined
+        const sided = stops.left !== undefined || stops.right !== undefined
         const flank = sided ? (i0 >= 0 ? i0 : i1) : -1
         loneFlank = flank
         loneLeft = i0 >= 0
         const after = outside.find(step => step.i > flank)?.i
         const before = outside.findLast(step => step.i < flank)?.i
+        const turnsBack = {
+          contigEnds: false,
+          shortBp: 0,
+          turnsBack: true as const,
+        }
         if (flank >= 0 && lo > flank && after !== undefined && after < hi) {
           hi = after
-          stop = { contigEnds: false, shortBp: 0, turnsBack: true }
+          stops = atEnd(true, turnsBack)
         } else if (
           flank >= 0 &&
           hi <= flank + 1 &&
@@ -974,7 +990,7 @@ export function walkRowRuns(
           before >= lo
         ) {
           lo = before + 1
-          stop = { contigEnds: false, shortBp: 0, turnsBack: true }
+          stops = atEnd(false, turnsBack)
         }
       }
     } else if (
@@ -1253,7 +1269,7 @@ export function walkRowRuns(
           ...(passes.length > 1
             ? { morePasses: passes.slice(1).map(passMeta) }
             : {}),
-          stop,
+          ...(stops.left || stops.right ? { stops } : {}),
           axis,
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
           ...(unloadedBp > 0 ? { unloadedBp } : {}),

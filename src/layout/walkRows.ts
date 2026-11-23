@@ -71,20 +71,30 @@ export function alongRow(axis: WalkAxis, start: number, end: number) {
     : { start: start - axis.start, end: end - axis.start }
 }
 
-// How a walk that reaches one flank stops past its last step inside. Its
-// contig ends there (`shortBp` short of the region when it never enters it)
-// only where that step is on the reference, no departure of the walk leaves
-// or rejoins at it, and the cut trimmed none of the walk's bp past it.
-// Otherwise it goes on: by the departure at that step, `goesOn`, to `near` on
-// the reference, the departure's far end; else past what the cut kept, not
+// How a row's walk stops at one end of its bar inside the window. The graph
+// holds no more of its contig on the reference past that step (`contigEnds`,
+// `shortBp` short of the region when it never enters it) only where the step
+// is on the reference, no departure of the walk leaves or rejoins at it, and
+// the cut trimmed none of the walk's bp past it. At the contig's start that
+// is where its first W line on the reference starts, `contigStart` bp into
+// the contig: the bp before it are left out of graph or in W lines with no
+// step on the reference, which the file holds no row of. Otherwise the walk
+// goes on: by the departure at that step, `goesOn`, to `near` on the
+// reference, the departure's far end; else past what the cut kept, not
 // rejoining the reference within it.
 export interface WalkStop {
   contigEnds: boolean
   shortBp: number
+  contigStart?: number
   goesOn?: { departure: Departure; near: number; drawn?: true }
   // the walk comes back to the reference on the side it came in from, which
   // ends its pass
   turnsBack?: true
+}
+
+export interface WalkStops {
+  left?: WalkStop
+  right?: WalkStop
 }
 
 // One pass of a walk over the window, from a flank on one side to the next on
@@ -145,7 +155,9 @@ export interface WalkRow {
   // each further pass the walk makes over the window, in its contig's order,
   // where it passes more than once; the row draws its first
   morePasses?: WalkPass[]
-  stop?: WalkStop
+  // how the walk stops at each end of its bar where it does not leave the
+  // window there by a flank
+  stops?: WalkStops
   // the steps of the walk's pieces the cut did not load, on a row that
   // holds any of them, for a host to offer to load
   abridgedSteps?: number

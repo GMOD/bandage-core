@@ -519,7 +519,7 @@ test("a gap of the walk's bp off the reference reads as its own, or off the refe
 })
 
 test('a partial walk states a lower bound and why it stops', () => {
-  const reference = { bp: 700 }
+  const reference = { bp: 700, sample: 'GRCh38' }
   const call = { bp: 8600 }
   expect(
     walkRowReadout(
@@ -527,20 +527,20 @@ test('a partial walk states a lower bound and why it stops', () => {
         bp: 0,
         gapBp: 0,
         complete: false,
-        stop: { contigEnds: true, shortBp: 580 },
+        stops: { right: { contigEnds: true, shortBp: 580 } },
       },
       reference,
       51,
       call,
     ),
-  ).toBe('contig ends 580 bp before the repeat · called 8.6 kb')
+  ).toBe("last step on GRCh38's path 580 bp before the repeat · called 8.6 kb")
   expect(
     walkRowReadout(
       {
         bp: 1500,
         gapBp: 0,
         complete: false,
-        stop: { contigEnds: false, shortBp: 0 },
+        stops: { right: { contigEnds: false, shortBp: 0 } },
       },
       reference,
       51,
@@ -552,11 +552,55 @@ test('a partial walk states a lower bound and why it stops', () => {
         bp: 1500,
         gapBp: 0,
         complete: false,
-        stop: { contigEnds: true, shortBp: 0 },
+        stops: { right: { contigEnds: true, shortBp: 0 } },
       },
       reference,
     ),
-  ).toBe('≥ 1.5 kb · contig ends inside the window')
+  ).toBe("≥ 1.5 kb · no more of the contig on GRCh38's path")
+})
+
+// R1M-05 of the HPRC v2.1 audit: HG00128#1's first W line starts 9,183,247 bp
+// into its contig, the centromere side the graph builder dropped
+test('a walk that starts inside the window says where its contig starts, and how much of it the graph has no row of', () => {
+  const reference = { bp: 1_000_000, sample: 'GRCh38' }
+  const starts = (contigStart: number, shortBp = 0) => ({
+    gapBp: 0,
+    complete: false,
+    stops: { left: { contigEnds: true, shortBp, contigStart } },
+  })
+  expect(walkRowReadout({ bp: 332_000, ...starts(9_183_247) }, reference)).toBe(
+    '≥ 332 kb · 9.2 Mb before it not drawn or left out of graph',
+  )
+  expect(walkRowReadout({ bp: 332_000, ...starts(0) }, reference)).toBe(
+    '≥ 332 kb · contig starts inside the window',
+  )
+  expect(walkRowReadout({ bp: 0, ...starts(0, 580) }, reference)).toBe(
+    'contig starts 580 bp before the window',
+  )
+  expect(walkRowReadout({ bp: 0, ...starts(440, 580) }, reference)).toBe(
+    "first step on GRCh38's path 580 bp before the window, 440 bp before it not drawn or left out of graph",
+  )
+})
+
+// SV-inv-100k+ of the audit: HG00097#1's second contig, 63,664 bp, lies whole
+// inside the window
+test('a walk whose contig starts and ends inside the window states its length exactly', () => {
+  expect(
+    walkRowReadout(
+      {
+        bp: 63_664,
+        gapBp: 0,
+        complete: false,
+        stops: {
+          left: { contigEnds: true, shortBp: 0, contigStart: 0 },
+          right: { contigEnds: true, shortBp: 0 },
+        },
+      },
+      { bp: 572_000, sample: 'GRCh38' },
+    ),
+  ).toBe(
+    "64 kb · contig starts inside the window · no more of the contig on GRCh38's path",
+  )
 })
 
 test('the key says the colours are the graph’s alignment', () => {

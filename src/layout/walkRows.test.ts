@@ -157,7 +157,7 @@ test('a walk that stops inside a flanked region reads partial', () => {
   )!
   const row = cut.rows.find(r => r.name === 'truncated')!
   expect(row.complete).toBe(false)
-  expect(row.stop).toEqual({ contigEnds: true, shortBp: 0 })
+  expect(row.stops).toEqual({ right: { contigEnds: true, shortBp: 0 } })
   expect(row.bp).toBe(ends[Math.floor(n / 2)]! - region.start)
 })
 
@@ -186,7 +186,9 @@ test('a walk whose contig ends before the region says how far short', () => {
     region,
   )!.rows.find(r => r.name === 'short')!
   expect(row.bp).toBe(0)
-  expect(row.stop).toEqual({ contigEnds: true, shortBp: ends[3]! - ends[2]! })
+  expect(row.stops).toEqual({
+    right: { contigEnds: true, shortBp: ends[3]! - ends[2]! },
+  })
 })
 
 test('a walk that leaves the reference and does not come back stops off it', () => {
@@ -216,7 +218,7 @@ test('a walk that leaves the reference and does not come back stops off it', () 
     region,
   )!.rows.find(r => r.name === 'open')!
   expect(row.complete).toBe(false)
-  expect(row.stop).toEqual({ contigEnds: false, shortBp: 0 })
+  expect(row.stops).toEqual({ right: { contigEnds: false, shortBp: 0 } })
   expect(row.bp).toBe(byId.get(reference.nodeIds[2]!)! + off.length)
 })
 

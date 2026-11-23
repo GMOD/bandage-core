@@ -146,20 +146,28 @@ test("a walk ending at the window's edge reads as a contig end only with no depa
     readout: '≥ 500 bp · goes on near chr1:4 kb · 4 kb of its own',
     row: {
       complete: false,
-      stop: {
-        contigEnds: false,
-        goesOn: { near: 4000, departure: { leavePos: 1500, ownBp: 4000 } },
+      stops: {
+        right: {
+          contigEnds: false,
+          goesOn: { near: 4000, departure: { leavePos: 1500, ownBp: 4000 } },
+        },
       },
     },
   })
   expect(row('HG003#1')).toMatchObject({
     readout: '≥ 500 bp · does not rejoin the reference in view',
-    row: { complete: false, stop: { contigEnds: false, shortBp: 0 } },
+    row: {
+      complete: false,
+      stops: { right: { contigEnds: false, shortBp: 0 } },
+    },
   })
   const ends = await rowsOf('records.GRCh38', 5500, 6500, 500)
   expect(ends.row('HG002#1')).toMatchObject({
-    readout: '≥ 500 bp · contig ends inside the window',
-    row: { complete: false, stop: { contigEnds: true, shortBp: 0 } },
+    readout: "≥ 500 bp · no more of the contig on GRCh38's path",
+    row: {
+      complete: false,
+      stops: { right: { contigEnds: true, shortBp: 0 } },
+    },
   })
 })
 
@@ -171,7 +179,7 @@ test('a walk that comes into the window by a departure goes on where that one le
     readout: '≥ 500 bp · goes on near chr1:2 kb · 4 kb of its own',
     row: {
       complete: false,
-      stop: { contigEnds: false, goesOn: { near: 1500 } },
+      stops: { left: { contigEnds: false, goesOn: { near: 1500 } } },
     },
   })
 })
@@ -184,11 +192,15 @@ test('with no context, a walk that stops inside the window states how, and a who
   const { row } = await rowsOf('rejoin.GRCh38', 1000, 2000)
   expect(row('HG002#1')).toMatchObject({
     readout: '≥ 500 bp · goes on near chr1:4 kb · 4 kb of its own',
-    row: { bp: 500, complete: false, stop: { goesOn: { near: 4000 } } },
+    row: {
+      bp: 500,
+      complete: false,
+      stops: { right: { goesOn: { near: 4000 } } },
+    },
   })
   expect(row('HG003#1')).toMatchObject({
     readout: '≥ 500 bp · does not rejoin the reference in view',
-    row: { bp: 500, complete: false, stop: { contigEnds: false } },
+    row: { bp: 500, complete: false, stops: { right: { contigEnds: false } } },
   })
   expect(row('HG002#2')).toMatchObject({
     readout: '1.0 kb',
@@ -196,8 +208,11 @@ test('with no context, a walk that stops inside the window states how, and a who
   })
   const ends = await rowsOf('records.GRCh38', 5500, 6500)
   expect(ends.row('HG002#1')).toMatchObject({
-    readout: '≥ 500 bp · contig ends inside the window',
-    row: { complete: false, stop: { contigEnds: true, shortBp: 0 } },
+    readout: "≥ 500 bp · no more of the contig on GRCh38's path",
+    row: {
+      complete: false,
+      stops: { right: { contigEnds: true, shortBp: 0 } },
+    },
   })
   expect(ends.row('HG003#1')).toMatchObject({
     readout: '1.0 kb',
@@ -213,7 +228,7 @@ test('a walk whose only step is a flank has no bp in the window and says how it 
   const { row } = await rowsOf('rejoin.GRCh38', 1500, 2000, 500)
   expect(row('HG003#1')).toMatchObject({
     readout: 'does not rejoin the reference in view',
-    row: { bp: 0, complete: false, stop: { contigEnds: false } },
+    row: { bp: 0, complete: false, stops: { right: { contigEnds: false } } },
   })
   expect(row('HG002#2')).toMatchObject({
     readout: '500 bp',
@@ -221,8 +236,12 @@ test('a walk whose only step is a flank has no bp in the window and says how it 
   })
   const ends = await rowsOf('records.GRCh38', 6000, 6500, 500)
   expect(ends.row('HG002#1')).toMatchObject({
-    readout: 'contig ends at the window',
-    row: { bp: 0, complete: false, stop: { contigEnds: true, shortBp: 0 } },
+    readout: "last step on GRCh38's path at the window",
+    row: {
+      bp: 0,
+      complete: false,
+      stops: { right: { contigEnds: true, shortBp: 0 } },
+    },
   })
 })
 
@@ -241,8 +260,11 @@ test("a walk file's contig that ends inside the window with no departure reads a
     const { row } = await rowsOf('clip.REF', start, end, context)
     for (const label of ['CLIP#1', 'CLIPSNP#1']) {
       expect(row(label)).toMatchObject({
-        readout: '≥ 300 bp · contig ends inside the window',
-        row: { complete: false, stop: { contigEnds: true, shortBp: 0 } },
+        readout: "≥ 300 bp · no more of the contig on REF's path",
+        row: {
+          complete: false,
+          stops: { right: { contigEnds: true, shortBp: 0 } },
+        },
       })
     }
   }
