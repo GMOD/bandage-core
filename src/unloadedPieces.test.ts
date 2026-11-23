@@ -170,8 +170,10 @@ test('an unloaded piece draws its stretches on the reference where they lie, in 
     unloadedBp: 50,
     gapBp: 0,
   })
+  // the cut holds all of R, so the bar starts under R's base 60 where the
+  // walk starts
   expect(row('PARTIAL#1').runs[1]).toEqual({
-    start: 30,
+    start: 90,
     bp: 50,
     onReference: false,
     referenceStart: undefined,
@@ -188,9 +190,10 @@ test('a row with a run not loaded reads as the loaded row, saying nothing of loa
   expect(walkRowReadout(loaded.row('PARTIAL#1'), loaded.rows.reference)).toBe(
     '80 bp (+50 bp)',
   )
-  // it jumps from right of the window back to its left, which is no pass
+  // it jumps from right of the window back to its left, the stretch between
+  // away from the window
   expect(walkRowReadout(row('LOWFIRST#1'), rows.reference)).toBe(
-    '≥ 10 bp · contig ends inside the window',
+    '60 bp of its contig, of which 30 bp away from the window · contig starts inside the window · no more of the contig on R c',
   )
   for (const each of rows.rows) {
     expect(walkRowReadout(each, rows.reference)).not.toMatch(/≈|estimate/)

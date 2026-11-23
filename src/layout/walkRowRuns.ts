@@ -745,10 +745,13 @@ export function walkRowRuns(
             at += lengthOf(node)
           })
         } else if (x.bp > 0) {
+          const part = segmentPart(x)
           parts.push(
-            segments.some(y => y.kind === 'unread')
-              ? { ...segmentPart(x), atLeast: true }
-              : segmentPart(x),
+            part.cause === 'missing' || part.cause === 'mixed'
+              ? segments.some(y => y.kind === 'unread')
+                ? { ...part, atLeast: true }
+                : part
+              : part,
           )
           partsBp += x.bp
           at += x.bp
