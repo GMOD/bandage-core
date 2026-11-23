@@ -21,8 +21,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@jbrowse/tubemap-core':
-        specifier: ^2.1.0
-        version: 2.1.0
+        specifier: ^2.1.1
+        version: 2.1.1
     devDependencies:
       '@jbrowse/graph-walks':
         specifier: ^9.1.0
@@ -302,8 +302,8 @@ packages:
     resolution: {integrity: sha512-zToC0THd94TGr4cWMp9eOCRB8eeN004ncajZzVOoM8WEWV90YMTX5SX9zY6Nk1hhY7ASKWnfOmguXt7SoXaLzw==}
     engines: {node: '>=22'}
 
-  '@jbrowse/tubemap-core@2.1.0':
-    resolution: {integrity: sha512-UqNSIkLOfisPZYf/xpzBWxHPB8GrGShSAydXvex39ybJZiItCUWQH3lHhEyedRuQ0fmttfxeuOH6lWh4L8yyxw==}
+  '@jbrowse/tubemap-core@2.1.1':
+    resolution: {integrity: sha512-cqtgRLdU01wvqWYo2gw9uZiTfdU5sSjzUrKYUUV4vkDWwWgf5wWyeMR4xOO81yN8ULNvWireY1zMHmUrIKtBjg==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1414,7 +1414,7 @@ snapshots:
 
   '@jbrowse/quick-lru@8.0.0': {}
 
-  '@jbrowse/tubemap-core@2.1.0': {}
+  '@jbrowse/tubemap-core@2.1.1': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

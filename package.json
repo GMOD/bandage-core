@@ -57,7 +57,7 @@
     "@gmod/tabix": "^3.13.1",
     "@jbrowse/graph-fmmm-layout": "^1.0.2",
     "@jbrowse/graph-stress-layout": "^1.1.0",
-    "@jbrowse/tubemap-core": "^2.1.0"
+    "@jbrowse/tubemap-core": "^2.1.1"
   },
   "devDependencies": {
     "@jbrowse/graph-walks": "^9.1.0",
