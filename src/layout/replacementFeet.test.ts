@@ -394,7 +394,7 @@ test('at the fit, a padded arm and a skip over folded skips each draw within the
   for (const [from, to] of [
     [last, 'x'],
     ['x', 'm'],
-  ]) {
+  ] as const) {
     const arm = edgeOf(from, to)
     expect(batch.edgeCurveRuns.has(arm)).toBe(true)
     const { chord, over } = overChord(from, to, arm)

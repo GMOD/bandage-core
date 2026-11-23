@@ -655,11 +655,11 @@ test('a short skip is painted after a long one it crosses', () => {
       ],
       'B+': [
         { x: 12, y: 0 },
-        { x: 14, y: 0 },
+        { x: 24, y: 0 },
       ],
       'C+': [
-        { x: 16, y: 0 },
         { x: 26, y: 0 },
+        { x: 36, y: 0 },
       ],
       'D+': [
         { x: 100, y: 0 },
@@ -704,7 +704,7 @@ test('a short skip is painted after a long one it crosses', () => {
   )
 })
 
-test('a skip drawn as its plain link is painted after a dashed skip it crosses', () => {
+test('in a graph without walks, a skip drawn as its plain link is painted after a dashed skip it crosses', () => {
   const four = [...nodes, { id: 'D+', name: 'D', length: 10, depth: 1 }]
   const batch = buildGeometry({
     nodePositions: {
@@ -735,8 +735,6 @@ test('a skip drawn as its plain link is painted after a dashed skip it crosses',
         { from: 'A+', to: 'C+', pathIds: ['one'] },
         { from: 'A+', to: 'D+', pathIds: ['two', 'three', 'four'] },
       ],
-      // the skips are as thick as their walks, so their strokes tell apart
-      paths: [{ name: 'one#1#c', nodeIds: ['A+', 'C+'] }],
     },
     edgeWidth: 'walks',
     nodeById: new Map(four.map(n => [n.id, n])),

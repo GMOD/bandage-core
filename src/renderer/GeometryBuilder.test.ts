@@ -1129,7 +1129,7 @@ describe('arrowhead placement', () => {
       [4, 6, false],
     ] as const) {
       const batch = batchAt(scale, thickness)
-      expect(batch.skipsTooShort.has(0)).toBe(left)
+      expect(new Set(batch.skipsTooShort).has(0)).toBe(left)
       expect(batch.edgeCurveRuns.has(0)).toBe(!left)
     }
   })
