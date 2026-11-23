@@ -26,6 +26,7 @@ import {
   walkRowsKeyTree,
   walkRowsTree,
 } from './walkRowDraw'
+import { walkRowsExtent } from './walkRowLayout'
 import { walkRows } from './walkRows'
 
 import type { Departure } from '../gfa/departures'
@@ -1305,6 +1306,35 @@ test("every line of a readout ends before the pane's right edge and starts past 
           for (const line of at.lines.filter(shown => shown !== '')) {
             expect(at.x + byChar(line)).toBeLessThanOrEqual(width)
           }
+        })
+      }
+    }
+  }
+})
+
+// H-8p23 and R1M-06 cut readouts such as "5199 kb of its contig, …" where
+// the fit left a fixed share of the width past the longest bar
+test('bars fitted to a width with its readouts leave every readout whole beside its bar', () => {
+  const pad = 80
+  for (const fixture of [pggbRows(), longRow(), rows()]) {
+    for (let width = 1000; width <= 1400; width += 50) {
+      for (const rowPx of [16, 20]) {
+        const widthPx = width - pad - 10
+        const { maxX } = walkRowsExtent(
+          fixture,
+          { rowPx, readouts: true },
+          { widthPx, measure: byChar },
+        )
+        const scaleX = widthPx / (maxX - fixture.origin)
+        const frame = {
+          scaleX,
+          translateX: pad - fixture.origin * scaleX,
+          width,
+          rowPx,
+          measure: byChar,
+        }
+        ;[fixture.reference, ...fixture.rows].forEach((_, i) => {
+          expect(walkRowReadoutAt(fixture, i, frame).cut).toBe(false)
         })
       }
     }

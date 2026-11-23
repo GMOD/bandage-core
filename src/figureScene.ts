@@ -12,6 +12,7 @@ import { facetLifts, walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
 import type { FigureOptions } from './figure'
+import type { ReadoutFit } from './layout/walkRowLayout'
 import type { Graph, LayoutResult } from './types'
 import type { AxisScale } from './util/geometry'
 import type { LiftedWalk, WalkLift } from './walkHighlight'
@@ -42,6 +43,7 @@ export function figureScene(
   graph: Graph,
   layout: LayoutResult,
   o: FigureSceneOptions,
+  rowsFit?: ReadoutFit,
 ) {
   const region = o.region
   const rampDomain = o.colorDomain ?? region
@@ -49,7 +51,9 @@ export function figureScene(
   const bounds = drawingBounds(layout, {
     region: o.fitToDrawing ? undefined : region,
     extent:
-      rows && layout.extent ? walkRowsExtent(rows, o.walkRowPitch) : undefined,
+      rows && layout.extent
+        ? walkRowsExtent(rows, o.walkRowPitch, rowsFit)
+        : undefined,
   })
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]))
   const colorScheme = resolveColorScheme(

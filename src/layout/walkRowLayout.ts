@@ -4,11 +4,11 @@ import {
   overlapsWindow,
 } from '../anchoredNodes'
 import { ROW_HEIGHT_PX } from './rowSpacing'
-import { barEnd } from './walkRowDraw'
+import { barEnd, readoutRoomPx, walkRowReadoutParts } from './walkRowDraw'
 import { walkRows } from './walkRows'
 
 import type { Graph, LayoutResult, RowLabel } from '../types'
-import type { RowPitch } from './walkRowDraw'
+import type { RowPitch, WalkRowsWithCalls } from './walkRowDraw'
 import type { WalkRows } from './walkRows'
 
 // The reference walk as the backbone on row 0, at its bp, and a row per other
@@ -26,19 +26,54 @@ export function longestBar(walks: WalkRows) {
   )
 }
 
+export interface ReadoutFit {
+  // px from the bars' start to the right edge the readouts end at
+  widthPx: number
+  measure?: (text: string) => number
+  comparing?: boolean
+}
+
+// How far the bars must reach for every row's readout to be drawn whole
+// beside its bar in `fit.widthPx`, as walkRowReadoutAt draws it, the bars
+// keeping at least a quarter of the width
+function readableReach(
+  walks: WalkRowsWithCalls,
+  rowPx: number,
+  fit: ReadoutFit,
+) {
+  const { widthPx } = fit
+  return [walks.reference, ...walks.rows].reduce((most, _, i) => {
+    const { row, base, suffix } = walkRowReadoutParts(walks, i, fit.comparing)
+    const room = readoutRoomPx(`${base}${suffix}`, rowPx, fit.measure)
+    return Math.max(
+      most,
+      (barEnd(row) * widthPx) / Math.max(widthPx - room, widthPx / 4),
+    )
+  }, 0)
+}
+
 // How far the bars reach, so the fit and the pane height include them. The
 // model reads it again for the bars it actually draws, which a repeat pick or
 // a sample filter can narrow after this layout ran, at the pitch they draw at.
+// A host that knows its width passes `fit`, and the bars then leave room for
+// every readout whole.
 export function walkRowsExtent(
-  walks: WalkRows,
+  walks: WalkRowsWithCalls,
   pitch: Pick<RowPitch, 'rowPx' | 'readouts'> = {
     rowPx: ROW_HEIGHT_PX,
     readouts: true,
   },
+  fit?: ReadoutFit,
 ) {
+  const readable =
+    pitch.readouts && fit ? readableReach(walks, pitch.rowPx, fit) : 0
   return {
     maxX:
-      walks.origin + longestBar(walks) * (pitch.readouts ? READOUT_ROOM : 1),
+      walks.origin +
+      Math.max(
+        readable,
+        longestBar(walks) * (pitch.readouts ? READOUT_ROOM : 1),
+      ),
     maxY: walks.rows.length * pitch.rowPx,
   }
 }

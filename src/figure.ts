@@ -354,6 +354,12 @@ export function figureSvg(
   const width = o.width ?? FIGURE_DEFAULTS.width
   const room = o.height ?? FIGURE_DEFAULTS.height
   const rows = o.walkRows
+  const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)
+  const nameGutter = rowLabels.reduce(
+    (most, { label }) =>
+      Math.max(most, 2 * ROW_NAME_X + label.length * LABEL_CHAR_PX),
+    FIT_PADDING,
+  )
   const {
     bounds,
     nodeById,
@@ -368,7 +374,9 @@ export function figureSvg(
     contigThickness,
     nodeWidth,
     geometry,
-  } = figureScene(graph, layout, o)
+  } = figureScene(graph, layout, o, {
+    widthPx: width - nameGutter - FIT_PADDING,
+  })
   const pixelRows = layout.pixelRows ?? false
   const rampInterval = referenceRamp && {
     start: referenceRamp.start,
@@ -378,15 +386,9 @@ export function figureSvg(
     o.genes?.length && !layout.tubeMap && !rows
       ? genePins(graph, o.genes, layout.nodePositions, layout.stranded)
       : []
-  const rowLabels = walkRowLabels(rows, layout, o.walkRowPitch)
   const nodeLengths = labelledNodeLengths(
     graph.nodes,
     o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
-  )
-  const nameGutter = rowLabels.reduce(
-    (most, { label }) =>
-      Math.max(most, 2 * ROW_NAME_X + label.length * LABEL_CHAR_PX),
-    FIT_PADDING,
   )
   // how far a band of lanes as wide as their counts reaches past the pads a
   // node's own width fits in

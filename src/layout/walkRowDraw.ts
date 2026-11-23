@@ -465,23 +465,64 @@ function fitReadout(
 // clear of the rows above and below at the walk-rows layout's own pitch
 const READOUT_LINE_PX = 10
 
-// A readout too long for `roomPx` as two lines, broken between two of its
-// parts, the break that leaves the longer line shortest; none where no break
-// fits both lines
+const wrapsAt = (rowPx = ROW_HEIGHT_PX) => rowPx >= 2 * READOUT_LINE_PX
+
+// Each way a readout breaks onto two lines between two of its parts, and the
+// px of its wider line
+const twoLines = (text: string, measure: (text: string) => number) =>
+  [...text.matchAll(/ · |, /g)].map(m => {
+    const first = `${text.slice(0, m.index)}${m[0] === ', ' ? ',' : ''}`
+    const second = text.slice(m.index + m[0].length)
+    const lines: [string, string] = [first, second]
+    return { lines, px: Math.max(measure(first), measure(second)) }
+  })
+
+// A readout too long for `roomPx` as two lines, the break that leaves the
+// longer line shortest; none where no break fits both lines
 function wrapReadout(
   text: string,
   roomPx: number,
   measure: (text: string) => number,
 ) {
-  return [...text.matchAll(/ · |, /g)]
-    .map(m => {
-      const first = `${text.slice(0, m.index)}${m[0] === ', ' ? ',' : ''}`
-      const second = text.slice(m.index + m[0].length)
-      const lines: [string, string] = [first, second]
-      return { lines, px: Math.max(measure(first), measure(second)) }
-    })
+  return twoLines(text, measure)
     .filter(({ px }) => px <= roomPx)
     .sort((a, b) => a.px - b.px)[0]?.lines
+}
+
+// The px past its bar's end a readout needs to be drawn whole, on two lines
+// where rows `rowPx` apart wrap it
+export const readoutRoomPx = (
+  text: string,
+  rowPx: number,
+  measure: (text: string) => number = readoutTextPx,
+) =>
+  READOUT_GAP_PX +
+  (wrapsAt(rowPx)
+    ? twoLines(text, measure).reduce(
+        (least, { px }) => Math.min(least, px),
+        measure(text),
+      )
+    : measure(text))
+
+// Row `i`'s readout (0 the reference), and the `· not compared` that ends it
+// while `comparing` leaves the row out
+export function walkRowReadoutParts(
+  bars: WalkRowsWithCalls,
+  i: number,
+  comparing = false,
+) {
+  const row = i === 0 ? bars.reference : bars.rows[i - 1]!
+  const base = walkRowReadout(
+    row,
+    i === 0 ? undefined : bars.reference,
+    bars.unit,
+    row.call,
+  )
+  const suffix =
+    comparing && i > 0 && rowsNeedingRoutes([row]) > 0
+      ? ` · ${NOT_COMPARED_TEXT}`
+      : ''
+  return { row, base, suffix }
 }
 
 const rowNameEnd = (label: string) =>
@@ -509,25 +550,14 @@ export function walkRowReadoutAt(
   >,
   o: { comparing?: boolean } = {},
 ) {
-  const row = i === 0 ? bars.reference : bars.rows[i - 1]!
-  const base = walkRowReadout(
-    row,
-    i === 0 ? undefined : bars.reference,
-    bars.unit,
-    row.call,
-  )
-  const suffix =
-    o.comparing && i > 0 && rowsNeedingRoutes([row]) > 0
-      ? ` · ${NOT_COMPARED_TEXT}`
-      : ''
+  const { row, base, suffix } = walkRowReadoutParts(bars, i, o.comparing)
   const text = `${base}${suffix}`
   const measure = frame.measure ?? readoutTextPx
   const endX = (bars.origin + barEnd(row)) * frame.scaleX + frame.translateX
   const x = Math.max(endX + READOUT_GAP_PX, rowNameEnd(row.label))
   const roomPx = frame.width - x
   const wrapped =
-    measure(text) > roomPx &&
-    (frame.rowPx ?? ROW_HEIGHT_PX) >= 2 * READOUT_LINE_PX
+    measure(text) > roomPx && wrapsAt(frame.rowPx)
       ? wrapReadout(text, roomPx, measure)
       : undefined
   const kept = fitReadout(base, roomPx - measure(suffix), measure)
