@@ -78,17 +78,11 @@ export function alongRow(axis: WalkAxis, start: number, end: number) {
     : { start: start - axis.start + offset, end: end - axis.start + offset }
 }
 
-// How a row's walk stops at one end of its bar inside the window. The graph
-// holds no more of its contig on the reference past that step (`contigEnds`,
-// `shortBp` short of the region when it never enters it) only where the step
-// is on the reference, no departure of the walk leaves or rejoins at it, and
-// the cut trimmed none of the walk's bp past it. At the contig's start that
-// is where its first W line on the reference starts, `contigStart` bp into
-// the contig: the bp before it are left out of graph or in W lines with no
-// step on the reference, which the file holds no row of. Otherwise the walk
-// goes on: by the departure at that step, `goesOn`, to `near` on the
-// reference, the departure's far end; else past what the cut kept, not
-// rejoining the reference within it.
+// How a row's walk stops at one end of its bar inside the window: the graph
+// holds no more of its contig on the reference past that step (`contigEnds`),
+// at the contig's start `contigStart` bp in, which lie in no W line or in one
+// with no step on the reference; or it goes on by the departure at that
+// step (`goesOn`) or past what the cut kept.
 export interface WalkStop {
   contigEnds: boolean
   shortBp: number

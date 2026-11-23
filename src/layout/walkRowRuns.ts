@@ -442,15 +442,17 @@ const steplessMeta = (
  * none, GFA text or a gbz-base extract, has a step on a node the reference
  * passes more than once take the pass nearest the step beside it.
  *
- * Each walk is cut at the nearest reference nodes IT visits on either side of
- * the region, so a walk that skips one flanking node at a SNP is still
- * measured between flanks rather than whole. A walk with one flank is the
- * steps past that flank read in the reference's direction, a lower bound.
- * Its contig ends at its last step there only where that step is on the
- * reference, the walk has no departure leaving or rejoining at it, and the
- * cut trimmed none of its bp past it; else it goes on (`WalkStop`). A walk
- * file's fragment always ends on the reference, so its end alone says
- * nothing.
+ * A walk that crosses the window once is cut at the nearest reference nodes
+ * IT visits on either side of it, so one that skips a flanking node at a SNP
+ * is still measured between flanks rather than whole. Any other with a step
+ * in the window runs from its first such step to its last, its steps on the
+ * reference outside the window between them a gap, a lower bound at an end
+ * where it stops inside: there the graph holds no more of its contig on the
+ * reference only where that step is on the reference, the walk has no
+ * departure leaving or rejoining at it, and the cut trimmed none of its bp
+ * past it; else it goes on (`WalkStop`). A walk file's fragment always ends
+ * on the reference, so its end alone says nothing. A row reads its contig
+ * back to front only where graph-walks' readsBackToFront would.
  *
  * The window's side of a lone flank is the way the walk runs along the
  * reference there, read from its nearest other step on it. Where the flank is
@@ -951,7 +953,6 @@ export function walkRowRuns(
       placeOutward(anchor, -1)
     }
     const placeStart = (i: number) => stepPlace[i]!
-    // whether a step on the reference runs against its strand there
     const abutsBelow = (i: number, j: number) =>
       j >= 0 &&
       j < length &&
@@ -1062,11 +1063,9 @@ export function walkRowRuns(
       }
       return away
     }
-    // The bar from the walk's first step in the window, or past the flank of
-    // its first pass over it, to its last, each end widened over the steps
-    // off the reference beside it: an end that meets a step on the reference
-    // outside the window leaves by it, else the walk stops there. A row that
-    // leaves both ends on one side of the window turns back out of it.
+    // The bar from the walk's first step in the window to its last, each end
+    // widened over steps off the reference: an end meeting a step outside the
+    // window leaves by it, else the walk stops there
     const outermost = (
       inside: number[],
       over: { i0: number; i1: number }[],
@@ -1512,10 +1511,8 @@ export function walkRowRuns(
         }
       }
     }
-    // A gap longer than the reference's bar draws a share of it long, the
-    // rest of its bp left out at a break, so one stretch away from the window
-    // leaves the bars beside it their width; the row then has no linear map
-    // onto its contig
+    // A gap longer than the reference's bar draws a share of it, the rest at a
+    // break; the row then has no linear map onto its contig
     const windowBp = bar ? bar.end - bar.start : Infinity
     const capBp = GAP_CAP_SHARE * windowBp
     const breaks: { at: number; bp: number }[] = []
