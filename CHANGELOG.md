@@ -1,3 +1,9 @@
+## [14.4.1](https://github.com/GMOD/bandage-core/compare/v14.4.0...v14.4.1) (2026-11-23)
+
+### Other Changes
+
+- Tubemap-core 2.1.1: a tube map of a few hundred thousand nodes is laid out where its ordering pass ran the tab out of memory, each layout the same as before ([55409b5](https://github.com/GMOD/bandage-core/commit/55409b5d3929f1107e66fe7dad25998a9dcca699))
+
 ## [14.4.0](https://github.com/GMOD/bandage-core/compare/v14.3.5...v14.4.0) (2026-11-22)
 
 ### Other Changes
