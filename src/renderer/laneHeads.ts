@@ -83,6 +83,9 @@ export interface LaneHeadStroke {
   threads: number
   node: string
   against: boolean
+  // a stroke a spacing long whose heads all fall by other strokes' keeps
+  // its middle one
+  keepOne?: boolean
 }
 
 export function laneHeadPlacer(scale: number, yToX: number) {
@@ -135,20 +138,22 @@ export function laneHeadPlacer(scale: number, yToX: number) {
     const ownThread = threadGrid(walk, thread)
     const ownLane = laneGrid(walk)
     const heads: Arrowhead[] = []
-    let index = 0
-    for (let k = 0; k < count; k++) {
-      const along = ((k + 0.5) * total) / count
+    const legFrom = (start: number, along: number) => {
+      let index = start
       while (index < legs.length - 1 && (legs[index]?.to ?? along) < along) {
         index++
       }
+      return index
+    }
+    const place = (index: number, along: number, cleared: boolean) => {
       const leg = legs[index]
       if (leg && leg.run > 0) {
         const { a, b, run } = leg
         const f = (along - leg.from) / run
         const at = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
         if (
-          ownThread.clear(at, turn) &&
-          ownLane.clear(at, LANE_HEAD_SPACING_PX)
+          cleared ||
+          (ownThread.clear(at, turn) && ownLane.clear(at, LANE_HEAD_SPACING_PX))
         ) {
           ownThread.add(at)
           ownLane.add(at)
@@ -171,6 +176,15 @@ export function laneHeadPlacer(scale: number, yToX: number) {
           })
         }
       }
+    }
+    let index = 0
+    for (let k = 0; k < count; k++) {
+      const along = ((k + 0.5) * total) / count
+      index = legFrom(index, along)
+      place(index, along, false)
+    }
+    if (stroke.keepOne && heads.length === 0 && total >= LANE_HEAD_SPACING_PX) {
+      place(legFrom(0, total / 2), total / 2, true)
     }
     return heads
   }

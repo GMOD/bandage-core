@@ -2766,6 +2766,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           threads: 1,
           node: id,
           against: laidAlongReference(node),
+          keepOne: true,
         })) {
           if (
             !viewportBounds ||

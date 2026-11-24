@@ -151,6 +151,43 @@ test('heads against the reference draw in the one haloed ink their key swatch sh
   }
 })
 
+// SV-inv-1k-10k: a 1,885 bp node six haplotypes read reversed lay alongside
+// another reversed node of the loop, whose heads took every spot on it
+test('a node read against the reference laid alongside another keeps a head of its own', () => {
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const alongside = {
+    ...layout,
+    nodePositions: {
+      ...layout.nodePositions,
+      [idOf('2')]: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+      [idOf('4')]: [
+        { x: 0, y: 0.3 },
+        { x: 10, y: 0.3 },
+      ],
+    },
+  }
+  const batch = buildGeometry({
+    ...layoutGeometryInputs(
+      alongside,
+      deletionDrawing(graph, deletionEdges(graph)),
+    ),
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    axis: { scaleX: 20, scaleY: 20 },
+  })
+  const headsOn = (name: string) =>
+    batch.arrows.filter(a => a.turned && a.node === idOf(name)).length
+  expect(headsOn('2')).toBeGreaterThan(1)
+  expect(headsOn('4')).toBe(1)
+})
+
 test('under a lift the lanes carry their own heads, and no node takes these', () => {
   const batch = drawn(graph, ['inv#1#c'])
   expect(batch.arrows.filter(a => a.turned)).toEqual([])
