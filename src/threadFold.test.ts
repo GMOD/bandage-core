@@ -205,6 +205,40 @@ test('a walk the folded graph names afresh counts on its links as it does under 
   ])
 })
 
+test('a walk that reads two folded nodes reversed adds its passes to the links it shares with walks reading them forward', () => {
+  const inverted = loadGraph(
+    `S\ta\t*\tLN:i:1000
+S\tb\t*\tLN:i:2000
+S\tc\t*\tLN:i:2000
+S\td\t*\tLN:i:1000
+S\te\t*\tLN:i:600
+L\ta\t+\tb\t+\t0M
+L\tb\t+\tc\t+\t0M
+L\tc\t+\td\t+\t0M
+L\ta\t+\tc\t-\t0M
+L\tb\t-\td\t+\t0M
+L\tb\t+\te\t+\t0M
+L\te\t+\td\t+\t0M
+W\tref\t0\tchr\t0\t6000\t>a>b>c>d
+W\th1\t1\tchr\t0\t6000\t>a<c<b>d
+W\th2\t1\tchr\t0\t6000\t>a<c<b>d
+W\th3\t1\tchr\t0\t4600\t>a>b>e>d`,
+    'inverted',
+    { referencePath: 'ref#0#chr' },
+  )
+  const { graph } = folded(inverted)
+  const passesOf = (from: string, to: string) =>
+    graph.edges
+      .filter(
+        e =>
+          (e.from === from && e.to === to) || (e.from === to && e.to === from),
+      )
+      .map(linkPasses)
+  expect(passesOf('b+', 'c+')).toEqual([3])
+  expect(passesOf('a+', 'c+')).toEqual([2])
+  expect(leftSides(graph).every(([, into, depth]) => into === depth)).toBe(true)
+})
+
 test('links come from consecutive steps, with the strands they read', () => {
   const { graph } = folded()
   expect(

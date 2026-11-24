@@ -1,6 +1,7 @@
 import { branchLabel, foldGraph, variationLabel } from '@jbrowse/graph-fold'
 
 import { departureTable } from './gfa/departures'
+import { linkKey } from './gfa/linkKey'
 import { referenceWalkName } from './layout/walkRowRuns'
 import { panSNFields } from './pansn'
 import { pathOrigin } from './pathAnchoring'
@@ -273,7 +274,12 @@ export function foldedGraph(
       if (i > 0) {
         const previous = steps.at(-1)!
         const strand = reversed.at(-1)! | (back ? 2 : 0)
-        const key = `${previous}\t${node}\t${strand}`
+        const key = linkKey(
+          `${previous}`,
+          strand & 1 ? '-' : '+',
+          `${node}`,
+          back ? '-' : '+',
+        )
         const link = linked.get(key) ?? from.length
         if (link === from.length) {
           linked.set(key, link)
