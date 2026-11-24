@@ -1,3 +1,4 @@
+import { gfaTables } from './gfa/gfaTables'
 import { walkKeyEntry, walkScaleEntries } from './graphKey'
 import { countLaneWidthPx, countLanes, linkPasses, nodeInk } from './nodeWidths'
 import { loadGraph } from './pipeline'
@@ -137,6 +138,71 @@ test('by walks, a link counts the walks of the threads through it on the scale i
   ).toBe(2)
   const scale = walkScaleEntries(graph, 6, true).map(e => e.text)
   expect(scale[0]).toBe('5 walks')
+})
+
+// what every link entering a node on its left side carries, and the node's
+// depth; a pass that neither starts nor ends at a node enters it once
+function leftSides(graph: Graph) {
+  return graph.nodes
+    .map(node => [
+      node.id,
+      graph.edges
+        .filter(
+          e =>
+            (e.to === node.id && e.toStrand === '+') ||
+            (e.from === node.id && e.fromStrand === '-'),
+        )
+        .reduce((sum, e) => sum + linkPasses(e), 0),
+      node.depth,
+    ])
+    .filter(([, into]) => into !== 0)
+}
+
+test('a walk that takes a node twice counts two passes on the node and on the links in and out, so the widths at it add up', () => {
+  const repeat = loadGraph(
+    `S\ta\t*\tLN:i:1000
+S\tb\t*\tLN:i:2000
+S\tc\t*\tLN:i:1000
+L\ta\t+\tb\t+\t0M
+L\tb\t+\tb\t+\t0M
+L\tb\t+\tc\t+\t0M
+W\tref\t0\tchr\t0\t4000\t>a>b>c
+W\th1\t1\tchr\t0\t6000\t>a>b>b>c`,
+    'repeat',
+    { referencePath: 'ref#0#chr' },
+  )
+  expect(leftSides(folded(repeat).graph)).toEqual([
+    ['b+', 3, 3],
+    ['c+', 2, 2],
+  ])
+})
+
+test('a walk the folded graph names afresh counts on its links as it does under its own name', () => {
+  const t = gfaTables(GFA)!
+  const h2 = t.walks.names.indexOf('h2#1#chr')
+  const renamed = loadGraph(
+    {
+      ...t,
+      walks: {
+        ...t.walks,
+        names: t.walks.names.map((name, i) => (i === h2 ? 'h2.alt' : name)),
+        starts: t.walks.starts.map((start, i) => (i === h2 ? 1000 : start)),
+        ends: t.walks.ends.map((end, i) => (i === h2 ? end + 1000 : end)),
+      },
+    },
+    'toy',
+    { referencePath: 'ref#0#chr' },
+  )
+  const passesOf = (graph: Graph) =>
+    graph.edges.map(
+      e => `${e.from}${e.fromStrand} ${e.to}${e.toStrand} ${linkPasses(e)}`,
+    )
+  expect(passesOf(folded(renamed).graph)).toEqual(passesOf(folded().graph))
+  expect(leftSides(folded().graph)).toEqual([
+    ['s+', 3, 3],
+    ['b+', 3, 3],
+    ['c+', 5, 5],
+  ])
 })
 
 test('links come from consecutive steps, with the strands they read', () => {

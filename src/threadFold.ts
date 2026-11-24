@@ -258,7 +258,8 @@ export function foldedGraph(
   const steps: number[] = []
   const reversed: number[] = []
   const offsets = [0]
-  const linked = new Set<string>()
+  const linked = new Map<string, number>()
+  const linkWalks: number[] = []
   const from: number[] = []
   const to: number[] = []
   const strands: number[] = []
@@ -273,12 +274,15 @@ export function foldedGraph(
         const previous = steps.at(-1)!
         const strand = reversed.at(-1)! | (back ? 2 : 0)
         const key = `${previous}\t${node}\t${strand}`
-        if (!linked.has(key)) {
-          linked.add(key)
+        const link = linked.get(key) ?? from.length
+        if (link === from.length) {
+          linked.set(key, link)
           from.push(previous)
           to.push(node)
           strands.push(strand)
+          linkWalks.push(0)
         }
+        linkWalks[link]! += thread.walks
       }
       steps.push(node)
       reversed.push(back ? 1 : 0)
@@ -321,7 +325,7 @@ export function foldedGraph(
   const through = new Map<string, number>()
   const paths = (graph.paths ?? []).map((path, t): GraphPath => {
     const { track, thread } = lanes[t]!
-    for (const id of new Set(path.nodeIds)) {
+    for (const id of path.nodeIds) {
       through.set(id, (through.get(id) ?? 0) + thread.walks)
     }
     return {
@@ -332,9 +336,6 @@ export function foldedGraph(
       ...(thread.pieces > 1 ? { pieces: thread.pieces } : {}),
     }
   })
-  const walksOf = new Map(
-    lanes.map(({ thread }) => [thread.name, thread.walks]),
-  )
   return {
     ...graph,
     nodes: graph.nodes.map(node => ({
@@ -342,12 +343,9 @@ export function foldedGraph(
       depth: through.get(node.id) ?? node.depth,
       members: fold.members[node.name] ?? [],
     })),
-    edges: graph.edges.map(edge => ({
+    edges: graph.edges.map((edge, i) => ({
       ...edge,
-      passes: (edge.pathIds ?? []).reduce(
-        (sum, thread) => sum + (walksOf.get(thread) ?? 0),
-        0,
-      ),
+      passes: linkWalks[i]!,
     })),
     paths,
     referencePath: graph.referencePath ?? referencePath,
