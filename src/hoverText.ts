@@ -31,10 +31,13 @@ export function edgeHoverText(
 ) {
   return skip
     ? {
-        deletion: {
-          bp: `${groupDigits(skip.end - skip.start)} bp`,
-          where: regionLabel(skip),
-        },
+        deletion:
+          'sameStretch' in skip && !skip.sameStretch
+            ? {}
+            : {
+                bp: `${groupDigits(skip.end - skip.start)} bp`,
+                where: regionLabel(skip),
+              },
       }
     : {
         ends: `${nameOf(edge.from)}${edge.fromStrand ?? ''} → ${nameOf(edge.to)}${edge.toStrand ?? ''}`,

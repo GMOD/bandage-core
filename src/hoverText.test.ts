@@ -127,3 +127,45 @@ test.each<[string, string[]]>([
     }
   },
 )
+
+// review 5: walks >r1>x>r3 and >r1>x>y>r4 share the foot r1→x but skip
+// different stretches, so the hover gave the shorter as the link's
+test('a foot shared by walks that skip different stretches says only that it skips reference, the others what their walk skips', () => {
+  const graph = loadGraph(
+    [
+      `S\tr1\t${'A'.repeat(2000)}`,
+      `S\tr2\t${'A'.repeat(1839)}`,
+      `S\tr3\t${'A'.repeat(2000)}`,
+      `S\tr4\t${'A'.repeat(2000)}`,
+      'S\tx\tAA',
+      `S\ty\t${'A'.repeat(500)}`,
+      'L\tr1\t+\tr2\t+\t0M',
+      'L\tr2\t+\tr3\t+\t0M',
+      'L\tr3\t+\tr4\t+\t0M',
+      'L\tr1\t+\tx\t+\t0M',
+      'L\tx\t+\tr3\t+\t0M',
+      'L\tx\t+\ty\t+\t0M',
+      'L\ty\t+\tr4\t+\t0M',
+      'W\tGRCh38\t0\tchr5\t0\t7839\t>r1>r2>r3>r4',
+      'W\tHG01109\t1\tc\t0\t6002\t>r1>x>r3>r4',
+      'W\tHG002\t1\tc\t0\t4502\t>r1>x>y>r4',
+    ].join('\n'),
+    'replacements',
+  )
+  const id = (name: string) => graph.nodes.find(n => n.name === name)!.id
+  const said = (from: string, to: string) => {
+    const foot = paddedFeet(graph).find(
+      ({ edgeIndex }) =>
+        graph.edges[edgeIndex]!.from === id(from) &&
+        graph.edges[edgeIndex]!.to === id(to),
+    )
+    return foot && edgeHoverText(graph.edges[foot.edgeIndex]!, foot)
+  }
+  expect(said('r1', 'x')).toEqual({ deletion: {} })
+  expect(said('x', 'r3')).toEqual({
+    deletion: { bp: '1,839 bp', where: 'GRCh38#0#chr5:2,001-3,839' },
+  })
+  expect(said('y', 'r4')).toEqual({
+    deletion: { bp: '3,839 bp', where: 'GRCh38#0#chr5:2,001-5,839' },
+  })
+})

@@ -2,6 +2,7 @@ import { isLoadedBackbone, readsAsReference } from '../anchoredNodes'
 import { linkKey } from '../gfa/linkKey'
 import { pathOrigin, referenceVisits } from '../pathAnchoring'
 import { ownStrand } from '../util/geometry'
+import { addTo } from '../util/groups'
 import { partitionPoint } from '../util/partitionPoint'
 import { unclipped } from './trimToWindow'
 
@@ -27,6 +28,8 @@ export interface PaddedFoot extends Skipped {
   // the loaded reference between its run's ends, which its arms are sized by
   replacedBp: number
   nodes: string[]
+  // whether every walk through it skips this one stretch
+  sameStretch: boolean
 }
 
 // The reference a walk skips forward over on one pass of it
@@ -166,6 +169,12 @@ export function paddedFeet(cut: Graph) {
       close(nodeIds.length)
     }
   }
+  const stretches = new Map<number, Set<string>>()
+  for (const { links, refName, start, end } of runs) {
+    for (const link of links) {
+      addTo(stretches, link, `${refName}:${start}-${end}`)
+    }
+  }
   const feet = new Map<number, PaddedFoot>()
   for (const { links, ...run } of runs) {
     const own = links.filter(link => replacing.get(link)! >= run.replacedBp)
@@ -179,6 +188,7 @@ export function paddedFeet(cut: Graph) {
           ...(edge.fromStrand ? { fromStrand: edge.fromStrand } : {}),
           ...(edge.toStrand ? { toStrand: edge.toStrand } : {}),
           ...run,
+          sameStretch: stretches.get(link)!.size === 1,
         })
       }
     }
