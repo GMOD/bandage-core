@@ -47,6 +47,7 @@ import { abgrHex } from './renderer/colorBits'
 import { coarsenTubeMap } from './tubeMap/coarsen'
 import { drawTubeMap, notShownCaption, tubeMapPicture } from './tubeMap/draw'
 import { tubeMapNodeColors } from './tubeMap/nodeColors'
+import { foldThreads } from './threadFold'
 import { walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
@@ -898,4 +899,48 @@ test('a bubble with a run not loaded inside says some of its nodes are not shown
     nodes: { ...twinTables().nodes, placeholders: new Uint8Array(6) },
   })
   expect(loaded.join(' ')).not.toContain('not shown')
+})
+
+// graph-walks' placeholder is a run of steps off R, so the reference never
+// steps one and a thread fold's reference nodes, built from R's steps, never
+// hold one: every pass a walk makes over them is a step on R
+test('a placeholder of a cut is never on the reference, so no folded reference node holds one', async () => {
+  for (const [name, contig, start, end] of [
+    ['blocks', 'c', 60, 120],
+    ['blocks', 'c', 0, 60],
+    ['interleaved', 'c', 0, 36],
+    ['drawnedge', 'chr', 10_500, 13_500],
+  ] as const) {
+    const { tables } = await cut(name, contig, start, end)
+    const held = new Set(
+      [...(tables.nodes.placeholders ?? [])].flatMap((flag, i) =>
+        flag === 1 ? [i] : [],
+      ),
+    )
+    expect(held.size).toBeGreaterThan(0)
+    for (const i of held) {
+      expect(tables.nodes.ranks[i]).not.toBe(0)
+    }
+    const reference = tables.walks.names.findIndex(walk =>
+      walk.startsWith(`R#0#${contig}`),
+    )
+    const steps = tables.walks.steps.slice(
+      tables.walks.offsets[reference],
+      tables.walks.offsets[reference + 1],
+    )
+    expect([...steps].some(step => held.has(step))).toBe(false)
+    const graph = loadGraph(tables, 'cut')
+    const fold = foldThreads(graph, 1)
+    const names = new Set(
+      graph.nodes.filter(node => node.placeholder).map(node => node.name),
+    )
+    expect(
+      fold.graph.nodes.some(
+        node =>
+          node.stable?.rank === 0 &&
+          (node.placeholder ||
+            (node.members ?? []).some(member => names.has(member))),
+      ),
+    ).toBe(false)
+  }
 })

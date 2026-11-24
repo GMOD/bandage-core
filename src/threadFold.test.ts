@@ -1,6 +1,15 @@
+import { figureData } from './figureData'
 import { gfaTables } from './gfa/gfaTables'
 import { walkKeyEntry, walkScaleEntries } from './graphKey'
-import { countLaneWidthPx, countLanes, linkPasses, nodeInk } from './nodeWidths'
+import { placeholderHoverText } from './hoverText'
+import { layoutModeByValue } from './layoutModes'
+import {
+  countLaneWidthPx,
+  countLanes,
+  drawnNodeWidth,
+  linkPasses,
+  nodeInk,
+} from './nodeWidths'
 import { loadGraph } from './pipeline'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import {
@@ -631,4 +640,56 @@ test('the fold is gated on the revisits of the reference it folds against', () =
       500,
     ).folded,
   ).toBe(true)
+})
+
+// At H-AMY1 HG00128#1's 97,028 bp the cut did not load shared the node of
+// HG01960#1's loaded 94,133 bp, drawn 94.1 kb and two walks wide
+const NOT_LOADED = `S\ta\t*\tLN:i:1000
+S\tc\t*\tLN:i:1000
+S\tx\t*\tLN:i:2950
+S\th2#1#chr:1000-4000\t*\tLN:i:3000\tSN:Z:h2#1#chr\tSO:i:1000\tSR:i:1\tnl:i:1
+S\tq\t*\tLN:i:20
+S\th3#1#chr:1000-1100\t*\tLN:i:100\tSN:Z:h3#1#chr\tSO:i:1000\tSR:i:1\tnl:i:1
+L\ta\t+\tc\t+\t0M
+L\ta\t+\tx\t+\t0M
+L\tx\t+\tc\t+\t0M
+L\ta\t+\th2#1#chr:1000-4000\t+\t0M
+L\th2#1#chr:1000-4000\t+\tc\t+\t0M
+L\ta\t+\tq\t+\t0M
+L\tq\t+\th3#1#chr:1000-1100\t+\t0M
+L\th3#1#chr:1000-1100\t+\tc\t+\t0M
+W\tref\t0\tchr\t0\t2000\t>a>c
+W\th1\t1\tchr\t0\t4950\t>a>x>c
+W\th2\t1\tchr\t0\t5000\t>a>h2#1#chr:1000-4000>c
+W\th3\t1\tchr\t0\t2120\t>a>q>h3#1#chr:1000-1100>c`
+
+test('a stretch not loaded folds to a placeholder of its own walk, one walk deep, that hovers as one, and the drawing counts no thickness', () => {
+  const cut = loadGraph(NOT_LOADED, 'cut', { referencePath: 'ref#0#chr' })
+  const { graph } = folded(cut, 500)
+  const held = graph.nodes.filter(node => node.placeholder)
+  expect(
+    held.map(node => [node.length, node.depth, node.stable?.rank]),
+  ).toEqual([[3000, 1, 1]])
+  expect(placeholderHoverText(held[0]!)).toBe(
+    "3 kb of h2#1's route, nodes not shown",
+  )
+  expect(graph.nodes.find(node => node.length === 2950)?.depth).toBe(1)
+  expect(drawnNodeWidth(graph, 'walks')).toBe('uniform')
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const { key } = figureData(graph, layout, {
+    width: 600,
+    height: 300,
+  }).meta.graphKey
+  expect(key).toContain('not-shown')
+  expect(key).toContain('width-not-drawn')
+})
+
+test('a stretch not loaded under the fold rides the reference with the rest of its run', () => {
+  const cut = loadGraph(NOT_LOADED, 'cut', { referencePath: 'ref#0#chr' })
+  const { graph } = folded(cut, 500)
+  const reference = graph.nodes.filter(node => node.stable?.rank === 0)
+  expect(reference.some(node => node.placeholder)).toBe(false)
+  expect(
+    reference.flatMap(node => node.members ?? []),
+  ).toContain('h3#1#chr:1000-1100')
 })
