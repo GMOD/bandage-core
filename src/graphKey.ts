@@ -440,18 +440,27 @@ export function tooSmallText(nodes: number, skips: number, underBp = 0) {
 const have = (n: number) => (n === 1 ? 'has' : 'have')
 
 // `of 8 haplotypes, 5 have no step on GRCh38 chr1 here and 3 have no walk
-// here`: a departure over the window is the first, none the second
+// here`: a departure over the window is the first, none the second. A thread
+// fold keeps no departures, so every haplotype none of its threads holds has
+// no step here.
 export function absentHaplotypesText(
   graph: Graph,
   asked: readonly string[],
   reference: string,
 ) {
   const absent = asked.filter(
-    prefix => !graph.paths?.some(path => panSNMatchesPrefix(path.name, prefix)),
+    prefix =>
+      !graph.paths?.some(
+        path =>
+          panSNMatchesPrefix(path.name, prefix) ||
+          !!path.members?.some(name => panSNMatchesPrefix(name, prefix)),
+      ),
   )
-  const departing = absent.filter(prefix =>
-    graph.departures?.names.some(name => panSNMatchesPrefix(name, prefix)),
-  ).length
+  const departing = graph.threadFold
+    ? absent.length
+    : absent.filter(prefix =>
+        graph.departures?.names.some(name => panSNMatchesPrefix(name, prefix)),
+      ).length
   const walkless = absent.length - departing
   const noStep = `no step on ${reference} here`
   const noWalk = 'no walk here'

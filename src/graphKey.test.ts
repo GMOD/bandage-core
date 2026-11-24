@@ -30,6 +30,7 @@ import {
 import { FADED_ALPHA, fadeAbgr } from './renderer/colorBits'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
+import { foldThreads } from './threadFold'
 import { axisScaleOf, keyedView } from './viewport'
 import { walkLift } from './walkHighlight'
 
@@ -894,6 +895,47 @@ test('the haplotypes asked for that the cut holds no step of are counted under t
   ).toBe('Walks')
   expect(absentHaplotypesText(away, ['far#2'], 'GRCh38 chr1')).toBe(
     '1 of 1 haplotype has no walk here',
+  )
+})
+
+// SV-del-100k+: every haplotype asked for walks the window, each riding a
+// thread named for one of them, yet the key read "5 of 8 haplotypes have no
+// walk here"
+test('a thread fold counts the haplotypes riding a thread as walked, and the rest as having no step here', () => {
+  const toy = loadGraph(
+    [
+      'S\ta\t*\tLN:i:1000',
+      'S\ts\t*\tLN:i:1',
+      'S\tt\t*\tLN:i:1',
+      'S\tb\t*\tLN:i:2000',
+      'S\tc\t*\tLN:i:1000',
+      'L\ta\t+\ts\t+\t0M',
+      'L\ta\t+\tt\t+\t0M',
+      'L\ts\t+\tb\t+\t0M',
+      'L\tt\t+\tb\t+\t0M',
+      'L\tb\t+\tc\t+\t0M',
+      'L\ts\t+\tc\t+\t0M',
+      'L\tt\t+\tc\t+\t0M',
+      'W\tref\t0\tchr\t0\t4001\t>a>s>b>c',
+      'W\th1\t1\tchr\t0\t4001\t>a>t>b>c',
+      'W\th2\t1\tchr\t0\t2001\t>a>s>c',
+      'W\th3\t1\tchr\t0\t2001\t>a>t>c',
+    ].join('\n'),
+    'toy',
+    { referencePath: 'ref#0#chr' },
+  )
+  const fold = foldThreads(toy, 500)
+  expect(fold.folded).toBe(true)
+  expect(fold.graph.paths?.map(path => path.members)).toEqual([
+    ['ref#0#chr'],
+    ['h1#1#chr'],
+    ['h2#1#chr', 'h3#1#chr'],
+  ])
+  expect(
+    absentHaplotypesText(fold.graph, ['h1#1', 'h2#1', 'h3#1'], 'chr'),
+  ).toBeUndefined()
+  expect(absentHaplotypesText(fold.graph, ['h3#1', 'none#1'], 'chr')).toBe(
+    '1 of 2 haplotypes has no step on chr here',
   )
 })
 
