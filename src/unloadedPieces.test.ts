@@ -44,10 +44,10 @@ import {
   getNodeColor,
 } from './renderer/GeometryBuilder'
 import { abgrHex } from './renderer/colorBits'
+import { foldThreads } from './threadFold'
 import { coarsenTubeMap } from './tubeMap/coarsen'
 import { drawTubeMap, notShownCaption, tubeMapPicture } from './tubeMap/draw'
 import { tubeMapNodeColors } from './tubeMap/nodeColors'
-import { foldThreads } from './threadFold'
 import { walkLift } from './walkHighlight'
 import { walkKey } from './walkKey'
 
@@ -938,7 +938,7 @@ test('a placeholder of a cut is never on the reference, so no folded reference n
       fold.graph.nodes.some(
         node =>
           node.stable?.rank === 0 &&
-          (node.placeholder ||
+          (node.placeholder === true ||
             (node.members ?? []).some(member => names.has(member))),
       ),
     ).toBe(false)
