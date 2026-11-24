@@ -73,10 +73,8 @@ const MIN_TILED_BAR_PX = 6
 // a unit separator is dropped when a unit is under this many px
 const MIN_TILE_PX = 3
 
-const sized = bpText
-
 function signedLength(delta: number) {
-  return `${delta > 0 ? '+' : '−'}${sized(Math.abs(delta))}`
+  return `${delta > 0 ? '+' : '−'}${bpText(Math.abs(delta))}`
 }
 
 function units(bp: number, unit: number | undefined) {
@@ -119,9 +117,10 @@ export function walkRowLine(
   row: Parameters<typeof walkRowReadout>[0],
   reference: Parameters<typeof walkRowReadout>[1],
 ) {
-  const hidden = (row.runs ?? [])
-    .filter(run => (run.heldBp ?? 0) > run.bp)
-    .reduce((sum, run) => sum + run.heldBp!, 0)
+  const hidden = (row.runs ?? []).reduce(
+    (sum, run) => sum + (run.heldBp ?? 0),
+    0,
+  )
   const stops = [row.stops?.left, row.stops?.right].filter(
     stop => stop !== undefined,
   )
@@ -139,11 +138,11 @@ export function walkRowLine(
       ? shown - of
       : 0
   const parts = [
-    `${exact ? '' : '≥ '}${sized(shown)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`,
-    ...(hidden > 0 ? [`// ${sized(hidden)}`] : []),
+    `${exact ? '' : '≥ '}${bpText(shown)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`,
+    ...(hidden > 0 ? [`// ${bpText(hidden)}`] : []),
   ]
   return !reference
-    ? sized(row.windowBp ?? row.bp)
+    ? bpText(row.windowBp ?? row.bp)
     : row.stepless || row.bp === 0
       ? ''
       : parts.join(' · ')
@@ -165,7 +164,7 @@ function partsText(
       ? []
       : gaps.length > 0
         ? causesParts(gaps, ownGap, region)
-        : [`${sized(gapBp)} ${GAP_CAUSE_TEXT.unread}`]),
+        : [`${bpText(gapBp)} ${GAP_CAUSE_TEXT.unread}`]),
   ]
   return stated.length > 0 ? `, of which ${stated.join(', ')}` : ''
 }
@@ -181,7 +180,6 @@ function causesParts(gaps: WalkRun[], ownGap: string, region: string) {
   const awayMissing = missingOf('away')
   const missing = bpOf('missing') + mixedMissing + awayMissing
   const lowerBound = gaps.some(g => g.atLeast)
-  // bp away whose departures were not read end to end may be left out too
   const unsure = gaps
     .filter(g => g.cause === 'away' && g.atLeast)
     .reduce((sum, g) => sum + heldBp(g) - (g.missingBp ?? 0), 0)
@@ -194,7 +192,7 @@ function causesParts(gaps: WalkRun[], ownGap: string, region: string) {
   ]
   return parts
     .filter(([bp]) => bp > 0)
-    .map(([bp, text, prefix = '']) => `${prefix}${sized(bp)} ${text}`)
+    .map(([bp, text, prefix = '']) => `${prefix}${bpText(bp)} ${text}`)
 }
 
 const contigBeforeText = (contigStart: number) =>
@@ -272,12 +270,12 @@ export function walkRowReadout(
   const others = otherContigsText(row.otherContigs)
   if (!reference) {
     const length = row.windowBp ?? bp
-    return `${sized(length)}${units(length, unit)}${others}`
+    return `${bpText(length)}${units(length, unit)}${others}`
   }
   const { revisited } = reference
   const name = reference.sample ?? 'the reference'
   const outside = row.outsideRow
-    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${ownAmount(sized(row.outsideRow.stepsBp), name, revisited)} in the graph` : ''}`
+    ? ` · ${row.outsideRow.count} departure${row.outsideRow.count > 1 ? 's' : ''} outside the row${row.outsideRow.stepsBp > 0 ? `, ${ownAmount(bpText(row.outsideRow.stepsBp), name, revisited)} in the graph` : ''}`
     : ''
   const beyond = `${outside}${others}`
   if (row.stepless) {
@@ -288,13 +286,13 @@ export function walkRowReadout(
     return text === '' ? '' : ` · ${text}`
   }
   const elsewhereText = (stretchBp: number) =>
-    `${sized(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
+    `${bpText(stretchBp)} ${name} ${FROM_ELSEWHERE_TEXT}`
   const elsewhere = row.fromElsewhereBp ?? 0
   const reversedBp = row.reversedBp ?? 0
   const region = unit ? 'repeat' : 'window'
   const parts = partsText(
     [
-      ...(reversedBp > 0 ? [`${sized(reversedBp)} reversed`] : []),
+      ...(reversedBp > 0 ? [`${bpText(reversedBp)} reversed`] : []),
       ...(row.replacedBp === undefined && elsewhere > 0
         ? [elsewhereText(elsewhere)]
         : []),
@@ -306,9 +304,9 @@ export function walkRowReadout(
   )
   const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
   // a bar reaching over contig outside the window holds no length over it
-  const ofContig = (length: number) => `${sized(length)} of its contig`
+  const ofContig = (length: number) => `${bpText(length)} of its contig`
   const called = call
-    ? ` · called ${sized(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
+    ? ` · called ${bpText(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
   const of = reference.windowBp ?? reference.bp
   // A pass across a window edge by what it holds: its own bp off the
@@ -323,19 +321,21 @@ export function walkRowReadout(
     const alone = own <= 0 && on === 0 && from === 0
     const inPlace =
       own > 0 || from > 0 || gaps > 0
-        ? ` in place of ${name}'s ${sized(replacedBp)}`
+        ? ` in place of ${name}'s ${bpText(replacedBp)}`
         : ''
     const held = [
       ...(own > 0 || pass.bp === 0
         ? [
             ownIsExact(revisited)
-              ? `its own ${sized(own)}`
-              : `${sized(own)} ${offPathText(name)}`,
+              ? `its own ${bpText(own)}`
+              : `${bpText(own)} ${offPathText(name)}`,
           ]
         : []),
-      ...(on > 0 ? [`${sized(on)} on ${name}`] : []),
+      ...(on > 0 ? [`${bpText(on)} on ${name}`] : []),
       ...(from > 0 ? [elsewhereText(from)] : []),
-      ...(gaps > 0 && alone ? [`${sized(gaps)} ${GAP_CAUSE_TEXT.unread}`] : []),
+      ...(gaps > 0 && alone
+        ? [`${bpText(gaps)} ${GAP_CAUSE_TEXT.unread}`]
+        : []),
     ]
     return `${held.join(' and ')}${inPlace}`
   }
@@ -346,7 +346,7 @@ export function walkRowReadout(
     const delta = length - of
     return pass.replacedBp !== undefined
       ? replacing(pass, pass.replacedBp)
-      : `${sized(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
+      : `${bpText(length)}${units(length, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`
   }
   // each pass over the window, where the bar holds several
   const passes = (row.passes ?? [])
@@ -370,7 +370,7 @@ export function walkRowReadout(
     : name
   const where = (stop: WalkStop) =>
     stop.shortBp > 0
-      ? `${sized(stop.shortBp)} ${stop.past ? 'past' : 'before'} the ${region}`
+      ? `${bpText(stop.shortBp)} ${stop.past ? 'past' : 'before'} the ${region}`
       : bp === 0
         ? `at the ${region}`
         : `inside the ${region}`
@@ -392,7 +392,7 @@ export function walkRowReadout(
     stops.every(stop => stop.contigEnds && (stop.contigStart ?? 0) === 0)
   const length = row.passesOutside
     ? ofContig(bp)
-    : `${exact ? '' : '≥ '}${sized(least)}${units(least, unit)}`
+    : `${exact ? '' : '≥ '}${bpText(least)}${units(least, unit)}`
   const stated =
     bp === 0
       ? `${whys}${parts}${passes}`
@@ -489,7 +489,6 @@ function fitReadout(
   )
 }
 
-// The px past its bar's end a readout needs to be drawn whole
 export const readoutRoomPx = (
   text: string,
   measure: (text: string) => number = readoutTextPx,
@@ -1180,7 +1179,7 @@ export function scaleBarTree(scaleX: number, x: number, y: number, px = 100) {
         'font-size': 10,
         fill: ink,
       },
-      sized(bp),
+      bpText(bp),
     ),
   ])
 }

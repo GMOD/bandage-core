@@ -363,8 +363,6 @@ function splitGap(
         d.hapStart - lastEnd(inside[k - 1]!) ===
           Math.abs(d.leavePos - inside[k - 1]!.rejoinPos),
     )
-  // the rest lies away from the window as far as the departures read tell;
-  // where they do not run end to end across the gap, some may be left out
   const rest: GapPart = {
     bp: between - missing,
     cause: spans ? 'own' : 'away',

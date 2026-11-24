@@ -1372,9 +1372,6 @@ export function walkRowRuns(
     // which way the last run steps through the reference, 0 while it holds
     // one node
     let step = 0
-    // the run the loop extends, pushed once the next one opens: its start,
-    // bp, place on the reference, flags, -1 before the first, and a gap's bp
-    // left out of graph
     let runStart = 0
     let runLength = 0
     let lastRef = Number.NaN
@@ -1383,9 +1380,6 @@ export function walkRowRuns(
     let runAtLeast = 0
     let lastAway = false
     let lastBoth = false
-    // Each stretch away from the window draws at most a fixed share of the
-    // reference's bar wide; `shortened` is the bp the stretches closed so far
-    // draw short by, so a visit starts where the bar draws it
     const breakWidth =
       bar && !stepless && walkName !== reference
         ? BREAK_SHARE * (bar.end - bar.start)
@@ -1420,10 +1414,7 @@ export function walkRowRuns(
       const on = !Number.isNaN(at)
       if (parts) {
         // a walk file's contig the cut did not keep is away from the window,
-        // and with no window, not drawn; GFA text states nothing of it. A gap
-        // holding some and none of the walk's own sequence is one trip out of
-        // the window, drawn as one stretch away, its bp left out of graph
-        // carried for the text
+        // and with no window, not drawn; GFA text states nothing of it
         const notKept = (part: GapPart) =>
           fromWalkFile &&
           walkName !== reference &&
@@ -1436,8 +1427,6 @@ export function walkRowRuns(
           const missing =
             part.cause === 'missing' ? part.bp : (part.missingBp ?? 0)
           const awayPart = trip || (notKept(part) && cut !== undefined)
-          // bp no departure read across could be left out of graph as well,
-          // as could a gap with no departure in it at all
           const unsure =
             awayPart &&
             (part.atLeast === true ||

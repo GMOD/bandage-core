@@ -20,6 +20,7 @@ import {
   rowSpan,
   scaleBarTree,
   chevronPoints,
+  walkRowLine,
   walkRowReadout,
   walkRowReadoutAt,
   walkRowsKey,
@@ -1123,6 +1124,126 @@ function longRow(): WalkRowsWithCalls {
     ],
   }
 }
+
+// The line beside a bar: its length, `≥` where its contig runs on, its change
+// against the reference only where it crosses the whole window with none of
+// it away, and `//` with every bp it spends away, at any zoom. pggb chrY's
+// NA20806#1 read "678 kb (+378 kb)" beside "of which 3.4 kb away" where its
+// 3.4 kb drew to scale
+describe('the line beside a bar', () => {
+  const on = (start: number, bp: number): WalkRun => ({
+    start,
+    bp,
+    onReference: true,
+    referenceStart: start,
+  })
+  const away = (start: number, bp: number, heldBp: number): WalkRun => ({
+    start,
+    bp,
+    onReference: false,
+    gap: true,
+    cause: 'away',
+    heldBp,
+  })
+  const reference = {
+    name: 'GRCh38#0#chr1',
+    label: 'GRCh38#0',
+    sample: 'GRCh38',
+    bp: 3000,
+    windowBp: 3000,
+    offReferenceBp: 0,
+    gapBp: 0,
+    complete: true,
+    runs: [on(0, 3000)],
+  }
+  const row = (o: Partial<WalkRowsWithCalls['rows'][number]>) => ({
+    name: 'H#1#c',
+    label: 'H#1',
+    sample: 'H',
+    bp: 3500,
+    offReferenceBp: 0,
+    gapBp: 0,
+    complete: true,
+    runs: [on(0, 3500)],
+    ...o,
+  })
+  test('a row crossing the whole window gives its change against the reference', () => {
+    expect(walkRowLine(row({ windowBp: 3500 }), reference)).toBe(
+      '3.5 kb (+500 bp)',
+    )
+  })
+  test('a pass replacing the window gives no change', () => {
+    expect(walkRowLine(row({ bp: 400, replacedBp: 6400 }), reference)).toBe(
+      '400 bp',
+    )
+  })
+  test('a row with bp away gives them after // and no change, drawn to scale or shortened', () => {
+    const runs = (drawn: number) => [
+      on(0, 1000),
+      away(1000, drawn, 3400),
+      on(1000 + drawn, 1000),
+    ]
+    for (const drawn of [3400, 45]) {
+      const r = row({
+        bp: 5400,
+        gapBp: 3400,
+        runs: runs(drawn),
+        passesOutside: true,
+      })
+      expect(walkRowLine(r, reference)).toBe('2.0 kb · // 3.4 kb')
+      expect(walkRowReadout(r, reference)).toContain(
+        'of which 3.4 kb away from the window',
+      )
+      expect(walkRowReadout(r, reference)).not.toContain('(+')
+    }
+  })
+  test('// sums every stretch away', () => {
+    const runs = [
+      on(0, 1000),
+      away(1000, 45, 1000),
+      on(1045, 1000),
+      away(2045, 45, 2000),
+      on(2090, 1000),
+    ]
+    expect(
+      walkRowLine(
+        row({ bp: 6000, runs, complete: false, passesOutside: true }),
+        reference,
+      ),
+    ).toBe('≥ 3.0 kb · // 3.0 kb')
+  })
+  test('a row whose contig runs on past an end reads at least its length', () => {
+    const stop = { contigEnds: false, shortBp: 0 }
+    expect(
+      walkRowLine(
+        row({ complete: false, windowBp: 1000, stops: { right: stop } }),
+        reference,
+      ),
+    ).toBe('≥ 1.0 kb')
+  })
+  test('a contig whose both ends are in the window reads its length', () => {
+    const end = { contigEnds: true, shortBp: 0, contigStart: 0 }
+    expect(
+      walkRowLine(
+        row({
+          complete: false,
+          windowBp: 1000,
+          stops: { left: { ...end, start: true }, right: end },
+        }),
+        reference,
+      ),
+    ).toBe('1.0 kb')
+  })
+  test('a row that leaves and comes back on the same side gives no change', () => {
+    const back = { contigEnds: false, shortBp: 0, turnsBack: true }
+    expect(
+      walkRowLine(
+        row({ complete: false, windowBp: 3500, stops: { right: back } }),
+        reference,
+      ),
+    ).toBe('≥ 3.5 kb')
+  })
+})
 
 // longRow's readout ran to a hundred characters, wrapped onto two lines or
 // cut beside its bar
