@@ -465,9 +465,10 @@ test('a lifted walk states the bp its departures say the graph lacks, and its bp
   expect(keyOf(Number.NaN)).toBe(keyOf(2))
 })
 
-// R1M-06 of the HPRC v2.1 audit: HG01123#1's 716 kb between two pieces lie
-// between two W lines, all left out of graph, where its readout said 538 kb
-// of them were away from the window
+// R1M-06 of the HPRC v2.1 audit: of HG01123#1's 716 kb between two pieces,
+// 537,765 bp lie on two W lines away from the window and 178,161 bp between W
+// lines, as its departures state; the cut reads no departure across the first,
+// so it cannot tell them from bp left out
 test('a gap no departure read across is drawn away from the window, its text saying its bp are not drawn or left out of graph', () => {
   const { row, gap, rows } = gapOf(twoFragments([], { after: 400 }))
   expect(gap).toEqual({
