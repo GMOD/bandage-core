@@ -361,10 +361,15 @@ async function backwardsByPaths() {
 test("figureData places an exon at the end of its node the reference reads it from, on a path-anchored node drawn against the reference's reading", async () => {
   const { graph, layout } = await backwardsByPaths()
   const d = figureData(graph, layout, { genes: FIRST_EXON })
-  const line = d.nodes.x.filter((_x, i) => d.nodes.node[i] === '5+')
+  const line = layout.nodePositions['5+']!
+  const xs = d.nodes.x.filter((_x, i) => d.nodes.node[i] === '5+')
+  expect([
+    xs.reduce((a, b) => Math.min(a, b)),
+    xs.reduce((a, b) => Math.max(a, b)),
+  ]).toEqual([line[0]!.x, line.at(-1)!.x].toSorted((a, b) => a - b))
   expect(new Set(d.exons.node)).toEqual(new Set(['5+']))
   for (const x of d.exons.x) {
-    expect(Math.abs(x - line.at(-1)!)).toBeLessThan(Math.abs(x - line[0]!))
+    expect(Math.abs(x - line.at(-1)!.x)).toBeLessThan(Math.abs(x - line[0]!.x))
   }
 })
 
