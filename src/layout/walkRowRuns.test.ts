@@ -351,9 +351,6 @@ test('a stretch away from the window draws as a break at most one width, and the
   expect(
     walkRowsKey(rows).filter(e => e.label.startsWith('away from')),
   ).toMatchObject([{ label: 'away from the window' }])
-  expect(walkRowsKey(rows).at(-1)!.label).toBe(
-    '// marks a stretch away from the window drawn shorter than its bp; the text beside the row sums the bp it spends away',
-  )
 })
 
 // The walks' own pieces on chr1:0-5000, a kb a node, with trimmed bp stated
@@ -430,7 +427,7 @@ test('a gap between two pieces that holds away bp is one break, its left-out bp 
   ])
   expect(row!.axis?.breaks).toHaveLength(2)
   expect(walkRowReadout(row!, rows.reference)).toContain(
-    'at least 1.5 kb left out of graph, 4.5 kb away from the window',
+    'at least 1.5 kb left out of graph, 4.5 kb not drawn or left out of graph',
   )
 })
 

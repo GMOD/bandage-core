@@ -1436,13 +1436,19 @@ export function walkRowRuns(
           const missing =
             part.cause === 'missing' ? part.bp : (part.missingBp ?? 0)
           const awayPart = trip || (notKept(part) && cut !== undefined)
+          // bp no departure read across could be left out of graph as well,
+          // as could a gap with no departure in it at all
+          const unsure =
+            awayPart &&
+            (part.atLeast === true ||
+              (part.cause === undefined && parts.length === 1))
           if (awayPart && lastAway) {
             runLength += part.bp
             runMissing =
               missing > 0
                 ? (Number.isNaN(runMissing) ? 0 : runMissing) + missing
                 : runMissing
-            runAtLeast = runAtLeast || (part.atLeast ? 1 : 0)
+            runAtLeast = runAtLeast || (unsure ? 1 : 0)
           } else {
             close()
             runStart = bp
@@ -1457,7 +1463,7 @@ export function walkRowRuns(
                 : trip
                   ? Number.NaN
                   : (part.missingBp ?? Number.NaN)
-            runAtLeast = part.atLeast ? 1 : 0
+            runAtLeast = part.atLeast || unsure ? 1 : 0
           }
           lastAway = awayPart
           bp += part.bp

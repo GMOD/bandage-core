@@ -100,23 +100,24 @@ const near = (refName: string | undefined, pos: number) =>
 const awayText = (region: string) =>
   GAP_CAUSE_TEXT.away.replace('window', region)
 
-// Where a walk goes past an end of its bar that is not its contig's end
+// Where a walk goes past an end of its bar that is not its contig's end; no
+// place is given for where it comes from, which no truth cut has confirmed
 const endText = (stop: WalkStop, refName: string | undefined, region: string) =>
   stop.turnsBack
     ? `turns back out of the ${region}`
-    : `${stop.start ? 'comes from' : 'goes on'} ${stop.goesOn ? `near ${near(refName, stop.goesOn.near)}` : awayText(region)}`
+    : stop.start
+      ? `comes from ${awayText(region)}`
+      : `goes on ${stop.goesOn ? `near ${near(refName, stop.goesOn.near)}` : awayText(region)}`
 
 /**
- * The text drawn beside a row's bar, on one line: the bp the bar shows, with
- * its change against the reference where it crosses the window, `//` and the
- * bp its breaks stand for, and where the walk goes on past an end of the bar
- * that is not its contig's. walkRowReadout's text is the rest, on hover.
+ * The text drawn beside a row's bar, on one line: the bp the bar shows, `≥`
+ * where its contig runs on, with its change against the reference where it
+ * crosses the window, and `//` and the bp its breaks stand for.
+ * walkRowReadout's text is the rest, on hover.
  */
 export function walkRowLine(
   row: Parameters<typeof walkRowReadout>[0],
   reference: Parameters<typeof walkRowReadout>[1],
-  unit?: number,
-  call?: ReadoutCall,
 ) {
   const hidden = (row.runs ?? [])
     .filter(run => (run.heldBp ?? 0) > run.bp)
@@ -137,18 +138,15 @@ export function walkRowLine(
     row.complete && hidden === 0 && row.replacedBp === undefined
       ? shown - of
       : 0
-  const region = unit ? 'repeat' : 'window'
   const parts = [
-    `${exact ? '' : '≥ '}${sized(shown)}${units(shown, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`,
+    `${exact ? '' : '≥ '}${sized(shown)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`,
     ...(hidden > 0 ? [`// ${sized(hidden)}`] : []),
-    ...stops
-      .filter(stop => !stop.contigEnds)
-      .map(stop => endText(stop, reference?.name, region)),
-    ...(call ? [`called ${sized(call.bp)}`] : []),
   ]
-  return !reference || row.stepless || row.bp === 0
-    ? walkRowReadout(row, reference, unit, call)
-    : parts.join(' · ')
+  return !reference
+    ? sized(row.windowBp ?? row.bp)
+    : row.stepless || row.bp === 0
+      ? ''
+      : parts.join(' · ')
 }
 
 // Parts of a row's bp: `drawn` ones first, then what the cut left out, by the
@@ -183,9 +181,14 @@ function causesParts(gaps: WalkRun[], ownGap: string, region: string) {
   const awayMissing = missingOf('away')
   const missing = bpOf('missing') + mixedMissing + awayMissing
   const lowerBound = gaps.some(g => g.atLeast)
+  // bp away whose departures were not read end to end may be left out too
+  const unsure = gaps
+    .filter(g => g.cause === 'away' && g.atLeast)
+    .reduce((sum, g) => sum + heldBp(g) - (g.missingBp ?? 0), 0)
   const parts: [number, string, string?][] = [
     [missing, GAP_CAUSE_TEXT.missing, lowerBound ? 'at least ' : ''],
-    [bpOf('away') - awayMissing, awayText(region)],
+    [bpOf('away') - awayMissing - unsure, awayText(region)],
+    [unsure, GAP_CAUSE_TEXT.mixed],
     [bpOf('own') + bpOf('mixed') - mixedMissing, ownGap],
     [bpOf('unread') + bpOf(undefined), GAP_CAUSE_TEXT.unread],
   ]
@@ -381,7 +384,7 @@ export function walkRowReadout(
         : stop.contigStart === 0
           ? `contig starts ${where(stop)}`
           : `${bp === 0 || stop.shortBp > 0 ? `first step on ${sequence} ${where(stop)}, ` : ''}${contigBeforeText(stop.contigStart)}`
-      : `${endText(stop, reference.name, region)}${stop.goesOn && !stop.goesOn.drawn ? ownTextAfter(stop.goesOn.departure) : ''}`
+      : `${endText(stop, reference.name, region)}${stop.goesOn && !stop.goesOn.drawn && !stop.start ? ownTextAfter(stop.goesOn.departure) : ''}`
   const whys = (short && bp === 0 ? [short] : stops).map(why).join(' · ')
   const least = row.windowBp ?? bp
   const exact =
@@ -501,7 +504,7 @@ export function walkRowReadoutParts(
 ) {
   const row = i === 0 ? bars.reference : bars.rows[i - 1]!
   const reference = i === 0 ? undefined : bars.reference
-  const base = walkRowLine(row, reference, bars.unit, row.call)
+  const base = walkRowLine(row, reference)
   const full = walkRowReadout(row, reference, bars.unit, row.call)
   const suffix =
     comparing && i > 0 && rowsNeedingRoutes([row]) > 0
@@ -602,7 +605,7 @@ export function gapStyle(
     ? {
         fill: MISSING_INK,
         px: MISSING_PX,
-        label: `${GAP_CAUSE_TEXT.missing}: in the assembly, but the graph builder dropped it`,
+        label: GAP_CAUSE_TEXT.missing,
       }
     : cause === 'departure'
       ? { fill: MISSING_INK, px: MISSING_PX, label: GAP_CAUSE_TEXT.departure }
@@ -610,13 +613,13 @@ export function gapStyle(
         ? {
             fill: OWN_GAP,
             px: GAP_PX,
-            label: `${ownGap}: in the graph off the reference, between two stretches drawn here`,
+            label: ownGap,
           }
         : cause === 'mixed'
           ? {
               fill: OWN_GAP,
               px: MISSING_PX,
-              label: `${GAP_CAUSE_TEXT.mixed}: some of each`,
+              label: GAP_CAUSE_TEXT.mixed,
             }
           : cause === 'away'
             ? {
@@ -628,12 +631,12 @@ export function gapStyle(
               ? {
                   fill: OUTSIDE_CUT,
                   px: MISSING_PX,
-                  label: `${GAP_CAUSE_TEXT.unread}: in the graph, where the walk went after leaving this view`,
+                  label: GAP_CAUSE_TEXT.unread,
                 }
               : {
                   fill: OUTSIDE_CUT,
                   px: GAP_PX,
-                  label: `${GAP_CAUSE_TEXT.unread}: between two pieces of the walk, with no step of it here`,
+                  label: GAP_CAUSE_TEXT.unread,
                 }
 }
 
@@ -1063,6 +1066,7 @@ export function walkRowsKey(
     const { fill, px, label } = gapStyle(cause, ownGap, region)
     if (labels.has(label)) {
       entries.push({ swatch: { kind: 'gap', fill, px }, label })
+      labels.delete(label)
     }
   }
   const leftOut = o.comparing ? rowsNeedingRoutes(bars.rows) : 0
@@ -1076,20 +1080,10 @@ export function walkRowsKey(
       note: true,
     })
   }
-  if (rows.some(row => row.runs.some(shortened))) {
-    entries.push({ swatch: { kind: 'gene' }, label: BREAK_TEXT, note: true })
-  }
   if (o.ruler) {
     entries.push({
       swatch: { kind: 'gene' },
       label: OWN_SCALE_TEXT,
-      note: true,
-    })
-  }
-  if (rows.some(row => row.placementChoice)) {
-    entries.push({
-      swatch: { kind: 'gene' },
-      label: `${PLACEMENT_CHOICE_TEXT}: the writer chose which pass of a node the reference passes more than once a step takes`,
       note: true,
     })
   }

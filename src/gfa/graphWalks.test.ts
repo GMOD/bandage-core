@@ -175,7 +175,7 @@ test("a walk ending at the window's edge reads as a contig end only with no depa
 test('a walk that comes into the window by a departure says where it comes from', async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 4000, 4500, 500)
   expect(row('HG002#1')).toMatchObject({
-    readout: '≥ 500 bp · comes from near chr1:2 kb · 4.0 kb of its own',
+    readout: '≥ 500 bp · comes from away from the window',
     row: {
       complete: false,
       stops: { left: { contigEnds: false, goesOn: { near: 1500 } } },

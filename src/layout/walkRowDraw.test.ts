@@ -496,12 +496,8 @@ test("a gap of the walk's bp off the reference reads as its own, or off the refe
       rows: [{ ...bars.rows[0]!, runs }],
     }).map(e => e.label)
   }
-  expect(keyLabels(0)).toContain(
-    'own sequence not drawn: in the graph off the reference, between two stretches drawn here',
-  )
-  expect(keyLabels(2)).toContain(
-    "off GRCh38#0's path and not drawn: in the graph off the reference, between two stretches drawn here",
-  )
+  expect(keyLabels(0)).toContain('own sequence not drawn')
+  expect(keyLabels(2)).toContain("off GRCh38#0's path and not drawn")
 })
 
 test('a partial walk states a lower bound and why it stops', () => {
@@ -595,7 +591,7 @@ test('the key says the colours are the graph’s alignment', () => {
     "on GRCh38#0's path",
     "off GRCh38#0's path",
     "walked against GRCh38#0's direction",
-    'not drawn: between two pieces of the walk, with no step of it here',
+    'not drawn',
     'gene',
     'no gene track for 2 rows',
   ])
