@@ -1186,7 +1186,7 @@ const foldOf = (options: BuildOptions, curves: EdgeCurves) => {
     curves,
     [
       fold,
-      highlight,
+      highlight?.walks.length ? highlight.edgeIndexes : undefined,
       drawPaths,
       contigThickness,
       connectorThickness,

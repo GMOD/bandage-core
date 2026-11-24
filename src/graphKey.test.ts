@@ -1405,6 +1405,7 @@ const foldOf = (sites: Site[], pxPerBp = 1): Fold => ({
   through: new Map(),
   bridges: new Map(),
   runOf: new Map(),
+  tooShort: new Map(),
 })
 
 test("the key's counts are the folded nodes and skip links, each once, however many sites or panels hold them", () => {
