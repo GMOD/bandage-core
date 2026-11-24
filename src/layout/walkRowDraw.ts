@@ -1504,7 +1504,9 @@ export function coalesceRuns(runs: WalkRun[], pxPerBp: number, marked = false) {
         bp: on + off + unloaded,
         onReference,
         referenceStart: onReference ? lead.referenceStart : undefined,
-        ...(lead.reversed ? { reversed: true as const } : {}),
+        ...(onReference && bucket.every(r => !r.onReference || r.reversed)
+          ? { reversed: true as const }
+          : {}),
         ...(hollow ? { unloaded: true as const } : {}),
       })
     }

@@ -701,6 +701,27 @@ test('chevrons run along a stretch walked against the reference however small si
   expect(chevroned / reversedBp).toBeGreaterThanOrEqual(0.9)
 })
 
+// A coalesced stretch took its strand from its first run on the reference:
+// 50 bp walked against it before each 600 bp along it, 400 times, drew one
+// chevroned stretch over 240 kb walked along it at 720 bp a px. H-AMY1
+// HG02055#1 had 1.3 kb of 13.5 kb so
+test('chevrons sit only where every bp on the reference under them is walked against it', () => {
+  const runs: WalkRun[] = []
+  for (let at = 0; at < 400 * 650; at += 650) {
+    runs.push(
+      {
+        start: at,
+        bp: 50,
+        onReference: true,
+        referenceStart: 300_000 - at,
+        reversed: true,
+      },
+      { start: at + 50, bp: 600, onReference: true, referenceStart: at },
+    )
+  }
+  expect(reversedStretches(coalesceRuns(runs, 1 / 720))).toEqual([])
+})
+
 // The plugin paints bars on a canvas and drew H-8p23's 3.97 Mb walked against
 // GRCh38 with no chevron, while its key and readouts said "reversed"
 test('chevrons are drawn where a host paints the bars itself', () => {
