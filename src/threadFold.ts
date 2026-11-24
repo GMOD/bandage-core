@@ -401,11 +401,22 @@ export function foldedGraph(
   })
   return {
     ...graph,
-    nodes: graph.nodes.map(node => ({
-      ...node,
-      depth: through.get(node.id) ?? node.depth,
-      members: fold.members[node.name] ?? [],
-    })),
+    nodes: graph.nodes.map(node => {
+      const cluster = fold.nodes[index.get(node.name) ?? -1]?.cluster
+      return {
+        ...node,
+        depth: through.get(node.id) ?? node.depth,
+        members: fold.members[node.name] ?? [],
+        ...(cluster
+          ? {
+              lengthSpan: {
+                least: cluster.minLength,
+                most: cluster.maxLength,
+              },
+            }
+          : {}),
+      }
+    }),
     edges: graph.edges.map((edge, i) => ({
       ...edge,
       passes: linkWalks[i]!,

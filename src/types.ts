@@ -34,6 +34,9 @@ export interface GraphNode {
   departureVisits?: PathVisit[]
   // set on a node foldThreads merged: the names of the nodes it holds
   members?: string[]
+  // set on a node foldThreads drew for alleles of near lengths at one site:
+  // the least and most of them, which its label gives in place of its length
+  lengthSpan?: { least: number; most: number }
 }
 
 export interface GraphEdge {

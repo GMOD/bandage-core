@@ -723,3 +723,29 @@ test('a stretch not loaded under the fold rides the reference with the rest of i
     reference.flatMap(node => node.members ?? []),
   ).toContain('h3#1#chr:1000-1100')
 })
+
+test('a node drawn for alleles of near lengths is labelled with their range', () => {
+  const near = loadGraph(
+    `S\ta\t*\tLN:i:1000
+S\tc\t*\tLN:i:1000
+S\tx\t*\tLN:i:2900
+S\ty\t*\tLN:i:3000
+L\ta\t+\tc\t+\t0M
+L\ta\t+\tx\t+\t0M
+L\tx\t+\tc\t+\t0M
+L\ta\t+\ty\t+\t0M
+L\ty\t+\tc\t+\t0M
+W\tref\t0\tchr\t0\t2000\t>a>c
+W\th1\t1\tchr\t0\t4900\t>a>x>c
+W\th2\t1\tchr\t0\t5000\t>a>y>c`,
+    'near',
+    { referencePath: 'ref#0#chr' },
+  )
+  const { graph } = folded(near, 500)
+  const clustered = graph.nodes.find(node => node.lengthSpan)
+  expect(clustered?.lengthSpan).toEqual({ least: 2900, most: 3000 })
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  expect(
+    figureData(graph, layout, { width: 600, height: 300 }).labels.text,
+  ).toContain('2.9\u20133 kb')
+})

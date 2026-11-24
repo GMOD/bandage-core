@@ -231,7 +231,10 @@ const LENGTH_SPOTS = Array.from({ length: 15 }, (_, k) => (k + 1) / 16).sort(
   (a, b) => Math.abs(a - 0.5) - Math.abs(b - 0.5) || a - b,
 )
 
-export type NodeKinds = ReadonlyMap<string, Pick<GraphNode, 'placeholder'>>
+export type NodeKinds = ReadonlyMap<
+  string,
+  Pick<GraphNode, 'placeholder' | 'lengthSpan'>
+>
 
 interface SizeLabelArgs {
   nodePositions: Record<string, NodeSegment[]>
@@ -421,7 +424,12 @@ export function sizeLabelCandidates({
     const standsOff = kept || bp * pxPerBp >= SMALL_SITE_PX
     const [middle] = spots
     if (middle && (drawn >= MIN_ALONG_PX || standsOff)) {
-      const label = { key: `node:${id}`, node: id, text: formatBp(bp) }
+      const span = nodeById?.get(id)?.lengthSpan
+      const label = {
+        key: `node:${id}`,
+        node: id,
+        text: span ? formatBpSpan(span.least, span.most) : formatBp(bp),
+      }
       const halfW = labelHalfWidth(label.text)
       const line = drawn >= MIN_ALONG_PX ? segments.map(screen) : []
       const along = spots
@@ -461,8 +469,10 @@ export function sizeLabelCandidates({
 export interface WalkLoop {
   nodes: string[]
   bp: number
-  // the shortest of the walks' loops drawn over it
+  // the shortest of the walks' loops drawn over it, and the longest, where a
+  // node drawn for alleles of near lengths stands for longer ones
   least: number
+  most: number
   // the nodes of every walk's loop drawn over it, its own included
   drawn: Set<string>
 }
@@ -477,10 +487,13 @@ export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
   return loopsCache(graph.nodes, [graph.paths], () => {
     const byId = new Map(graph.nodes.map(node => [node.id, node]))
     const seen = new Set<string>()
-    const runs: { nodes: string[]; bp: number }[] = []
+    const runs: { nodes: string[]; bp: number; least: number; most: number }[] =
+      []
     for (const path of graph.paths ?? []) {
       let nodes: string[] = []
       let bp = 0
+      let least = 0
+      let most = 0
       let loaded = true
       let met = false
       for (const id of path.nodeIds) {
@@ -489,15 +502,20 @@ export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
           const key = nodes.join(' ')
           if (met && loaded && nodes.length > 0 && !seen.has(key)) {
             seen.add(key)
-            runs.push({ nodes, bp })
+            runs.push({ nodes, bp, least, most })
           }
           met = true
           nodes = []
           bp = 0
+          least = 0
+          most = 0
           loaded = true
         } else {
+          const length = node?.length ?? 0
           nodes.push(id)
-          bp += node?.length ?? 0
+          bp += length
+          least += node?.lengthSpan?.least ?? length
+          most += node?.lengthSpan?.most ?? length
           loaded &&= !!node && !node.placeholder
         }
       }
@@ -523,7 +541,8 @@ export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
       }
       const loop = joined === undefined ? undefined : loops[joined]
       if (loop) {
-        loop.least = Math.min(loop.least, run.bp)
+        loop.least = Math.min(loop.least, run.least)
+        loop.most = Math.max(loop.most, run.most)
         for (const id of run.nodes) {
           loop.drawn.add(id)
         }
@@ -531,7 +550,7 @@ export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
         for (const id of new Set(run.nodes)) {
           pushTo(loopsHolding, id, loops.length)
         }
-        loops.push({ ...run, least: run.bp, drawn: new Set(run.nodes) })
+        loops.push({ ...run, drawn: new Set(run.nodes) })
       }
     }
     return loops
@@ -672,7 +691,7 @@ export function loopLabelCandidates({
   const seen = new Map<string, number>()
   const candidates: SizeLabelCandidate[] = []
   for (const { loop, line, ends } of drawnLines) {
-    const text = formatBpSpan(loop.least, loop.bp)
+    const text = formatBpSpan(loop.least, loop.most)
     const halfW = labelHalfWidth(text)
     if (
       loop.bp * pxPerBp >= SMALL_SITE_PX &&
