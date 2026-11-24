@@ -4,7 +4,7 @@ import { againstHoverText, walksAgainstReference } from './againstReference'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { drawnMarks, graphKey } from './graphKey'
 import { layoutModeByValue } from './layoutModes'
-import { forceLayout, loadGraph } from './pipeline'
+import { drawingBounds, fitTransform, forceLayout, loadGraph } from './pipeline'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { walkLift } from './walkHighlight'
@@ -132,6 +132,71 @@ test('a stretch read against the reference shorter than the fold draws takes no 
   expect(
     drawn(graph, undefined, shown).arrows.filter(a => a.turned).length,
   ).toBeGreaterThan(0)
+})
+
+// review 4: an inverted walk's SNPs split the stretch it reads against the
+// reference into pieces of a few hundred bp, each under the fold at an
+// overview, and its heads went with them
+test('heads mark a long inversion whose walk carries a SNP every 300 bp, at an overview fit', () => {
+  const n = 600
+  const [a, b] = [200, 400]
+  const piece = (i: number) => `p${i}`
+  const lines = [
+    ...Array.from(
+      { length: n },
+      (_, i) => `S\t${piece(i)}\t${'ACGT'.repeat(75)}`,
+    ),
+    ...Array.from({ length: n - 1 }, (_, i) => [
+      `S\ts${i}\tA`,
+      `S\tt${i}\tC`,
+      `L\t${piece(i)}\t+\ts${i}\t+\t0M`,
+      `L\ts${i}\t+\t${piece(i + 1)}\t+\t0M`,
+      `L\t${piece(i)}\t+\tt${i}\t+\t0M`,
+      `L\tt${i}\t+\t${piece(i + 1)}\t+\t0M`,
+    ]).flat(),
+    `L\ts${a - 1}\t+\t${piece(b)}\t-\t0M`,
+    `L\t${piece(a)}\t-\ts${b}\t+\t0M`,
+  ]
+  const forward = (from: number, to: number) =>
+    Array.from({ length: to - from }, (_, k) => from + k)
+      .map(i => `>${piece(i)}${i < n - 1 ? `>s${i}` : ''}`)
+      .join('')
+  const inverted = Array.from({ length: b - a + 1 }, (_, k) => b - k)
+    .map(i => `<${piece(i)}${i > a ? `<t${i - 1}` : ''}`)
+    .join('')
+  const g = loadGraph(
+    [
+      ...lines,
+      `W\tGRCh38\t0\tchr1\t0\t*\t${forward(0, n)}`,
+      `W\tinv\t1\tc\t0\t*\t${forward(0, a)}${inverted}${forward(b + 1, n)}`,
+    ].join('\n'),
+    'snp-split inversion',
+  )
+  const layout = layoutModeByValue('ordered').run(g, undefined)!
+  const fit = fitTransform(drawingBounds(layout, {}), 1090, 300, false)!
+  const batch = buildGeometry({
+    ...layoutGeometryInputs(layout, deletionDrawing(g, deletionEdges(g))),
+    graph: g,
+    nodeById: new Map(g.nodes.map(node => [node.id, node])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    axis: { scaleX: fit.scale, scaleY: fit.scale },
+  })
+  expect(300 * batch.collapsed!.pxPerBp).toBeLessThan(3)
+  const headed = new Set(
+    batch.arrows.filter(head => head.turned).map(head => head.node),
+  )
+  const name = (id: string | undefined) =>
+    Number(g.nodes.find(node => node.id === id)?.name.slice(1))
+  const pieces = [...headed].map(name)
+  expect(pieces.length).toBeGreaterThan(0)
+  expect(pieces.every(i => i >= a && i <= b)).toBe(true)
+  const spread =
+    pieces.reduce((most, i) => Math.max(most, i), -Infinity) -
+    pieces.reduce((least, i) => Math.min(least, i), Infinity)
+  expect(spread).toBeGreaterThan((b - a) / 2)
 })
 
 // SV-inv-10k-100k: the fit of its force layout is under the 0.45 px a unit

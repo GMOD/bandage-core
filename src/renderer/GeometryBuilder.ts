@@ -68,7 +68,6 @@ import {
   walkSteps,
 } from './walkLanes'
 
-import type { AnchoredNode } from '../anchoredNodes'
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
@@ -1097,31 +1096,47 @@ const walkWideCache = weakMemo<
 const droppedHeadsCache = weakMemo<EdgeCurves, ReadonlySet<number>>()
 const NO_HEADS_DROPPED: ReadonlySet<number> = new Set()
 
-// Each node's bp together with those of the nodes given that abut it on the
-// reference
-function abuttingBp(nodes: AnchoredNode[]) {
-  const sorted = nodes.toSorted(
-    (a, b) =>
-      compareValues(a.stable.refName, b.stable.refName) ||
-      a.stable.start - b.stable.start,
-  )
-  const bp = new Map<string, number>()
-  let from = 0
-  sorted.forEach((node, i) => {
-    const next = sorted[i + 1]
-    if (
-      next?.stable.refName !== node.stable.refName ||
-      node.stable.start + node.length !== next.stable.start
-    ) {
-      const stretch = sorted.slice(from, i + 1)
-      const total = stretch.reduce((sum, n) => sum + n.length, 0)
-      for (const n of stretch) {
-        bp.set(n.id, total)
+const runBpCache = weakMemo<
+  ReadonlyMap<string, readonly string[]>,
+  ReadonlyMap<string, number>
+>()
+
+// The bp each node read against the reference spans together with the others
+// so read on its sequence, where no more than `gapBp` lies between them: the
+// SNPs an inverted walk carries split its stretch into pieces the fold would
+// otherwise measure one by one
+function againstRunBp(
+  against: ReadonlyMap<string, readonly string[]>,
+  graph: Graph,
+  gapBp: number,
+) {
+  return runBpCache(against, [graph, gapBp], () => {
+    const sorted = graph.nodes
+      .filter(isBackbone)
+      .filter(node => against.has(node.id))
+      .sort(
+        (a, b) =>
+          compareValues(a.stable.refName, b.stable.refName) ||
+          a.stable.start - b.stable.start,
+      )
+    const bp = new Map<string, number>()
+    let from = 0
+    sorted.forEach((node, i) => {
+      const next = sorted[i + 1]
+      const end = node.stable.start + node.length
+      if (
+        next?.stable.refName !== node.stable.refName ||
+        next.stable.start - end > gapBp
+      ) {
+        const span = end - sorted[from]!.stable.start
+        for (const n of sorted.slice(from, i + 1)) {
+          bp.set(n.id, span)
+        }
+        from = i + 1
       }
-      from = i + 1
-    }
+    })
+    return bp
   })
-  return bp
 }
 
 const headInBounds = (
@@ -2758,8 +2773,10 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     : walksAgainstReference(graph)
   if (against?.size) {
     const place = laneHeadPlacer(scale, yToX)
-    const stretchBp = abuttingBp(
-      graph.nodes.filter(isBackbone).filter(node => against.has(node.id)),
+    const runBp = againstRunBp(
+      against,
+      graph,
+      collapse.pxPerBp > 0 ? SMALL_SITE_PX / collapse.pxPerBp : 0,
     )
     for (const id of against.keys()) {
       const node = nodeById.get(id)
@@ -2771,7 +2788,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         stroke &&
         !stroke.placeholder &&
         (collapse.pxPerBp === 0 ||
-          (stretchBp.get(id) ?? 0) * collapse.pxPerBp >= SMALL_SITE_PX)
+          (runBp.get(id) ?? 0) * collapse.pxPerBp >= SMALL_SITE_PX)
       ) {
         for (const head of place({
           points: stroke.points,
