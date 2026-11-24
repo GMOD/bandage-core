@@ -65,9 +65,9 @@ When a track loads more graph than its window shows, place the drawing with
 - With walks, a skip or padded arm too short on screen for three dashes is a low
   arch over its feet, no wider than its chord and no higher than it is long.
   Where its span is under `SKIP_LEVEL_PX` or three times its stroke, it draws as
-  the plain link it is, in link ink at its walks' width, so the path its walks
-  take, and an allele they carry, stays joined to the reference. The key counts
-  it as not drawn ([Small sites](#small-sites))
+  the plain link it is, in link ink at its walks' width, under the nodes, so the
+  path its walks take, and an allele they carry, stays joined to the reference.
+  The key counts it as not drawn ([Small sites](#small-sites))
 - Where a haplotype runs on past the cut, its loose end gets a dark tab. The key
   calls it `graph runs on past what is drawn`; `figureData`'s `arrows` table
   marks it `runsOn`

@@ -2267,6 +2267,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       )
     : NO_HEADS_DROPPED
   const bridgeStrokes = new Set<number>()
+  const shortSkipStrokes = new Set<number>()
   let pathRibbons = false
   const inView = (curves: BezierCurve[]) =>
     !viewportBounds || isBezierInBounds(curves, viewportBounds)
@@ -2636,6 +2637,11 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     if (edgeCurveCount > 0) {
       edgeCurveRuns.set(ei, { start: edgeCurveStart, count: edgeCurveCount })
     }
+    if (collapse.shortSkips.has(ei)) {
+      for (let k = edgeCurveStart; k < edgeCurves.length; k++) {
+        shortSkipStrokes.add(k)
+      }
+    }
     const arrowCount = arrows.length - arrowStart
     if (arrowCount > 0) {
       arrowRuns.set(ei, { start: arrowStart, count: arrowCount })
@@ -2887,7 +2893,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         last &&
         !stroke.skip &&
         !stroke.turn &&
-        !bridgeStrokes.has(k)
+        !bridgeStrokes.has(k) &&
+        !shortSkipStrokes.has(k)
         ? [
             {
               id: k,

@@ -179,7 +179,7 @@ describe('every skip is drawn dashed over the nodes or counted in the key, never
     },
   )
 
-  test('on the hosted HPRC walks at chr2:90,391,794-90,397,920, laid by FMMM, fitted to 1090 x 329 px and zoomed in twice and four times, in either small-sites mode', async () => {
+  test('on the hosted HPRC walks at chr2:90,391,794-90,397,920, laid by FMMM, fitted to 1090 x 329 px and zoomed in twice and four times, in either small-sites mode, where each counted short skip keeps its plain link under the nodes', async () => {
     const graph = hostedWindow()
     const pane = { width: 1090, height: 329 }
     const { result: layout } = await forceLayout(
@@ -206,6 +206,13 @@ describe('every skip is drawn dashed over the nodes or counted in the key, never
         expect(skips.filter(s => s.dashed === s.counted)).toEqual([])
         expect(skips.filter(s => s.counted && s.bp >= s.under)).toEqual([])
         expect(batch.collapsed?.shortSkips.size).toBeGreaterThan(0)
+        expect(
+          Array.from(batch.collapsed?.shortSkips.keys() ?? []).filter(edge => {
+            const run = batch.edgeCurveRuns.get(edge)
+            const stroke = run ? batch.edgeCurves[run.start] : undefined
+            return !stroke || stroke.skip || stroke.along
+          }),
+        ).toEqual([])
       }
     }
   }, 120_000)
