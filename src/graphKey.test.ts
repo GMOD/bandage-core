@@ -1341,6 +1341,7 @@ test('the key says how many nodes and skips are too small to draw, in one line w
     '38 nodes and 4 skips under 19 bp not drawn',
   )
   expect(tooSmallText(1, 0, 1)).toBe('1 node under 1 bp not drawn')
+  expect(tooSmallText(0, 0)).toBe('')
   expect(tooSmallText(0, 2, 1250)).toBe('2 skips under 1,250 bp not drawn')
   const { layout, batch } = drawn(SMALL, smallSites())
   expect(batch.collapsed?.sites.map(s => s.nodes)).toEqual([['a1+'], []])

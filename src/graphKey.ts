@@ -430,9 +430,11 @@ export function tooSmallText(nodes: number, skips: number, underBp = 0) {
     ...(nodes > 0 ? [counted(nodes, 'node', 'nodes')] : []),
     ...(skips > 0 ? [counted(skips, 'skip', 'skips')] : []),
   ]
-  return underBp > 0
-    ? `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`
-    : `${parts.join(' and ')} too small to draw`
+  return parts.length === 0
+    ? ''
+    : underBp > 0
+      ? `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`
+      : `${parts.join(' and ')} too small to draw`
 }
 
 const have = (n: number) => (n === 1 ? 'has' : 'have')

@@ -28,7 +28,6 @@ export interface PaddedFoot extends Skipped {
   // the loaded reference between its run's ends, which its arms are sized by
   replacedBp: number
   nodes: string[]
-  // whether every walk through it skips this one stretch
   sameStretch: boolean
 }
 
