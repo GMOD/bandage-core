@@ -2270,7 +2270,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             axis,
             undefined,
             undefined,
-            stranded,
+            stranded ?? false,
           )
         : undefined) ?? sharedCurves.get(ei)!
 
