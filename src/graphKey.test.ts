@@ -898,33 +898,34 @@ test('the haplotypes asked for that the cut holds no step of are counted under t
   )
 })
 
+const foldToy = loadGraph(
+  [
+    'S\ta\t*\tLN:i:1000',
+    'S\ts\t*\tLN:i:1',
+    'S\tt\t*\tLN:i:1',
+    'S\tb\t*\tLN:i:2000',
+    'S\tc\t*\tLN:i:1000',
+    'L\ta\t+\ts\t+\t0M',
+    'L\ta\t+\tt\t+\t0M',
+    'L\ts\t+\tb\t+\t0M',
+    'L\tt\t+\tb\t+\t0M',
+    'L\tb\t+\tc\t+\t0M',
+    'L\ts\t+\tc\t+\t0M',
+    'L\tt\t+\tc\t+\t0M',
+    'W\tref\t0\tchr\t0\t4001\t>a>s>b>c',
+    'W\th1\t1\tchr\t0\t4001\t>a>t>b>c',
+    'W\th2\t1\tchr\t0\t2001\t>a>s>c',
+    'W\th3\t1\tchr\t0\t2001\t>a>t>c',
+  ].join('\n'),
+  'toy',
+  { referencePath: 'ref#0#chr' },
+)
+
 // SV-del-100k+: every haplotype asked for walks the window, each riding a
 // thread named for one of them, yet the key read "5 of 8 haplotypes have no
 // walk here"
-test('a thread fold counts the haplotypes riding a thread as walked, and the rest as having no step here', () => {
-  const toy = loadGraph(
-    [
-      'S\ta\t*\tLN:i:1000',
-      'S\ts\t*\tLN:i:1',
-      'S\tt\t*\tLN:i:1',
-      'S\tb\t*\tLN:i:2000',
-      'S\tc\t*\tLN:i:1000',
-      'L\ta\t+\ts\t+\t0M',
-      'L\ta\t+\tt\t+\t0M',
-      'L\ts\t+\tb\t+\t0M',
-      'L\tt\t+\tb\t+\t0M',
-      'L\tb\t+\tc\t+\t0M',
-      'L\ts\t+\tc\t+\t0M',
-      'L\tt\t+\tc\t+\t0M',
-      'W\tref\t0\tchr\t0\t4001\t>a>s>b>c',
-      'W\th1\t1\tchr\t0\t4001\t>a>t>b>c',
-      'W\th2\t1\tchr\t0\t2001\t>a>s>c',
-      'W\th3\t1\tchr\t0\t2001\t>a>t>c',
-    ].join('\n'),
-    'toy',
-    { referencePath: 'ref#0#chr' },
-  )
-  const fold = foldThreads(toy, 500)
+test('a thread fold counts the haplotypes riding a thread as walked', () => {
+  const fold = foldThreads(foldToy, 500)
   expect(fold.folded).toBe(true)
   expect(fold.graph.paths?.map(path => path.members)).toEqual([
     ['ref#0#chr'],
@@ -934,8 +935,41 @@ test('a thread fold counts the haplotypes riding a thread as walked, and the res
   expect(
     absentHaplotypesText(fold.graph, ['h1#1', 'h2#1', 'h3#1'], 'chr'),
   ).toBeUndefined()
-  expect(absentHaplotypesText(fold.graph, ['h3#1', 'none#1'], 'chr')).toBe(
-    '1 of 2 haplotypes has no step on chr here',
+})
+
+// R100k-02: unfolded, "5 have no step on GRCh38 chr1 here and 3 have no walk
+// here"; folded, "8 of 8 have no step on GRCh38 chr1 here". H-Y2466: unfolded
+// "8 of 8 have no walk here", folded "8 of 8 have no step on GRCh38 here"
+test('a thread fold splits the haplotypes no thread holds by the departures of the graph it folded, as the graph does', () => {
+  const away: Graph = {
+    ...foldToy,
+    departures: departureTable([
+      {
+        name: 'far#1#chr',
+        hapStart: 0,
+        ownBp: 1000,
+        missingBp: 0,
+        leavePos: 0,
+        leaveReversed: false,
+        leavePasses: 1,
+        rejoinPos: 4001,
+        rejoinReversed: false,
+        rejoinPasses: 1,
+        fromSteps: false,
+      },
+    ]),
+  }
+  const fold = foldThreads(away, 500)
+  expect(fold.folded).toBe(true)
+  const asked = ['h3#1', 'far#1', 'none#1']
+  expect(absentHaplotypesText(fold.graph, asked, 'chr')).toBe(
+    'of 3 haplotypes, 1 has no step on chr here and 1 has no walk here',
+  )
+  expect(absentHaplotypesText(away, asked, 'chr')).toBe(
+    absentHaplotypesText(fold.graph, asked, 'chr'),
+  )
+  expect(absentHaplotypesText(fold.graph, ['none#1', 'none#2'], 'chr')).toBe(
+    '2 of 2 haplotypes have no walk here',
   )
 })
 

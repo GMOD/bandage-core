@@ -115,6 +115,7 @@ test('a thread is the walks of one route, with their count and names, the ones t
     haplotypes: 5,
     walks: 5,
     stepless: 0,
+    departing: [],
   })
 })
 

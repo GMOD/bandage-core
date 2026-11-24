@@ -242,12 +242,14 @@ export function foldedGraph(
     referencePath,
     tracks,
     stepless = 0,
+    departing = [],
   }: {
     name: string
     refName: string
     referencePath?: string
     tracks: readonly ThreadTrack[]
     stepless?: number
+    departing?: readonly string[]
   },
 ): Graph {
   const index = new Map(fold.nodes.map((node, i) => [node.name, i]))
@@ -360,6 +362,7 @@ export function foldedGraph(
       haplotypes: fold.haplotypes,
       walks: tracks.length,
       stepless,
+      departing: [...new Set(departing)],
     },
   }
 }
@@ -439,6 +442,7 @@ export function foldThreads(
       referencePath,
       tracks,
       stepless,
+      departing: graph.departures?.names,
     })
     return {
       folded: true,

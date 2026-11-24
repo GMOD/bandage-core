@@ -135,12 +135,14 @@ export interface Graph {
   // set by foldThreads: the size under which differences between walks were
   // merged into the reference, the haplotypes and the walk records its
   // threads stand for, a haplotype in pieces being one haplotype and several
-  // records, and the records left out for stepping nothing here
+  // records, the records left out for stepping nothing here, and the walks
+  // the unfolded graph's departures name, which the fold keeps no table of
   threadFold?: {
     belowBp: number
     haplotypes: number
     walks: number
     stepless: number
+    departing: string[]
   }
   // reads aligned to the graph, which the tube map draws under its paths
   reads?: GafRecord[]
