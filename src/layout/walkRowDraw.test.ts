@@ -704,19 +704,16 @@ test('chevrons run along a stretch walked against the reference however small si
 // The plugin paints bars on a canvas and drew H-8p23's 3.97 Mb walked against
 // GRCh38 with no chevron, while its key and readouts said "reversed"
 test('chevrons are drawn where a host paints the bars itself', () => {
-  const row = {
-    ...rowNamed('HG1#1#ctg1'),
-    bp: 100_000,
-    runs: [
-      {
-        start: 0,
-        bp: 100_000,
-        onReference: true,
-        referenceStart: 200_000,
-        reversed: true,
-      },
-    ],
-  }
+  const runs: WalkRun[] = [
+    {
+      start: 0,
+      bp: 100_000,
+      onReference: true,
+      referenceStart: 200_000,
+      reversed: true,
+    },
+  ]
+  const row = { ...rowNamed('HG1#1#ctg1'), bp: 100_000, runs }
   const svg = serializeEl(
     walkRowsTree(
       { ...rows(), rows: [row] },
