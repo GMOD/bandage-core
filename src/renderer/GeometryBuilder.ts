@@ -2,11 +2,13 @@ import { AGAINST_INK, walksAgainstReference } from '../againstReference'
 import {
   drawnAlongStable,
   isBackbone,
+  isLoadedBackbone,
   readsAsReference,
 } from '../anchoredNodes'
 import { edgeCurvesOf } from '../deletionEdges'
 import { drawnEdgeWidth, linkWidthPx } from '../edgeWidths'
 import { linkKey } from '../gfa/linkKey'
+import { polylineSlice } from '../layout/mergeRuns'
 import { NO_FOLD, SMALL_SITE_PX, foldedSites, skipBpOf } from '../levelOfDetail'
 import {
   drawnNodeWidth,
@@ -29,6 +31,7 @@ import {
   REFERENCE_RAMP_LIGHTNESS,
   REFERENCE_RAMP_SATURATION,
   rampHueAt,
+  rampPieces,
 } from '../referenceRampCss'
 import { referenceMidpoints } from '../referenceSpan'
 import { compareValues } from '../util/canonicalOrder'
@@ -120,6 +123,8 @@ export const LIFT_BACKDROP_COLOR = packAbgr(160, 160, 160, 255)
 export { FADED_ALPHA }
 // a moved component's stub: paler than its colour, and plainer than a fade
 const MOVED_ALPHA = 0.45
+const movedInk = (node: GraphNode, own: number) =>
+  node.moved ? fadeAbgr(own, MOVED_ALPHA) : own
 // The same fade as css, for what paints outside the batch: the strip, the
 // keys, a tube map's tubes
 export const LIFT_BACKDROP_CSS = abgrToCssRgba(
@@ -1400,15 +1405,51 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       nodeIndexMap.set(graph.nodes[i]!.id, i)
     }
   }
-  const nodeInk = (node: GraphNode) => {
-    const own = getNodeColor(
+  const nodeInk = (node: GraphNode) =>
+    movedInk(
       node,
-      nodeIndexMap.get(node.id) ?? 0,
-      colorScheme,
-      colorRange,
+      getNodeColor(
+        node,
+        nodeIndexMap.get(node.id) ?? 0,
+        colorScheme,
+        colorRange,
+      ),
     )
-    return node.moved ? fadeAbgr(own, MOVED_ALPHA) : own
+  // A reference node the ramp paints as the flat pieces of its own span, each
+  // in the hue of its middle, cut along the node the way it is drawn along the
+  // reference; undefined where the node takes one colour
+  const rampedPieces = (node: GraphNode, points: NodeSegment[]) => {
+    const pieces =
+      referenceRamp &&
+      colorScheme === 'reference-position' &&
+      isLoadedBackbone(node)
+        ? rampPieces(
+            { start: node.stable.start, bp: node.length },
+            {
+              start: referenceRamp.start,
+              end: referenceRamp.start + referenceRamp.span,
+            },
+          )
+        : []
+    const along = isLoadedBackbone(node) && drawnAlongStable(node)
+    return pieces.length > 1
+      ? pieces.map(({ from, to, t }) => ({
+          points: along
+            ? polylineSlice(points, from, to)
+            : polylineSlice(points, 1 - to, 1 - from),
+          color: movedInk(
+            node,
+            packHsl(
+              rampHueAt(t),
+              REFERENCE_RAMP_SATURATION,
+              REFERENCE_RAMP_LIGHTNESS,
+            ),
+          ),
+        }))
+      : undefined
   }
+  // the whole line of each node drawn in pieces, which a head along it reads
+  const piecedLines = new Map<string, NodeSegment[]>()
   const widthOf = (node: GraphNode) =>
     nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
   const runWidth = (run: FoldRun, alone: GraphNode) =>
@@ -2079,6 +2120,23 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     })
     return strokes
   }
+  // a lane over a reference node in the flat pieces its walk's colours take
+  // along the reference, cut the way the node is drawn along it
+  const lanePieces = (stroke: NodeStroke, lane: number, nodeId: string) => {
+    const node = nodeById.get(nodeId)
+    const pieces = liftedWalks[lane]?.rampColors.get(nodeId)
+    const along = isLoadedBackbone(node) && drawnAlongStable(node)
+    const { normals: _normals, offsets: _offsets, ...plain } = stroke
+    return pieces
+      ? pieces.map(({ from, to, color }) => ({
+          ...plain,
+          points: along
+            ? polylineSlice(stroke.points, from, to)
+            : polylineSlice(stroke.points, 1 - to, 1 - from),
+          color,
+        }))
+      : [stroke]
+  }
   const headsMayShow = (nodeId: string) =>
     liftedWalks.some(
       walk =>
@@ -2121,7 +2179,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
               const laned = laneStrokesOf(nodeId, segments, widthOf(node))
               strokes.set(
                 nodeId,
-                laned.map(({ stroke }) => stroke),
+                laned.flatMap(({ stroke, lane }) =>
+                  lanePieces(stroke, lane, nodeId),
+                ),
               )
               for (const { stroke, lane, thread } of laned) {
                 for (const head of headsOn(
@@ -2738,7 +2798,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       }
     } else if (drawable && lanes) {
       for (const laned of walkWide?.strokes.get(nodeId) ??
-        laneStrokesOf(nodeId, segments, width).map(({ stroke }) => stroke)) {
+        laneStrokesOf(nodeId, segments, width).flatMap(({ stroke, lane }) =>
+          lanePieces(stroke, lane, nodeId),
+        )) {
         nodeStrokes.push(laned)
       }
       // where walks the lift leaves out go through the node too, the node at
@@ -2765,12 +2827,20 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         })
       }
     } else if (drawable) {
-      nodeStrokes.push({
-        points: segments,
-        thickness: nodeThickness,
-        color,
-        ...fadedMark,
-      })
+      const pieces = faded ? undefined : rampedPieces(node, segments)
+      if (pieces) {
+        piecedLines.set(nodeId, segments)
+        for (const piece of pieces) {
+          nodeStrokes.push({ ...piece, thickness: nodeThickness })
+        }
+      } else {
+        nodeStrokes.push({
+          points: segments,
+          thickness: nodeThickness,
+          color,
+          ...fadedMark,
+        })
+      }
     }
     const count = nodeStrokes.length - start
     if (count > 0) {
@@ -2807,7 +2877,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
           (runBp.get(id) ?? 0) * collapse.pxPerBp >= SMALL_SITE_PX)
       ) {
         for (const head of place({
-          points: stroke.points,
+          points: piecedLines.get(id) ?? stroke.points,
           halfWidth: stroke.thickness,
           color: stroke.color,
           walk: 0,

@@ -16,7 +16,9 @@ import {
   nodeInk,
 } from './nodeWidths'
 import { loadGraph } from './pipeline'
-import { buildGeometry } from './renderer/GeometryBuilder'
+import { RAMP_PIECE_DEG, REFERENCE_RAMP_MAX_HUE } from './referenceRampCss'
+import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
+import { abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
 import {
   eventsAtLink,
   eventsAtNode,
@@ -27,9 +29,11 @@ import {
   threadsThrough,
 } from './threadFold'
 import { THREAD_LANE_KEY, threadFoldKey, threadLabel } from './threadKey'
+import { encodedColor } from './walkEncoding'
 import { walkLift } from './walkHighlight'
 
 import type { Graph, NodeSegment } from './types'
+import type { WalkLift } from './walkHighlight'
 
 // The reference walks a s b c. h1 takes t for s, a 1 bp difference; h2 and h3
 // skip b's 2 kb, one through s and one through t; h4 reads b reversed.
@@ -719,9 +723,9 @@ test('a stretch not loaded under the fold rides the reference with the rest of i
   const { graph } = folded(cut, 500)
   const reference = graph.nodes.filter(node => node.stable?.rank === 0)
   expect(reference.some(node => node.placeholder)).toBe(false)
-  expect(
-    reference.flatMap(node => node.members ?? []),
-  ).toContain('h3#1#chr:1000-1100')
+  expect(reference.flatMap(node => node.members ?? [])).toContain(
+    'h3#1#chr:1000-1100',
+  )
 })
 
 test('a node drawn for alleles of near lengths is labelled with their range', () => {
@@ -749,3 +753,103 @@ W\th2\t1\tchr\t0\t5000\t>a>y>c`,
     figureData(graph, layout, { width: 600, height: 300 }).labels.text,
   ).toContain('2.9\u20133 kb')
 })
+
+// R100k-01's folded reference node of 198,671 bp was painted the one green of
+// its middle, where the unfolded chain under it runs through the ramp
+const CHAIN_IDS = Array.from({ length: 20 }, (_, i) => `n${i}`)
+const CHAIN = loadGraph(
+  [
+    ...CHAIN_IDS.map(id => `S\t${id}\t*\tLN:i:1000`),
+    ...CHAIN_IDS.slice(1).map((id, i) => `L\t${CHAIN_IDS[i]}\t+\t${id}\t+\t0M`),
+    `W\tref\t0\tchr\t0\t20000\t${CHAIN_IDS.map(id => `>${id}`).join('')}`,
+    `W\th1\t1\tchr\t0\t20000\t${CHAIN_IDS.map(id => `>${id}`).join('')}`,
+  ].join('\n'),
+  'chain',
+  { referencePath: 'ref#0#chr' },
+)
+
+// a graph's nodes laid at 1 px per 100 bp, painted by reference position
+// over 0-20 kb
+function drawnOnRamp(graph: Graph, highlight?: WalkLift) {
+  const nodePositions = Object.fromEntries(
+    graph.nodes.map(node => [
+      node.id,
+      [
+        { x: node.stable!.start / 100, y: 0 },
+        { x: (node.stable!.start + node.length) / 100, y: 0 },
+      ],
+    ]),
+  )
+  return buildGeometry({
+    nodePositions,
+    graph,
+    nodeById: new Map(graph.nodes.map(node => [node.id, node])),
+    colorScheme: 'reference-position',
+    referenceRamp: computeReferenceRamp(graph, { start: 0, end: 20_000 }),
+    axis: { scaleX: 1, scaleY: 1 },
+    contigThickness: 5,
+    connectorThickness: 1.5,
+    drawPaths: false,
+    highlight,
+  })
+}
+
+test('a fold of a chain of reference nodes takes the hue the chain has at each position', () => {
+  const { graph: fold } = folded(CHAIN, 5000)
+  expect(fold.nodes).toHaveLength(1)
+  const huesAlong = (graph: Graph) => {
+    const { nodeStrokes } = drawnOnRamp(graph)
+    return (x: number) =>
+      hueOf(
+        nodeStrokes.find(
+          ({ points }) => points[0]!.x <= x && x <= points.at(-1)!.x,
+        )!.color,
+      )
+  }
+  const unfolded = huesAlong(CHAIN)
+  const onFold = huesAlong(fold)
+  for (let x = 0.5; x < 200; x += 1) {
+    expect(Math.abs(unfolded(x) - onFold(x))).toBeLessThanOrEqual(
+      RAMP_PIECE_DEG + 1,
+    )
+    expect(Math.abs(onFold(x) - (x / 200) * 300)).toBeLessThanOrEqual(
+      RAMP_PIECE_DEG / 2 + 1,
+    )
+  }
+})
+
+test('a lane coloured by reference position runs through its colours along a folded reference node', () => {
+  const { graph: fold } = folded(CHAIN, 5000)
+  const ramp = computeReferenceRamp(fold, { start: 0, end: 20_000 })
+  const lift = walkLift(
+    fold,
+    threadLayers(fold, [
+      { walk: 'h1#1#chr', color: { field: 'reference', scheme: 'rainbow' } },
+    ]),
+    ramp,
+  )!
+  const [walk] = lift.walks
+  const lane = drawnOnRamp(fold, lift).nodeStrokes.filter(s => s.walk === 0)
+  expect(lane).toHaveLength(REFERENCE_RAMP_MAX_HUE / RAMP_PIECE_DEG)
+  for (const { points, color } of lane) {
+    const mid = (points[0]!.x + points.at(-1)!.x) / 2
+    expect(color).toBe(encodedColor(walk!.encoding, mid / 200))
+  }
+})
+
+function hueOf(abgr: number) {
+  const r = abgrRed(abgr) / 255
+  const g = abgrGreen(abgr) / 255
+  const b = abgrBlue(abgr) / 255
+  const most = Math.max(r, g, b)
+  const span = most - Math.min(r, g, b)
+  const sixths =
+    span === 0
+      ? 0
+      : most === r
+        ? ((g - b) / span + 6) % 6
+        : most === g
+          ? (b - r) / span + 2
+          : (r - g) / span + 4
+  return sixths * 60
+}

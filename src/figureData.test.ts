@@ -13,6 +13,7 @@ import { EXON_COLOR } from './genes/exonOutline'
 import { genesOverNode } from './genes/geneNames'
 import { genePins } from './genes/genePins'
 import { gfaTables } from './gfa/gfaTables'
+import { RAMP_KEY_STOPS } from './graphKey'
 import { labelledNodeLengths } from './graphLabels'
 import { layoutLabels } from './labelLayout'
 import { liftedRowInks, rowInkAt } from './layout/rowInks'
@@ -583,7 +584,7 @@ test("a gene's name is labelled with its leader to its pin, and the inks are the
   expect(d.labels.x1[gene]).not.toBeNull()
   expect(d.labels.y2[gene]).not.toBeNull()
   expect(d.meta.inks.exon).toBe(EXON_COLOR)
-  expect(d.meta.inks.ramp).toHaveLength(7)
+  expect(d.meta.inks.ramp).toHaveLength(RAMP_KEY_STOPS.length)
   const exon = d.meta.graphKey.key.indexOf('exon')
   expect(d.meta.graphKey.color[exon]).toBe(EXON_COLOR)
 })

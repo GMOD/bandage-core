@@ -1,5 +1,7 @@
 import { loadGraph } from '../pipeline'
+import { RAMP_PIECE_DEG } from '../referenceRampCss'
 import { findHoveredEdge } from '../util/hitDetection'
+import { Canvas2DRenderer } from './Canvas2DRenderer'
 import {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
@@ -8,6 +10,7 @@ import {
   hslToRgb,
 } from './GeometryBuilder'
 import { packAbgr } from './colorBits'
+import { svgCanvas } from './svgCanvas'
 
 import type { Graph } from '../types'
 import type { RenderBatch } from './types'
@@ -735,10 +738,42 @@ describe('the reference-position ramp', () => {
     )
   }
 
-  test('paints a backbone segment the hue of its own midpoint', () => {
-    const colors = colorsFor({ start: 0, end: 1000 })
-    expect(colors['left+']).toBe(expectedColor(50, 0, 1000))
-    expect(colors['right+']).toBe(expectedColor(950, 0, 1000))
+  // each stroke of a node as the bp its middle is drawn at and its colour,
+  // the node laid from x0 to x0 + 10 over bp [start, start + length)
+  function piecesFor(colorDomain?: { start: number; end: number }) {
+    const batch = buildGeometry({
+      nodePositions: positions,
+      graph,
+      nodeById: new Map(nodes.map(n => [n.id, n])),
+      colorScheme: 'reference-position',
+      referenceRamp: computeReferenceRamp(graph, colorDomain),
+      axis: iso(),
+      contigThickness: 5,
+      connectorThickness: 1.5,
+      drawPaths: false,
+    })
+    return (id: string) => {
+      const node = nodes.find(n => n.id === id)!
+      const x0 = positions[id]![0]!.x
+      const { start, count } = batch.nodeStrokeRuns.get(id)!
+      return batch.nodeStrokes.slice(start, start + count).map(stroke => {
+        const mid = (stroke.points[0]!.x + stroke.points.at(-1)!.x) / 2
+        return {
+          bp: node.stable!.start + ((mid - x0) / 10) * node.length,
+          color: stroke.color,
+        }
+      })
+    }
+  }
+
+  test('paints each piece of a backbone segment the hue of its own middle', () => {
+    const at = piecesFor({ start: 0, end: 1000 })
+    for (const id of ['left+', 'right+']) {
+      expect(at(id)).toHaveLength(5)
+      for (const { bp, color } of at(id)) {
+        expect(color).toBe(expectedColor(bp, 0, 1000))
+      }
+    }
   })
 
   // The ramp is the reference path's colouring, so an allele is taken off it
@@ -809,9 +844,114 @@ describe('the reference-position ramp', () => {
   // two backbone segments then take the ends of the ramp rather than sitting in
   // the middle of a window nothing declared.
   test('falls back to the drawn extent with no region', () => {
-    const colors = colorsFor()
-    expect(colors['left+']).toBe(expectedColor(50, 50, 900))
-    expect(colors['right+']).toBe(expectedColor(950, 50, 900))
+    const at = piecesFor()
+    for (const id of ['left+', 'right+']) {
+      expect(at(id).length).toBeGreaterThan(1)
+      for (const { bp, color } of at(id)) {
+        expect(color).toBe(expectedColor(bp, 50, 900))
+      }
+    }
+  })
+})
+
+// A folded reference node of 198,671 bp at R100k-01 was all one green, the
+// hue of its middle, across the whole window
+describe('a reference node the ramp spans', () => {
+  const span = (id: string, strand: '+' | '-') => ({
+    id,
+    name: id.slice(0, -1),
+    length: 1000,
+    depth: 1,
+    stable: { refName: 'chr', start: 0, rank: 0, strand },
+  })
+  const drawn = (node: ReturnType<typeof span>) => {
+    const graph = { name: 'long', nodes: [node], edges: [] }
+    return buildGeometry({
+      nodePositions: {
+        [node.id]: [
+          { x: 0, y: 0 },
+          { x: 400, y: 0 },
+          { x: 1000, y: 0 },
+        ],
+      },
+      graph,
+      nodeById: new Map([[node.id, node]]),
+      colorScheme: 'reference-position',
+      referenceRamp: computeReferenceRamp(graph, { start: 0, end: 1000 }),
+      axis: iso(),
+      contigThickness: 5,
+      connectorThickness: 1.5,
+      drawPaths: false,
+    })
+  }
+  const hueAtBp = (bp: number) => (bp / 1000) * REFERENCE_RAMP_MAX_HUE
+  const colorOfHue = (hue: number) => {
+    const [r, g, b] = hslToRgb(hue, 0.7, 0.5)
+    return packAbgr(
+      Math.round(r * 255),
+      Math.round(g * 255),
+      Math.round(b * 255),
+      255,
+    )
+  }
+
+  test('runs from red to magenta in pieces, each point within half a step of its own hue', () => {
+    const { nodeStrokes } = drawn(span('long+', '+'))
+    expect(nodeStrokes).toHaveLength(REFERENCE_RAMP_MAX_HUE / RAMP_PIECE_DEG)
+    expect(nodeStrokes[0]!.color).toBe(colorOfHue(RAMP_PIECE_DEG / 2))
+    expect(nodeStrokes.at(-1)!.color).toBe(
+      colorOfHue(REFERENCE_RAMP_MAX_HUE - RAMP_PIECE_DEG / 2),
+    )
+    nodeStrokes.forEach((stroke, k) => {
+      const hue = (k + 0.5) * RAMP_PIECE_DEG
+      expect(stroke.color).toBe(colorOfHue(hue))
+      for (const { x } of stroke.points) {
+        expect(Math.abs(hueAtBp(x) - hue)).toBeLessThanOrEqual(
+          RAMP_PIECE_DEG / 2 + 1e-9,
+        )
+      }
+    })
+  })
+
+  test('a node drawn against the reference takes its pieces from the far end', () => {
+    const { nodeStrokes } = drawn(span('long-', '+'))
+    const atStart = nodeStrokes.find(({ points }) => points[0]!.x === 0)
+    const atEnd = nodeStrokes.find(({ points }) => points.at(-1)!.x === 1000)
+    expect(atStart?.color).toBe(
+      colorOfHue(REFERENCE_RAMP_MAX_HUE - RAMP_PIECE_DEG / 2),
+    )
+    expect(atEnd?.color).toBe(colorOfHue(RAMP_PIECE_DEG / 2))
+  })
+
+  test('its pieces abut with round caps, so the centre line has no gap', () => {
+    const batch = drawn(span('long+', '+'))
+    batch.nodeStrokes.slice(1).forEach((stroke, k) => {
+      expect(stroke.points[0]).toEqual(batch.nodeStrokes[k]!.points.at(-1))
+    })
+    for (let x = 0; x <= 1000; x += 0.25) {
+      expect(
+        batch.nodeStrokes.some(
+          ({ points, thickness }) =>
+            x >= points[0]!.x - thickness && x <= points.at(-1)!.x + thickness,
+        ),
+      ).toBe(true)
+    }
+    const { canvas, markup } = svgCanvas(1020, 20)
+    const renderer = new Canvas2DRenderer(canvas)
+    renderer.uploadGeometry(batch)
+    renderer.updateTransform({
+      scaleX: 1,
+      scaleY: 1,
+      translateX: 10,
+      translateY: 10,
+      dpr: 1,
+    })
+    renderer.render([1, 1, 1, 1])
+    const caps = [...markup().matchAll(/stroke-linecap="(\w+)"/g)].map(
+      ([, cap]) => cap,
+    )
+    expect(caps.length).toBeGreaterThan(0)
+    expect(new Set(caps)).toEqual(new Set(['round']))
   })
 })
 

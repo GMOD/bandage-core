@@ -393,8 +393,10 @@ export { el, serializeEl } from './el'
 export type { El, ElAttrs } from './el'
 export {
   RAMP_GRADIENT_CSS,
+  RAMP_PIECE_DEG,
   rampHue,
   rampHueCss,
+  rampPieces,
   rampStops,
 } from './referenceRampCss'
 export {

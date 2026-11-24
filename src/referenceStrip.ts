@@ -1,8 +1,15 @@
 import { isBackbone } from './anchoredNodes'
 import {
+  REFERENCE_RAMP_LIGHTNESS,
+  REFERENCE_RAMP_SATURATION,
+  rampHueAt,
+  rampPieces,
+} from './referenceRampCss'
+import {
   LIFT_BACKDROP_CSS,
   computeColorSchemeRange,
   getNodeColor,
+  packHsl,
 } from './renderer/GeometryBuilder'
 import { abgrToCssRgba } from './renderer/colorBits'
 
@@ -41,6 +48,15 @@ export interface StripBlock {
   colors: string[]
   // pale on some row
   faded: boolean
+  // where the ramp paints the block in more than one colour: its flat
+  // pieces, as fractions of the block from bp0, each with its rows' colours
+  pieces?: StripPiece[]
+}
+
+export interface StripPiece {
+  from: number
+  to: number
+  colors: string[]
 }
 
 export function referenceStripBlocks(
@@ -52,8 +68,12 @@ export function referenceStripBlocks(
   }: {
     colorScheme: ResolvedColorScheme
     referenceRamp?: ReferenceRamp
-    // the lifted walks' lane colours at the nodes each visits
-    walks?: readonly { colors: ReadonlyMap<string, number> }[]
+    // the lifted walks' lane colours at the nodes each visits, and along a
+    // reference node where a lane takes more than one
+    walks?: readonly {
+      colors: ReadonlyMap<string, number>
+      rampColors?: ReadonlyMap<string, readonly StripRampPiece[]>
+    }[]
   },
 ) {
   const range = computeColorSchemeRange(graph, referenceRamp)
@@ -66,16 +86,69 @@ export function referenceStripBlocks(
             return lane === undefined ? LIFT_BACKDROP_CSS : abgrToCssRgba(lane)
           })
         : [abgrToCssRgba(getNodeColor(node, index, colorScheme, range))]
+      const pieces = walks
+        ? laneRampPieces(node.id, walks, colors)
+        : referenceRamp &&
+            colorScheme === 'reference-position' &&
+            !node.placeholder
+          ? rampPieces(
+              { start: node.stable.start, bp: node.length },
+              {
+                start: referenceRamp.start,
+                end: referenceRamp.start + referenceRamp.span,
+              },
+            ).map(({ from, to, t }) => ({
+              from,
+              to,
+              colors: [
+                abgrToCssRgba(
+                  packHsl(
+                    rampHueAt(t),
+                    REFERENCE_RAMP_SATURATION,
+                    REFERENCE_RAMP_LIGHTNESS,
+                  ),
+                ),
+              ],
+            }))
+          : []
       out.push({
         node: node.id,
         bp0: node.stable.start,
         bp1: node.stable.start + node.length,
         colors,
         faded: colors.includes(LIFT_BACKDROP_CSS),
+        ...(pieces.length > 1 ? { pieces } : {}),
       })
     }
   })
   return out.sort((a, b) => a.bp0 - b.bp0)
+}
+
+interface StripRampPiece {
+  from: number
+  to: number
+  color: number
+}
+
+// A block's pieces under lanes: where some lane takes more than one colour
+// along the node, every row is cut where it is, each lane in its piece's
+// colour and the rest in their one colour
+function laneRampPieces(
+  node: string,
+  walks: readonly {
+    rampColors?: ReadonlyMap<string, readonly StripRampPiece[]>
+  }[],
+  colors: readonly string[],
+): StripPiece[] {
+  const cut = walks.find(w => w.rampColors?.has(node))?.rampColors?.get(node)
+  return (cut ?? []).map(({ from, to }, k) => ({
+    from,
+    to,
+    colors: walks.map((w, row) => {
+      const piece = w.rampColors?.get(node)?.[k]
+      return piece ? abgrToCssRgba(piece.color) : colors[row]!
+    }),
+  }))
 }
 
 // bp to screen x, as the linear view places it; a reversed block's is negative
@@ -180,6 +253,8 @@ export interface StripPixel {
   x1: number
   // the tier a staggered strip draws the block in
   tier?: number
+  // a block the ramp paints in pieces, each in whole device pixels
+  pieces?: { colors: string[]; x0: number; x1: number }[]
 }
 
 export function stripPixels(
@@ -197,6 +272,19 @@ export function stripPixels(
         x0,
         px0,
         px1: Math.max(Math.round(x1 * dpr), px0 + 1),
+        pieces: b.pieces?.map(piece => {
+          const bp = b.bp1 - b.bp0
+          const [p0, p1] = span(
+            frame,
+            b.bp0 + piece.from * bp,
+            b.bp0 + piece.to * bp,
+          )
+          return {
+            colors: piece.colors,
+            px0: Math.round(p0 * dpr),
+            px1: Math.round(p1 * dpr),
+          }
+        }),
       }
     })
     .filter(b => b.px1 > 0 && b.px0 < width * dpr)
@@ -205,12 +293,23 @@ export function stripPixels(
   let claimed = -Infinity
   // where each tier's last block ends, in device px
   const tierEnds = [-Infinity, -Infinity]
-  for (const { colors, px0, px1 } of placed) {
+  for (const { colors, px0, px1, pieces } of placed) {
     const start = Math.max(px0, claimed)
     if (px1 > start) {
       const tier = tierEnds[0]! < start ? 0 : 1
       tierEnds[tier] = px1
-      out.push({ colors, x0: start / dpr, x1: px1 / dpr, tier })
+      const cut = pieces?.flatMap(piece => {
+        const a = Math.max(piece.px0, start)
+        const b = Math.min(piece.px1, px1)
+        return b > a ? [{ colors: piece.colors, x0: a / dpr, x1: b / dpr }] : []
+      })
+      out.push({
+        colors,
+        x0: start / dpr,
+        x1: px1 / dpr,
+        tier,
+        ...(cut?.length ? { pieces: cut } : {}),
+      })
       claimed = px1
     }
   }
@@ -271,12 +370,19 @@ export function drawReferenceStrip(
     const { tier } = b
     const staggered = tier !== undefined && b.colors.length === 1
     const rows = staggered ? 2 : b.colors.length
-    b.colors.forEach((color, i) => {
-      const row = staggered ? tier : i
-      const y0 = rowEdge(row, rows, dpr)
-      ctx.fillStyle = color
-      ctx.fillRect(b.x0, y0, b.x1 - b.x0, rowEdge(row + 1, rows, dpr) - y0)
-    })
+    for (const piece of b.pieces ?? [b]) {
+      piece.colors.forEach((color, i) => {
+        const row = staggered ? tier : i
+        const y0 = rowEdge(row, rows, dpr)
+        ctx.fillStyle = color
+        ctx.fillRect(
+          piece.x0,
+          y0,
+          piece.x1 - piece.x0,
+          rowEdge(row + 1, rows, dpr) - y0,
+        )
+      })
+    }
   }
   const overhang = stripOverhang(blocks, frame, width)
   if (overhang.left > 0) {

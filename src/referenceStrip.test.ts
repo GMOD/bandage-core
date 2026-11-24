@@ -1,3 +1,4 @@
+import { RAMP_PIECE_DEG } from './referenceRampCss'
 import {
   nodeAnchor,
   referenceStripBlocks,
@@ -6,8 +7,8 @@ import {
   stripOverhang,
   stripPixels,
 } from './referenceStrip'
-import { computeReferenceRamp } from './renderer/GeometryBuilder'
-import { packAbgr } from './renderer/colorBits'
+import { computeReferenceRamp, packHsl } from './renderer/GeometryBuilder'
+import { abgrToCssRgba, packAbgr } from './renderer/colorBits'
 
 import type { Graph, GraphNode } from './types'
 
@@ -52,6 +53,60 @@ test('the strip is the backbone in bp order, painted the hue of its node', () =>
   // a's midpoint is a quarter along the ramp: hue 75
   expect(blocks[0]!.colors).toEqual(['rgba(172,217,38,1)'])
   expect(new Set(blocks.map(b => b.colors[0])).size).toBe(3)
+})
+
+// A reference node the window's ramp spans drew as one block in the hue of
+// its middle, as the graph drew it
+test('a block the ramp spans is painted in pieces, each the hue of its own middle, in whole pixels that abut', () => {
+  const ramp = computeReferenceRamp(graph, { start: 1000, end: 1200 })
+  const blocks = referenceStripBlocks(graph, {
+    colorScheme: 'reference-position',
+    referenceRamp: ramp,
+  })
+  const a = blocks[0]!
+  expect(a.pieces).toHaveLength(150 / RAMP_PIECE_DEG)
+  a.pieces!.forEach((piece, k) => {
+    const mid = 1000 + ((piece.from + piece.to) / 2) * 100
+    expect(piece.colors).toEqual([
+      abgrToCssRgba(packHsl(((mid - 1000) / 200) * 300, 0.7, 0.5)),
+    ])
+    expect(piece.from).toBeCloseTo(k / a.pieces!.length)
+  })
+  const [pixel] = stripPixels(blocks, { scale: 2, translateX: -2000 }, 400, 2)
+  expect(pixel!.pieces![0]!.x0).toBe(pixel!.x0)
+  expect(pixel!.pieces!.at(-1)!.x1).toBe(pixel!.x1)
+  pixel!.pieces!.slice(1).forEach((piece, k) => {
+    expect(piece.x0).toBe(pixel!.pieces![k]!.x1)
+    expect(piece.x0 * 2).toBe(Math.round(piece.x0 * 2))
+  })
+})
+
+test('a lane coloured by reference position cuts its row of a block where the lane is cut, and the other rows keep their one colour', () => {
+  const lane = packAbgr(10, 20, 30, 255)
+  const other = packAbgr(40, 50, 60, 255)
+  const cut = [
+    { from: 0, to: 0.5, color: packAbgr(1, 2, 3, 255) },
+    { from: 0.5, to: 1, color: packAbgr(4, 5, 6, 255) },
+  ]
+  const [a] = referenceStripBlocks(graph, {
+    colorScheme: 'reference-position',
+    walks: [
+      { colors: new Map([['a', lane]]), rampColors: new Map([['a', cut]]) },
+      { colors: new Map([['a', other]]) },
+    ],
+  })
+  expect(a!.pieces).toEqual([
+    {
+      from: 0,
+      to: 0.5,
+      colors: [abgrToCssRgba(cut[0]!.color), abgrToCssRgba(other)],
+    },
+    {
+      from: 0.5,
+      to: 1,
+      colors: [abgrToCssRgba(cut[1]!.color), abgrToCssRgba(other)],
+    },
+  ])
 })
 
 test('under lifted walks a block is a row per walk in its lane, pale where the walk skips it', () => {

@@ -27,6 +27,29 @@ export function rampHue(bp: number, domain: { start: number; end: number }) {
 // hue degrees one gradient stop spans, since SVG interpolates stops in RGB
 const HUE_STOP_DEG = 30
 
+// The most hue one flat piece of a drawn reference span covers, so every
+// point of it is within half this of its own position's hue
+export const RAMP_PIECE_DEG = 6
+
+// A reference span cut into the flat pieces the ramp paints it in, each
+// covering at most RAMP_PIECE_DEG of hue: where each starts and ends, as
+// fractions of the span from its start, and how far along the ramp its middle
+// lies. One piece means the span is painted in one colour.
+export function rampPieces(
+  { start, bp }: { start: number; bp: number },
+  domain: { start: number; end: number },
+) {
+  const hues = rampHue(start + bp, domain) - rampHue(start, domain)
+  const count = Math.max(1, Math.ceil(hues / RAMP_PIECE_DEG - 1e-9))
+  return Array.from({ length: count }, (_, i) => ({
+    from: i / count,
+    to: (i + 1) / count,
+    t:
+      (start + (bp * (i + 0.5)) / count - domain.start) /
+      (domain.end - domain.start),
+  }))
+}
+
 // The hues a gradient across `bp` of reference paints, evenly spaced along it
 // and walked from `to`'s end when reversed. One hue means the span reads flat.
 export function rampStops(

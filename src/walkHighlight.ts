@@ -1,9 +1,10 @@
-import { isBackbone } from './anchoredNodes'
+import { isBackbone, isLoadedBackbone } from './anchoredNodes'
 import { departureAt, gapParts } from './gfa/departures'
 import { linkKey } from './gfa/linkKey'
 import { onOtherWalks } from './otherWalks'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
+import { rampPieces } from './referenceRampCss'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
 import { abgrHex } from './renderer/colorBits'
 import { ownStrand } from './util/geometry'
@@ -80,6 +81,10 @@ export interface LiftedWalk extends WalkHighlight {
   colors: Map<string, number>
   // the colour at each visit, in the order the walk makes them
   passColors: Map<string, number[]>
+  // a lane coloured by reference position across a reference node it visits
+  // once, where its span takes more than one hue: the flat pieces of it, as
+  // fractions of the span from its start, each in its middle's colour
+  rampColors: Map<string, { from: number; to: number; color: number }[]>
   // WalkLayer.picked
   picked?: readonly string[]
 }
@@ -463,7 +468,32 @@ function laneColors(
       : undefined
   const colors = new Map<string, number>()
   const passColors = new Map<string, number[]>()
+  const rampColors = new Map<
+    string,
+    { from: number; to: number; color: number }[]
+  >()
   for (const [id, progress] of walk.passProgress) {
+    const node = byId.get(id)
+    const pieces =
+      ramp &&
+      progress.length === 1 &&
+      isLoadedBackbone(node) &&
+      places?.get(id)?.[0] === rampFraction(node, ramp)
+        ? rampPieces(
+            { start: node.stable.start, bp: node.length },
+            { start: ramp.start, end: ramp.start + ramp.span },
+          )
+        : []
+    if (pieces.length > 1) {
+      rampColors.set(
+        id,
+        pieces.map(({ from, to, t }) => ({
+          from,
+          to,
+          color: encodedColor(encoding, t),
+        })),
+      )
+    }
     const at = places?.get(id)
     const passed = walkPasses?.visitPass.get(id)
     const each = progress.map((t, visit) =>
@@ -476,7 +506,12 @@ function laneColors(
     colors.set(id, each[0]!)
     passColors.set(id, each)
   }
-  return { colors, passColors, ...(walkPasses ? { walkPasses } : {}) }
+  return {
+    colors,
+    passColors,
+    rampColors,
+    ...(walkPasses ? { walkPasses } : {}),
+  }
 }
 
 // Each visit's fraction along the ramp, in the order the walk makes them. A

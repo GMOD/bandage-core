@@ -22,7 +22,9 @@ import {
 import { panSNHaplotype, panSNMatchesPrefix } from './pansn'
 import { referenceLabel } from './reference'
 import {
+  RAMP_PIECE_DEG,
   REFERENCE_RAMP_LIGHTNESS,
+  REFERENCE_RAMP_MAX_HUE,
   REFERENCE_RAMP_SATURATION,
   rampHueAt,
 } from './referenceRampCss'
@@ -402,15 +404,20 @@ export const EXON_INK = hexAbgr(EXON_COLOR)
 const HALO_INK = hexAbgr(BUBBLE_HALO_COLOR)
 export const THREAD_INK = packAbgr(68, 68, 68, 255)
 
-// The reference-position ramp as a key's stops, one per 50 degrees of hue
-export const RAMP_KEY_STOPS: KeyStop[] = Array.from({ length: 7 }, (_, i) => ({
-  offset: i / 6,
-  ink: packHsl(
-    rampHueAt(i / 6),
-    REFERENCE_RAMP_SATURATION,
-    REFERENCE_RAMP_LIGHTNESS,
-  ),
-}))
+// The reference-position ramp as a key's stops, one per RAMP_PIECE_DEG of
+// hue, the step the drawing paints a long reference node in
+const RAMP_KEY_STEPS = Math.ceil(REFERENCE_RAMP_MAX_HUE / RAMP_PIECE_DEG)
+export const RAMP_KEY_STOPS: KeyStop[] = Array.from(
+  { length: RAMP_KEY_STEPS + 1 },
+  (_, i) => ({
+    offset: i / RAMP_KEY_STEPS,
+    ink: packHsl(
+      rampHueAt(i / RAMP_KEY_STEPS),
+      REFERENCE_RAMP_SATURATION,
+      REFERENCE_RAMP_LIGHTNESS,
+    ),
+  }),
+)
 
 const entry = (
   key: string,
