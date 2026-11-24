@@ -199,6 +199,7 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     expect(batch.collapsed?.sites).toEqual([])
     // its ends together on screen, it holds no arch and is counted as such
     expect(batch.collapsed?.tooShort.has(2)).toBe(true)
+    expect(batch.edgeCurveRuns.has(2)).toBe(false)
   })
 
   // R100k-01: a 312 bp insertion, drawn a few px long by the force layout,
@@ -834,17 +835,19 @@ describe('the reference is the nodes the cut loaded on it', () => {
     expect(build(graph, positions, 0.5).collapsed?.pxPerBp).toBeCloseTo(0.5, 9)
   })
 
-  test('a piece or a skip reaching a reference node the cut did not load is drawn', () => {
+  test('a piece or a skip reaching a reference node the cut did not load is never folded: the skip is drawn where its span holds an arch and counted as too short where it does not', () => {
     const skipToP = edgeIndex(graph, 'r0+', 'p+')
     expect(drawingOf(graph).bypassed.has(skipToP)).toBe(true)
-    for (const scale of [0.0001, 0.01]) {
+    for (const [scale, arches] of [
+      [0.0001, false],
+      [0.01, false],
+      [10, true],
+    ] as const) {
       const batch = build(graph, positions, scale)
       expect(batch.collapsed?.sites).toEqual([])
       expect(drawnNodes(batch).has('a1+')).toBe(true)
-      expect(
-        batch.edgeCurveRuns.has(skipToP) ||
-          batch.collapsed?.tooShort.has(skipToP),
-      ).toBe(true)
+      expect(batch.edgeCurveRuns.has(skipToP)).toBe(arches)
+      expect(batch.collapsed?.tooShort.has(skipToP)).toBe(!arches)
     }
   })
 })
@@ -931,18 +934,22 @@ test('a piece leaving a reference node the reference reads reversed attaches at 
   })
 })
 
-test('a site no shown walk steps is drawn, an allele or a skip', () => {
+test('a site no shown walk steps is never folded: an allele is drawn, and a skip drawn where its span holds an arch and counted as too short where it does not', () => {
   const allele = snp(1, 1, [])
   expect(folded(build(allele.graph, allele.positions, 0.01))).toEqual([])
   expect(
     drawnNodes(build(allele.graph, allele.positions, 0.01)).has('a1+'),
   ).toBe(true)
   const skipped = skip(1, [])
-  const batch = build(skipped.graph, skipped.positions, 0.01)
-  expect(batch.collapsed?.sites).toEqual([])
-  expect(batch.edgeCurveRuns.has(2) || batch.collapsed?.tooShort.has(2)).toBe(
-    true,
-  )
+  for (const [scale, arches] of [
+    [0.01, false],
+    [10, true],
+  ] as const) {
+    const batch = build(skipped.graph, skipped.positions, scale)
+    expect(batch.collapsed?.sites).toEqual([])
+    expect(batch.edgeCurveRuns.has(2)).toBe(arches)
+    expect(batch.collapsed?.tooShort.has(2)).toBe(!arches)
+  }
 })
 
 test('the fold follows the skips the drawing holds and hides, on the same graph and curves', () => {

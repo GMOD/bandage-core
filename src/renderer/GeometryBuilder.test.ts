@@ -1,4 +1,5 @@
 import { loadGraph } from '../pipeline'
+import { findHoveredEdge } from '../util/hitDetection'
 import {
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
@@ -1135,6 +1136,44 @@ describe('arrowhead placement', () => {
       expect(batch.edgeCurveRuns.has(0)).toBe(!left)
       expect(!!batch.collapsed?.tooShort.has(0)).toBe(left)
       expect(geometryFold(options).tooShort.has(0)).toBe(left)
+    }
+  })
+
+  // review 4: the hit test left out folded links but not these
+  test('a skip left out as too short on screen is not hovered, one drawn is', () => {
+    for (const [scale, thickness, left] of [
+      [0.8, 2, false],
+      [0.8, 6, true],
+    ] as const) {
+      const axis = iso(scale)
+      const deletions = new Map([[0, []]])
+      const batch = buildGeometry({
+        nodePositions: simplePositions,
+        graph: walked,
+        nodeById: simpleNodeById,
+        colorScheme: 'uniform',
+        contigThickness: 6,
+        connectorThickness: thickness,
+        drawPaths: false,
+        axis,
+        deletions,
+      })
+      expect(
+        findHoveredEdge(
+          simplePositions,
+          walked,
+          15,
+          0,
+          axis,
+          false,
+          0,
+          deletions,
+          undefined,
+          undefined,
+          undefined,
+          batch.collapsed,
+        ),
+      ).toBe(left ? null : 0)
     }
   })
 

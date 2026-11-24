@@ -63,10 +63,12 @@ When a track loads more graph than its window shows, place the drawing with
 - A skip whose route would lie over the nodes it skips (within
   `ALONG_STRETCH_PX`) is drawn as an arch instead
 - With walks, a skip or padded arm too short on screen for three dashes is a low
-  arch over its feet, no wider than its chord and no higher than it is long. One
-  whose span is under `SKIP_LEVEL_PX` or three times its stroke is left out at
-  any `smallSites`: `collapsed.tooShort` holds it, and the key's last line
-  counts it as `N skips too short on screen to draw`
+  arch over its feet, no wider than its chord and no higher than it is long.
+  Where its span is under `SKIP_LEVEL_PX` or three times its stroke, a padded
+  arm draws as the plain link it is, so its allele stays joined to the
+  reference, and a skip is left out at any `smallSites`: `collapsed.tooShort`
+  holds it, the hit test passes it by, and the key's last line counts it as
+  `N skips too short on screen to draw`
 - Where a haplotype runs on past the cut, its loose end gets a dark tab. The key
   calls it `graph runs on past what is drawn`; `figureData`'s `arrows` table
   marks it `runsOn`

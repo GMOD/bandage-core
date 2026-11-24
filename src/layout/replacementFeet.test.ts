@@ -423,3 +423,136 @@ test('at the fit, a padded arm and a skip over folded skips each draw within the
     ),
   )
 }, 60_000)
+
+// `middle` between flanks of `pieces` 2 kb pieces, a SNP between each, which
+// keep them apart as the engine lays them, as a hosted cut's are
+function snpWindow(middle: [string, number][], pieces: number) {
+  const flank = (side: string) =>
+    Array.from({ length: pieces }, (_, i): [string, number][] => [
+      [`${side}${i}`, 2000],
+      ...(i < pieces - 1
+        ? [[`${side}s${i}`, 1] satisfies [string, number]]
+        : []),
+    ]).flat()
+  const reference = [...flank('a'), ...middle, ...flank('b')]
+  const names = reference.map(([name]) => name)
+  return {
+    names,
+    last: `a${pieces - 1}`,
+    lines: [
+      ...reference.map(([name, bp]) => `S\t${name}\t${bases(bp)}`),
+      ...names.slice(1).map((id, i) => `L\t${names[i]}\t+\t${id}\t+\t0M`),
+      ...['a', 'b'].flatMap(side =>
+        Array.from({ length: pieces - 1 }, (_, i) => [
+          `S\t${side}t${i}\tC`,
+          `L\t${side}${i}\t+\t${side}t${i}\t+\t0M`,
+          `L\t${side}t${i}\t+\t${side}${i + 1}\t+\t0M`,
+        ]).flat(),
+      ),
+    ],
+  }
+}
+
+const steps = (ids: readonly string[]) => ids.map(id => `>${id}`).join('')
+
+// a graph laid out and built at the fit of a 1090 x 300 px pane, by walks
+async function drawnAtFit(graph: Graph) {
+  const pane = { width: 1090, height: 300 }
+  const { result } = await forceLayout(graph, settings, engine, pane)
+  const fit = fitTransform(
+    drawingBounds(result),
+    pane.width,
+    pane.height,
+    false,
+  )!
+  const batch = buildGeometry({
+    ...layoutGeometryInputs(
+      result,
+      deletionDrawing(graph, deletionEdges(graph), true),
+    ),
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    nodeWidth: 'walks',
+    edgeWidth: 'walks',
+    axis: { scaleX: fit.scale, scaleY: fit.scale },
+  })
+  return { result, fit, batch }
+}
+
+// review 4: 13 bp eight of nine walks carry in place of 4 kb, about 29 px of
+// reference at the fit, had both feet left out under their 6 px strokes and
+// was drawn about 10 px from each reference end, joined to neither
+test.each([8, 1])(
+  'at the fit, a short allele %i of 8 haplotypes carry in place of 4 kb is drawn linked to the reference at each end, in px',
+  async carriers => {
+    const { names, last, lines } = snpWindow([['r', 4000]], 30)
+    const graph = loadGraph(
+      [
+        ...lines,
+        `S\tx\t${bases(13)}`,
+        `L\t${last}\t+\tx\t+\t0M`,
+        'L\tx\t+\tb0\t+\t0M',
+        `W\tGRCh38\t0\tchr4\t0\t*\t${steps(names)}`,
+        ...Array.from({ length: 8 }, (_, i) =>
+          i < carriers
+            ? `W\tHG${i}\t1\tc\t0\t*\t${steps(names.filter(name => name !== 'r')).replace(`>${last}>`, `>${last}>x>`)}`
+            : `W\tHG${i}\t1\tc\t0\t*\t${steps(names)}`,
+        ),
+      ].join('\n'),
+      `carried by ${carriers}`,
+    )
+    const { result, fit, batch } = await drawnAtFit(graph)
+    const id = (name: string) => graph.nodes.find(n => n.name === name)!.id
+    const at = (p: { x: number; y: number }) => ({
+      x: p.x * fit.scale,
+      y: p.y * fit.scale,
+    })
+    const ends = (name: string) => {
+      const line = result.nodePositions[id(name)]!
+      return [at(line[0]!), at(line.at(-1)!)]
+    }
+    for (const [from, to] of [
+      [last, 'x'],
+      ['x', 'b0'],
+    ] as const) {
+      const edge = graph.edges.findIndex(
+        e => e.from === id(from) && e.to === id(to),
+      )
+      const run = batch.edgeCurveRuns.get(edge)
+      expect(run).toBeDefined()
+      const strokes = batch.edgeCurves.slice(
+        run!.start,
+        run!.start + run!.count,
+      )
+      const drawn = strokes
+        .flatMap(stroke => stroke.curves)
+        .flatMap(c =>
+          Array.from({ length: 17 }, (_, k) => at(curvePointAt(c, k / 16))),
+        )
+      const nearest = (points: { x: number; y: number }[]) =>
+        drawn.reduce(
+          (least, p) =>
+            points.reduce(
+              (closest, q) =>
+                Math.min(closest, Math.hypot(p.x - q.x, p.y - q.y)),
+              least,
+            ),
+          Infinity,
+        )
+      expect(nearest(ends(from))).toBeLessThan(2)
+      expect(nearest(ends(to))).toBeLessThan(2)
+      const span = Math.hypot(
+        drawn.at(-1)!.x - drawn[0]!.x,
+        drawn.at(-1)!.y - drawn[0]!.y,
+      )
+      const stroke = strokes[0]!.thickness * 2
+      expect(span < 3 * stroke).toBe(carriers === 8)
+      expect(strokes.every(s => s.skip === true)).toBe(carriers === 1)
+    }
+  },
+  60_000,
+)
