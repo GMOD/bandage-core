@@ -1,5 +1,5 @@
-import { walkKeyEntry } from './graphKey'
-import { countLaneWidthPx, countLanes, nodeInk } from './nodeWidths'
+import { walkKeyEntry, walkScaleEntries } from './graphKey'
+import { countLaneWidthPx, countLanes, linkPasses, nodeInk } from './nodeWidths'
 import { loadGraph } from './pipeline'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import {
@@ -120,6 +120,23 @@ test('a thread is the walks of one route, with their count and names, the ones t
 test('a node is as deep as the haplotypes of the threads through it', () => {
   const { graph } = folded()
   expect(graph.nodes.map(n => n.depth)).toEqual([5, 3, 3, 5])
+})
+
+// on main a link counted its threads while its nodes counted their walks, so
+// by walks a thread of two drew its link one walk wide between nodes of five
+test('by walks, a link counts the walks of the threads through it on the scale its nodes do, so the widths at a node add up', () => {
+  const { graph } = folded()
+  const depthOf = (id: string) => graph.nodes.find(n => n.id === id)!.depth
+  const into = (id: string) =>
+    graph.edges
+      .filter(e => e.to === id)
+      .reduce((sum, e) => sum + linkPasses(e), 0)
+  expect(into('c+')).toBe(depthOf('c+'))
+  expect(
+    linkPasses(graph.edges.find(e => e.from === 'a+' && e.to === 'c+')!),
+  ).toBe(2)
+  const scale = walkScaleEntries(graph, 6, true).map(e => e.text)
+  expect(scale[0]).toBe('5 walks')
 })
 
 test('links come from consecutive steps, with the strands they read', () => {

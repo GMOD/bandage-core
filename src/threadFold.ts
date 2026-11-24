@@ -332,12 +332,22 @@ export function foldedGraph(
       ...(thread.pieces > 1 ? { pieces: thread.pieces } : {}),
     }
   })
+  const walksOf = new Map(
+    lanes.map(({ thread }) => [thread.name, thread.walks]),
+  )
   return {
     ...graph,
     nodes: graph.nodes.map(node => ({
       ...node,
       depth: through.get(node.id) ?? node.depth,
       members: fold.members[node.name] ?? [],
+    })),
+    edges: graph.edges.map(edge => ({
+      ...edge,
+      passes: (edge.pathIds ?? []).reduce(
+        (sum, thread) => sum + (walksOf.get(thread) ?? 0),
+        0,
+      ),
     })),
     paths,
     referencePath: graph.referencePath ?? referencePath,
