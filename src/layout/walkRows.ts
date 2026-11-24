@@ -58,8 +58,6 @@ export interface WalkRun {
 export interface WalkAxis {
   contig: string
   start: number
-  // where the bar starts under the reference row
-  offset?: number
   // the stretches away from the window, `bp` of contig from `at` bp along
   // the bar drawn `drawn` wide, in order
   breaks?: WalkBreak[]
@@ -82,12 +80,11 @@ export function drawnAlong(axis: WalkAxis, along: number) {
       inside = b.at - shift + ((along - b.at) * b.drawn) / b.bp
     }
   }
-  return (inside ?? along - shift) + (axis.offset ?? 0)
+  return inside ?? along - shift
 }
 
 // The bp of contig past the bar's start drawn at `x` on the bar
-export function contigAlong(axis: WalkAxis, x: number) {
-  const along = x - (axis.offset ?? 0)
+export function contigAlong(axis: WalkAxis, along: number) {
   let shift = 0
   let inside: number | undefined
   for (const b of axis.breaks ?? []) {

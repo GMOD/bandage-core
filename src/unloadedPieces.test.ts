@@ -170,10 +170,9 @@ test('an unloaded piece draws its stretches on the reference where they lie, in 
     unloadedBp: 50,
     gapBp: 0,
   })
-  // the cut holds all of R, so the bar starts under R's base 60 where the
-  // walk starts
+  // the bar starts at the left, its first run 30 bp long
   expect(row('PARTIAL#1').runs[1]).toEqual({
-    start: 90,
+    start: 30,
     bp: 50,
     onReference: false,
     referenceStart: undefined,

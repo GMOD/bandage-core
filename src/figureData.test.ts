@@ -473,14 +473,6 @@ test("walk row tiles take their lifted walk's colours as walk rows draw them", (
     null,
     null,
   ])
-  // a bar that starts 5 bp in, under the reference's base its walk starts
-  // at, has its tiles' offsets counted from there
-  const shifted = walkRowInks(
-    keys,
-    { ...rows, offset: all.map((_, i) => (i === hg1 ? 5 : 0)) },
-    { row: [hg1, hg1], offset: [5, 12] },
-  )
-  expect(shifted.color).toEqual(inks.color.slice(0, 2))
   // and a bar with a stretch away from the window drawn 2 bp wide at 5 bp
   // along it has a tile past the break at the contig's colour there
   const broken = walkRowInks(

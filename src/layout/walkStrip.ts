@@ -2,7 +2,7 @@ import { el, elOf } from '../el'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { pathOrigin } from '../pathAnchoring'
 import { partitionPoint } from '../util/partitionPoint'
-import { barEnd, barStart, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
+import { barEnd, boxesGenes, rowPitch, rowSpan } from './walkRowDraw'
 import { READOUT_ROOM, longestBar } from './walkRowLayout'
 import { alongRow, contigAlong } from './walkRows'
 
@@ -93,7 +93,7 @@ export function stripMarks(graph: Graph, rows: WalkRow[], node: GraphNode) {
         continue
       }
       const { start, end } = alongRow(axis, v.start, v.start + node.length)
-      if (end > barStart(row) && start < barEnd(row)) {
+      if (end > 0 && start < barEnd(row)) {
         marks.push({ row: row.name, start, bp: end - start })
       }
     }

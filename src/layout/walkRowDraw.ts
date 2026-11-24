@@ -573,11 +573,6 @@ export function walkRowReadoutAt(
   }
 }
 
-// Where a row's bar starts: under the reference row's base it starts at, for
-// a walk that starts in the window
-export const barStart = (row: Pick<WalkRow, 'runs' | 'stepless'>) =>
-  row.stepless ? 0 : (row.runs[0]?.start ?? 0)
-
 // A row's bp walked, those away from the window left out
 export const walkedBp = (row: {
   bp: number
@@ -735,7 +730,6 @@ export function placeRowGenes(
       continue
     }
     const axis = row.axis
-    const from = barStart(row)
     const to = barEnd(row)
     const breaks = row.runs.filter(shortened)
     const clip = (span: { start: number; end: number }) =>
@@ -747,7 +741,7 @@ export function placeRowGenes(
               : at.start,
           end: at.end > b.start && at.end <= b.start + b.bp ? b.start : at.end,
         }),
-        { start: Math.max(from, span.start), end: Math.min(to, span.end) },
+        { start: Math.max(0, span.start), end: Math.min(to, span.end) },
       )
     placed.set(
       row.name,
@@ -1619,7 +1613,6 @@ export function walkRowsTree(
     if (y < -barPx || y > frame.height + barPx) {
       return undefined
     }
-    const from = barStart(row)
     const asDrawn = coalesceRuns(row.runs, frame.scaleX, marked)
     const coalesced = frame.bars === false ? [] : asDrawn
     const ink = o.inks && rowInkOf(row, o.inks)
@@ -1633,7 +1626,7 @@ export function walkRowsTree(
         {
           id: inkId,
           gradientUnits: 'userSpaceOnUse',
-          x1: along(from),
+          x1: along(0),
           x2: along(barEnd(row)),
           y1: 0,
           y2: 0,
@@ -1745,7 +1738,7 @@ export function walkRowsTree(
         rowPx,
         barPx,
         namesAbove: i === 0 ? frame.width : undefined,
-        ends: { x0: along(from), x1: along(barEnd(row)) },
+        ends: { x0: along(0), x1: along(barEnd(row)) },
       }).map(box => geneTree(box, y, barPx)),
       [
         call &&

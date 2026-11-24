@@ -13,9 +13,8 @@ insertion, inversion and duplication is a departure.
   it is, so the short bar does not look like a deletion
 - Each bar is the haplotype's own sequence at one scale for every row, not the
   ruler's: a bar holding an insertion is longer than the region, and one with a
-  deletion shorter. A bar starts at the left edge where the haplotype comes into
-  the region there, and under the reference row's base it starts at where it
-  starts inside the region
+  deletion shorter. Every bar starts at the left edge; its colors say where on
+  the reference each part of it lies
 - A haplotype that crosses the region more than once, as a contig with a
   duplication or an inversion can, is one bar from its first base in the region
   to its last. A stretch it spends away from the region in between is a thin gap

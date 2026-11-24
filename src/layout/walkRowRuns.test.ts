@@ -219,8 +219,9 @@ test('a walk that goes on by a departure says how much of its own bp the graph l
 })
 
 // R1M-05 of the HPRC v2.1 audit: every row starts 69% into the window. G's
-// contig starts on node 2, 1 kb into chr1:1000-4000
-test('a row whose walk starts inside the window starts under the reference at its first base, and its genes with it', () => {
+// contig starts on node 2, 1 kb into chr1:1000-4000, and its bar starts at the
+// left like any other, its colour saying where on the reference it is
+test('a row whose walk starts inside the window starts at the left, and its genes with it', () => {
   const startsLate: GraphTables = {
     ...tables,
     walks: {
@@ -239,10 +240,10 @@ test('a row whose walk starts inside the window starts under the reference at it
   )
   const [row] = rows.rows
   expect(row!.runs).toEqual([
-    { start: 1000, bp: 2000, onReference: true, referenceStart: 2000 },
+    { start: 0, bp: 2000, onReference: true, referenceStart: 2000 },
   ])
-  expect(row!.visits!.map(v => v.start)).toEqual([1000, 2000])
-  expect(row!.axis).toEqual({ contig: 'g', start: 0, offset: 1000 })
+  expect(row!.visits!.map(v => v.start)).toEqual([0, 1000])
+  expect(row!.axis).toEqual({ contig: 'g', start: 0 })
   expect(
     placeRowGenes(
       rows.rows,
@@ -262,7 +263,7 @@ test('a row whose walk starts inside the window starts under the reference at it
         ],
       ]),
     ).get('G#1#g'),
-  ).toEqual([{ name: 'X', start: 1500, end: 1700, exons: [] }])
+  ).toEqual([{ name: 'X', start: 500, end: 700, exons: [] }])
   expect(walkRowsKey(rows, { ruler: true }).at(-1)).toEqual({
     swatch: { kind: 'gene' },
     label:
@@ -433,9 +434,9 @@ test('a row with an inversion between forward flanks reads forward and marks the
 })
 
 // J's contig starts on node 3 inside chr1:1000-4000 and walks 3 and 2 against
-// the reference, then switches strand back to 4: its first run on the
-// reference, chr1:2000-4000, sits under the span it covers
-test('a row whose walk starts inside the window against the reference keeps its first run under the span it covers', () => {
+// the reference, then switches strand back to 4: its bar starts at the left,
+// with no place under the reference claimed for it
+test('a row whose walk starts inside the window against the reference starts at the left', () => {
   const rows = rowsOf(
     walkFile(
       [{ name: 'J#1#j', start: 0, steps: [3, 2, 4], reversed: [1, 1, 0] }],
@@ -452,12 +453,12 @@ test('a row whose walk starts inside the window against the reference keeps its 
   )
   const [row] = rows.rows
   expect(row!.runs[0]).toMatchObject({
-    start: 1000,
+    start: 0,
     bp: 2000,
     referenceStart: 2000,
     reversed: true,
   })
-  expect(row!.axis?.offset).toBe(1000)
+  expect(row!.axis).not.toHaveProperty('offset')
 })
 
 // K starts on node 2, chr1:2000-3000, across the left edge of chr1:2500-4000;

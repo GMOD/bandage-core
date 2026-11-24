@@ -1016,8 +1016,6 @@ interface WalkRowColumns {
   bp: number[]
   contig: (string | null)[]
   contigStart: (number | null)[]
-  // where each bar starts, as its runs' offsets count (WalkAxis.offset)
-  offset?: (number | null)[]
 }
 
 // For a host that tiles walk rows itself: the key row naming each walk row's
@@ -1068,7 +1066,6 @@ export function walkRowInks(
               ? {
                   contig,
                   start,
-                  offset: rows.offset?.[r] ?? 0,
                   breaks: (breaks?.row ?? []).flatMap((row, b) =>
                     row === r
                       ? [

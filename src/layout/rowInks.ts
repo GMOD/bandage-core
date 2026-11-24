@@ -95,7 +95,7 @@ function stopsAt(stops: readonly string[], t: number) {
 
 // The row's axis from its bar's own start, and the bar's drawn length
 function barAxis(row: InkedRow) {
-  const axis = row.axis && { ...row.axis, offset: 0 }
+  const { axis } = row
   return { axis, length: axis ? drawnAlong(axis, row.bp) : row.bp }
 }
 
@@ -152,13 +152,11 @@ function passStretches(ink: RowInk, row: InkedRow, joinBp: number) {
 export function rowInkAlong(ink: RowInk, row: InkedRow, joinBp = row.bp / 600) {
   const stretches = passStretches(ink, row, joinBp)
   const { from, to } = rampEnds(ink, row)
-  const start = row.axis?.offset ?? 0
   const { axis } = barAxis(row)
   return (at: number) => {
-    const offset = at - start
-    const along = axis ? contigAlong(axis, offset) : offset
+    const along = axis ? contigAlong(axis, at) : at
     return (
-      stretches.find(s => offset >= s.from && offset < s.to)?.color ??
+      stretches.find(s => at >= s.from && at < s.to)?.color ??
       stopsAt(ink.stops, from + (to - from) * (row.bp > 0 ? along / row.bp : 0))
     )
   }

@@ -1364,14 +1364,6 @@ export function walkRowRuns(
     }
 
     const firstRun = runs.length
-    const firstVisit = visits?.length ?? 0
-    const firstOnReference = () => {
-      let k = firstRun
-      while (k < runs.length && !(runFlags[k]! & RUN_ON_REFERENCE)) {
-        k++
-      }
-      return k < runs.length ? k : -1
-    }
     let bp = 0
     let offReferenceBp = 0
     let unloadedBp = 0
@@ -1391,11 +1383,22 @@ export function walkRowRuns(
     let runAtLeast = 0
     let lastAway = false
     let lastBoth = false
+    // Each stretch away from the window draws at most a fixed share of the
+    // reference's bar wide; `shortened` is the bp the stretches closed so far
+    // draw short by, so a visit starts where the bar draws it
+    const breakWidth =
+      bar && !stepless && walkName !== reference
+        ? BREAK_SHARE * (bar.end - bar.start)
+        : Infinity
+    const shortBy = () =>
+      lastFlags === AWAY ? Math.max(0, runLength - breakWidth) : 0
+    let shortened = 0
     const close = () => {
       if (lastFlags >= 0) {
         runs.push(runStart, runLength, lastRef, lastFlags, runMissing)
         runs.values[6]![runs.length - 1] = runAtLeast
       }
+      shortened += shortBy()
       runMissing = Number.NaN
       runAtLeast = 0
     }
@@ -1458,7 +1461,13 @@ export function walkRowRuns(
         gapBp += len
       } else {
         lastAway = false
-        visits?.push(id, bp, len, on ? 1 : 0, unloaded ? 1 : 0)
+        visits?.push(
+          id,
+          bp - shortened - shortBy(),
+          len,
+          on ? 1 : 0,
+          unloaded ? 1 : 0,
+        )
         const placed = !Number.isNaN(lastRef)
         // a node the reference passes both ways has no strand to read a step
         // against
@@ -1581,8 +1590,7 @@ export function walkRowRuns(
     let awayRuns = 0
     const runStarts = runs.values[0]!
     const runHeld = runs.values[5]!
-    if (bar && !stepless && walkName !== reference) {
-      const width = BREAK_SHARE * (bar.end - bar.start)
+    if (Number.isFinite(breakWidth)) {
       let along = 0
       let drawnAt = 0
       for (let k = firstRun; k < runs.length; k++) {
@@ -1590,7 +1598,7 @@ export function walkRowRuns(
         const held = runBp[k]!
         if (runFlags[k] === AWAY) {
           runHeld[k] = held
-          runBp[k] = Math.min(held, width)
+          runBp[k] = Math.min(held, breakWidth)
           awayRuns++
         }
         if (held > runBp[k]!) {
@@ -1617,28 +1625,6 @@ export function walkRowRuns(
                 Math.max(runRef[k]!, overWindow.start),
             )
           : 0
-    }
-    // A bar whose walk starts in the window starts under the reference row at
-    // the low end of its first run on the reference
-    const firstOn = bar && stops.left && !stepless ? firstOnReference() : -1
-    const offset =
-      firstOn < 0
-        ? 0
-        : Math.max(0, runRef[firstOn]! - bar!.start - runStarts[firstOn]!)
-    for (let k = firstRun; k < runs.length; k++) {
-      runStarts[k]! += offset
-    }
-    const visitStarts = visits?.values[1]
-    if (visitStarts) {
-      let b = 0
-      let shortened = 0
-      for (let k = firstVisit; k < visitStarts.length; k++) {
-        while (b < breaks.length && breaks[b]!.at < visitStarts[k]!) {
-          shortened += breaks[b]!.bp - breaks[b]!.drawn
-          b++
-        }
-        visitStarts[k] = visitStarts[k]! - shortened + offset
-      }
     }
     const departureGapBp = stepless ? departureRuns(own, bar) : 0
     runs.endRow()
@@ -1673,7 +1659,6 @@ export function walkRowRuns(
           ...(stops.left || stops.right ? { stops } : {}),
           axis: axis && {
             ...axis,
-            ...(offset > 0 ? { offset } : {}),
             ...(breaks.length > 0 ? { breaks } : {}),
           },
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
