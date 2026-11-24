@@ -1046,7 +1046,7 @@ function census(
     ...(g?.paths?.length && g.nodes.some(n => n.placeholder)
       ? ['width-not-drawn']
       : []),
-    ...(batch.collapsed?.sites.length || batch.skipsTooShort?.size
+    ...(batch.collapsed?.sites.length || batch.collapsed?.tooShort.size
       ? ['too-small']
       : []),
   ])

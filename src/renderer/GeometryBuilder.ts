@@ -71,7 +71,7 @@ import type { AnchoredNode } from '../anchoredNodes'
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
-import type { Run as FoldRun, Site, SmallSites } from '../levelOfDetail'
+import type { Fold, Run as FoldRun, Site, SmallSites } from '../levelOfDetail'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 import type { EdgeCurves } from '../util/edgeCurves'
@@ -1160,20 +1160,86 @@ const sharedCurvesOf = ({
     stranded,
   )
 
-const foldOf = (
-  {
+const tooShortCache = weakMemo<EdgeCurves, Fold>()
+
+// With walks, the skips a site's fold leaves standing whose span on screen
+// is under a level or three times their stroke: no arch reads there
+const foldOf = (options: BuildOptions, curves: EdgeCurves) => {
+  const {
     graph,
     nodePositions,
     axis,
     deletions,
+    deletionRoutes,
     hiddenEdges,
+    highlight,
+    drawPaths,
+    contigThickness,
+    connectorThickness,
     smallSites = 'hidden',
-  }: BuildOptions,
-  curves: EdgeCurves,
-) =>
-  smallSites === 'hidden'
-    ? foldedSites(graph, nodePositions, axis, curves, deletions, hiddenEdges)
-    : NO_FOLD
+  } = options
+  const fold =
+    smallSites === 'hidden'
+      ? foldedSites(graph, nodePositions, axis, curves, deletions, hiddenEdges)
+      : NO_FOLD
+  return tooShortCache(
+    curves,
+    [
+      fold,
+      highlight,
+      drawPaths,
+      contigThickness,
+      connectorThickness,
+      options.nodeWidth,
+      options.edgeWidth,
+    ],
+    () => {
+      const nodeWidth = drawnNodeWidth(graph, options.nodeWidth ?? 'uniform')
+      const edgeWidth = drawnEdgeWidth(graph, options.edgeWidth ?? 'uniform')
+      const perPass =
+        edgeWidth === 'walks'
+          ? contigThickness / mostPasses(graph, nodeWidth === 'walks')
+          : 0
+      const tooShort = new Map<number, { x: number; y: number }>()
+      graph.edges.forEach((edge, ei) => {
+        const arc = curves.get(ei)
+        const skips =
+          curves.arcs.has(ei) || !!deletions?.has(ei) || !!deletionRoutes?.[ei]
+        const lane =
+          !!highlight?.walks.length &&
+          highlight.edgeIndexes.has(ei) &&
+          !(drawPaths && !!edge.pathIds?.length)
+        if (
+          graph.paths?.length &&
+          skips &&
+          arc &&
+          !lane &&
+          !fold.edges.has(ei) &&
+          !hiddenEdges?.has(ei)
+        ) {
+          const width = linkWidthPx(
+            linkPasses(edge),
+            perPass,
+            edgeWidth,
+            connectorThickness,
+          )
+          if (
+            !curves.arcs.has(ei) ||
+            spanPx(arc, axis) < Math.max(SKIP_LEVEL_PX, 3 * width)
+          ) {
+            const first = arc[0]!
+            const last = arc.at(-1)!
+            tooShort.set(ei, {
+              x: (first.x0 + last.x1) / 2,
+              y: (first.y0 + last.y1) / 2,
+            })
+          }
+        }
+      })
+      return { ...fold, tooShort }
+    },
+  )
+}
 
 // What a build with these options folds as too small to draw, without
 // building it: a key naming the fold is sized before the build, and the fit
@@ -1218,7 +1284,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const yToX = yToXOf(axis)
   const sharedCurves = sharedCurvesOf(options)
   const collapse = foldOf(options, sharedCurves)
-  const skipsTooShort = new Set<number>()
   const siteAt = new Map<number, Site>()
   for (const site of collapse.sites) {
     for (const edge of site.edges) {
@@ -2196,13 +2261,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? connectorThickness * DELETION_THICKNESS_FACTOR
         : linkPx(linkPasses(edge))) / 2
     const skips = isDeletion || !!deletions?.has(ei) || !!deletionRoutes?.[ei]
-    if (
-      walked &&
-      skips &&
-      !laneWalks &&
-      (!isDeletion || arcPx < Math.max(SKIP_LEVEL_PX, 6 * edgeThickness))
-    ) {
-      skipsTooShort.add(ei)
+    if (collapse.tooShort.has(ei)) {
       continue
     }
 
@@ -2661,8 +2720,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         isBackbone(node) &&
         stroke &&
         !stroke.placeholder &&
-        (stretchBp.get(id) ?? 0) * collapse.pxPerBp >=
-          (collapse === NO_FOLD ? 0 : SMALL_SITE_PX)
+        (collapse.pxPerBp === 0 ||
+          (stretchBp.get(id) ?? 0) * collapse.pxPerBp >= SMALL_SITE_PX)
       ) {
         for (const head of place({
           points: stroke.points,
@@ -2780,7 +2839,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     edgeCurves,
     edgeCurveRuns,
     collapsed: collapse,
-    skipsTooShort,
     laneOnly,
     nodeThicknessesVary: thinnestStroke < thickestStroke,
     ...(counted ? { countedLanes: true } : {}),

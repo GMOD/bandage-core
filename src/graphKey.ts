@@ -180,7 +180,6 @@ export function drawnMarks(
         RenderBatch,
         | 'arrows'
         | 'collapsed'
-        | 'skipsTooShort'
         | 'nodeStrokeRuns'
         | 'laneOnly'
         | 'nodeThicknessesVary'
@@ -219,9 +218,11 @@ export function drawnMarks(
     !view || curves.some(curve => curveMeetsView(curve, view))
   let width: number | undefined
   for (const batch of batches) {
-    const { nodeStrokeRuns, nodeStrokes, collapsed, skipsTooShort } = batch
-    for (const edge of skipsTooShort ?? []) {
-      marks.skipsTooShort.add(edge)
+    const { nodeStrokeRuns, nodeStrokes, collapsed } = batch
+    for (const [edge, at] of collapsed?.tooShort ?? []) {
+      if (inView([at])) {
+        marks.skipsTooShort.add(edge)
+      }
     }
     const shown = nodeStrokes.map(stroke => inView(stroke.points))
     if (nodeStrokeRuns) {

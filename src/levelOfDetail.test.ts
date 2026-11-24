@@ -198,7 +198,7 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     expect(1000 * batch.collapsed!.pxPerBp).toBeGreaterThan(SMALL_SITE_PX)
     expect(batch.collapsed?.sites).toEqual([])
     // its ends together on screen, it holds no arch and is counted as such
-    expect(batch.skipsTooShort?.has(2)).toBe(true)
+    expect(batch.collapsed?.tooShort.has(2)).toBe(true)
   })
 
   // R100k-01: a 312 bp insertion, drawn a few px long by the force layout,
@@ -842,7 +842,8 @@ describe('the reference is the nodes the cut loaded on it', () => {
       expect(batch.collapsed?.sites).toEqual([])
       expect(drawnNodes(batch).has('a1+')).toBe(true)
       expect(
-        batch.edgeCurveRuns.has(skipToP) || batch.skipsTooShort?.has(skipToP),
+        batch.edgeCurveRuns.has(skipToP) ||
+          batch.collapsed?.tooShort.has(skipToP),
       ).toBe(true)
     }
   })
@@ -939,7 +940,9 @@ test('a site no shown walk steps is drawn, an allele or a skip', () => {
   const skipped = skip(1, [])
   const batch = build(skipped.graph, skipped.positions, 0.01)
   expect(batch.collapsed?.sites).toEqual([])
-  expect(batch.edgeCurveRuns.has(2) || batch.skipsTooShort?.has(2)).toBe(true)
+  expect(batch.edgeCurveRuns.has(2) || batch.collapsed?.tooShort.has(2)).toBe(
+    true,
+  )
 })
 
 test('the fold follows the skips the drawing holds and hides, on the same graph and curves', () => {

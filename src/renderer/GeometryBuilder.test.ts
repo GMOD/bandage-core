@@ -4,6 +4,7 @@ import {
   buildGeometry,
   computeReferenceRamp,
   endTangent,
+  geometryFold,
   hslToRgb,
 } from './GeometryBuilder'
 import { packAbgr } from './colorBits'
@@ -1109,27 +1110,30 @@ describe('arrowhead placement', () => {
 
   // a 5 px arch over a chord under its stroke drew a blob, and a skip under a
   // pixel a plain dot keyed apart
-  test('with walks a skip whose span on screen holds no arch its stroke can shape is left out and counted, one that holds it drawn', () => {
-    const batchAt = (scale: number, connectorThickness: number) =>
-      buildGeometry({
-        nodePositions: simplePositions,
-        graph: walked,
-        nodeById: simpleNodeById,
-        colorScheme: 'uniform',
-        contigThickness: 6,
-        connectorThickness,
-        drawPaths: false,
-        axis: iso(scale),
-        deletions: new Map([[0, []]]),
-      })
+  // and a key sized before the build, without them, moved the fit each build
+  // and rebuilt without end (BandageJS's chrM walk file)
+  test('with walks a skip whose span on screen holds no arch its stroke can shape is left out and counted in the fold the key is sized from, one that holds it drawn', () => {
+    const optionsAt = (scale: number, connectorThickness: number) => ({
+      nodePositions: simplePositions,
+      graph: walked,
+      nodeById: simpleNodeById,
+      colorScheme: 'uniform' as const,
+      contigThickness: 6,
+      connectorThickness,
+      drawPaths: false,
+      axis: iso(scale),
+      deletions: new Map([[0, []]]),
+    })
     for (const [scale, thickness, left] of [
       [0.005, 2, true],
       [0.8, 2, false],
       [0.8, 6, true],
       [4, 6, false],
     ] as const) {
-      const batch = batchAt(scale, thickness)
-      expect(new Set(batch.skipsTooShort).has(0)).toBe(left)
+      const options = optionsAt(scale, thickness)
+      expect(geometryFold(options).tooShort.has(0)).toBe(left)
+      const batch = buildGeometry(options)
+      expect(!!batch.collapsed?.tooShort.has(0)).toBe(left)
       expect(batch.edgeCurveRuns.has(0)).toBe(!left)
     }
   })
