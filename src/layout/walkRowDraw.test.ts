@@ -32,7 +32,7 @@ import { walkRows } from './walkRows'
 
 import type { Departure } from '../gfa/departures'
 import type { WalkRowsWithCalls } from './walkRowDraw'
-import type { WalkRun } from './walkRows'
+import type { WalkRun, WalkStop } from './walkRows'
 
 // Five 10 bp reference nodes on chr1 from 1000, and a 5 bp node no reference
 // walk visits
@@ -1235,7 +1235,7 @@ describe('the line beside a bar', () => {
     ).toBe('1.0 kb')
   })
   test('a row that leaves and comes back on the same side gives no change', () => {
-    const back = { contigEnds: false, shortBp: 0, turnsBack: true }
+    const back: WalkStop = { contigEnds: false, shortBp: 0, turnsBack: true }
     expect(
       walkRowLine(
         row({ complete: false, windowBp: 3500, stops: { right: back } }),

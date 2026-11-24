@@ -195,6 +195,9 @@ function causesParts(gaps: WalkRun[], ownGap: string, region: string) {
     .map(([bp, text, prefix = '']) => `${prefix}${bpText(bp)} ${text}`)
 }
 
+// a bar reaching over contig outside the window holds no length over it
+const ofContig = (length: number) => `${bpText(length)} of its contig`
+
 const contigBeforeText = (contigStart: number) =>
   `${bpText(contigStart)} before it ${GAP_CAUSE_TEXT.mixed}`
 
@@ -303,8 +306,6 @@ export function walkRowReadout(
     region,
   )
   const after = `${row.placementChoice ? ` · ${PLACEMENT_CHOICE_TEXT}` : ''}${beyond}`
-  // a bar reaching over contig outside the window holds no length over it
-  const ofContig = (length: number) => `${bpText(length)} of its contig`
   const called = call
     ? ` · called ${bpText(call.bp)}${call.spanningReads === 0 ? ' · no spanning read' : ''}`
     : ''
