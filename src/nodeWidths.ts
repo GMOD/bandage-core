@@ -74,7 +74,7 @@ export function haplotypeIndex(graph: Graph) {
 }
 
 export function haplotypeCount(graph: Graph) {
-  return haplotypeIndex(graph).size
+  return graph.threadFold?.haplotypes ?? haplotypeIndex(graph).size
 }
 
 // The node's passes per haplotype: its AF tag, or its depth over the
