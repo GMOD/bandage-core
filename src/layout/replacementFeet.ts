@@ -26,7 +26,6 @@ export interface PaddedFoot extends Skipped {
   toStrand?: '+' | '-'
   // the loaded reference between its run's ends, which its arms are sized by
   replacedBp: number
-  ownBp: number
   nodes: string[]
 }
 
@@ -101,7 +100,6 @@ export function paddedFeet(cut: Graph) {
   })
   const runs: (Skipped & {
     replacedBp: number
-    ownBp: number
     nodes: string[]
     links: number[]
   })[] = []
@@ -151,7 +149,6 @@ export function paddedFeet(cut: Graph) {
         runs.push({
           ...skipped,
           replacedBp,
-          ownBp,
           nodes: own,
           links: runLinks,
         })

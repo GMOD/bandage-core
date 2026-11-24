@@ -34,9 +34,6 @@ export function edgeHoverText(
         deletion: {
           bp: `${groupDigits(skip.end - skip.start)} bp`,
           where: regionLabel(skip),
-          ...('ownBp' in skip
-            ? { replacedBy: `${groupDigits(skip.ownBp)} bp` }
-            : {}),
         },
       }
     : {
