@@ -392,7 +392,7 @@ test("a placeholder among a gap's attached steps draws as a run not loaded", asy
   const h = row('H#1')
   expect(h.runs.filter(run => run.unloaded)).toEqual([
     {
-      start: 9090,
+      start: 6090,
       bp: 600,
       onReference: false,
       referenceStart: undefined,

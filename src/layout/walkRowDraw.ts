@@ -128,14 +128,17 @@ function partsText(
 function causesParts(gaps: WalkRun[], ownGap: string, region: string) {
   const bpOf = (cause: GapCause | undefined) =>
     gaps.filter(g => g.cause === cause).reduce((sum, g) => sum + heldBp(g), 0)
-  const mixedMissing = gaps
-    .filter(g => g.cause === 'mixed')
-    .reduce((sum, g) => sum + (g.missingBp ?? 0), 0)
-  const missing = bpOf('missing') + mixedMissing
+  const missingOf = (cause: GapCause) =>
+    gaps
+      .filter(g => g.cause === cause)
+      .reduce((sum, g) => sum + (g.missingBp ?? 0), 0)
+  const mixedMissing = missingOf('mixed')
+  const awayMissing = missingOf('away')
+  const missing = bpOf('missing') + mixedMissing + awayMissing
   const lowerBound = gaps.some(g => g.atLeast)
   const parts: [number, string, string?][] = [
     [missing, GAP_CAUSE_TEXT.missing, lowerBound ? 'at least ' : ''],
-    [bpOf('away'), awayText(region)],
+    [bpOf('away') - awayMissing, awayText(region)],
     [bpOf('own') + bpOf('mixed') - mixedMissing, ownGap],
     [bpOf('unread') + bpOf(undefined), GAP_CAUSE_TEXT.unread],
   ]

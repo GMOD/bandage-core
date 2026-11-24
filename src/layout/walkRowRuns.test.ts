@@ -383,6 +383,50 @@ const walkFile = (
   }
 }
 
+// R1M-06 of the HPRC v2.1 audit: HG00099#1 spends 3.71 Mb away from the
+// window and then 287 kb the graph left out between two pieces, and drew a
+// break, a 287 kb hairline and a second break; HG01123#1's left-out bp of two
+// such gaps drew as one hairline. T walks chr1:0-2000, then 3 kb holding
+// 1 kb left out, chr1:1000-3000, 3 kb holding 500 bp left out, and
+// chr1:3000-5000: each gap is one trip out of the window, one break, its
+// left-out bp in the text alone
+test('a gap between two pieces that holds away bp is one break, its left-out bp counted in the text', () => {
+  const t = walkFile(
+    [
+      { name: 'T#1#t', start: 0, steps: [0, 1], reversed: [0, 0] },
+      { name: 'T#1#t', start: 5000, steps: [1, 2], reversed: [0, 0] },
+      { name: 'T#1#t', start: 10_000, steps: [3, 4], reversed: [0, 0] },
+    ],
+    [
+      departure('T#1#t', {
+        hapStart: 2500,
+        ownBp: 2000,
+        missingBp: 1000,
+        leavePos: 2000,
+        rejoinPos: 90_000,
+      }),
+      departure('T#1#t', {
+        hapStart: 7500,
+        ownBp: 2000,
+        missingBp: 500,
+        leavePos: 3000,
+        rejoinPos: 90_000,
+      }),
+    ],
+  )
+  const rows = rowsOf(t, { start: 1000, end: 4000 })
+  const [row] = rows.rows
+  const gaps = row!.runs.filter(run => run.gap)
+  expect(gaps).toEqual([
+    expect.objectContaining({ cause: 'away', heldBp: 3000, missingBp: 1000 }),
+    expect.objectContaining({ cause: 'away', heldBp: 3000, missingBp: 500 }),
+  ])
+  expect(row!.axis?.breaks).toHaveLength(2)
+  expect(walkRowReadout(row!, rows.reference)).toContain(
+    'at least 1.5 kb left out of graph, 4.5 kb away from the window',
+  )
+})
+
 // S's contig is stored back to front and crosses chr1:1000-4000 twice: nodes
 // 3 to 1 against the reference, then, 5 kb on, 3 and 2 again
 test('a row stored back to front that crosses the window twice reads in stored order, every step on the reference reversed', () => {
@@ -918,27 +962,25 @@ function gappedCut(): GraphTables {
   }
 }
 
-test("a gap's parts keep their causes, in the order the contig is stored", () => {
+test('a gap holding bp away from the window is one trip out of it, the bp the graph lacks in it held on that trip', () => {
   const gaps = (rows: WalkRow[]) =>
     rows.map(r => [
       r.label,
       r.runs
         .filter(run => run.gap)
-        .map(({ bp, heldBp, cause }) => ({ bp: heldBp ?? bp, cause })),
+        .map(({ bp, heldBp, cause, missingBp }) => ({
+          bp: heldBp ?? bp,
+          cause,
+          missingBp,
+        })),
     ])
   expect(
     Object.fromEntries(
       gaps(rowsOf(gappedCut(), { start: 1000, end: 6000 }).rows),
     ),
   ).toEqual({
-    'A#1': [
-      { bp: 400, cause: 'away' },
-      { bp: 600, cause: 'missing' },
-    ],
-    'B#1': [
-      { bp: 300, cause: 'missing' },
-      { bp: 700, cause: 'away' },
-    ],
+    'A#1': [{ bp: 1000, cause: 'away', missingBp: 600 }],
+    'B#1': [{ bp: 1000, cause: 'away', missingBp: 300 }],
   })
 })
 

@@ -300,13 +300,11 @@ test('bp left out of graph are a lower bound where the departures read do not ru
 
 // On chr22 at 12 Mb, a haplotype runs on past what the cut keeps, then its
 // W line ends: the bp it ran on are away from the window, the rest the graph
-// lacks; bp trimmed beside bp away are one break
-test('a gap past a trimmed walk splits into what the graph lacks and what lies away from the window', () => {
+// lacks. The gap is one trip out of the window, one break, and the text says
+// what it holds
+test('a gap past a trimmed walk is one break, its text splitting what the graph lacks from what lies away from the window', () => {
   const tables = twoFragments([departure({ missingBp: 600 })], { after: 400 })
-  expect(parts(tables)).toEqual([
-    [75, 'away'],
-    [600, 'missing'],
-  ])
+  expect(parts(tables)).toEqual([[75, 'away']])
   const { row, rows } = gapOf(tables)
   expect(walkRowReadout(row, rows.reference)).toBe(
     '5.0 kb of its contig, of which 600 bp left out of graph, 400 bp away from the window',
@@ -438,11 +436,10 @@ test('a contig stored back to front reads in stored order, meeting the parts of 
   expect(row.axis).not.toHaveProperty('reversed')
   expect(row.runs.filter(r => !r.gap).every(r => r.reversed)).toBe(true)
   expect(
-    row.runs.filter(r => r.gap).map(r => [r.heldBp ?? r.bp, r.cause]),
-  ).toEqual([
-    [400, 'away'],
-    [600, 'missing'],
-  ])
+    row.runs
+      .filter(r => r.gap)
+      .map(r => [r.heldBp ?? r.bp, r.cause, r.missingBp]),
+  ).toEqual([[1000, 'away', 600]])
 })
 
 test('a lifted walk states the bp its departures say the graph lacks, and its bp off the reference as its own only where the walk file counts no node the reference passes twice', () => {

@@ -1419,16 +1419,30 @@ export function walkRowRuns(
       const at = stepPlace[index]!
       const on = !Number.isNaN(at)
       if (parts) {
+        // a walk file's contig the cut did not keep is away from the window,
+        // and with no window, not drawn; GFA text states nothing of it. A gap
+        // holding some and none of the walk's own sequence is one trip out of
+        // the window, drawn as one stretch away, its bp left out of graph
+        // carried for the text
+        const notKept = (part: GapPart) =>
+          fromWalkFile &&
+          walkName !== reference &&
+          (part.cause === 'away' || part.cause === undefined)
+        const trip =
+          cut !== undefined &&
+          parts.some(notKept) &&
+          !parts.some(part => part.cause === 'own' || part.cause === 'mixed')
         for (const part of parts) {
-          // a walk file's contig the cut did not keep is away from the window,
-          // and with no window, not drawn; GFA text states nothing of it
-          const notKept =
-            fromWalkFile &&
-            walkName !== reference &&
-            (part.cause === 'away' || part.cause === undefined)
-          const awayPart = notKept && cut !== undefined
+          const missing =
+            part.cause === 'missing' ? part.bp : (part.missingBp ?? 0)
+          const awayPart = trip || (notKept(part) && cut !== undefined)
           if (awayPart && lastAway) {
             runLength += part.bp
+            runMissing =
+              missing > 0
+                ? (Number.isNaN(runMissing) ? 0 : runMissing) + missing
+                : runMissing
+            runAtLeast = runAtLeast || (part.atLeast ? 1 : 0)
           } else {
             close()
             runStart = bp
@@ -1436,8 +1450,13 @@ export function walkRowRuns(
             lastRef = Number.NaN
             lastFlags = awayPart
               ? AWAY
-              : RUN_GAP | causeFlags(notKept ? 'unread' : part.cause)
-            runMissing = part.missingBp ?? Number.NaN
+              : RUN_GAP | causeFlags(notKept(part) ? 'unread' : part.cause)
+            runMissing =
+              trip && missing > 0
+                ? missing
+                : trip
+                  ? Number.NaN
+                  : (part.missingBp ?? Number.NaN)
             runAtLeast = part.atLeast ? 1 : 0
           }
           lastAway = awayPart
