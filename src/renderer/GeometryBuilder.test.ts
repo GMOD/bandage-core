@@ -1131,10 +1131,10 @@ describe('arrowhead placement', () => {
       [4, 6, false],
     ] as const) {
       const options = optionsAt(scale, thickness)
-      expect(geometryFold(options).tooShort.has(0)).toBe(left)
       const batch = buildGeometry(options)
-      expect(!!batch.collapsed?.tooShort.has(0)).toBe(left)
       expect(batch.edgeCurveRuns.has(0)).toBe(!left)
+      expect(!!batch.collapsed?.tooShort.has(0)).toBe(left)
+      expect(geometryFold(options).tooShort.has(0)).toBe(left)
     }
   })
 
