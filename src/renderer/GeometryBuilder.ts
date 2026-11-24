@@ -1192,14 +1192,11 @@ const sitesFold = (
     ? foldedSites(graph, nodePositions, axis, curves, deletions, hiddenEdges)
     : NO_FOLD
 
-const archlessCache = weakMemo<
-  EdgeCurves,
-  ReadonlyMap<number, { x: number; y: number }>
->()
+const archlessCache = weakMemo<EdgeCurves, ReadonlySet<number>>()
 
 // With walks, each skip or padded foot standing after the fold whose span on
-// screen is under a level or three times its stroke, where no arch reads, at
-// the middle of its chord
+// screen is under a level or three times its stroke, where no arch reads: it
+// draws as the plain link it is
 function archless(options: BuildOptions, curves: EdgeCurves, fold: Fold) {
   const {
     graph,
@@ -1230,7 +1227,7 @@ function archless(options: BuildOptions, curves: EdgeCurves, fold: Fold) {
         edgeWidth === 'walks'
           ? contigThickness / mostPasses(graph, nodeWidth === 'walks')
           : 0
-      const short = new Map<number, { x: number; y: number }>()
+      const short = new Set<number>()
       graph.edges.forEach((edge, ei) => {
         const arc = curves.get(ei)
         const skips =
@@ -1257,12 +1254,7 @@ function archless(options: BuildOptions, curves: EdgeCurves, fold: Fold) {
             !curves.arcs.has(ei) ||
             spanPx(arc, axis) < Math.max(SKIP_LEVEL_PX, 3 * width)
           ) {
-            const first = arc[0]!
-            const last = arc.at(-1)!
-            short.set(ei, {
-              x: (first.x0 + last.x1) / 2,
-              y: (first.y0 + last.y1) / 2,
-            })
+            short.add(ei)
           }
         }
       })
@@ -1271,27 +1263,12 @@ function archless(options: BuildOptions, curves: EdgeCurves, fold: Fold) {
   )
 }
 
-const leftOutCache = weakMemo<EdgeCurves, Fold>()
-
-// What the build leaves out: the sites the fold hides, and the deletions too
-// short on screen to arch. A padded foot that short draws as its plain link
-const leftOut = (options: BuildOptions, curves: EdgeCurves) => {
-  const fold = sitesFold(options, curves)
-  const short = archless(options, curves, fold)
-  return leftOutCache(curves, [fold, short, options.deletions], () => ({
-    ...fold,
-    tooShort: new Map(
-      Array.from(short).filter(([ei]) => !!options.deletions?.has(ei)),
-    ),
-  }))
-}
-
 // What a build with these options folds as too small to draw, without
 // building it: a key naming the fold is sized before the build, and the fit
 // beside that key sets the scale the build folds at. Cached with the build's
 // own curves and fold, so the build that follows reuses both.
 export function geometryFold(options: BuildOptions) {
-  return leftOut(options, sharedCurvesOf(options))
+  return sitesFold(options, sharedCurvesOf(options))
 }
 
 export function buildGeometry(options: BuildOptions): RenderBatch {
@@ -1327,12 +1304,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
   const yToX = yToXOf(axis)
   const sharedCurves = sharedCurvesOf(options)
-  const collapse = leftOut(options, sharedCurves)
-  const archlessLinks = archless(
-    options,
-    sharedCurves,
-    sitesFold(options, sharedCurves),
-  )
+  const collapse = sitesFold(options, sharedCurves)
+  const archlessLinks = archless(options, sharedCurves, collapse)
   const siteAt = new Map<number, Site>()
   for (const site of collapse.sites) {
     for (const edge of site.edges) {
@@ -2261,9 +2234,9 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const edge = graph.edges[ei]!
     const fromSegments = nodePositions[edge.from]!
     const toSegments = nodePositions[edge.to]!
-    const plainFoot = archlessLinks.has(ei) && !deletions?.has(ei)
+    const plainLink = archlessLinks.has(ei)
     const baseCurves =
-      (plainFoot
+      (plainLink
         ? edgeCurvesOf(
             nodePositions,
             edge,
@@ -2289,12 +2262,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         ? highlight.walks
         : undefined
     const collapsed = collapse.edges.has(ei)
-    if (
-      !laneWalks &&
-      (collapsed ||
-        collapse.tooShort.has(ei) ||
-        (!ribbons && !inView(baseCurves)))
-    ) {
+    if (!laneWalks && (collapsed || (!ribbons && !inView(baseCurves)))) {
       continue
     }
     const fromSite = laneSiteOf(edge.from)
@@ -2312,7 +2280,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       continue
     }
 
-    const isDeletion = !plainFoot && sharedCurves.arcs.has(ei)
+    const isDeletion = !plainLink && sharedCurves.arcs.has(ei)
     // With walks every arced skip is dashed, as thick as a link of its
     // walks; without, as the rGFA track draws, one short on screen is plain
     const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
@@ -2325,7 +2293,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       (dashed && !walked
         ? connectorThickness * DELETION_THICKNESS_FACTOR
         : linkPx(linkPasses(edge))) / 2
-    const skips = isDeletion || !!deletions?.has(ei)
+    const skips = isDeletion || (!plainLink && !!deletions?.has(ei))
 
     // An arrowhead states which way a LINK is read, which is a property of the
     // edge and not of each path crossing it. Drawn per ribbon it says one thing
@@ -2409,7 +2377,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
       const head =
         showArrows &&
         (headed || !isDeletion) &&
-        !plainFoot &&
+        !plainLink &&
         !headsDropped.has(ei)
           ? arrowheadFor({
               curves,

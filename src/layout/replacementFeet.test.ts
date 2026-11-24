@@ -556,3 +556,56 @@ test.each([8, 1])(
   },
   60_000,
 )
+
+// review 4: a 2.5 kb deletion eight of nine walks take, about 15 px across at
+// the fit, was left out, and the thick reference stopped at a gap the
+// hairline of the skipped reference alone crossed
+test.each([8, 1])(
+  'at the fit, a short deletion %i of 8 haplotypes take is drawn as a link joining the flanks, at its walks width, plain when it holds no arch',
+  async carriers => {
+    const { names, last, lines } = snpWindow([['d', 2500]], 30)
+    const graph = loadGraph(
+      [
+        ...lines,
+        `L\t${last}\t+\tb0\t+\t0M`,
+        `W\tGRCh38\t0\tchr4\t0\t*\t${steps(names)}`,
+        ...Array.from(
+          { length: 8 },
+          (_, i) =>
+            `W\tHG${i}\t1\tc\t0\t*\t${steps(i < carriers ? names.filter(name => name !== 'd') : names)}`,
+        ),
+      ].join('\n'),
+      `deletion carried by ${carriers}`,
+    )
+    const { result, fit, batch } = await drawnAtFit(graph)
+    const id = (name: string) => graph.nodes.find(n => n.name === name)!.id
+    const at = (p: { x: number; y: number }) => ({
+      x: p.x * fit.scale,
+      y: p.y * fit.scale,
+    })
+    const edge = graph.edges.findIndex(
+      e => e.from === id(last) && e.to === id('b0'),
+    )
+    const run = batch.edgeCurveRuns.get(edge)
+    expect(run).toBeDefined()
+    const strokes = batch.edgeCurves.slice(run!.start, run!.start + run!.count)
+    const drawn = strokes
+      .flatMap(stroke => stroke.curves)
+      .flatMap(c =>
+        Array.from({ length: 17 }, (_, k) => at(curvePointAt(c, k / 16))),
+      )
+    const nearest = (p: { x: number; y: number }) =>
+      drawn.reduce(
+        (least, q) => Math.min(least, Math.hypot(p.x - q.x, p.y - q.y)),
+        Infinity,
+      )
+    expect(nearest(at(result.nodePositions[id(last)]!.at(-1)!))).toBeLessThan(2)
+    expect(nearest(at(result.nodePositions[id('b0')]![0]!))).toBeLessThan(2)
+    expect(strokes[0]!.thickness * 2).toBeCloseTo(
+      Math.max(1, (6 * carriers) / 9),
+      5,
+    )
+    expect(strokes.every(s => s.skip === true)).toBe(carriers === 1)
+  },
+  60_000,
+)

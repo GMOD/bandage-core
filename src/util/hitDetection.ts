@@ -317,8 +317,7 @@ export function findHoveredEdge(
       toSegments?.length &&
       baseCurves &&
       !hiddenEdges?.has(edgeIdx) &&
-      !collapsed?.edges.has(edgeIdx) &&
-      !collapsed?.tooShort.has(edgeIdx)
+      !collapsed?.edges.has(edgeIdx)
     ) {
       const numPaths = edge.pathIds?.length ?? 0
       // The same offsets GeometryBuilder drew the ribbons at, from the one

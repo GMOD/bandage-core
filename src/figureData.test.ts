@@ -680,9 +680,7 @@ test('the sites table lists each folded site, its nodes and links each once and 
   expect(Object.keys(nodes)).not.toContain('sites')
   expect(Object.keys(nodes.meta)).not.toContain('smallSites')
   expect(nodes.nodes.node).toContain('a1+')
-  expect(nodes.meta.graphKey.text).not.toContainEqual(
-    expect.stringMatching(/bp not drawn/),
-  )
+  expect(nodes.meta.graphKey.key).not.toContain('too-small')
 })
 
 // A 5 bp loop the cut did not load, a placeholder, between 10 kb flanks: at

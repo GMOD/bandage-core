@@ -5,7 +5,6 @@ import {
   buildGeometry,
   computeReferenceRamp,
   endTangent,
-  geometryFold,
   hslToRgb,
 } from './GeometryBuilder'
 import { packAbgr } from './colorBits'
@@ -1109,41 +1108,15 @@ describe('arrowhead placement', () => {
     )
   })
 
-  // a 5 px arch over a chord under its stroke drew a blob, and a skip under a
-  // pixel a plain dot keyed apart
-  // and a key sized before the build, without them, moved the fit each build
-  // and rebuilt without end (BandageJS's chrM walk file)
-  test('with walks a skip whose span on screen holds no arch its stroke can shape is left out and counted in the fold the key is sized from, one that holds it drawn', () => {
-    const optionsAt = (scale: number, connectorThickness: number) => ({
-      nodePositions: simplePositions,
-      graph: walked,
-      nodeById: simpleNodeById,
-      colorScheme: 'uniform' as const,
-      contigThickness: 6,
-      connectorThickness,
-      drawPaths: false,
-      axis: iso(scale),
-      deletions: new Map([[0, []]]),
-    })
-    for (const [scale, thickness, left] of [
+  // a 5 px arch over a chord under its stroke drew a blob; left out instead,
+  // the path most walks take was drawn broken, and a key counting it moved
+  // the fit each build (BandageJS's chrM walk file)
+  test('with walks a skip whose span on screen holds no arch its stroke can shape draws as the plain link it is, at its walks width, and is hovered; one that holds it arches', () => {
+    for (const [scale, thickness, plain] of [
       [0.005, 2, true],
       [0.8, 2, false],
       [0.8, 6, true],
       [4, 6, false],
-    ] as const) {
-      const options = optionsAt(scale, thickness)
-      const batch = buildGeometry(options)
-      expect(batch.edgeCurveRuns.has(0)).toBe(!left)
-      expect(!!batch.collapsed?.tooShort.has(0)).toBe(left)
-      expect(geometryFold(options).tooShort.has(0)).toBe(left)
-    }
-  })
-
-  // review 4: the hit test left out folded links but not these
-  test('a skip left out as too short on screen is not hovered, one drawn is', () => {
-    for (const [scale, thickness, left] of [
-      [0.8, 2, false],
-      [0.8, 6, true],
     ] as const) {
       const axis = iso(scale)
       const deletions = new Map([[0, []]])
@@ -1158,6 +1131,12 @@ describe('arrowhead placement', () => {
         axis,
         deletions,
       })
+      const run = batch.edgeCurveRuns.get(0)
+      expect(run).toBeDefined()
+      const stroke = batch.edgeCurves[run!.start]!
+      expect(stroke.skip === true).toBe(!plain)
+      expect(stroke.dashed === true).toBe(!plain)
+      expect(stroke.thickness * 2).toBe(thickness)
       expect(
         findHoveredEdge(
           simplePositions,
@@ -1173,7 +1152,7 @@ describe('arrowhead placement', () => {
           undefined,
           batch.collapsed,
         ),
-      ).toBe(left ? null : 0)
+      ).toBe(0)
     }
   })
 

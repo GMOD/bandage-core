@@ -69,6 +69,11 @@ const drawnNodes = (batch: ReturnType<typeof build>) =>
   new Set(batch.nodeStrokeRuns.keys())
 const edgeIndex = (graph: Graph, from: string, to: string) =>
   graph.edges.findIndex(e => e.from === from && e.to === to)
+// whether a link is drawn, and drawn as a plain link rather than a skip
+const plainLink = (batch: ReturnType<typeof build>, edge: number) => {
+  const run = batch.edgeCurveRuns.get(edge)
+  return run ? !batch.edgeCurves[run.start]!.skip : undefined
+}
 
 // a1, `altBp` long, takes the place of r2, `refBp` long, between 1 kb
 // flanks, drawn one layout unit a bp, so the reference's px per bp is the
@@ -197,9 +202,8 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     const batch = build(graph, looped, 0.003)
     expect(1000 * batch.collapsed!.pxPerBp).toBeGreaterThan(SMALL_SITE_PX)
     expect(batch.collapsed?.sites).toEqual([])
-    // its ends together on screen, it holds no arch and is counted as such
-    expect(batch.collapsed?.tooShort.has(2)).toBe(true)
-    expect(batch.edgeCurveRuns.has(2)).toBe(false)
+    // its ends together on screen, it holds no arch and draws as its link
+    expect(plainLink(batch, 2)).toBe(true)
   })
 
   // R100k-01: a 312 bp insertion, drawn a few px long by the force layout,
@@ -835,7 +839,7 @@ describe('the reference is the nodes the cut loaded on it', () => {
     expect(build(graph, positions, 0.5).collapsed?.pxPerBp).toBeCloseTo(0.5, 9)
   })
 
-  test('a piece or a skip reaching a reference node the cut did not load is never folded: the skip is drawn where its span holds an arch and counted as too short where it does not', () => {
+  test('a piece or a skip reaching a reference node the cut did not load is never folded: the skip arches where its span holds an arch and draws as its plain link where it does not', () => {
     const skipToP = edgeIndex(graph, 'r0+', 'p+')
     expect(drawingOf(graph).bypassed.has(skipToP)).toBe(true)
     for (const [scale, arches] of [
@@ -846,8 +850,7 @@ describe('the reference is the nodes the cut loaded on it', () => {
       const batch = build(graph, positions, scale)
       expect(batch.collapsed?.sites).toEqual([])
       expect(drawnNodes(batch).has('a1+')).toBe(true)
-      expect(batch.edgeCurveRuns.has(skipToP)).toBe(arches)
-      expect(batch.collapsed?.tooShort.has(skipToP)).toBe(!arches)
+      expect(plainLink(batch, skipToP)).toBe(!arches)
     }
   })
 })
@@ -934,7 +937,7 @@ test('a piece leaving a reference node the reference reads reversed attaches at 
   })
 })
 
-test('a site no shown walk steps is never folded: an allele is drawn, and a skip drawn where its span holds an arch and counted as too short where it does not', () => {
+test('a site no shown walk steps is never folded: an allele is drawn, and a skip arches where its span holds an arch and draws as its plain link where it does not', () => {
   const allele = snp(1, 1, [])
   expect(folded(build(allele.graph, allele.positions, 0.01))).toEqual([])
   expect(
@@ -947,8 +950,7 @@ test('a site no shown walk steps is never folded: an allele is drawn, and a skip
   ] as const) {
     const batch = build(skipped.graph, skipped.positions, scale)
     expect(batch.collapsed?.sites).toEqual([])
-    expect(batch.edgeCurveRuns.has(2)).toBe(arches)
-    expect(batch.collapsed?.tooShort.has(2)).toBe(!arches)
+    expect(plainLink(batch, 2)).toBe(!arches)
   }
 })
 

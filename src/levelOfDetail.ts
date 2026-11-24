@@ -66,9 +66,6 @@ export interface Fold {
   bridges: ReadonlyMap<number, Bridge>
   // the run each folded site belongs to
   runOf: ReadonlyMap<Site, Run>
-  // with walks, the skips left out where their span on screen holds no arch
-  // their stroke can shape, each at the middle of its chord
-  tooShort: ReadonlyMap<number, { x: number; y: number }>
 }
 
 // where a run lies on the reference, and the drawn reference nodes ending
@@ -108,7 +105,6 @@ export const NO_FOLD: Fold = {
   through: new Map(),
   bridges: new Map(),
   runOf: new Map(),
-  tooShort: new Map(),
 }
 
 interface ReferenceLink {
@@ -613,7 +609,6 @@ function foldOf(
     through: reference.nodes,
     bridges: reference.bridges,
     runOf: reference.runOf,
-    tooShort: NO_FOLD.tooShort,
   }
 }
 

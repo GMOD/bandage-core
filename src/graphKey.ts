@@ -207,7 +207,6 @@ export function drawnMarks(
     runsOn: false,
     foldedNodes: new Set<string>(),
     foldedSkips: new Set<number>(),
-    skipsTooShort: new Set<number>(),
     foldedUnderBp: 0,
     nodes: undefined as Set<string> | undefined,
     view,
@@ -219,11 +218,6 @@ export function drawnMarks(
   let width: number | undefined
   for (const batch of batches) {
     const { nodeStrokeRuns, nodeStrokes, collapsed } = batch
-    for (const [edge, at] of collapsed?.tooShort ?? []) {
-      if (inView([at])) {
-        marks.skipsTooShort.add(edge)
-      }
-    }
     const shown = nodeStrokes.map(stroke => inView(stroke.points))
     if (nodeStrokeRuns) {
       const notDrawn = nodesNotDrawn(batch)
@@ -431,28 +425,14 @@ export function unlabelledText(unlabelled?: UnlabelledPlaceholders) {
         : `${n} unlabelled, ${formatBp(unlabelled.largest)} or less each`
 }
 
-export function tooSmallText(
-  nodes: number,
-  skips: number,
-  underBp = 0,
-  tooShort = 0,
-) {
+export function tooSmallText(nodes: number, skips: number, underBp = 0) {
   const parts = [
     ...(nodes > 0 ? [counted(nodes, 'node', 'nodes')] : []),
     ...(skips > 0 ? [counted(skips, 'skip', 'skips')] : []),
   ]
-  return [
-    ...(parts.length === 0
-      ? []
-      : underBp > 0
-        ? [
-            `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`,
-          ]
-        : [`${parts.join(' and ')} too small to draw`]),
-    ...(tooShort > 0
-      ? [`${counted(tooShort, 'skip', 'skips')} too short on screen to draw`]
-      : []),
-  ].join('; ')
+  return underBp > 0
+    ? `${parts.join(' and ')} under ${counted(underBp, 'bp', 'bp')} not drawn`
+    : `${parts.join(' and ')} too small to draw`
 }
 
 const have = (n: number) => (n === 1 ? 'has' : 'have')
@@ -958,10 +938,7 @@ export function graphKey(
     {
       id: 'too-small',
       entries:
-        o.marks.foldedNodes.size +
-          o.marks.foldedSkips.size +
-          o.marks.skipsTooShort.size >
-        0
+        o.marks.foldedNodes.size + o.marks.foldedSkips.size > 0
           ? [
               {
                 key: 'too-small',
@@ -969,7 +946,6 @@ export function graphKey(
                   o.marks.foldedNodes.size,
                   o.marks.foldedSkips.size,
                   o.marks.foldedUnderBp,
-                  o.marks.skipsTooShort.size,
                 ),
               },
             ]
