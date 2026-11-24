@@ -7,6 +7,7 @@ import { layoutModeByValue } from './layoutModes'
 import { drawingBounds, fitTransform, forceLayout, loadGraph } from './pipeline'
 import { buildGeometry } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
+import { foldThreads } from './threadFold'
 import { walkLift } from './walkHighlight'
 
 import type { LayoutEngine } from './pipeline'
@@ -72,6 +73,43 @@ test('the walks reading a reference node against the reference are named on node
     "walked against GRCh38's direction by 1 haplotype: inv#1",
   )
   expect(againstHoverText(graph, idOf('1'), 'GRCh38')).toBeUndefined()
+})
+
+// SV-inv-10k-100k: eight haplotypes read the 13.2 kb node reversed on two
+// threads, and the hover said "by 2 haplotypes" beside the fold's "8 of 9"
+test('on a thread fold the walks against the reference are the haplotypes every thread holds, a haplotype in two walks once', () => {
+  const inverted = loadGraph(
+    [
+      'S\ta\t*\tLN:i:1000',
+      'S\tb\t*\tLN:i:2000',
+      'S\tc\t*\tLN:i:2000',
+      'S\td\t*\tLN:i:1000',
+      'L\ta\t+\tb\t+\t0M',
+      'L\tb\t+\tc\t+\t0M',
+      'L\tc\t+\td\t+\t0M',
+      'L\ta\t+\tc\t-\t0M',
+      'L\tb\t-\td\t+\t0M',
+      'W\tref\t0\tchr\t0\t6000\t>a>b>c>d',
+      'W\th1\t1\tchr\t0\t6000\t>a<c<b>d',
+      'W\th2\t1\tchr\t0\t6000\t>a<c<b>d',
+      'W\th2\t1\tother\t0\t6000\t>a<c<b>d',
+      'W\th3\t1\tchr\t0\t6000\t>a>b>c>d',
+    ].join('\n'),
+    'inverted',
+    { referencePath: 'ref#0#chr' },
+  )
+  const fold = foldThreads(inverted, 500)
+  expect(fold.folded).toBe(true)
+  const turned = fold.graph.paths!.find(path => path.name === 'h1#1#chr')!
+  expect(turned.members).toEqual(['h1#1#chr', 'h2#1#chr', 'h2#1#other'])
+  const idIn = (g: Graph) =>
+    g.nodes.find(node => node.name === 'b' || node.members?.includes('b'))!.id
+  expect(againstHoverText(fold.graph, idIn(fold.graph), 'chr')).toBe(
+    "walked against chr's direction by 2 haplotypes: h1#1, h2#1",
+  )
+  expect(againstHoverText(inverted, idIn(inverted), 'chr')).toBe(
+    againstHoverText(fold.graph, idIn(fold.graph), 'chr'),
+  )
 })
 
 test('heads point against the reference along nodes 2 to 4, and the key names them', () => {

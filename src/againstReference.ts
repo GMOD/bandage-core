@@ -9,11 +9,15 @@ import type { Graph } from './types'
 const cache = weakMemo<Graph, ReadonlyMap<string, readonly string[]>>()
 
 // By reference node id, the haplotypes reading it on the strand the
-// reference does not; none where the reference reads it both ways
+// reference does not, those of every walk a thread or a bundled route holds;
+// none where the reference reads it both ways
 export function walksAgainstReference(graph: Graph) {
   return cache(graph, [], () => {
     const visits = graph.pathVisits
     const out = new Map<string, readonly string[]>()
+    const walksOf = new Map(
+      (graph.paths ?? []).map(path => [path.name, path.members ?? [path.name]]),
+    )
     const backbone = graph.nodes.filter(isLoadedBackbone)
     const references = new Set(backbone.map(node => node.stable.refName))
     const ofReference = (path: string) =>
@@ -51,10 +55,8 @@ export function walksAgainstReference(graph: Graph) {
           ? []
           : others
               .filter(visit => visit.reversed !== referenceReversed)
-              .map(
-                visit =>
-                  panSNHaplotype(visit.path) ?? pathOrigin(visit.path).name,
-              ),
+              .flatMap(visit => walksOf.get(visit.path) ?? [visit.path])
+              .map(walk => panSNHaplotype(walk) ?? pathOrigin(walk).name),
       )
       if (against.size > 0) {
         out.set(node.id, [...against].toSorted())
