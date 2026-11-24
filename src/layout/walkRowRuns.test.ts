@@ -344,6 +344,13 @@ test('a stretch away from the window draws as a break at most one width, and the
     ).get('W#1#w'),
   ).toEqual([{ name: 'X', start: 2545, end: 2745, exons: [] }])
   expect(contigAlong(row!.axis!, 2545)).toBe(9500)
+  // H-SMN of the HPRC v2.1 audit: HG00097#1's 167 kb away held 86 kb on nodes
+  // GRCh38 does not walk and none left out, while the key said they lay on
+  // GRCh38 elsewhere or were left out of graph; W's 7 kb away hold 500 bp of
+  // its own
+  expect(
+    walkRowsKey(rows).filter(e => e.label.startsWith('away from')),
+  ).toMatchObject([{ label: 'away from the window' }])
   expect(walkRowsKey(rows).at(-1)!.label).toBe(
     '// marks a stretch away from the window drawn shorter than its bp; the text beside the row sums the bp it spends away',
   )

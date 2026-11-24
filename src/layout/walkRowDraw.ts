@@ -655,7 +655,7 @@ export function gapStyle(
             ? {
                 fill: OUTSIDE_CUT,
                 px: GAP_PX,
-                label: `${awayText(region)}: elsewhere on ${reference} or left out of graph`,
+                label: awayText(region),
               }
             : cause === 'unread'
               ? {

@@ -328,7 +328,7 @@ test('the key gives one entry to each way a gap draws', () => {
       { kind: 'gap', fill: MISSING_INK, px: MISSING_PX },
     ],
     [
-      'away from the window: elsewhere on GRCh38#0 or left out of graph',
+      'away from the window',
       { kind: 'gap', fill: WALK_OUTSIDE_CUT, px: WALK_GAP_PX },
     ],
     [
@@ -478,9 +478,7 @@ test('a gap with no departure in it is away from the window', () => {
   expect(walkRowReadout(row, rows.reference)).toBe(
     '5.0 kb of its contig, of which 1.0 kb away from the window',
   )
-  expect(walkRowsKey(rows).map(e => e.label)).toContain(
-    'away from the window: elsewhere on GRCh38#0 or left out of graph',
-  )
+  expect(walkRowsKey(rows).map(e => e.label)).toContain('away from the window')
 })
 
 // HG002 and HG003 leave the reference after node 2 for node 6 and rejoin at
