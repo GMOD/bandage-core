@@ -1,4 +1,4 @@
-import { formatBp } from './graphLabels'
+import { groupDigits } from './graphLabels'
 
 import type { GraphPath } from './types'
 
@@ -19,6 +19,15 @@ export function threadLabel(
       : own
 }
 
-// What a key says of a fold's threads
-export const threadFoldKey = ({ belowBp }: { belowBp: number }) =>
-  `a thread is the haplotypes alike in every difference of ${formatBp(belowBp)} or more; smaller ones are not drawn`
+// What a key says a fold leaves out: between two places a haplotype meets the
+// reference, any one stretch it has off it or skips of it shorter than
+// `belowBp`, however many such stretches add up to
+export const threadFoldKey = (
+  { belowBp }: { belowBp: number },
+  reference: string,
+) =>
+  `not drawn: sequence shorter than ${groupDigits(belowBp)} bp that a haplotype adds to ${reference} or skips of it before rejoining it`
+
+// What a key says a lane of a fold is
+export const THREAD_LANE_KEY =
+  'a lane is the haplotypes that take one drawn route'

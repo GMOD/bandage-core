@@ -98,7 +98,7 @@ export {
   threadsThrough,
 } from './threadFold'
 export type { ThreadEvent, ThreadFoldResult } from './threadFold'
-export { threadFoldKey, threadLabel } from './threadKey'
+export { THREAD_LANE_KEY, threadFoldKey, threadLabel } from './threadKey'
 export { EDGE_WIDTHS, drawnEdgeWidth, linkWidthPx } from './edgeWidths'
 export type { EdgeWidth } from './edgeWidths'
 export { BUBBLE_SPREADS, COMPRESSED_KEY } from './bubbleSpreads'

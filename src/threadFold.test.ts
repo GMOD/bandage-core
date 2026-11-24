@@ -1,6 +1,11 @@
 import { figureData } from './figureData'
 import { gfaTables } from './gfa/gfaTables'
-import { walkKeyEntry, walkScaleEntries } from './graphKey'
+import {
+  drawnMarks,
+  graphKey,
+  walkKeyEntry,
+  walkScaleEntries,
+} from './graphKey'
 import { placeholderHoverText } from './hoverText'
 import { layoutModeByValue } from './layoutModes'
 import {
@@ -21,7 +26,7 @@ import {
   threadsOf,
   threadsThrough,
 } from './threadFold'
-import { threadFoldKey, threadLabel } from './threadKey'
+import { THREAD_LANE_KEY, threadFoldKey, threadLabel } from './threadKey'
 import { walkLift } from './walkHighlight'
 
 import type { Graph, NodeSegment } from './types'
@@ -386,9 +391,34 @@ test('the key names a thread by its count and the picks it holds', () => {
   expect(threadLabel({ count: 1, pieces: 2 }, 'HG03654#1')).toBe(
     'HG03654#1, one of its 2 pieces here',
   )
-  expect(threadFoldKey({ belowBp: 5000 })).toBe(
-    'a thread is the haplotypes alike in every difference of 5 kb or more; smaller ones are not drawn',
+})
+
+// "a thread is the haplotypes alike in every difference of 472 bp or more" was
+// false at SV-mul-10k-100k chr19:7061813, where HG00097#1's 527 bp allele is
+// runs of 453, 1, 1, 1, 2, 27 and 1 bp between short reference steps, each
+// under 472 bp, so it rides the reference with the haplotypes that lack it
+test('the key says which sequence a fold does not draw, at the bp it folds under', () => {
+  expect(threadFoldKey({ belowBp: 1889 }, 'GRCh38 chr1')).toBe(
+    'not drawn: sequence shorter than 1,889 bp that a haplotype adds to GRCh38 chr1 or skips of it before rejoining it',
   )
+  const { graph } = folded()
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const text = (lift?: ReturnType<typeof walkLift>) =>
+    graphKey(graph, layout, {
+      marks: drawnMarks([]),
+      lift,
+      referenceName: 'chr',
+    })
+      .flatMap(section => section.entries)
+      .map(entry => [entry.key, entry.text])
+  expect(text()).toContainEqual([
+    'thread-fold',
+    'not drawn: sequence shorter than 500 bp that a haplotype adds to chr or skips of it before rejoining it',
+  ])
+  expect(text().map(([key]) => key)).not.toContain('thread-lane')
+  expect(
+    text(walkLift(graph, threadLayers(graph, [{ walk: 'h3#1#chr' }]))),
+  ).toContainEqual(['thread-lane', THREAD_LANE_KEY])
 })
 
 test('a haplotype in two walks says so on the thread that is one of them', () => {

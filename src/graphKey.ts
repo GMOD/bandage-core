@@ -41,7 +41,7 @@ import {
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
-import { threadFoldKey, threadLabel } from './threadKey'
+import { THREAD_LANE_KEY, threadFoldKey, threadLabel } from './threadKey'
 import { curvePointAt } from './util/geometry'
 import { addTo } from './util/groups'
 import { segmentMeetsBox } from './util/hitDetection'
@@ -687,7 +687,7 @@ export function graphKey(
           ...passEntries(w, lane),
         ])),
     ...(lifted && graph.threadFold
-      ? [entry('thread-fold', threadFoldKey(graph.threadFold))]
+      ? [entry('thread-lane', THREAD_LANE_KEY)]
       : []),
     ...(lifted && o.marks.offReference ? [offReference('lift-off')] : []),
     ...faded,
@@ -953,8 +953,11 @@ export function graphKey(
     },
     {
       id: 'too-small',
-      entries:
-        o.marks.foldedNodes.size + o.marks.foldedSkips.size > 0
+      entries: [
+        ...(graph.threadFold
+          ? [entry('thread-fold', threadFoldKey(graph.threadFold, reference))]
+          : []),
+        ...(o.marks.foldedNodes.size + o.marks.foldedSkips.size > 0
           ? [
               {
                 key: 'too-small',
@@ -965,7 +968,8 @@ export function graphKey(
                 ),
               },
             ]
-          : [],
+          : []),
+      ],
     },
   ]
   return sections.filter(section => section.entries.length > 0)
