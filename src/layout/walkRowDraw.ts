@@ -1122,9 +1122,6 @@ export function walkRowsKey(
   return entries
 }
 
-export const BREAK_TEXT =
-  '// marks a stretch away from the window drawn shorter than its bp; the text beside the row sums the bp it spends away'
-
 // an away stretch drawn shorter than the bp it holds
 const shortened = (run: WalkRun) =>
   run.heldBp !== undefined && run.heldBp > run.bp
