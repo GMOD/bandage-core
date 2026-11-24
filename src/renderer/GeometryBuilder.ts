@@ -1415,6 +1415,15 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
         colorRange,
       ),
     )
+  const widthOf = (node: GraphNode) =>
+    nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
+  const runWidth = (run: FoldRun, alone: GraphNode) =>
+    runWidthPx(run, widthOf(alone), id => {
+      const end = nodeById.get(id)
+      return end ? widthOf(end) : undefined
+    })
+  const laidAlongReference = (node: GraphNode) =>
+    !stranded || !isBackbone(node) || drawnAlongStable(node)
   // A reference node the ramp paints as the flat pieces of its own span, each
   // in the hue of its middle, cut along the node the way it is drawn along the
   // reference; undefined where the node takes one colour
@@ -1431,7 +1440,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
             },
           )
         : []
-    const along = isLoadedBackbone(node) && drawnAlongStable(node)
+    const along = laidAlongReference(node)
     return pieces.length > 1
       ? pieces.map(({ from, to, t }) => ({
           points: along
@@ -1450,15 +1459,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   }
   // the whole line of each node drawn in pieces, which a head along it reads
   const piecedLines = new Map<string, NodeSegment[]>()
-  const widthOf = (node: GraphNode) =>
-    nodeWidthPx(node, contigThickness, nodeWidth, widthScale)
-  const runWidth = (run: FoldRun, alone: GraphNode) =>
-    runWidthPx(run, widthOf(alone), id => {
-      const end = nodeById.get(id)
-      return end ? widthOf(end) : undefined
-    })
-  const laidAlongReference = (node: GraphNode) =>
-    !stranded || !isBackbone(node) || drawnAlongStable(node)
   // where a drawn reference node at a run's end meets it: the end of a node
   // ending where the run starts, the start of one starting where it ends,
   // each read the way the reference reads it
@@ -2125,7 +2125,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const lanePieces = (stroke: NodeStroke, lane: number, nodeId: string) => {
     const node = nodeById.get(nodeId)
     const pieces = liftedWalks[lane]?.rampColors.get(nodeId)
-    const along = isLoadedBackbone(node) && drawnAlongStable(node)
+    const along = !node || laidAlongReference(node)
     const { normals: _normals, offsets: _offsets, ...plain } = stroke
     return pieces
       ? pieces.map(({ from, to, color }) => ({

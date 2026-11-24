@@ -864,9 +864,10 @@ describe('a reference node the ramp spans', () => {
     depth: 1,
     stable: { refName: 'chr', start: 0, rank: 0, strand },
   })
-  const drawn = (node: ReturnType<typeof span>) => {
+  const drawn = (node: ReturnType<typeof span>, stranded = false) => {
     const graph = { name: 'long', nodes: [node], edges: [] }
     return buildGeometry({
+      stranded,
       nodePositions: {
         [node.id]: [
           { x: 0, y: 0 },
@@ -913,14 +914,19 @@ describe('a reference node the ramp spans', () => {
     })
   })
 
-  test('a node drawn against the reference takes its pieces from the far end', () => {
-    const { nodeStrokes } = drawn(span('long-', '+'))
+  test('a node a force layout draws against the reference takes its pieces from the far end, and one laid along the reference does not', () => {
+    const { nodeStrokes } = drawn(span('long-', '+'), true)
     const atStart = nodeStrokes.find(({ points }) => points[0]!.x === 0)
     const atEnd = nodeStrokes.find(({ points }) => points.at(-1)!.x === 1000)
     expect(atStart?.color).toBe(
       colorOfHue(REFERENCE_RAMP_MAX_HUE - RAMP_PIECE_DEG / 2),
     )
     expect(atEnd?.color).toBe(colorOfHue(RAMP_PIECE_DEG / 2))
+    expect(
+      drawn(span('long-', '+')).nodeStrokes.find(
+        ({ points }) => points[0]!.x === 0,
+      )?.color,
+    ).toBe(colorOfHue(RAMP_PIECE_DEG / 2))
   })
 
   test('its pieces abut with round caps, so the centre line has no gap', () => {
