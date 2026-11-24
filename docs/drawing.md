@@ -62,6 +62,11 @@ When a track loads more graph than its window shows, place the drawing with
   Branching links, skips and strand-flipping links always keep their heads
 - A skip whose route would lie over the nodes it skips (within
   `ALONG_STRETCH_PX`) is drawn as an arch instead
+- With walks, a skip or padded arm too short on screen for three dashes is a low
+  arch over its feet, no wider than its chord and no higher than it is long. One
+  whose span is under `SKIP_LEVEL_PX` or three times its stroke is left out at
+  any `smallSites`: `collapsed.tooShort` holds it, and the key's last line
+  counts it as `N skips too short on screen to draw`
 - Where a haplotype runs on past the cut, its loose end gets a dark tab. The key
   calls it `graph runs on past what is drawn`; `figureData`'s `arrows` table
   marks it `runsOn`
@@ -107,7 +112,7 @@ At overview, the drawing shows structure, not every SNP.
 
 - With `smallSites: 'hidden'` (default), `buildGeometry` hides a site (an
   off-reference piece or a skip) drawn smaller than `SMALL_SITE_PX`.
-  `smallSites: 'nodes'` draws everything
+  `smallSites: 'nodes'` draws everything but the skips too short on screen
 - Size is measured as drawn, not in bp, so a 1 bp allele drawn wide stays.
   Pieces drawn inside the reference's line, and placeholders, are measured by bp
   at the reference's scale
