@@ -23,7 +23,7 @@ import type { DeletionEdge } from './deletionEdges'
 import type { GraphTables } from './gfa/graphTables'
 import type { SmallSites } from './levelOfDetail'
 import type { RenderBatch } from './renderer/types'
-import type { Graph, NodeSegment } from './types'
+import type { Graph, LayoutResult, NodeSegment } from './types'
 
 const bases = (bp: number) => 'A'.repeat(bp)
 const FLANK = 40_000
@@ -75,7 +75,7 @@ function site(bp: number, carriers: number, bow: number) {
 // nodes, or counted in the not-drawn line, whose bp every counted skip is under
 function accountOf(
   graph: Graph,
-  layout: { nodePositions: Record<string, NodeSegment[]> },
+  layout: Pick<LayoutResult, 'tubeMap' | 'compressed'>,
   batch: RenderBatch,
   skips: DeletionEdge[],
 ) {
@@ -121,10 +121,23 @@ const revive = (_key: string, value: unknown) => {
   return isTyped(value) && make ? make(value.values.map(v => v ?? NaN)) : value
 }
 
+function assertHostedFixture(
+  value: unknown,
+): asserts value is { refName: string; tables: GraphTables } {
+  expect(
+    typeof value === 'object' &&
+      value !== null &&
+      'refName' in value &&
+      typeof value.refName === 'string' &&
+      'tables' in value &&
+      typeof value.tables === 'object',
+  ).toBe(true)
+}
+
 // the hosted HPRC walks' cut of chr2:90,391,794-90,397,920 with eight
 // haplotypes, as graph-walks reads it
 function hostedWindow() {
-  const fixture: { refName: string; tables: GraphTables } = JSON.parse(
+  const fixture: unknown = JSON.parse(
     gunzipSync(
       readFileSync(
         join(__dirname, '../test_data/hosted/sv-mul-1k-10k.tables.json.gz'),
@@ -132,6 +145,7 @@ function hostedWindow() {
     ).toString(),
     revive,
   )
+  assertHostedFixture(fixture)
   return loadGraph(fixture.tables, fixture.refName, {
     referencePath: 'GRCh38',
   })
@@ -160,12 +174,7 @@ describe('every skip is drawn dashed over the nodes or counted in the key, never
               smallSites,
               axis: { scaleX: scale, scaleY: scale },
             })
-            const [skip] = accountOf(
-              graph,
-              { nodePositions: positions },
-              batch,
-              drawing.shown,
-            )
+            const [skip] = accountOf(graph, {}, batch, drawing.shown)
             expect({
               smallSites,
               carriers,
@@ -210,7 +219,7 @@ describe('every skip is drawn dashed over the nodes or counted in the key, never
           Array.from(batch.collapsed?.shortSkips.keys() ?? []).filter(edge => {
             const run = batch.edgeCurveRuns.get(edge)
             const stroke = run ? batch.edgeCurves[run.start] : undefined
-            return !stroke || stroke.skip || stroke.along
+            return !stroke || stroke.skip === true || stroke.along === true
           }),
         ).toEqual([])
       }

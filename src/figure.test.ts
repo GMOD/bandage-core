@@ -648,7 +648,8 @@ test('by default a figure folds its small sites, draws the allele, and says how 
       folded,
     )?.[0]
   expect(line).toBeDefined()
-  expect(drawn).not.toContain('not drawn')
+  expect(drawn).toMatch(/<text y="13">1 skip under \d+ bp not drawn<\/text>/)
+  expect(drawn).not.toMatch(/nodes? (and \d+ skips? )?under \d+ bp not drawn/)
   const key = folded.slice(0, folded.indexOf(line!))
   expect(key).not.toMatch(/Tick/)
   const strokes = (svg: string) =>
