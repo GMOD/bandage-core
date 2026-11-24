@@ -187,7 +187,7 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     }
   })
 
-  test('a skip whose ends the layout set together is measured by the bp it skips, never by the distance between its ends', () => {
+  test('a skip whose ends the layout set together is measured by the bp it skips, never by the distance between its ends, and counted as not drawn', () => {
     const { graph } = skip(1000)
     // r2 laid as a loop, r1's end and r3's start at one point
     const looped = {
@@ -202,8 +202,11 @@ describe("a piece folds by its bp at the reference's px a bp, under SMALL_SITE_P
     const batch = build(graph, looped, 0.003)
     expect(1000 * batch.collapsed!.pxPerBp).toBeGreaterThan(SMALL_SITE_PX)
     expect(batch.collapsed?.sites).toEqual([])
-    // its ends together on screen, it holds no arch and draws as its link
+    // its ends together on screen, it holds no arch, draws as its link and
+    // is counted under a bound over its bp
     expect(plainLink(batch, 2)).toBe(true)
+    expect([...batch.collapsed!.shortSkips.keys()]).toEqual([2])
+    expect(foldedUnderBp(batch.collapsed!)).toBe(1001)
   })
 
   // R100k-01: a 312 bp insertion, drawn a few px long by the force layout,

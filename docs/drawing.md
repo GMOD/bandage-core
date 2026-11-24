@@ -66,7 +66,8 @@ When a track loads more graph than its window shows, place the drawing with
   arch over its feet, no wider than its chord and no higher than it is long.
   Where its span is under `SKIP_LEVEL_PX` or three times its stroke, it draws as
   the plain link it is, in link ink at its walks' width, so the path its walks
-  take, and an allele they carry, stays joined to the reference
+  take, and an allele they carry, stays joined to the reference. The key counts
+  it as not drawn ([Small sites](#small-sites))
 - Where a haplotype runs on past the cut, its loose end gets a dark tab. The key
   calls it `graph runs on past what is drawn`; `figureData`'s `arrows` table
   marks it `runsOn`
@@ -111,11 +112,9 @@ At overview, the drawing shows structure, not every SNP.
 ![buildGeometry with smallSites hidden produces batch.collapsed, which feeds findHoveredNode and findHoveredEdge, layoutLabels, exonStretches and figureData](../img/drawing_hidden.svg)
 
 - With `smallSites: 'hidden'` (default), `buildGeometry` hides a site (an
-  off-reference piece or a skip) drawn smaller than `SMALL_SITE_PX`.
-  `smallSites: 'nodes'` draws everything
-- Size is measured as drawn, not in bp, so a 1 bp allele drawn wide stays.
-  Pieces drawn inside the reference's line, and placeholders, are measured by bp
-  at the reference's scale
+  off-reference piece or a skip) whose bp comes to less than `SMALL_SITE_PX` at
+  the reference's px per bp, however long the layout draws it.
+  `smallSites: 'nodes'` draws every node
 - Never hidden: the reference, links that turn it back on itself, unwalked
   parts, strand flips, pieces reaching another reference or an unloaded node,
   structure leading out of the cut, and anything of 0 bp
@@ -125,7 +124,11 @@ At overview, the drawing shows structure, not every SNP.
 - Hiding depends only on layout and scale, so each node changes state at most
   once during a zoom
 - The key adds `N nodes and M skips under B bp not drawn` when anything in view
-  is hidden. Hidden nodes get no labels and push none aside
+  is hidden or a skip in view is too short on screen to arch, in either mode
+  (`collapsed.shortSkips`). With walks, each skip is drawn dashed or counted
+  there, never both or neither. Everything counted is under B bp, and every site
+  and skip of B bp or more is drawn. Hidden nodes get no labels and push none
+  aside
 - Pass the batch's `collapsed` to `findHoveredNode` and `findHoveredEdge`, and
   its nodes to `layoutLabels` as `folded`. `exonStretches` takes
   `nodesNotDrawn(batch)` so exons aren't outlined on hidden nodes. `figureData`

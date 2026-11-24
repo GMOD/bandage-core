@@ -7,7 +7,7 @@ import {
 import { edgeCurvesOf } from '../deletionEdges'
 import { drawnEdgeWidth, linkWidthPx } from '../edgeWidths'
 import { linkKey } from '../gfa/linkKey'
-import { NO_FOLD, SMALL_SITE_PX, foldedSites } from '../levelOfDetail'
+import { NO_FOLD, SMALL_SITE_PX, foldedSites, skipBpOf } from '../levelOfDetail'
 import {
   drawnNodeWidth,
   nodeWidthPx,
@@ -71,7 +71,13 @@ import {
 import type { ResolvedColorScheme } from '../colorSchemes'
 import type { EdgeWidth } from '../edgeWidths'
 import type { DeletionRoutes } from '../layout/deletionRoutes'
-import type { Fold, Run as FoldRun, Site, SmallSites } from '../levelOfDetail'
+import type {
+  Fold,
+  Run as FoldRun,
+  ShortSkip,
+  Site,
+  SmallSites,
+} from '../levelOfDetail'
 import type { NodeWidth } from '../nodeWidths'
 import type { Graph, GraphEdge, GraphNode, NodeSegment } from '../types'
 import type { EdgeCurves } from '../util/edgeCurves'
@@ -1262,12 +1268,45 @@ function archless(options: BuildOptions, curves: EdgeCurves, fold: Fold) {
   )
 }
 
+const leftOutCache = weakMemo<EdgeCurves, Fold>()
+
+// What a build draws no mark of its own for: the sites it folds, and the
+// skips among its archless links
+function leftOut(options: BuildOptions, curves: EdgeCurves) {
+  const { graph, nodeById, deletions, hiddenEdges } = options
+  const fold = sitesFold(options, curves)
+  const short = archless(options, curves, fold)
+  return leftOutCache(curves, [fold, short, deletions, hiddenEdges], () => {
+    const skipBp = skipBpOf(graph, deletions, hiddenEdges)
+    const shortSkips = new Map<number, ShortSkip>()
+    for (const ei of short) {
+      const bypassed = deletions?.get(ei)
+      const arc = curves.get(ei)
+      const first = arc?.[0]
+      const last = arc?.at(-1)
+      if (bypassed && first && last) {
+        shortSkips.set(ei, {
+          x: (first.x0 + last.x1) / 2,
+          y: (first.y0 + last.y1) / 2,
+          bp:
+            skipBp.get(ei) ??
+            bypassed.reduce(
+              (sum, id) => sum + (nodeById.get(id)?.length ?? 0),
+              0,
+            ),
+        })
+      }
+    }
+    return shortSkips.size > 0 ? { ...fold, shortSkips } : fold
+  })
+}
+
 // What a build with these options folds as too small to draw, without
 // building it: a key naming the fold is sized before the build, and the fit
 // beside that key sets the scale the build folds at. Cached with the build's
 // own curves and fold, so the build that follows reuses both.
 export function geometryFold(options: BuildOptions) {
-  return sitesFold(options, sharedCurvesOf(options))
+  return leftOut(options, sharedCurvesOf(options))
 }
 
 export function buildGeometry(options: BuildOptions): RenderBatch {
@@ -1303,8 +1342,12 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   const worldPerScreenPx = 1 / Math.max(scale, MIN_SCALE_FOR_OFFSET)
   const yToX = yToXOf(axis)
   const sharedCurves = sharedCurvesOf(options)
-  const collapse = sitesFold(options, sharedCurves)
-  const archlessLinks = archless(options, sharedCurves, collapse)
+  const archlessLinks = archless(
+    options,
+    sharedCurves,
+    sitesFold(options, sharedCurves),
+  )
+  const collapse = leftOut(options, sharedCurves)
   const siteAt = new Map<number, Site>()
   for (const site of collapse.sites) {
     for (const edge of site.edges) {

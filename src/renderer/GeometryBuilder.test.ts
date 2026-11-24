@@ -1111,7 +1111,7 @@ describe('arrowhead placement', () => {
   // a 5 px arch over a chord under its stroke drew a blob; left out instead,
   // the path most walks take was drawn broken, and a key counting it moved
   // the fit each build (BandageJS's chrM walk file)
-  test('with walks a skip whose span on screen holds no arch its stroke can shape draws as the plain link it is, at its walks width, and is hovered; one that holds it arches', () => {
+  test('with walks a skip whose span on screen holds no arch its stroke can shape draws as the plain link it is, at its walks width, is hovered and is counted as not drawn; one that holds it arches', () => {
     for (const [scale, thickness, plain] of [
       [0.005, 2, true],
       [0.8, 2, false],
@@ -1137,6 +1137,7 @@ describe('arrowhead placement', () => {
       expect(stroke.skip === true).toBe(!plain)
       expect(stroke.dashed === true).toBe(!plain)
       expect(stroke.thickness * 2).toBe(thickness)
+      expect(batch.collapsed?.shortSkips.has(0)).toBe(plain)
       expect(
         findHoveredEdge(
           simplePositions,

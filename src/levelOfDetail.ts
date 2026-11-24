@@ -52,8 +52,17 @@ export interface Site {
   total: number
 }
 
+// a walked skip whose span on screen holds no arch: it draws as its plain
+// link, and the key counts it with the folded sites
+export interface ShortSkip {
+  x: number
+  y: number
+  bp: number
+}
+
 export interface Fold {
   sites: Site[]
+  shortSkips: ReadonlyMap<number, ShortSkip>
   nodes: ReadonlySet<string>
   edges: ReadonlySet<number>
   siteOf: ReadonlyMap<string, Site>
@@ -97,6 +106,7 @@ export function nodesNotDrawn(
 
 export const NO_FOLD: Fold = {
   sites: [],
+  shortSkips: new Map(),
   nodes: new Set(),
   edges: new Set(),
   siteOf: new Map(),
@@ -227,6 +237,7 @@ function unitsOf(
     }
   }
   const skips: Unit[] = []
+  const skipBp = new Map<number, number>()
   const referenceLinks = new Map<string, ReferenceLink[]>()
   graph.edges.forEach(({ from, to, fromStrand, toStrand, pathIds }, edge) => {
     const inside = off(from) ? from : off(to) ? to : undefined
@@ -267,9 +278,16 @@ function unitsOf(
     } else if (
       deletions?.has(edge) &&
       !hiddenEdges?.has(edge) &&
-      isLoadedBackbone(fromNode) &&
-      isLoadedBackbone(toNode)
+      fromNode &&
+      toNode &&
+      isBackbone(fromNode) &&
+      isBackbone(toNode)
     ) {
+      const attachments = [
+        leavesAt(fromNode, fromStrand),
+        arrivesAt(toNode, toStrand),
+      ]
+      skipBp.set(edge, spread(attachments))
       const walks = new Set<number>()
       for (const name of pathIds ?? []) {
         const walk = walkNamed(name)
@@ -277,11 +295,7 @@ function unitsOf(
           walks.add(walk)
         }
       }
-      if (walks.size > 0) {
-        const attachments = [
-          leavesAt(fromNode, fromStrand),
-          arrivesAt(toNode, toStrand),
-        ]
+      if (walks.size > 0 && !fromNode.placeholder && !toNode.placeholder) {
         skips.push({
           nodes: [],
           edges: [edge],
@@ -366,6 +380,7 @@ function unitsOf(
     .map(({ unit }) => unit)
   return {
     units: sorted,
+    skipBp,
     total,
     backbone: backbone.map(n => n.id),
     backboneBp: backbone.reduce((sum, n) => sum + n.length, 0),
@@ -532,6 +547,22 @@ export function referencePxPerBpAt(
   )
 }
 
+const unitsFor = (
+  graph: Graph,
+  deletions: ReadonlyMap<number, string[]> | undefined,
+  hiddenEdges: ReadonlySet<number> | undefined,
+) =>
+  unitsCache(graph, [deletions, hiddenEdges], () =>
+    unitsOf(graph, deletions, hiddenEdges),
+  )
+
+// The bp of reference each skip the drawing shows skips, whatever the scale
+export const skipBpOf = (
+  graph: Graph,
+  deletions: ReadonlyMap<number, string[]> | undefined,
+  hiddenEdges: ReadonlySet<number> | undefined,
+) => unitsFor(graph, deletions, hiddenEdges).skipBp
+
 function foldOf(
   graph: Graph,
   positions: Record<string, NodeSegment[]>,
@@ -540,10 +571,10 @@ function foldOf(
   deletions: ReadonlyMap<number, string[]> | undefined,
   hiddenEdges: ReadonlySet<number> | undefined,
 ): Fold {
-  const { units, total, backbone, backboneBp, references } = unitsCache(
+  const { units, total, backbone, backboneBp, references } = unitsFor(
     graph,
-    [deletions, hiddenEdges],
-    () => unitsOf(graph, deletions, hiddenEdges),
+    deletions,
+    hiddenEdges,
   )
   const pxPerBp = referencePxPerBp(backbone, backboneBp, positions, axis)
   const deepest = {
@@ -601,6 +632,7 @@ function foldOf(
   const reference = through(sites, references)
   return {
     sites,
+    shortSkips: NO_FOLD.shortSkips,
     nodes,
     edges,
     siteOf,
@@ -614,11 +646,17 @@ function foldOf(
 
 const foldCache = weakMemo<EdgeCurves, Fold>()
 
-// The bp every folded site is under and every site at or over is drawn at
-export const foldedUnderBp = (fold: Pick<Fold, 'sites' | 'pxPerBp'>) =>
-  fold.sites.length > 0 && fold.pxPerBp > 0
-    ? Math.ceil(SMALL_SITE_PX / fold.pxPerBp)
-    : 0
+// The bp every folded site and short skip is under, and every site and skip
+// at or over is drawn at
+export const foldedUnderBp = ({
+  sites,
+  pxPerBp,
+  shortSkips,
+}: Pick<Fold, 'sites' | 'pxPerBp' | 'shortSkips'>) =>
+  Array.from(shortSkips.values()).reduce(
+    (under, { bp }) => Math.max(under, bp + 1),
+    sites.length > 0 && pxPerBp > 0 ? Math.ceil(SMALL_SITE_PX / pxPerBp) : 0,
+  )
 
 // The sites too small to draw at this scale: a pure function of the graph,
 // its layout and the axis, held against the curves derived for that axis

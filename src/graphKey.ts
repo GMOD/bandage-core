@@ -164,15 +164,16 @@ export function lanesOverUnderlays(
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
 // node; nodes of more than one thickness; each lifted walk's passes, by lane;
 // heads along a lane, pointing back along a node or either way; links drawn
-// as a ribbon per walk; the nodes and skips folded as too small to draw. A
+// as a ribbon per walk; the nodes and skips folded as too small to draw, and
+// the skips too short on screen to arch, drawn as their plain links. A
 // lifted walk's lane on a skip is its walk's, keyed by the walk. Where a pane
 // shows part of the drawing, `view`, in layout units, a mark counts only where
-// a stroke of it meets the view, a folded site only where its place lies in
-// it, and `nodes` holds the nodes a stroke of their own draws there, which the
-// key's node thicknesses and exons are read off. Whether the nodes vary in
-// thickness is the whole drawing's, as the batch states it for nodes a
-// viewport culled too, so a view of one thickness still keys what it shows,
-// and so is whether its links are ribbons.
+// a stroke of it meets the view, a folded site or short skip only where its
+// place lies in it, and `nodes` holds the nodes a stroke of their own draws
+// there, which the key's node thicknesses and exons are read off. Whether the
+// nodes vary in thickness is the whole drawing's, as the batch states it for
+// nodes a viewport culled too, so a view of one thickness still keys what it
+// shows, and so is whether its links are ribbons.
 export function drawnMarks(
   batches: readonly (Pick<RenderBatch, 'edgeCurves' | 'nodeStrokes'> &
     Partial<
@@ -245,9 +246,15 @@ export function drawnMarks(
     marks.widthsVary ||= !!batch.nodeThicknessesVary
     marks.ribbons ||= !!batch.pathRibbons
     const sites = (collapsed?.sites ?? []).filter(site => inView([site]))
+    const shortSkips = new Map(
+      Array.from(collapsed?.shortSkips ?? []).filter(([, at]) => inView([at])),
+    )
+    for (const edge of shortSkips.keys()) {
+      marks.foldedSkips.add(edge)
+    }
     marks.foldedUnderBp = Math.max(
       marks.foldedUnderBp,
-      foldedUnderBp({ sites, pxPerBp: collapsed?.pxPerBp ?? 0 }),
+      foldedUnderBp({ sites, pxPerBp: collapsed?.pxPerBp ?? 0, shortSkips }),
     )
     for (const { nodes, edges } of sites) {
       for (const id of nodes) {

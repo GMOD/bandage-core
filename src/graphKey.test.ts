@@ -1122,7 +1122,9 @@ function census(
     ...(g?.paths?.length && g.nodes.some(n => n.placeholder)
       ? ['width-not-drawn']
       : []),
-    ...(batch.collapsed?.sites.length ? ['too-small'] : []),
+    ...(batch.collapsed?.sites.length || batch.collapsed?.shortSkips.size
+      ? ['too-small']
+      : []),
   ])
   const keyed = new Set(
     sections.flatMap(section => section.entries.map(entry => entry.key)),
@@ -1393,7 +1395,7 @@ test('the census fails on a planted extra entry and on a planted missing one', (
   expect(census(dropped, batch, s).missing).toEqual(['deletion'])
 })
 
-test('the key says how many nodes and skips are too small to draw, in one line with no swatch, last', () => {
+test('the key says how many nodes and skips are too small to draw, in one line with no swatch, last, and with every node drawn still counts a skip too short to arch', () => {
   expect(
     [
       [1, 0],
@@ -1439,9 +1441,12 @@ test('the key says how many nodes and skips are too small to draw, in one line w
       },
     ],
   })
-  expect(keys(SMALL, { ...smallSites(), smallSites: 'nodes' })).not.toContain(
-    'too-small',
-  )
+  // drawn whole, the 1 bp skip r3-r5 is too short on screen to arch
+  expect(
+    entries(SMALL, { ...smallSites(), smallSites: 'nodes' }).find(
+      e => e.key === 'too-small',
+    )?.text,
+  ).toBe('1 skip under 2 bp not drawn')
   expect(keys(SMALL, { ...smallSites(), width: 60_000 })).not.toContain(
     'too-small',
   )
