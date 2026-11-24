@@ -1101,10 +1101,9 @@ const runBpCache = weakMemo<
   ReadonlyMap<string, number>
 >()
 
-// The bp each node read against the reference spans together with the others
-// so read on its sequence, where no more than `gapBp` lies between them: the
-// SNPs an inverted walk carries split its stretch into pieces the fold would
-// otherwise measure one by one
+// The bp read against the reference in each node's run: the nodes so read on
+// its sequence with no more than `gapBp` between one and the next, as the
+// SNPs an inverted walk carries split its stretch
 function againstRunBp(
   against: ReadonlyMap<string, readonly string[]>,
   graph: Graph,
@@ -1128,9 +1127,10 @@ function againstRunBp(
         next?.stable.refName !== node.stable.refName ||
         next.stable.start - end > gapBp
       ) {
-        const span = end - sorted[from]!.stable.start
-        for (const n of sorted.slice(from, i + 1)) {
-          bp.set(n.id, span)
+        const run = sorted.slice(from, i + 1)
+        const read = run.reduce((sum, n) => sum + n.length, 0)
+        for (const n of run) {
+          bp.set(n.id, read)
         }
         from = i + 1
       }
@@ -1176,7 +1176,6 @@ const sharedCurvesOf = ({
     stranded,
   )
 
-// The sites too small to draw at this scale, by their bp
 const sitesFold = (
   {
     graph,

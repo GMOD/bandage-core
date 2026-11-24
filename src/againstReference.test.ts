@@ -199,6 +199,55 @@ test('heads mark a long inversion whose walk carries a SNP every 300 bp, at an o
   expect(spread).toBeGreaterThan((b - a) / 2)
 })
 
+// final review: a run measured by its span, gaps and all, gave four 1 bp
+// nodes read backwards 300 bp apart an inversion's heads at overview
+test('nodes read against the reference take heads by the bp they read so, not the span their run reaches over', () => {
+  const n = 600
+  const reversed = new Set([300, 301, 302, 303])
+  const piece = (i: number) => `p${i}`
+  const g = loadGraph(
+    [
+      ...Array.from(
+        { length: n },
+        (_, i) => `S\t${piece(i)}\t${'ACGT'.repeat(75)}`,
+      ),
+      ...Array.from({ length: n - 1 }, (_, i) => [
+        `S\ts${i}\tA`,
+        `L\t${piece(i)}\t+\ts${i}\t+\t0M`,
+        `L\ts${i}\t+\t${piece(i + 1)}\t+\t0M`,
+        ...(reversed.has(i)
+          ? [
+              `L\t${piece(i)}\t+\ts${i}\t-\t0M`,
+              `L\ts${i}\t-\t${piece(i + 1)}\t+\t0M`,
+            ]
+          : []),
+      ]).flat(),
+      `W\tGRCh38\t0\tchr1\t0\t*\t${Array.from({ length: n }, (_, i) => `>${piece(i)}${i < n - 1 ? `>s${i}` : ''}`).join('')}`,
+      `W\tflip\t1\tc\t0\t*\t${Array.from({ length: n }, (_, i) => `>${piece(i)}${i < n - 1 ? `${reversed.has(i) ? '<' : '>'}s${i}` : ''}`).join('')}`,
+    ].join('\n'),
+    'four flipped bases',
+  )
+  expect(
+    [...walksAgainstReference(g).keys()].map(
+      id => g.nodes.find(node => node.id === id)?.name,
+    ),
+  ).toEqual(['s300', 's301', 's302', 's303'])
+  const layout = layoutModeByValue('ordered').run(g, undefined)!
+  const fit = fitTransform(drawingBounds(layout, {}), 1090, 300, false)!
+  const batch = buildGeometry({
+    ...layoutGeometryInputs(layout, deletionDrawing(g, deletionEdges(g))),
+    graph: g,
+    nodeById: new Map(g.nodes.map(node => [node.id, node])),
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    axis: { scaleX: fit.scale, scaleY: fit.scale },
+  })
+  expect(300 * batch.collapsed!.pxPerBp).toBeLessThan(3)
+  expect(batch.arrows.filter(head => head.turned)).toEqual([])
+})
+
 // SV-inv-10k-100k: the fit of its force layout is under the 0.45 px a unit
 // links take heads at, where a node is shorter than its head
 test('a force layout drawn under the scale links take heads at marks the inverted stretch, and nothing else', async () => {
