@@ -28,7 +28,7 @@ import {
   departureText,
   gapParts,
   placementChoice,
-  roughBp,
+  bpText,
 } from './departures'
 import { convertGFAToGraph } from './gfaConverter'
 import { gfaTables } from './gfaTables'
@@ -207,8 +207,8 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
   ]
   expect(texts).toEqual([
     'no step on GRCh38 across 54 kb · 120 kb of its own',
-    'rejoins GRCh38 1 kb back',
-    'rejoins the reference on the other strand, 1 kb away · 1 kb of its own, 400 bp of it left out of graph · placement choice',
+    'rejoins GRCh38 1.0 kb back',
+    'rejoins the reference on the other strand, 1.0 kb away · 1.0 kb of its own, 400 bp of it left out of graph · placement choice',
     'between adjacent steps on GRCh38 · 300 bp of its own',
   ])
   for (const text of texts) {
@@ -216,10 +216,20 @@ test('a departure in words states its stretch, ends and own bp, and makes no cal
   }
 })
 
-test('a stretch that rounds up to 1000 kb reads as 1 Mb', () => {
+// The same 109,415 bp read "109 kb" at H-8p23 and "110 kb" at R1M-06 of the
+// HPRC v2.1 audit, rounded by two rules
+test('bp read the same wherever a row states them', () => {
   expect(
-    [999, 1000, 994_999, 995_000, 999_999, 1_000_000, 1_250_000].map(roughBp),
-  ).toEqual(['999 bp', '1 kb', '990 kb', '1 Mb', '1 Mb', '1 Mb', '1.3 Mb'])
+    [999, 1000, 9_940, 109_415, 994_999, 5_631_835, 17_232_000].map(bpText),
+  ).toEqual([
+    '999 bp',
+    '1.0 kb',
+    '9.9 kb',
+    '109 kb',
+    '995 kb',
+    '5632 kb',
+    '17.2 Mb',
+  ])
 })
 
 test("a walk-file cut's departures and trimmed bp stay off the GFA it writes", () => {

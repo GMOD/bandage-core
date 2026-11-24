@@ -13,7 +13,7 @@ import {
   ownGapText,
   ownIsExact,
   placementChoice,
-  roughBp,
+  bpText,
 } from '../gfa/departures'
 import { LABEL_CHAR_PX } from '../overlayLabels'
 import { panSNContig } from '../pansn'
@@ -73,11 +73,7 @@ const MIN_TILED_BAR_PX = 6
 // a unit separator is dropped when a unit is under this many px
 const MIN_TILE_PX = 3
 
-function kb(bp: number) {
-  return `${(bp / 1000).toFixed(bp < 10_000 ? 1 : 0)} kb`
-}
-
-const sized = (bp: number) => (bp < 1000 ? `${bp} bp` : kb(bp))
+const sized = bpText
 
 function signedLength(delta: number) {
   return `${delta > 0 ? '+' : '−'}${sized(Math.abs(delta))}`
@@ -103,6 +99,57 @@ const near = (refName: string | undefined, pos: number) =>
 // `away from the window`, or from the repeat a repeat view is cut to
 const awayText = (region: string) =>
   GAP_CAUSE_TEXT.away.replace('window', region)
+
+// Where a walk goes past an end of its bar that is not its contig's end
+const endText = (stop: WalkStop, refName: string | undefined, region: string) =>
+  stop.turnsBack
+    ? `turns back out of the ${region}`
+    : `${stop.start ? 'comes from' : 'goes on'} ${stop.goesOn ? `near ${near(refName, stop.goesOn.near)}` : awayText(region)}`
+
+/**
+ * The text drawn beside a row's bar, on one line: the bp the bar shows, with
+ * its change against the reference where it crosses the window, `//` and the
+ * bp its breaks stand for, and where the walk goes on past an end of the bar
+ * that is not its contig's. walkRowReadout's text is the rest, on hover.
+ */
+export function walkRowLine(
+  row: Parameters<typeof walkRowReadout>[0],
+  reference: Parameters<typeof walkRowReadout>[1],
+  unit?: number,
+  call?: ReadoutCall,
+) {
+  const hidden = (row.runs ?? [])
+    .filter(run => (run.heldBp ?? 0) > run.bp)
+    .reduce((sum, run) => sum + run.heldBp!, 0)
+  const stops = [row.stops?.left, row.stops?.right].filter(
+    stop => stop !== undefined,
+  )
+  const exact =
+    row.complete ||
+    (stops.length === 2 &&
+      stops.every(stop => stop.contigEnds && (stop.contigStart ?? 0) === 0))
+  const shown =
+    hidden > 0 || row.replacedBp !== undefined
+      ? row.bp - hidden
+      : (row.windowBp ?? row.bp)
+  const of = reference ? (reference.windowBp ?? reference.bp) : shown
+  const delta =
+    row.complete && hidden === 0 && row.replacedBp === undefined
+      ? shown - of
+      : 0
+  const region = unit ? 'repeat' : 'window'
+  const parts = [
+    `${exact ? '' : '≥ '}${sized(shown)}${units(shown, unit)}${delta === 0 ? '' : ` (${signedLength(delta)})`}`,
+    ...(hidden > 0 ? [`// ${sized(hidden)}`] : []),
+    ...stops
+      .filter(stop => !stop.contigEnds)
+      .map(stop => endText(stop, reference?.name, region)),
+    ...(call ? [`called ${sized(call.bp)}`] : []),
+  ]
+  return !reference || row.stepless || row.bp === 0
+    ? walkRowReadout(row, reference, unit, call)
+    : parts.join(' · ')
+}
 
 // Parts of a row's bp: `drawn` ones first, then what the cut left out, by the
 // cause its gaps state, or not drawn where the host passes no runs
@@ -148,7 +195,7 @@ function causesParts(gaps: WalkRun[], ownGap: string, region: string) {
 }
 
 const contigBeforeText = (contigStart: number) =>
-  `${roughBp(contigStart)} before it ${GAP_CAUSE_TEXT.mixed}`
+  `${bpText(contigStart)} before it ${GAP_CAUSE_TEXT.mixed}`
 
 const otherContigsText = (counted: WalkRow['otherContigs']) =>
   counted
@@ -334,11 +381,7 @@ export function walkRowReadout(
         : stop.contigStart === 0
           ? `contig starts ${where(stop)}`
           : `${bp === 0 || stop.shortBp > 0 ? `first step on ${sequence} ${where(stop)}, ` : ''}${contigBeforeText(stop.contigStart)}`
-      : stop.turnsBack
-        ? `turns back out of the ${region}`
-        : stop.goesOn
-          ? `${stop.start ? 'comes from' : 'goes on'} near ${near(reference.name, stop.goesOn.near)}${stop.goesOn.drawn ? '' : ownTextAfter(stop.goesOn.departure)}`
-          : `${stop.start ? 'comes from' : 'goes on'} ${awayText(region)}`
+      : `${endText(stop, reference.name, region)}${stop.goesOn && !stop.goesOn.drawn ? ownTextAfter(stop.goesOn.departure) : ''}`
   const whys = (short && bp === 0 ? [short] : stops).map(why).join(' · ')
   const least = row.windowBp ?? bp
   const exact =
@@ -425,107 +468,46 @@ export function readoutTextPx(text: string) {
 
 const ELLIPSIS = '…'
 
-// A readout cut to `roomPx` by whole parts from the end, closed with an
-// ellipsis: its breakdown's items, then the parts after its first, then the
-// first's own clauses and the amounts it joins with "and", so its total and
-// change against the reference stay longest. Where not even an ellipsis fits,
-// nothing is drawn.
+// A readout cut to `roomPx` by whole parts from its end, closed with an
+// ellipsis; nothing where not even an ellipsis fits
 function fitReadout(
   text: string,
   roomPx: number,
   measure: (text: string) => number,
 ) {
-  const [first = '', ...rest] = text.split(' · ')
-  const tail = rest.map(part => ` · ${part}`).join('')
-  const at = first.indexOf(', of which ')
-  const head = at < 0 ? first : first.slice(0, at)
-  const items = at < 0 ? [] : first.slice(at + ', of which '.length).split(', ')
-  const cuts =
-    items.length > 0
-      ? [tail, ''].flatMap(after =>
-          items
-            .map((_, k) => items.length - 1 - k)
-            .map(k =>
-              k > 0
-                ? `${head}, of which ${items.slice(0, k).join(', ')}, ${ELLIPSIS}${after}`
-                : `${head}, ${ELLIPSIS}${after}`,
-            ),
-        )
-      : rest
-          .map((_, k) => rest.length - 1 - k)
-          .map(k => `${[first, ...rest.slice(0, k)].join(' · ')} · ${ELLIPSIS}`)
-  const clauseCuts = [...head.matchAll(/, | and /g)]
-    .reverse()
-    .map(m => `${head.slice(0, m.index)}${m[0]}${ELLIPSIS}`)
+  const parts = text.split(' · ')
+  const cuts = parts
+    .map((_, k) => parts.length - 1 - k)
+    .filter(k => k > 0)
+    .map(k => `${parts.slice(0, k).join(' · ')} · ${ELLIPSIS}`)
   return (
-    [text, ...cuts, ...clauseCuts, ELLIPSIS].find(
-      candidate => measure(candidate) <= roomPx,
-    ) ?? ''
+    [text, ...cuts, ELLIPSIS].find(candidate => measure(candidate) <= roomPx) ??
+    ''
   )
 }
 
-// A wrapped readout's two lines, this far apart and centred on the row, keep
-// clear of the rows above and below at the walk-rows layout's own pitch
-const READOUT_LINE_PX = 10
-
-const wrapsAt = (rowPx = ROW_HEIGHT_PX) => rowPx >= 2 * READOUT_LINE_PX
-
-// Each way a readout breaks onto two lines between two of its parts, and the
-// px of its wider line
-const twoLines = (text: string, measure: (text: string) => number) =>
-  [...text.matchAll(/ \u00b7 |, /g)].map(m => {
-    const first = `${text.slice(0, m.index)}${m[0] === ', ' ? ',' : ''}`
-    const second = text.slice(m.index + m[0].length)
-    const lines: [string, string] = [first, second]
-    return { lines, px: Math.max(measure(first), measure(second)) }
-  })
-
-// A readout too long for `roomPx` as two lines, the break that leaves the
-// longer line shortest; none where no break fits both lines
-function wrapReadout(
-  text: string,
-  roomPx: number,
-  measure: (text: string) => number,
-) {
-  return twoLines(text, measure)
-    .filter(({ px }) => px <= roomPx)
-    .sort((a, b) => a.px - b.px)[0]?.lines
-}
-
-// The px past its bar's end a readout needs to be drawn whole, on two lines
-// where rows `rowPx` apart wrap it
+// The px past its bar's end a readout needs to be drawn whole
 export const readoutRoomPx = (
   text: string,
-  rowPx: number,
   measure: (text: string) => number = readoutTextPx,
-) =>
-  READOUT_GAP_PX +
-  (wrapsAt(rowPx)
-    ? twoLines(text, measure).reduce(
-        (least, { px }) => Math.min(least, px),
-        measure(text),
-      )
-    : measure(text))
+) => READOUT_GAP_PX + measure(text)
 
-// Row `i`'s readout (0 the reference), and the `· not compared` that ends it
-// while `comparing` leaves the row out
+// Row `i`'s readout (0 the reference): the line drawn, its full text, and
+// the `· not compared` that ends both while `comparing` leaves the row out
 export function walkRowReadoutParts(
   bars: WalkRowsWithCalls,
   i: number,
   comparing = false,
 ) {
   const row = i === 0 ? bars.reference : bars.rows[i - 1]!
-  const base = walkRowReadout(
-    row,
-    i === 0 ? undefined : bars.reference,
-    bars.unit,
-    row.call,
-  )
+  const reference = i === 0 ? undefined : bars.reference
+  const base = walkRowLine(row, reference, bars.unit, row.call)
+  const full = walkRowReadout(row, reference, bars.unit, row.call)
   const suffix =
     comparing && i > 0 && rowsNeedingRoutes([row]) > 0
       ? ` · ${NOT_COMPARED_TEXT}`
       : ''
-  return { row, base, suffix }
+  return { row, base, full, suffix }
 }
 
 const rowNameEnd = (label: string) =>
@@ -534,15 +516,14 @@ const rowNameEnd = (label: string) =>
 export const NOT_COMPARED_TEXT = 'not compared'
 
 /**
- * Row `i`'s readout (0 the reference) as a pane of `frame` draws it: `text`
- * in full, `lines` as drawn, `shown` those lines as one string, `cut` whether
- * they leave any of `text` out, and `x`, where they start: right of the bar's
- * end and of the row's name, never over a bar. Every line ends inside
- * `frame.width`, measured by `frame.measure` or else readoutTextPx. A readout
- * too long for the room wraps onto two lines where rows are at their full
- * pitch and two lines fit, and is cut by whole parts where not. While
- * `comparing`, a row the comparison leaves out ends `· not compared`, which
- * only a readout cut to nothing drops.
+ * Row `i`'s readout (0 the reference) as a pane of `frame` draws it: `text`,
+ * its line, `full`, the text its hover gives, `shown`, the line as drawn,
+ * `cut` whether that leaves any of `text` out, and `x`, where it starts:
+ * right of the bar's end and of the row's name, never over a bar. The line
+ * ends inside `frame.width`, measured by `frame.measure` or else
+ * readoutTextPx, cut by whole parts where it would not. While `comparing`, a
+ * row the comparison leaves out ends `· not compared`, which only a readout
+ * cut to nothing drops.
  */
 export function walkRowReadoutAt(
   bars: WalkRowsWithCalls,
@@ -553,27 +534,14 @@ export function walkRowReadoutAt(
   >,
   o: { comparing?: boolean } = {},
 ) {
-  const { row, base, suffix } = walkRowReadoutParts(bars, i, o.comparing)
+  const { row, base, full, suffix } = walkRowReadoutParts(bars, i, o.comparing)
   const text = `${base}${suffix}`
   const measure = frame.measure ?? readoutTextPx
   const endX = (bars.origin + barEnd(row)) * frame.scaleX + frame.translateX
   const x = Math.max(endX + READOUT_GAP_PX, rowNameEnd(row.label))
-  const roomPx = frame.width - x
-  const wrapped =
-    measure(text) > roomPx && wrapsAt(frame.rowPx)
-      ? wrapReadout(text, roomPx, measure)
-      : undefined
-  const kept = fitReadout(base, roomPx - measure(suffix), measure)
-  const lines: [string] | [string, string] = wrapped ?? [
-    kept === '' ? '' : `${kept}${suffix}`,
-  ]
-  return {
-    x,
-    text,
-    lines,
-    shown: lines.join('\n'),
-    cut: wrapped === undefined && lines[0] !== text,
-  }
+  const kept = fitReadout(base, frame.width - x - measure(suffix), measure)
+  const shown = kept === '' ? '' : `${kept}${suffix}`
+  return { x, text, full: `${full}${suffix}`, shown, cut: shown !== text }
 }
 
 // A row's bp walked, those away from the window left out
@@ -628,7 +596,6 @@ export function unitTicks(bp: number, unit: number, pxPerBp: number) {
 export function gapStyle(
   cause: GapCause | undefined,
   ownGap: string = GAP_CAUSE_TEXT.own,
-  reference = 'the reference',
   region = 'window',
 ) {
   return cause === 'missing'
@@ -1080,7 +1047,7 @@ export function walkRowsKey(
   for (const row of rows) {
     for (const run of row.runs) {
       if (run.gap) {
-        labels.add(gapStyle(run.cause, ownGap, reference, region).label)
+        labels.add(gapStyle(run.cause, ownGap, region).label)
       }
     }
   }
@@ -1093,7 +1060,7 @@ export function walkRowsKey(
     'mixed',
     'unread',
   ] as const) {
-    const { fill, px, label } = gapStyle(cause, ownGap, reference, region)
+    const { fill, px, label } = gapStyle(cause, ownGap, region)
     if (labels.has(label)) {
       entries.push({ swatch: { kind: 'gap', fill, px }, label })
     }
@@ -1732,7 +1699,11 @@ export function walkRowsTree(
       {
         'data-testid': i === 0 ? 'graph-walk-reference' : 'graph-walk-row',
       },
-      [readout?.cut === true && el('title', {}, readout.text)],
+      [
+        readout !== undefined &&
+          readout.full !== readout.shown &&
+          el('title', {}, readout.full),
+      ],
       [inkGradient],
       runs,
       strip,
@@ -1761,20 +1732,12 @@ export function walkRowsTree(
             'text',
             {
               x: readout.x,
-              y: y + 4 - ((readout.lines.length - 1) * READOUT_LINE_PX) / 2,
+              y: y + 4,
               'font-family': 'sans-serif',
               'font-size': 11,
               fill: call?.agrees === false ? DISAGREES : '#333',
             },
-            readout.lines[1] === undefined
-              ? readout.lines[0]
-              : el('tspan', { x: readout.x }, readout.lines[0]),
-            readout.lines[1] !== undefined &&
-              el(
-                'tspan',
-                { x: readout.x, dy: READOUT_LINE_PX },
-                readout.lines[1],
-              ),
+            readout.shown,
           ),
       ],
     )

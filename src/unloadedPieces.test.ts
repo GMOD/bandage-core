@@ -302,7 +302,7 @@ test('a walk-rows figure gives the row names a gutter of their own', async () =>
   )
   const barStarts = [
     ...svg.matchAll(
-      /data-testid="graph-walk-(?:row|reference)"><rect x="([\d.]+)"/g,
+      /data-testid="graph-walk-(?:row|reference)">(?:<title>[^<]*<\/title>)?<rect x="([\d.]+)"/g,
     ),
   ].map(match => Number(match[1]))
   expect(barStarts.length).toBeGreaterThan(0)

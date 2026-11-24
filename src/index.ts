@@ -339,6 +339,7 @@ export {
   rowSpan,
   runPaint,
   unitTicks,
+  walkRowLine,
   walkRowReadout,
   walkRowReadoutAt,
   walkedAlong,

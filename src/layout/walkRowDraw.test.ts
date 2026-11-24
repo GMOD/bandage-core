@@ -555,7 +555,7 @@ test('a walk that starts inside the window says where its contig starts, and how
     stops: { left: { contigEnds: true, shortBp, contigStart } },
   })
   expect(walkRowReadout({ bp: 332_000, ...starts(9_183_247) }, reference)).toBe(
-    '≥ 332 kb · 9.2 Mb before it not drawn or left out of graph',
+    '≥ 332 kb · 9183 kb before it not drawn or left out of graph',
   )
   expect(walkRowReadout({ bp: 332_000, ...starts(0) }, reference)).toBe(
     '≥ 332 kb · contig starts inside the window',
@@ -1060,12 +1060,12 @@ test('a readout never goes over its own bar: where the room beside it is short i
     scaleY: 1,
     translateX,
     translateY: 20,
-    width: endX + 6 + 50,
+    width: endX + 6 + 20,
     height: 400,
     measure: byChar,
   }
   const at = walkRowReadoutAt({ ...bars, rows: [hg3] }, 1, frame)
-  expect(at).toMatchObject({ x: endX + 6, shown: '26 bp, …', cut: true })
+  expect(at).toMatchObject({ x: endX + 6, shown: '…', cut: true })
   const svg = serializeEl(walkRowsTree({ ...bars, rows: [hg3] }, frame))
   expect(svg).toContain(`<title>${walkRowReadout(hg3, bars.reference)}</title>`)
   expect(svg).toContain(`x="${endX + 6}"`)
@@ -1128,163 +1128,41 @@ function longRow(): WalkRowsWithCalls {
   }
 }
 
-// rows closer than their full pitch, which leaves no room for a second line
-test('a readout too long for the room beside its bar on rows too close to wrap drops whole parts of its breakdown from the end, and says it was cut', () => {
+// longRow's readout ran to a hundred characters, wrapped onto two lines or
+// cut beside its bar
+test('a readout is one line of the bp the bar shows, the rest on hover, and cut only where not even that fits', () => {
   const bars = longRow()
-  const text =
+  const full =
     '5361 kb (+5360 kb), of which 5096 kb left out of graph, 178 kb away from the window, 86 kb not drawn'
-  const cut = '5361 kb (+5360 kb), of which 5096 kb left out of graph, …'
   const frame = (width: number) => ({
     scaleX: 100 / 5_361_000,
+    scaleY: 1,
     translateX: 0,
+    translateY: 20,
     width,
-    rowPx: 16,
-    measure: (shown: string) => shown.length * LABEL_CHAR_PX,
+    height: 200,
+    measure: byChar,
   })
   const beside = 106
-  const roomy = walkRowReadoutAt(bars, 1, frame(800))
-  expect(roomy).toMatchObject({
-    text,
-    shown: text,
+  expect(walkRowReadoutAt(bars, 1, frame(800))).toMatchObject({
+    text: '5361 kb (+5360 kb)',
+    shown: '5361 kb (+5360 kb)',
+    full,
     cut: false,
   })
-  expect(roomy.x).toBeCloseTo(beside)
-  expect(
-    walkRowReadoutAt(bars, 1, frame(beside + cut.length * LABEL_CHAR_PX + 1)),
-  ).toMatchObject({ text, shown: cut, cut: true })
+  const svg = serializeEl(walkRowsTree(bars, frame(800)))
+  expect(svg).toContain(`<title>${full}</title>`)
+  expect(svg).toContain('>5361 kb (+5360 kb)</text>')
   expect(walkRowReadoutAt(bars, 1, frame(beside + 10)).shown).toBe('…')
   expect(walkRowReadoutAt(bars, 1, frame(beside + 4)).shown).toBe('')
   const left = longRow()
   left.rows[0] = { ...left.rows[0]!, unloadedBp: 10 }
-  expect(walkRowReadoutAt(left, 1, frame(800)).shown).toBe(text)
   expect(
     walkRowReadoutAt(left, 1, frame(900), { comparing: true }),
-  ).toMatchObject({ text: `${text} · not compared`, cut: false })
+  ).toMatchObject({ text: '5361 kb (+5360 kb) · not compared', cut: false })
   expect(
-    walkRowReadoutAt(left, 1, frame(beside + 230), { comparing: true }).shown,
-  ).toBe('5361 kb (+5360 kb), … · not compared')
-  expect(
-    walkRowReadoutAt(left, 1, frame(beside + 10), { comparing: true }).shown,
-  ).toBe('')
-  const hg = rows()
-  const hg3 = hg.rows.find(row => row.name === 'HG3#1#ctg3')!
-  const scaleX = 20
-  const translateX = 40 - hg.origin * scaleX
-  const endX = (hg.origin + barEnd(hg3)) * scaleX + translateX
-  const full = walkRowReadout(hg3, hg.reference)
-  const svg = serializeEl(
-    walkRowsTree(
-      { ...hg, rows: [hg3] },
-      {
-        scaleX,
-        scaleY: 1,
-        translateX,
-        translateY: 20,
-        width: endX + 80,
-        height: 400,
-        measure: (shown: string) => shown.length * LABEL_CHAR_PX,
-      },
-    ),
-  )
-  expect(full).toBe('26 bp, of which 10 bp not drawn')
-  expect(svg).toContain(
-    `<g data-testid="graph-walk-row"><title>${full}</title>`,
-  )
-  expect(svg).toContain('>26 bp, …</text>')
-})
-
-// At AMY2A (chr1:103,618,800-103,620,300) HG00097#1's readout read "no step
-// on GRCh38 across 120 kb · …", hiding how much sequence of its own the
-// stretch holds and how much of it the graph left out
-test('a readout too long for the room beside its bar wraps onto two lines at full pitch, keeping every amount', () => {
-  const bars = longRow()
-  const departure: Departure = {
-    name: 'HG00097#1#c',
-    hapStart: 0,
-    ownBp: 49_000,
-    missingBp: 19_000,
-    leavePos: 103_560_000,
-    leaveReversed: false,
-    leavePasses: 1,
-    rejoinPos: 103_680_000,
-    rejoinReversed: false,
-    rejoinPasses: 1,
-    fromSteps: false,
-  }
-  bars.reference = { ...bars.reference, bp: 1500, windowBp: 1500 }
-  bars.rows = [
-    {
-      name: 'HG00097#1#c',
-      label: 'HG00097#1',
-      sample: 'HG00097',
-      bp: 0,
-      offReferenceBp: 0,
-      gapBp: 1500,
-      complete: true,
-      stepless: true,
-      departures: [departure],
-      runs: [
-        {
-          start: 0,
-          bp: 1500,
-          gap: true,
-          onReference: false,
-          cause: 'departure',
-        },
-      ],
-    },
-  ]
-  const text =
-    'no step on GRCh38 across 120 kb · 49 kb of its own, 19 kb of it left out of graph'
-  const measure = (shown: string) => shown.length * LABEL_CHAR_PX
-  const frame = (width: number, rowPx?: number) => ({
-    scaleX: 960 / 1500,
-    scaleY: 1,
-    translateX: 80,
-    translateY: 20,
-    width,
-    height: 200,
-    rowPx,
-    measure,
-  })
-  const beside = 80 + 960 + 6
-  const at = walkRowReadoutAt(bars, 1, frame(beside + 320))
-  expect(at).toMatchObject({
-    text,
-    lines: [
-      'no step on GRCh38 across 120 kb',
-      '49 kb of its own, 19 kb of it left out of graph',
-    ],
-    cut: false,
-  })
-  expect(at.lines.every(line => measure(line) <= 320)).toBe(true)
-  const svg = serializeEl(walkRowsTree(bars, frame(beside + 320)))
-  expect(svg).toContain(
-    `<tspan x="${at.x}">no step on GRCh38 across 120 kb</tspan><tspan x="${at.x}" dy="10">49 kb of its own, 19 kb of it left out of graph</tspan>`,
-  )
-  expect(svg).not.toContain(`<title>${text}</title>`)
-
-  // a break between a breakdown's items keeps its comma
-  expect(
-    walkRowReadoutAt(longRow(), 1, {
-      scaleX: 100 / 5_361_000,
-      translateX: 0,
-      width: 106 + 360,
-      measure,
-    }).lines,
-  ).toEqual([
-    '5361 kb (+5360 kb), of which 5096 kb left out of graph,',
-    '178 kb away from the window, 86 kb not drawn',
-  ])
-  // too narrow for two lines, or rows too close for a second, it is cut
-  expect(walkRowReadoutAt(bars, 1, frame(beside + 220))).toMatchObject({
-    lines: ['no step on GRCh38 across 120 kb · …'],
-    cut: true,
-  })
-  expect(walkRowReadoutAt(bars, 1, frame(beside + 320, 16))).toMatchObject({
-    lines: ['no step on GRCh38 across 120 kb · …'],
-    cut: true,
-  })
+    walkRowReadoutAt(left, 1, frame(beside + 120), { comparing: true }).shown,
+  ).toBe('… · not compared')
 })
 
 // pggb chrY (chrY:14,018,230-14,024,498 and chrY:16,160,000-16,163,000):
@@ -1355,9 +1233,7 @@ test("every line of a readout ends before the pane's right edge and starts past 
           const at = walkRowReadoutAt(fixture, i, frame)
           const endX = (fixture.origin + barEnd(row)) * scaleX + translateX
           expect(at.x).toBeGreaterThan(endX)
-          for (const line of at.lines.filter(shown => shown !== '')) {
-            expect(at.x + byChar(line)).toBeLessThanOrEqual(width)
-          }
+          expect(at.shown === '' || at.x + byChar(at.shown) <= width).toBe(true)
         })
       }
     }
@@ -1391,33 +1267,6 @@ test('bars fitted to a width with its readouts leave every readout whole beside 
       }
     }
   }
-})
-
-// HG00126#1's readout at pggb chrY ran on past the key's edge as its first
-// clause, cut mid-word there; now it ends by whole clauses before the edge
-test('a readout with no breakdown to drop sheds whole clauses and joined amounts from its end', () => {
-  const bars = pggbRows()
-  const frame = (room: number) => {
-    const scaleX = 600 / 3000
-    const endX = 80 + 400 * scaleX
-    return {
-      scaleX,
-      translateX: 80,
-      width: endX + 6 + room,
-      rowPx: 16,
-      measure: byChar,
-    }
-  }
-  expect(walkRowReadoutAt(bars, 1, frame(600)).shown).toBe(
-    "10 bp off GRCh38's path and 390 bp on GRCh38 in place of GRCh38's 6.4 kb",
-  )
-  expect(walkRowReadoutAt(bars, 1, frame(300)).shown).toBe(
-    "10 bp off GRCh38's path and …",
-  )
-  expect(walkRowReadoutAt(bars, 1, frame(300)).cut).toBe(true)
-  expect(walkRowReadoutAt(bars, 1, frame(200)).shown).toBe(
-    "10 bp off GRCh38's path and …",
-  )
 })
 
 // A 1.8 kb row, 1 kb of it left out of the graph, as the split fixture draws
@@ -1462,8 +1311,9 @@ test('a readout is measured at its font, so one with room enough is drawn whole'
   const text = '1.8 kb (+800 bp), of which 1.0 kb left out of graph'
   const frame = { scaleX: 905 / 1800, translateX: 0, width: 1200 }
   expect(walkRowReadoutAt(bars, 1, frame)).toMatchObject({
-    text,
-    shown: text,
+    text: '1.8 kb (+800 bp)',
+    full: text,
+    shown: '1.8 kb (+800 bp)',
     cut: false,
   })
   expect(text.length * LABEL_CHAR_PX).toBeGreaterThan(1200 - 911)
@@ -1522,10 +1372,10 @@ test("a stepless row reads as its departure's facts", () => {
     'no step on GRCh38 across 150 kb',
   )
   expect(readout({ rejoinPos: 23_267_960, ownBp: 120_000 })).toBe(
-    'no step on GRCh38 across 490 kb · 120 kb of its own',
+    'no step on GRCh38 across 488 kb · 120 kb of its own',
   )
   expect(readout({ rejoinPos: 24_014_567 }, { bp: 50_000, revisited: 0 })).toBe(
-    'no step on the reference across 1.2 Mb',
+    'no step on the reference across 1235 kb',
   )
   expect(readout({ rejoinPos: 22_780_850, missingBp: 40, ownBp: 40 })).toBe(
     'no step on GRCh38 across 850 bp · 40 bp left out of graph',

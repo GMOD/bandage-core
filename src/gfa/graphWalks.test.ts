@@ -75,13 +75,13 @@ test('a haplotype whose steps in the cut are the flanks alone is a row of its de
 test('a haplotype whose only step is a flank, with a departure across the window, is a row of that departure', async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 1500, 2000, 500)
   expect(row('HG002#1')).toMatchObject({
-    readout: 'no step on GRCh38 across 2.5 kb · 4 kb of its own',
+    readout: 'no step on GRCh38 across 2.5 kb · 4.0 kb of its own',
     gaps: [{ start: 0, bp: 500, cause: 'departure' }],
     row: { bp: 0, offReferenceBp: 4000, stepless: true, complete: true },
   })
   const back = await rowsOf('rejoin.GRCh38', 3500, 4000, 500)
   expect(back.row('HG002#1')).toMatchObject({
-    readout: 'no step on GRCh38 across 2.5 kb · 4 kb of its own',
+    readout: 'no step on GRCh38 across 2.5 kb · 4.0 kb of its own',
     gaps: [{ start: 0, bp: 500, cause: 'departure' }],
     row: { bp: 0, offReferenceBp: 4000, stepless: true },
   })
@@ -93,7 +93,7 @@ test("a stepless row states the own bp between the departure's ends", async () =
   for (const context of [0, 1000]) {
     const { row } = await rowsOf('follow.GRCh38', 2000, 3000, context)
     expect(row('HG002#1')).toMatchObject({
-      readout: 'no step on GRCh38 across 2.5 kb · 4 kb of its own',
+      readout: 'no step on GRCh38 across 2.5 kb · 4.0 kb of its own',
       gaps: [{ start: 0, bp: 1000, cause: 'departure' }],
       row: { offReferenceBp: 4000, stepless: true },
     })
@@ -142,7 +142,7 @@ test('a departure from a node the reference passes twice is a placement choice',
 test("a walk ending at the window's edge reads as a contig end only with no departure there and nothing trimmed past it", async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 1000, 1500, 500)
   expect(row('HG002#1')).toMatchObject({
-    readout: '≥ 500 bp · goes on near chr1:4 kb · 4 kb of its own',
+    readout: '≥ 500 bp · goes on near chr1:4 kb · 4.0 kb of its own',
     row: {
       complete: false,
       stops: {
@@ -175,7 +175,7 @@ test("a walk ending at the window's edge reads as a contig end only with no depa
 test('a walk that comes into the window by a departure says where it comes from', async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 4000, 4500, 500)
   expect(row('HG002#1')).toMatchObject({
-    readout: '≥ 500 bp · comes from near chr1:2 kb · 4 kb of its own',
+    readout: '≥ 500 bp · comes from near chr1:2 kb · 4.0 kb of its own',
     row: {
       complete: false,
       stops: { left: { contigEnds: false, goesOn: { near: 1500 } } },
@@ -190,7 +190,7 @@ test('a walk that comes into the window by a departure says where it comes from'
 test('with no context, a walk that stops inside the window states how, and a whole one reads complete', async () => {
   const { row } = await rowsOf('rejoin.GRCh38', 1000, 2000)
   expect(row('HG002#1')).toMatchObject({
-    readout: '≥ 500 bp · goes on near chr1:4 kb · 4 kb of its own',
+    readout: '≥ 500 bp · goes on near chr1:4 kb · 4.0 kb of its own',
     row: {
       bp: 500,
       complete: false,

@@ -119,13 +119,14 @@ export function departureSpan(d: Pick<Departure, 'leavePos' | 'rejoinPos'>) {
 }
 
 // Two significant figures, as JBrowse's synteny lane header states a stretch
-export function roughBp(bp: number) {
-  const kb = Number((bp / 1000).toPrecision(2))
+// bp in words, rounded one way wherever a row states them: whole bp under a
+// kb, tenths of a kb under 10 kb, whole kb under 10 Mb, then tenths of a Mb
+export function bpText(bp: number) {
   return bp < 1000
     ? `${bp} bp`
-    : kb < 1000
-      ? `${kb} kb`
-      : `${Number((Math.max(bp, 1_000_000) / 1_000_000).toPrecision(2))} Mb`
+    : bp < 10_000_000
+      ? `${(bp / 1000).toFixed(bp < 10_000 ? 1 : 0)} kb`
+      : `${(bp / 1_000_000).toFixed(1)} Mb`
 }
 
 /**
@@ -141,7 +142,7 @@ export function departureText(
   revisited?: number,
 ) {
   const { start, end } = departureSpan(d)
-  const apart = roughBp(end - start)
+  const apart = bpText(end - start)
   const kind = departureKind(d)
   const ends =
     kind === 'forward'
@@ -214,8 +215,8 @@ export const departureOwnText = (
   d.ownBp === 0
     ? ''
     : d.missingBp > 0 && d.missingBp >= d.ownBp
-      ? `${roughBp(d.ownBp)} ${GAP_CAUSE_TEXT.missing}`
-      : `${ownAmount(roughBp(d.ownBp), reference, revisited)}${d.missingBp > 0 ? `, ${roughBp(d.missingBp)} of it ${GAP_CAUSE_TEXT.missing}` : ''}`
+      ? `${bpText(d.ownBp)} ${GAP_CAUSE_TEXT.missing}`
+      : `${ownAmount(bpText(d.ownBp), reference, revisited)}${d.missingBp > 0 ? `, ${bpText(d.missingBp)} of it ${GAP_CAUSE_TEXT.missing}` : ''}`
 
 // the words for an `own` gap
 export const ownGapText = (

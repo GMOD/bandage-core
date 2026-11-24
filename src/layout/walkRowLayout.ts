@@ -36,15 +36,11 @@ export interface ReadoutFit {
 // How far the bars must reach for every row's readout to be drawn whole
 // beside its bar in `fit.widthPx`, as walkRowReadoutAt draws it, the bars
 // keeping at least a quarter of the width
-function readableReach(
-  walks: WalkRowsWithCalls,
-  rowPx: number,
-  fit: ReadoutFit,
-) {
+function readableReach(walks: WalkRowsWithCalls, fit: ReadoutFit) {
   const { widthPx } = fit
   return [walks.reference, ...walks.rows].reduce((most, _, i) => {
     const { row, base, suffix } = walkRowReadoutParts(walks, i, fit.comparing)
-    const room = readoutRoomPx(`${base}${suffix}`, rowPx, fit.measure)
+    const room = readoutRoomPx(`${base}${suffix}`, fit.measure)
     return Math.max(
       most,
       (barEnd(row) * widthPx) / Math.max(widthPx - room, widthPx / 4),
@@ -65,8 +61,7 @@ export function walkRowsExtent(
   },
   fit?: ReadoutFit,
 ) {
-  const readable =
-    pitch.readouts && fit ? readableReach(walks, pitch.rowPx, fit) : 0
+  const readable = pitch.readouts && fit ? readableReach(walks, fit) : 0
   return {
     maxX:
       walks.origin +

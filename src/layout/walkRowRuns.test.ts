@@ -179,7 +179,7 @@ test('a walk whose first W line starts inside the window says where its contig s
       rows.rows.map(r => [r.label, walkRowReadout(r, rows.reference)]),
     ),
   ).toEqual({
-    'G#1': '≥ 1.0 kb · 9.2 Mb before it not drawn or left out of graph',
+    'G#1': '≥ 1.0 kb · 9183 kb before it not drawn or left out of graph',
     'H#1': '≥ 1.0 kb · contig starts inside the window',
   })
   expect(rows.rows[0]!.stops).toEqual({
@@ -211,10 +211,10 @@ test('a walk that goes on by a departure says how much of its own bp the graph l
     )
   }
   expect(readout(5_631_835)).toBe(
-    '≥ 1.0 kb · goes on near chr1:4 kb · 5.6 Mb left out of graph',
+    '≥ 1.0 kb · goes on near chr1:4 kb · 5632 kb left out of graph',
   )
   expect(readout(1_000_000)).toBe(
-    '≥ 1.0 kb · goes on near chr1:4 kb · 5.6 Mb of its own, 1 Mb of it left out of graph',
+    '≥ 1.0 kb · goes on near chr1:4 kb · 5632 kb of its own, 1000 kb of it left out of graph',
   )
 })
 
@@ -1481,7 +1481,7 @@ test('a haplotype with no step in the window draws its departure under it', () =
     }),
   ])
   expect(walkRowReadout(f, reference)).toBe(
-    'no step on GRCh38 across 2 kb · 120 bp of its own',
+    'no step on GRCh38 across 2.0 kb · 120 bp of its own',
   )
   // A has a walk in the cut, which says more than its departure; the row
   // lists the departure, which no step of it draws
@@ -1599,7 +1599,7 @@ test('a stepless row draws the reference its departures span once, and states th
     placementChoice: true,
   })
   expect(walkRowReadout(row, reference)).toBe(
-    'rejoins GRCh38 2 kb back · 3 kb of its own · placement choice · 2 more departures',
+    'rejoins GRCh38 2.0 kb back · 3.0 kb of its own · placement choice · 2 more departures',
   )
   const narrowPlaced = rowsOf({
     ...tables,
@@ -1614,7 +1614,7 @@ test('a stepless row draws the reference its departures span once, and states th
       narrowPlaced.reference,
     ),
   ).toBe(
-    'rejoins GRCh38 2 kb back · 3 kb of its own · 1 more departure · placement choice',
+    'rejoins GRCh38 2.0 kb back · 3.0 kb of its own · 1 more departure · placement choice',
   )
 })
 
