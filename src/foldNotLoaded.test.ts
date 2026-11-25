@@ -110,3 +110,15 @@ test('HLA-II folds the same whether its off-reference stretches were loaded or n
   ])
   expect(a).toEqual(b)
 })
+
+// the landing review: 927 and 935 bp in place of 3,852 bp of GRCh38 drew a
+// node labelled 3.9 kb
+test("HLA-II's clustered replacement of 3,852 bp spans its alleles' own 927 and 935 bp", () => {
+  for (const mode of ['default', 'expanded'] as const) {
+    const fold = foldThreads(hlaCut(mode), 236)
+    expect(
+      fold.graph.nodes.find(node => node.name.startsWith('ins:163316188:'))
+        ?.lengthSpan,
+    ).toEqual({ least: 927, most: 935 })
+  }
+})

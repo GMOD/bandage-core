@@ -719,6 +719,35 @@ test('a stretch not loaded under the fold rides the reference with the rest of i
   )
 })
 
+// HLA-II: 927 and 935 bp in place of 3,852 bp of GRCh38 drew a node labelled
+// 3.9 kb, the span of what the alleles replace
+test('a node drawn for a clustered replacement spans its alleles own lengths, not what they replace', () => {
+  const replaced = loadGraph(
+    `S\ta\t*\tLN:i:1000
+S\td\t*\tLN:i:3852
+S\tc\t*\tLN:i:1000
+S\tx\t*\tLN:i:927
+S\ty\t*\tLN:i:935
+L\ta\t+\td\t+\t0M
+L\td\t+\tc\t+\t0M
+L\ta\t+\tx\t+\t0M
+L\tx\t+\tc\t+\t0M
+L\ta\t+\ty\t+\t0M
+L\ty\t+\tc\t+\t0M
+W\tref\t0\tchr\t0\t5852\t>a>d>c
+W\th1\t1\tchr\t0\t2927\t>a>x>c
+W\th2\t1\tchr\t0\t2935\t>a>y>c`,
+    'replaced',
+    { referencePath: 'ref#0#chr' },
+  )
+  const { graph } = folded(replaced, 500)
+  expect(
+    graph.nodes
+      .filter(node => node.stable?.rank !== 0)
+      .map(node => node.lengthSpan),
+  ).toEqual([{ least: 927, most: 935 }])
+})
+
 test('a node drawn for alleles of near lengths is labelled with their range', () => {
   const near = loadGraph(
     `S\ta\t*\tLN:i:1000
