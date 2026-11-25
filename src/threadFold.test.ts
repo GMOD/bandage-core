@@ -10,6 +10,7 @@ import {
   NO_SHARES,
   formatShare,
   labelledNodeShares,
+  sharedNodeLengths,
   sharesKey,
 } from './graphLabels'
 import { layoutModeByValue } from './layoutModes'
@@ -40,7 +41,7 @@ import { THREAD_LANE_KEY, threadFoldKey, threadLabel } from './threadKey'
 import { encodedColor } from './walkEncoding'
 import { walkLift } from './walkHighlight'
 
-import type { Graph, NodeSegment } from './types'
+import type { Graph, GraphNode, NodeSegment } from './types'
 import type { WalkLift } from './walkHighlight'
 
 // The reference walks a s b c. h1 takes t for s, a 1 bp difference; h2 and h3
@@ -689,8 +690,60 @@ test("a node's share is of the haplotypes drawn, and a fold's shares are its eve
   expect(shares.texts.has('a+')).toBe(false)
   expect(shares.texts.has('c+')).toBe(false)
   expect(sharesKey(shares.of)).toBe(
-    '% beside a length: the share of the 5 haplotypes drawn that walk it',
+    '%: the share of the 5 haplotypes drawn that walk a node or loop',
   )
+})
+
+test('a node with a share and no length of its own is labelled by its share alone', () => {
+  const { graph } = folded()
+  const shares = labelledNodeShares(graph, true)
+  const { lengths, shareOnly } = sharedNodeLengths(
+    new Map(),
+    shares.texts,
+    graph.nodes,
+  )
+  expect([...shareOnly]).toEqual(['b+'])
+  expect(lengths.get('b+')).toBe(2000)
+  const written = sharedNodeLengths(
+    new Map([['b+', 2000]]),
+    shares.texts,
+    graph.nodes,
+  )
+  expect(written.shareOnly.has('b+')).toBe(false)
+  expect(
+    sharedNodeLengths(new Map(), undefined, graph.nodes).lengths.size,
+  ).toBe(0)
+})
+
+test("a run of the reference's nodes with one share is labelled once, on its longest", () => {
+  const node = (id: string, offset: number, length: number): GraphNode => ({
+    ...whole.nodes[0]!,
+    id,
+    name: id,
+    length,
+    stable: { ...whole.nodes[0]!.stable!, start: offset },
+  })
+  const nodes = [
+    node('p+', 0, 100),
+    node('q+', 100, 900),
+    node('r+', 1000, 300),
+    node('s2+', 1300, 50),
+    node('u+', 1350, 400),
+  ]
+  const shares = new Map([
+    ['p+', '70%'],
+    ['q+', '70%'],
+    ['r+', '70%'],
+    ['u+', '70%'],
+  ])
+  expect([...sharedNodeLengths(new Map(), shares, nodes).shareOnly]).toEqual([
+    'q+',
+    'u+',
+  ])
+  expect([
+    ...sharedNodeLengths(new Map(), new Map([...shares, ['r+', '40%']]), nodes)
+      .shareOnly,
+  ]).toEqual(['q+', 'r+', 'u+'])
 })
 
 test('no share is stated where a walk has steps not loaded or a node stands for others', () => {

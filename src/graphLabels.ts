@@ -287,7 +287,65 @@ export function labelledNodeShares(
 
 // What the key says a share is of
 export const sharesKey = (of: number) =>
-  `% beside a length: the share of the ${groupDigits(of)} haplotypes drawn that walk it`
+  `%: the share of the ${groupDigits(of)} haplotypes drawn that walk a node or loop`
+
+// The lengths the size labels are placed from where shares are written: a
+// node with a share and no length of its own, as the reference's are on a
+// graph with walks, joins them, and its label is its share alone. So the
+// stretch of the reference a deletion skips says how many still walk it. A
+// run of the reference's nodes with one share is labelled once, on its
+// longest: CFH's deletion skips six, and "70%" six times said no more.
+export function sharedNodeLengths(
+  nodeLengths: Map<string, number>,
+  nodeShares: ReadonlyMap<string, string> | undefined,
+  nodes: readonly GraphNode[] | undefined,
+) {
+  const shareOnly = new Set<string>()
+  const lengths = new Map(nodeLengths)
+  const add = (node: GraphNode) => {
+    lengths.set(node.id, node.length)
+    shareOnly.add(node.id)
+  }
+  const lengthless = (node: GraphNode) =>
+    nodeShares?.has(node.id) && !lengths.has(node.id)
+  const along = nodeShares?.size
+    ? (nodes ?? [])
+        .filter(isBackbone)
+        .toSorted((a, b) => a.stable.start - b.stable.start)
+    : []
+  let run: GraphNode[] = []
+  const close = () => {
+    const longest = run.reduce<GraphNode | undefined>(
+      (best, node) => (best && best.length >= node.length ? best : node),
+      undefined,
+    )
+    if (longest) {
+      add(longest)
+    }
+    run = []
+  }
+  for (const node of along) {
+    if (
+      run.length > 0 &&
+      !(
+        lengthless(node) &&
+        nodeShares?.get(node.id) === nodeShares?.get(run[0]!.id)
+      )
+    ) {
+      close()
+    }
+    if (lengthless(node)) {
+      run.push(node)
+    }
+  }
+  close()
+  for (const node of nodeShares?.size ? (nodes ?? []) : []) {
+    if (!isBackbone(node) && lengthless(node)) {
+      add(node)
+    }
+  }
+  return { lengths, shareOnly }
+}
 
 // Where along its node or loop a length may stand, each sixteenth, nearest
 // the middle first
@@ -308,6 +366,8 @@ interface SizeLabelArgs {
   nodeById?: NodeKinds
   // the share written after a node's length: labelledNodeShares' texts
   nodeShares?: ReadonlyMap<string, string>
+  // nodes whose label is their share alone: sharedNodeLengths'
+  shareOnly?: ReadonlySet<string>
   // Alleles the layout drew over the reference they replace: their nodes
   // keep their lengths off the drawing, since a length written across a bar
   // drawn wider than it reads as the bar's size. See AlleleDeletion.
@@ -449,6 +509,7 @@ export function sizeLabelCandidates({
   nodePositions,
   nodeLengths,
   nodeShares,
+  shareOnly,
   nodeById,
   alleleDeletions,
   pxPerBp = 0,
@@ -497,7 +558,11 @@ export function sizeLabelCandidates({
       const label = {
         key: `node:${id}`,
         node: id,
-        text: share ? `${length} · ${share}` : length,
+        text: share
+          ? shareOnly?.has(id)
+            ? share
+            : `${length} · ${share}`
+          : length,
       }
       const halfW = labelHalfWidth(label.text)
       const line = drawn >= MIN_ALONG_PX ? segments.map(screen) : []

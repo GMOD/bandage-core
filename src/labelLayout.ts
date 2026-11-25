@@ -6,6 +6,7 @@ import {
   nodeLabelBudget,
   placeSizeLabels,
   rowLabelBox,
+  sharedNodeLengths,
   sizeLabelCandidates,
   unlabelledPlaceholders,
   walkLoops,
@@ -400,12 +401,14 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
           m.positionsVersion,
         )
       : 0
+  const shared = sharedNodeLengths(m.nodeLengths, m.nodeShares, m.graph?.nodes)
   const sizeCandidates =
     m.nodePositions && m.labelsNodeSizes
       ? sizeLabelCandidates({
           nodePositions: m.nodePositions,
-          nodeLengths: m.nodeLengths,
+          nodeLengths: shared.lengths,
           nodeShares: m.nodeShares,
+          shareOnly: shared.shareOnly,
           nodeById: m.nodeById,
           alleleDeletions: m.alleleDeletions,
           pxPerBp,
