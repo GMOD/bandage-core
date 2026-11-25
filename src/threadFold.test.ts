@@ -39,7 +39,7 @@ import {
 } from './threadFold'
 import { THREAD_LANE_KEY, threadFoldKey, threadLabel } from './threadKey'
 import { encodedColor } from './walkEncoding'
-import { walkLift } from './walkHighlight'
+import { facetLifts, walkLift } from './walkHighlight'
 
 import type { Graph, GraphNode, NodeSegment } from './types'
 import type { WalkLift } from './walkHighlight'
@@ -792,6 +792,19 @@ test("countLaneWidth 'share' draws each thread as wide as its share of the fold'
   expect(countLanes(halved.walks)!.band).toBeCloseTo(
     countLanes(lift.walks)!.band / 2,
   )
+})
+
+test("liftFade rides on the lift to the batch, the facet panels and the key's faded ink", () => {
+  const { graph } = folded()
+  const layers = threadLayers(graph, [{ walk: 'h3#1#chr' }])
+  const plain = walkLift(graph, layers)!
+  const strong = walkLift(graph, layers, undefined, { liftFade: 0.6 })!
+  expect(plain.fadedAlpha).toBeUndefined()
+  expect('fadedAlpha' in plain).toBe(false)
+  expect(strong.fadedAlpha).toBe(0.6)
+  expect(
+    facetLifts(graph, strong, layers).map(panel => panel.fadedAlpha),
+  ).toEqual(strong.walks.map(() => 0.6))
 })
 
 test('a node under count lanes is hit as far as the lanes reach', () => {

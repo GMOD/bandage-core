@@ -102,6 +102,9 @@ export interface FigureOptions {
   // 'log' when absent; 'share' draws a thread as wide as its share of the
   // haplotypes (FigureSettings)
   countLaneWidth?: CountLaneWidth
+  // 0.3 when absent: the alpha of the ink off the lifted walks
+  // (FigureSettings)
+  liftFade?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
   // false when absent: after a node's length, the share of the drawn

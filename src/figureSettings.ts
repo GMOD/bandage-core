@@ -1,6 +1,7 @@
 import { LABEL_DEFAULTS } from './graphLabels'
 import { FIGURE_WIDTH_PX } from './layout/fitAssumptions'
 import { ENGINE_DEFAULTS } from './pipeline'
+import { FADED_ALPHA } from './renderer/colorBits'
 
 import type { ColorScheme } from './colorSchemes'
 import type { EdgeWidth } from './edgeWidths'
@@ -25,6 +26,10 @@ export interface FigureSettings extends Partial<EngineSettings> {
   // 'share' draws such a lane as wide as its share of the fold's haplotypes,
   // so two lanes compare by width; 'log', the default, by the log of its count
   countLaneWidth?: CountLaneWidth
+  // the alpha the ink off the lifted walks is laid down at, FADED_ALPHA (0.3)
+  // where absent: a host drawing thin nodes raises it so a branch no lifted
+  // walk takes still shows
+  liftFade?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
   // after a node's length, the share of the drawn haplotypes that walk it,
@@ -47,6 +52,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   connectorThickness: 2,
   countLaneScale: 1,
   countLaneWidth: 'log',
+  liftFade: FADED_ALPHA,
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
   nodeShares: false,
   smallSites: 'hidden',

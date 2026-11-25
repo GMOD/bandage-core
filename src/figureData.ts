@@ -39,11 +39,12 @@ import {
 import { referencePositions } from './referenceSpan'
 import {
   EDGE_DELETION_COLOR,
+  LIFT_BACKDROP_COLOR,
   NOT_LOADED_COLOR,
   NOT_LOADED_FILL_COLOR,
   REFERENCE_RAMP_ALT_COLOR,
 } from './renderer/GeometryBuilder'
-import { FADED_ALPHA, abgrAlpha, abgrHex } from './renderer/colorBits'
+import { FADED_ALPHA, abgrAlpha, abgrHex, fadeAbgr } from './renderer/colorBits'
 import { laneSlideAt, passesKey, threadsPasses } from './renderer/walkLanes'
 import { version } from './version'
 import { axisScaleOf } from './viewport'
@@ -83,6 +84,7 @@ export type FigureDataOptions = Pick<
   | 'connectorThickness'
   | 'countLaneScale'
   | 'countLaneWidth'
+  | 'liftFade'
   | 'region'
   | 'referenceName'
   | 'colorDomain'
@@ -306,8 +308,8 @@ function columns<T extends object>(out: Columns<T>) {
 
 // a faded row's alpha is the one it shows with, alone, and `faded` says it is
 // laid down as one layer with the rest
-const alphaOf = (c: number, faded?: true) =>
-  (abgrAlpha(c) / 255) * (faded ? FADED_ALPHA : 1)
+const alphaOf = (c: number, faded?: true, fadedAlpha = FADED_ALPHA) =>
+  (abgrAlpha(c) / 255) * (faded ? fadedAlpha : 1)
 
 // a name's baseline lies about this many of its px under its middle; a
 // length's label is placed by its middle already, in 10 px text
@@ -666,7 +668,7 @@ export function figureData(
             x: p.x,
             y: p.y,
             color: abgrHex(s.color),
-            alpha: alphaOf(s.color, s.faded),
+            alpha: alphaOf(s.color, s.faded, lift?.fadedAlpha),
             faded: s.faded === true,
             width: s.thickness * 2,
             walk: keyRowOf(s.walk),
@@ -701,7 +703,7 @@ export function figureData(
             curve: i,
             ...c,
             color: abgrHex(b.color),
-            alpha: alphaOf(b.color, b.faded),
+            alpha: alphaOf(b.color, b.faded, lift?.fadedAlpha),
             faded: b.faded === true,
             width: b.thickness * 2,
             deletion: b.skip === true,
@@ -741,7 +743,7 @@ export function figureData(
           length: a.length,
           halfWidth: a.halfWidth,
           color: abgrHex(a.color),
-          alpha: alphaOf(a.color, a.faded),
+          alpha: alphaOf(a.color, a.faded, lift?.fadedAlpha),
           faded: a.faded === true,
           halo: a.halo === true,
           runsOn: a.runsOn === true,
@@ -968,7 +970,11 @@ export function figureData(
         placeholderFill: abgrHex(NOT_LOADED_FILL_COLOR),
         placeholderRim: abgrHex(NOT_LOADED_COLOR),
         deletion: abgrHex(EDGE_DELETION_COLOR),
-        faded: abgrHex(FADED_KEY_INK),
+        faded: abgrHex(
+          lift?.fadedAlpha === undefined
+            ? FADED_KEY_INK
+            : fadeAbgr(LIFT_BACKDROP_COLOR, lift.fadedAlpha),
+        ),
       },
       // the graph's key, as every reader draws it (graphKey.ts)
       graphKey: graphKeyTable(key),

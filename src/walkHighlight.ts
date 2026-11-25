@@ -105,6 +105,9 @@ export interface WalkLift {
   nodeIds: Set<string>
   edgeIndexes: Set<number>
   names: Set<string>
+  // a figure's `liftFade` where it states one: the alpha the ink off the
+  // lift is laid down at, in place of FADED_ALPHA
+  fadedAlpha?: number
 }
 
 // What a lift's faded key says of what it draws in grey, or nothing where it
@@ -571,7 +574,12 @@ export function walkLift(
   {
     countLaneScale = 1,
     countLaneWidth = 'log',
-  }: { countLaneScale?: number; countLaneWidth?: CountLaneWidth } = {},
+    liftFade,
+  }: {
+    countLaneScale?: number
+    countLaneWidth?: CountLaneWidth
+    liftFade?: number
+  } = {},
 ): WalkLift | undefined {
   const haplotypes = graph.threadFold?.haplotypes
   // what a lane of `count` is drawn at against its count's own log width
@@ -632,7 +640,7 @@ export function walkLift(
         : { laneScale: laneScaleOf(walk.count) }),
     }
   })
-  return liftOf(walks, ramp)
+  return liftOf(walks, ramp, liftFade)
 }
 
 // The scale every facet panel shares, as a faceted plot shares its axes
@@ -670,12 +678,18 @@ export function facetLifts(
         },
       ],
       ramp,
+      lift.fadedAlpha,
     )
   })
 }
 
-function liftOf(walks: LiftedWalk[], ramp?: ReferenceRamp): WalkLift {
+function liftOf(
+  walks: LiftedWalk[],
+  ramp?: ReferenceRamp,
+  fadedAlpha?: number,
+): WalkLift {
   return {
+    ...(fadedAlpha === undefined ? {} : { fadedAlpha }),
     walks,
     referenceDomain: ramp
       ? { start: ramp.start, end: ramp.start + ramp.span }

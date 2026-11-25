@@ -895,6 +895,36 @@ test('faded strokes paint opaque in one layer under the rest, laid down once', (
   expect(svg.indexOf('</g>')).toBeLessThan(svg.indexOf('rgb(0,0,255)'))
 })
 
+test("a batch's fadedAlpha is the opacity its faded layer is laid down at", () => {
+  const grey = packAbgr(160, 160, 160, 255)
+  const { canvas, markup } = svgCanvas(100, 100)
+  const renderer = new Canvas2DRenderer(canvas)
+  renderer.updateTransform(TRANSFORM)
+  renderer.uploadGeometry({
+    fadedAlpha: 0.6,
+    nodeStrokes: [
+      {
+        points: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+        thickness: 2,
+        color: grey,
+        faded: true,
+      },
+    ],
+    nodeStrokeRuns: new Map(),
+    edgeCurves: [],
+    edgeCurveRuns: new Map(),
+    arrows: [],
+    arrowRuns: new Map(),
+  })
+  renderer.render([1, 1, 1, 0])
+  const svg = markup()
+  expect(svg).toContain('<g opacity="0.6">')
+  expect(svg).not.toContain(`<g opacity="${FADED_ALPHA}">`)
+})
+
 // A context as a browser gives one, with no opacity groups, so a faded layer
 // is painted into a scratch canvas and drawn from it
 function screenContext(width: number, height: number) {

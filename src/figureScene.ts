@@ -30,6 +30,7 @@ export type FigureSceneOptions = Pick<
   | 'connectorThickness'
   | 'countLaneScale'
   | 'countLaneWidth'
+  | 'liftFade'
   | 'region'
   | 'referenceName'
   | 'colorDomain'
@@ -80,6 +81,7 @@ export function figureScene(
       ? walkLift(graph, layers, walkRamp, {
           countLaneScale: o.countLaneScale,
           countLaneWidth: o.countLaneWidth,
+          liftFade: o.liftFade,
         })
       : undefined
   const unmatchedWalks = layout.tubeMap

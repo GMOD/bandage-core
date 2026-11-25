@@ -96,6 +96,9 @@ export interface Run {
 }
 
 export interface RenderBatch {
+  // the alpha the faded layer is laid down at where the lift states one
+  // (WalkLift.fadedAlpha); FADED_ALPHA without
+  fadedAlpha?: number
   nodeStrokes: NodeStroke[]
   // node id -> its run of `nodeStrokes`
   nodeStrokeRuns: Map<string, Run>

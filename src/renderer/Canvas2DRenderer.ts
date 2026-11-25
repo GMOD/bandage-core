@@ -182,11 +182,12 @@ export class Canvas2DRenderer implements Renderer {
     paint: (layer: T) => void,
   ) {
     const ctx = this.ctx
+    const alpha = this.batch?.fadedAlpha ?? FADED_ALPHA
     if (isEmptyLayer(layer)) {
       return
     }
     if (hasOpacityGroups(ctx)) {
-      ctx.beginOpacityGroup(FADED_ALPHA)
+      ctx.beginOpacityGroup(alpha)
       paint(layer)
       ctx.endOpacityGroup()
     } else {
@@ -198,7 +199,7 @@ export class Canvas2DRenderer implements Renderer {
         this.ctx = ctx
       }
       ctx.save()
-      ctx.globalAlpha = FADED_ALPHA
+      ctx.globalAlpha = alpha
       ctx.drawImage(scratch.canvas, 0, 0)
       ctx.restore()
     }

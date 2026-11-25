@@ -2892,6 +2892,7 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     edgeCurves,
     edgeCurveRuns,
     collapsed: collapse,
+    fadedAlpha: highlight?.fadedAlpha,
     laneOnly,
     nodeThicknessesVary: thinnestStroke < thickestStroke,
     ...(counted ? { countedLanes: true } : {}),

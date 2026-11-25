@@ -603,6 +603,8 @@ export function graphKey(
   const drawsNodes = o.drawsNodes ?? !layout.tubeMap
   const lifts = o.panels ?? (o.lift ? [o.lift] : [])
   const lifted = lifts.length > 0
+  const fadedAlpha = lifts[0]?.fadedAlpha ?? FADED_ALPHA
+  const fadedInk = fadeAbgr(LIFT_BACKDROP_COLOR, fadedAlpha)
   const ramp = o.referenceRamp
   const thickness = o.contigThickness ?? 6
 
@@ -651,7 +653,7 @@ export function graphKey(
         entry(
           'faded',
           fadedTexts.size > 1 ? "not on the panel's walk" : [...fadedTexts][0]!,
-          { kind: 'chip', ink: FADED_KEY_INK },
+          { kind: 'chip', ink: fadedInk },
         ),
       ]
     : lifted && o.marks.plainLink
@@ -659,7 +661,7 @@ export function graphKey(
           entry(
             'faded-links',
             `links not on ${o.panels ? "the panel's walk" : walksLabel(lifts[0]!)}`,
-            { kind: 'line', ink: FADED_KEY_INK, dashed: false },
+            { kind: 'line', ink: fadedInk, dashed: false },
           ),
         ]
       : []
@@ -802,7 +804,7 @@ export function graphKey(
       : undefined
 
   const skipInk = lifted
-    ? fadeAbgr(EDGE_DELETION_COLOR, FADED_ALPHA)
+    ? fadeAbgr(EDGE_DELETION_COLOR, fadedAlpha)
     : EDGE_DELETION_COLOR
   const notShownEntries: GraphKeyEntry[] = [
     ...(drawsNodes && o.marks.placeholder
@@ -838,7 +840,7 @@ export function graphKey(
       ? [
           entry('deletion', deletionKey(reference), {
             kind: 'line',
-            ink: lifted ? FADED_KEY_INK : EDGE_DEFAULT_COLOR,
+            ink: lifted ? fadedInk : EDGE_DEFAULT_COLOR,
             dashed: false,
             arch: true,
           }),
