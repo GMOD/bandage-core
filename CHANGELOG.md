@@ -1,3 +1,9 @@
+## [14.8.0](https://github.com/GMOD/bandage-core/compare/v14.7.0...v14.8.0) (2026-11-25)
+
+### Other Changes
+
+- A figure's liftFade sets the opacity of everything off the lifted walks, 0.3 where absent: the lift carries it to the batch, so the renderer's faded layer, the key's faded inks and the figure data's alphas follow it, and a host drawing thin nodes can keep a branch no lifted walk takes in sight ([e0b5139](https://github.com/GMOD/bandage-core/commit/e0b513966234e73a0c7750979d9d38b58151bb8d))
+
 ## [14.7.0](https://github.com/GMOD/bandage-core/compare/v14.6.0...v14.7.0) (2026-11-25)
 
 ### Other Changes
