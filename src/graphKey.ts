@@ -724,7 +724,7 @@ export function graphKey(
           const walkEntry = walkKeyEntry(w, label(w.name), walkReference, label)
           return [
             compact && w.count !== undefined
-              ? { ...walkEntry, strong: threadCount(w) }
+              ? { ...walkEntry, strong: threadLabel(w, threadCount(w)) }
               : walkEntry,
             ...passEntries(w, lane),
           ]

@@ -505,6 +505,27 @@ test('a compact key names the lit threads by their counts alone, drops the lane 
   expect(lines.filter(([, newLine]) => newLine)).toHaveLength(1)
 })
 
+test('a compact key keeps the piece count on a haplotype in pieces, so its pieces never read as more haplotypes', () => {
+  const { graph } = folded(
+    loadGraph(`${GFA}\nW\th4\t1\tother\t0\t1000\t>c`, 'toy', {
+      referencePath: 'ref#0#chr',
+    }),
+  )
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const lift = walkLift(
+    graph,
+    threadLayers(graph, [{ walk: 'h4#1#chr' }, { walk: 'h4#1#other' }]),
+  )!
+  expect(
+    graphKey(graph, layout, { lift, marks: drawnMarks([]), compact: true })
+      .flatMap(section => section.entries)
+      .flatMap(entry => entry.strong ?? []),
+  ).toEqual([
+    '1 haplotype, one of its 2 pieces here',
+    '1 haplotype, one of its 2 pieces here',
+  ])
+})
+
 test('compactKey is off by default, and on lays the figure key in two lines', () => {
   const { graph } = folded()
   const layout = layoutModeByValue('ordered').run(graph, undefined)!
