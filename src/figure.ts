@@ -10,7 +10,12 @@ import { FIGURE_DEFAULTS } from './figureSettings'
 import { EXON_COLOR, exonOutlineTree, exonStretches } from './genes/exonOutline'
 import { genePins } from './genes/genePins'
 import { drawnMarks, graphKey, walkKeyEntry } from './graphKey'
-import { formatBp, labelledNodeLengths, sizeLeader } from './graphLabels'
+import {
+  formatBp,
+  labelledNodeLengths,
+  labelledNodeShares,
+  sizeLeader,
+} from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { FIT_PADDING } from './layout/fitAssumptions'
 import { liftedRowInks } from './layout/rowInks'
@@ -96,6 +101,9 @@ export interface FigureOptions {
   countLaneScale?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
+  // false when absent: after a node's length, the share of the drawn
+  // haplotypes that walk it
+  nodeShares?: boolean
   // 'hidden' when absent: a site too small to draw at the figure's scale is
   // not drawn; 'nodes' draws it
   smallSites?: SmallSites
@@ -395,6 +403,10 @@ export function figureSvg(
     graph,
     o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
   )
+  const nodeShares = labelledNodeShares(
+    graph,
+    o.nodeShares ?? FIGURE_DEFAULTS.nodeShares,
+  )
   // how far a band of lanes as wide as their counts reaches past the pads a
   // node's own width fits in
   const laneReach = Math.max(
@@ -575,6 +587,7 @@ export function figureSvg(
           labelsNodeSizes:
             !layout.tubeMap && (!highlight || !!graph.threadFold),
           nodeLengths,
+          nodeShares: nodeShares.texts,
           nodeById,
           graph,
           drawnInk: batch,
@@ -621,6 +634,7 @@ export function figureSvg(
         panels: facets?.panels,
         walkLabel: labelOf,
         nodeWidth,
+        nodeSharesOf: nodeShares.of,
         contigThickness,
         edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
         connectorThickness:

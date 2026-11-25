@@ -4,7 +4,7 @@ import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
 import { drawnEdgeWidth } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
-import { formatBp, groupDigits } from './graphLabels'
+import { formatBp, groupDigits, sharesKey } from './graphLabels'
 import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import {
   MIN_WALKS_PX,
@@ -121,6 +121,7 @@ export type GraphKeySectionId =
   | 'not-shown'
   | 'exon'
   | 'overhang'
+  | 'shares'
   | 'compressed'
   | 'too-small'
 
@@ -374,6 +375,9 @@ export interface GraphKeyOptions {
   connectorThickness?: number
   // whether the layout draws nodes, as a tube map and walk rows' bars do not
   drawsNodes?: boolean
+  // how many haplotypes the shares written after node lengths are of:
+  // labelledNodeShares' `of`, 0 or absent where none is written
+  nodeSharesOf?: number
   // the marks the drawing holds: drawnMarks of its batches
   marks: DrawnMarks
   genePins?: readonly GenePin[]
@@ -949,6 +953,12 @@ export function graphKey(
               swatch: { kind: 'overhang' },
             },
           ]
+        : [],
+    },
+    {
+      id: 'shares',
+      entries: o.nodeSharesOf
+        ? [{ key: 'shares', text: sharesKey(o.nodeSharesOf) }]
         : [],
     },
     {

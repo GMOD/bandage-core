@@ -2,6 +2,8 @@ import { isBackbone } from './anchoredNodes'
 import { polylinePointAt } from './layout/mergeRuns'
 import { SMALL_SITE_PX } from './levelOfDetail'
 import { grown, insideFrame, labelWidth, occupancy } from './overlayLabels'
+import { panSNHaplotype } from './pansn'
+import { pathOrigin } from './pathAnchoring'
 import { compareIds } from './util/canonicalOrder'
 import { polylinePx } from './util/geometry'
 import { pushTo } from './util/groups'
@@ -15,6 +17,7 @@ import type {
   Graph,
   GraphEdge,
   GraphNode,
+  GraphPath,
   NodeSegment,
 } from './types'
 import type { AxisScale } from './util/geometry'
@@ -225,6 +228,67 @@ function labelOrder(
   )
 }
 
+// A share as its label gives it: a whole percent, and never the 0% or 100% a
+// node some haplotypes walk and some leave out is not at
+export function formatShare(haplotypes: number, of: number) {
+  const percent = Math.round((100 * haplotypes) / of)
+  return percent < 1 ? '<1%' : percent > 99 ? '>99%' : `${percent}%`
+}
+
+const haplotypesOf = (path: GraphPath) =>
+  (path.members ?? [path.name]).map(
+    name => panSNHaplotype(pathOrigin(name).name) ?? name,
+  )
+
+export const NO_SHARES: { texts: ReadonlyMap<string, string>; of: number } = {
+  texts: new Map(),
+  of: 0,
+}
+
+// The share of the graph's haplotypes that walk each node some of them leave
+// out, written beside its length where a host asks (FigureSettings
+// nodeShares), and how many haplotypes it is a share `of`: those with a step
+// in the graph, each once whatever its walks, its passes or the thread a fold
+// put it on. No node has one where a walk has steps the cut did not load or a
+// node stands for nodes not shown, since a haplotype may then walk a node no
+// loaded step of its says it does.
+export function labelledNodeShares(
+  graph: Pick<Graph, 'nodes' | 'paths'> | undefined,
+  nodeShares = false,
+) {
+  const paths = graph?.paths ?? []
+  const stated =
+    nodeShares &&
+    !paths.some(path => path.abridgedSteps) &&
+    !graph?.nodes.some(node => node.placeholder)
+  const all = new Set<string>()
+  const through = new Map<string, Set<string>>()
+  for (const path of stated ? paths : []) {
+    const haplotypes = path.nodeIds.length > 0 ? haplotypesOf(path) : []
+    for (const haplotype of haplotypes) {
+      all.add(haplotype)
+    }
+    for (const id of new Set(path.nodeIds)) {
+      const walkers = through.get(id) ?? new Set<string>()
+      for (const haplotype of haplotypes) {
+        walkers.add(haplotype)
+      }
+      through.set(id, walkers)
+    }
+  }
+  const texts = new Map<string, string>()
+  for (const [id, walkers] of through) {
+    if (walkers.size < all.size) {
+      texts.set(id, formatShare(walkers.size, all.size))
+    }
+  }
+  return texts.size > 0 ? { texts, of: all.size } : NO_SHARES
+}
+
+// What the key says a share is of
+export const sharesKey = (of: number) =>
+  `% beside a length: the share of the ${groupDigits(of)} haplotypes drawn that walk it`
+
 // Where along its node or loop a length may stand, each sixteenth, nearest
 // the middle first
 const LENGTH_SPOTS = Array.from({ length: 15 }, (_, k) => (k + 1) / 16).sort(
@@ -242,6 +306,8 @@ interface SizeLabelArgs {
   nodeLengths: Map<string, number>
   // which nodes are placeholders, whose lengths are kept
   nodeById?: NodeKinds
+  // the share written after a node's length: labelledNodeShares' texts
+  nodeShares?: ReadonlyMap<string, string>
   // Alleles the layout drew over the reference they replace: their nodes
   // keep their lengths off the drawing, since a length written across a bar
   // drawn wider than it reads as the bar's size. See AlleleDeletion.
@@ -382,6 +448,7 @@ function runsOnPast(line: readonly Point[], box: Box) {
 export function sizeLabelCandidates({
   nodePositions,
   nodeLengths,
+  nodeShares,
   nodeById,
   alleleDeletions,
   pxPerBp = 0,
@@ -425,10 +492,12 @@ export function sizeLabelCandidates({
     const [middle] = spots
     if (middle && (drawn >= MIN_ALONG_PX || standsOff)) {
       const span = nodeById?.get(id)?.lengthSpan
+      const length = span ? formatBpSpan(span.least, span.most) : formatBp(bp)
+      const share = nodeShares?.get(id)
       const label = {
         key: `node:${id}`,
         node: id,
-        text: span ? formatBpSpan(span.least, span.most) : formatBp(bp),
+        text: share ? `${length} · ${share}` : length,
       }
       const halfW = labelHalfWidth(label.text)
       const line = drawn >= MIN_ALONG_PX ? segments.map(screen) : []
@@ -658,6 +727,7 @@ export function loopLabelCandidates({
   loops,
   edges,
   nodePositions,
+  nodeShares,
   folded,
   pxPerBp,
   ink,
@@ -668,7 +738,13 @@ export function loopLabelCandidates({
   height,
 }: Pick<
   SizeLabelArgs,
-  'nodePositions' | 'axis' | 'translateX' | 'translateY' | 'width' | 'height'
+  | 'nodePositions'
+  | 'nodeShares'
+  | 'axis'
+  | 'translateX'
+  | 'translateY'
+  | 'width'
+  | 'height'
 > & {
   loops: readonly WalkLoop[]
   edges: readonly Pick<GraphEdge, 'from' | 'to'>[]
@@ -691,7 +767,12 @@ export function loopLabelCandidates({
   const seen = new Map<string, number>()
   const candidates: SizeLabelCandidate[] = []
   for (const { loop, line, ends } of drawnLines) {
-    const text = formatBpSpan(loop.least, loop.most)
+    // a loop's share is its nodes' where they all have one share, as the
+    // nodes of one insertion do; a loop through nodes of several has none
+    const shares = new Set(loop.nodes.map(id => nodeShares?.get(id)))
+    const [share] = shares.size === 1 ? shares : []
+    const length = formatBpSpan(loop.least, loop.most)
+    const text = share ? `${length} · ${share}` : length
     const halfW = labelHalfWidth(text)
     if (
       loop.bp * pxPerBp >= SMALL_SITE_PX &&

@@ -74,6 +74,8 @@ export interface LabelLayoutSource {
   labelsNodeSizes: boolean
   // the lengths written on the drawing: labelledNodeLengths
   nodeLengths: Map<string, number>
+  // the shares written after them: labelledNodeShares' texts
+  nodeShares?: ReadonlyMap<string, string>
   // the drawn nodes by id, which says which are placeholders
   nodeById: NodeKinds | undefined
   // the graph whose walks' loops write their lengths
@@ -403,6 +405,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
       ? sizeLabelCandidates({
           nodePositions: m.nodePositions,
           nodeLengths: m.nodeLengths,
+          nodeShares: m.nodeShares,
           nodeById: m.nodeById,
           alleleDeletions: m.alleleDeletions,
           pxPerBp,
@@ -443,6 +446,7 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
             loops,
             edges: m.graph.edges,
             nodePositions: m.nodePositions,
+            nodeShares: m.nodeShares,
             folded: m.folded,
             pxPerBp,
             ink: lengths,

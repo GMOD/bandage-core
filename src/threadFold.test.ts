@@ -6,6 +6,12 @@ import {
   walkKeyEntry,
   walkScaleEntries,
 } from './graphKey'
+import {
+  NO_SHARES,
+  formatShare,
+  labelledNodeShares,
+  sharesKey,
+} from './graphLabels'
 import { layoutModeByValue } from './layoutModes'
 import {
   countLaneWidthPx,
@@ -659,6 +665,52 @@ test('countLaneScale thins every count lane, its key swatch and its reach alike'
   expect(
     nodeInk(graph, nodeById, 1, 'uniform', thin.walks).halfWidthPx('a+'),
   ).toBeCloseTo(countLanes(thin.walks)!.band / 2)
+})
+
+test("a node's share is of the haplotypes drawn, and a fold's shares are its events' counts", () => {
+  expect(labelledNodeShares(whole)).toBe(NO_SHARES)
+  const unfolded = labelledNodeShares(whole, true)
+  expect(unfolded.of).toBe(5)
+  expect(Object.fromEntries(unfolded.texts)).toEqual({
+    's+': '60%',
+    't+': '40%',
+    'b+': '60%',
+  })
+  const { graph, events } = folded()
+  const shares = labelledNodeShares(graph, true)
+  const deletion = events.find(event => event.kind === 'deletion')!
+  expect(shares.of).toBe(graph.threadFold!.haplotypes)
+  expect(shares.texts.get('b+')).toBe(
+    formatShare(shares.of - deletion.haplotypes, shares.of),
+  )
+  expect(shares.texts.has('a+')).toBe(false)
+  expect(shares.texts.has('c+')).toBe(false)
+  expect(sharesKey(shares.of)).toBe(
+    '% beside a length: the share of the 5 haplotypes drawn that walk it',
+  )
+})
+
+test('no share is stated where a walk has steps not loaded or a node stands for others', () => {
+  const abridged = {
+    ...whole,
+    paths: whole.paths!.map((path, i) =>
+      i === 1 ? { ...path, abridgedSteps: 3 } : path,
+    ),
+  }
+  expect(labelledNodeShares(abridged, true)).toBe(NO_SHARES)
+  const held: Graph = {
+    ...whole,
+    nodes: whole.nodes.map(node =>
+      node.id === 't+' ? { ...node, placeholder: true } : node,
+    ),
+  }
+  expect(labelledNodeShares(held, true)).toBe(NO_SHARES)
+})
+
+test('a share never reads 0% or 100%', () => {
+  expect(formatShare(1, 464)).toBe('<1%')
+  expect(formatShare(463, 464)).toBe('>99%')
+  expect(formatShare(137, 464)).toBe('30%')
 })
 
 test('a node under count lanes is hit as far as the lanes reach', () => {

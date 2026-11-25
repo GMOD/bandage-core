@@ -425,6 +425,7 @@ export {
   LABEL_DEFAULTS,
   formatBp,
   labelledNodeLengths,
+  labelledNodeShares,
   sizeLeader,
 } from './graphLabels'
 export type { UnlabelledPlaceholders } from './graphLabels'

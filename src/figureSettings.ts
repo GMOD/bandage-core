@@ -24,6 +24,9 @@ export interface FigureSettings extends Partial<EngineSettings> {
   countLaneScale?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
+  // after a node's length, the share of the drawn haplotypes that walk it,
+  // where some leave it out (graphLabels.ts labelledNodeShares)
+  nodeShares?: boolean
   // 'hidden': a site too small to draw at the figure's scale is not drawn
   smallSites?: SmallSites
   // the interval the reference ramp spans where it is not the cut window
@@ -41,6 +44,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   connectorThickness: 2,
   countLaneScale: 1,
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
+  nodeShares: false,
   smallSites: 'hidden',
 }
 

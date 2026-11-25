@@ -6,7 +6,11 @@ import { EXON_COLOR } from './genes/exonOutline'
 import { namedGenePins } from './genes/geneNames'
 import { genePins } from './genes/genePins'
 import { FADED_KEY_INK, RAMP_KEY_STOPS, drawnMarks, graphKey } from './graphKey'
-import { labelledNodeLengths, sizeLeader } from './graphLabels'
+import {
+  labelledNodeLengths,
+  labelledNodeShares,
+  sizeLeader,
+} from './graphLabels'
 import { geneLeader, layoutLabels } from './labelLayout'
 import { rowInkAlong, rowInkOf } from './layout/rowInks'
 import {
@@ -84,6 +88,7 @@ export type FigureDataOptions = Pick<
   | 'fitToDrawing'
   | 'genes'
   | 'nodeLengths'
+  | 'nodeShares'
   | 'smallSites'
 >
 
@@ -760,6 +765,10 @@ export function figureData(
     }
   }
 
+  const nodeShares = labelledNodeShares(
+    graph,
+    o.nodeShares ?? FIGURE_DEFAULTS.nodeShares,
+  )
   const placed = layoutLabels({
     paneWidth: width,
     canvasHeight: height,
@@ -778,6 +787,7 @@ export function figureData(
       graph,
       o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
     ),
+    nodeShares: nodeShares.texts,
     nodeById,
     graph,
     drawnInk: batches[0],
@@ -889,6 +899,7 @@ export function figureData(
     panels: facets?.panels,
     walkLabel: labelOf,
     nodeWidth,
+    nodeSharesOf: nodeShares.of,
     contigThickness,
     edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
     connectorThickness:
