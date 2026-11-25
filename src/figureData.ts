@@ -92,6 +92,7 @@ export type FigureDataOptions = Pick<
   | 'genes'
   | 'nodeLengths'
   | 'nodeShares'
+  | 'compactKey'
   | 'smallSites'
 >
 
@@ -904,6 +905,7 @@ export function figureData(
     walkLabel: labelOf,
     nodeWidth,
     nodeSharesOf: nodeShares.of,
+    compact: o.compactKey ?? FIGURE_DEFAULTS.compactKey,
     contigThickness,
     edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
     connectorThickness:

@@ -110,6 +110,8 @@ export interface FigureOptions {
   // false when absent: after a node's length, the share of the drawn
   // haplotypes that walk it
   nodeShares?: boolean
+  // false when absent: the key in two lines where it can be (FigureSettings)
+  compactKey?: boolean
   // 'hidden' when absent: a site too small to draw at the figure's scale is
   // not drawn; 'nodes' draws it
   smallSites?: SmallSites
@@ -294,16 +296,22 @@ function headingSvg(text: string): KeyAt {
 const HEADED = new Set(['Thickness', 'Node thickness', 'Link thickness'])
 
 function graphKeySvg(sections: GraphKeySection[], idPrefix: string) {
-  return sections.flatMap(({ id, group, entries }) => [
-    ...(group && HEADED.has(group) ? [headingSvg(group)] : []),
-    ...entries.map((entry, i) => entrySvg(entry, `${idPrefix}-${id}-${i}`)),
-  ])
+  return sections.flatMap(({ id, group, entries, newLine }) =>
+    [
+      ...(group && HEADED.has(group) ? [headingSvg(group)] : []),
+      ...entries.map((entry, i) => entrySvg(entry, `${idPrefix}-${id}-${i}`)),
+    ].map((key, i) => (newLine && i === 0 ? onNewLine(key) : key)),
+  )
+}
+
+function onNewLine(key: KeyAt) {
+  return (x: number, y: number) => ({ ...key(x, y), newLine: true })
 }
 
 type KeyAt = (
   x: number,
   y: number,
-) => { width: number; height: number; markup: string }
+) => { width: number; height: number; markup: string; newLine?: boolean }
 
 // Keys one after another along a line, a new line where the next would run
 // past the figure's right edge
@@ -314,7 +322,7 @@ function keyLines(keys: readonly KeyAt[], width: number) {
   let line = 0
   for (const key of keys) {
     const size = key(0, 0)
-    if (x > 6 && x + size.width > width - 6) {
+    if (x > 6 && (size.newLine || x + size.width > width - 6)) {
       x = 6
       y += line + 4
       line = 0
@@ -642,6 +650,7 @@ export function figureSvg(
         walkLabel: labelOf,
         nodeWidth,
         nodeSharesOf: nodeShares.of,
+        compact: o.compactKey ?? FIGURE_DEFAULTS.compactKey,
         contigThickness,
         edgeWidth: o.edgeWidth ?? FIGURE_DEFAULTS.edgeWidth,
         connectorThickness:

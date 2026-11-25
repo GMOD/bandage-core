@@ -4,7 +4,7 @@ import { SHORT_SKIP_KEY, deletionKey } from './deletionEdges'
 import { drawnEdgeWidth } from './edgeWidths'
 import { EXON_COLOR } from './genes/exonOutline'
 import { NOT_LOADED_TEXT } from './gfa/departures'
-import { formatBp, groupDigits, sharesKey } from './graphLabels'
+import { formatBp, groupDigits, sharesKey, sharesShortKey } from './graphLabels'
 import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import {
   MIN_WALKS_PX,
@@ -42,7 +42,13 @@ import {
 import { fadeAbgr, hexAbgr, packAbgr } from './renderer/colorBits'
 import { LANE_HEADS_AGAINST_KEY, LANE_HEADS_KEY } from './renderer/laneHeads'
 import { passesKey } from './renderer/walkLanes'
-import { THREAD_LANE_KEY, threadFoldKey, threadLabel } from './threadKey'
+import {
+  THREAD_LANE_KEY,
+  threadCount,
+  threadFoldKey,
+  threadFoldShortKey,
+  threadLabel,
+} from './threadKey'
 import { curvePointAt } from './util/geometry'
 import { addTo } from './util/groups'
 import { segmentMeetsBox } from './util/hitDetection'
@@ -137,6 +143,8 @@ export interface GraphKeySection {
     | 'Link thickness'
     | 'Marks'
   entries: GraphKeyEntry[]
+  // a reader starts the section on a line of its own
+  newLine?: boolean
 }
 
 // The lane strokes of nodes drawn with an underlay of the walks not lifted:
@@ -202,6 +210,7 @@ export function drawnMarks(
     offReference: false,
     threads: false,
     widthsVary: false,
+    linkWidthsVary: false,
     ribbons: false,
     passes: new Map<number, Set<number>>(),
     headsAgainst: false,
@@ -219,6 +228,7 @@ export function drawnMarks(
   const curveInView = ({ curves }: { curves: readonly BezierCurve[] }) =>
     !view || curves.some(curve => curveMeetsView(curve, view))
   let width: number | undefined
+  let linkWidth: number | undefined
   for (const batch of batches) {
     const { nodeStrokeRuns, nodeStrokes, collapsed } = batch
     const shown = nodeStrokes.map(stroke => inView(stroke.points))
@@ -246,6 +256,13 @@ export function drawnMarks(
       }
     }
     marks.widthsVary ||= !!batch.nodeThicknessesVary
+    for (const { thickness, walk, dashed } of batch.edgeCurves) {
+      if (walk === undefined && !dashed) {
+        marks.linkWidthsVary ||=
+          linkWidth !== undefined && linkWidth !== thickness
+        linkWidth = thickness
+      }
+    }
     marks.ribbons ||= !!batch.pathRibbons
     const sites = (collapsed?.sites ?? []).filter(site => inView([site]))
     const shortSkips = new Map(
@@ -397,6 +414,10 @@ export interface GraphKeyOptions {
   // placeholders are drawn, for unlabelledText to fill once they are placed,
   // so no label can change the key's height
   unlabelled?: UnlabelledPlaceholders | 'reserved'
+  // the key in two lines where it can be: the lifted walks by their counts,
+  // then the shares, the skips and what is not drawn, each entry short, and a
+  // thickness only where the marks it keys vary in width
+  compact?: boolean
 }
 
 // faded strokes paint as one layer, so the key's ink is exactly theirs
@@ -494,6 +515,11 @@ export function absentHaplotypesText(
       : `${absent.length} ${of} ${have(absent.length)} ${departing > 0 ? noStep : noWalk}`
 }
 
+const walksUnit = (graph: Graph, n: number) =>
+  walksRevisit(graph)
+    ? counted(n, 'walk pass', 'walk passes')
+    : counted(n, 'walk', 'walks')
+
 // The most passes, half and one; the thinnest swatch says how many passes
 // the MIN_WALKS_PX floor holds
 export function walkScaleEntries(
@@ -503,16 +529,15 @@ export function walkScaleEntries(
 ) {
   const most = mostPasses(graph, nodes)
   const perPass = contigThickness / most
-  const unit = (n: number) =>
-    walksRevisit(graph)
-      ? counted(n, 'walk pass', 'walk passes')
-      : counted(n, 'walk', 'walks')
   const floorHolds = Math.max(1, Math.floor(MIN_WALKS_PX / perPass + 1e-9))
   return [most, Math.round(most / 2), 1]
     .filter((n, i, ns) => ns.indexOf(n) === i && (n === 1 || n > floorHolds))
     .map(n => ({
       key: `width-${n === 1 ? 1 : n === most ? 'most' : 'half'}`,
-      text: n === 1 && floorHolds > 1 ? `1 to ${unit(floorHolds)}` : unit(n),
+      text:
+        n === 1 && floorHolds > 1
+          ? `1 to ${walksUnit(graph, floorHolds)}`
+          : walksUnit(graph, n),
       px: walksPx(n, perPass),
     }))
 }
@@ -607,6 +632,7 @@ export function graphKey(
   const fadedInk = fadeAbgr(LIFT_BACKDROP_COLOR, fadedAlpha)
   const ramp = o.referenceRamp
   const thickness = o.contigThickness ?? 6
+  const compact = !!o.compact
 
   const offReference = (key: string) =>
     entry(key, `off ${reference}`, {
@@ -694,11 +720,16 @@ export function graphKey(
   const walkEntries: GraphKeyEntry[] = [
     ...(o.panels
       ? []
-      : (o.lift?.walks ?? []).flatMap((w, lane) => [
-          walkKeyEntry(w, label(w.name), walkReference, label),
-          ...passEntries(w, lane),
-        ])),
-    ...(lifted && graph.threadFold
+      : (o.lift?.walks ?? []).flatMap((w, lane) => {
+          const walkEntry = walkKeyEntry(w, label(w.name), walkReference, label)
+          return [
+            compact && w.count !== undefined
+              ? { ...walkEntry, strong: threadCount(w) }
+              : walkEntry,
+            ...passEntries(w, lane),
+          ]
+        })),
+    ...(lifted && graph.threadFold && !compact
       ? [entry('thread-lane', THREAD_LANE_KEY)]
       : []),
     ...(lifted && o.marks.offReference ? [offReference('lift-off')] : []),
@@ -745,6 +776,14 @@ export function graphKey(
     UNWALKED_PX,
     EDGE_DEFAULT_COLOR,
   )
+  const zeroWalks =
+    (linksByWalks && unwalked) ||
+    graph.nodes.some(
+      n =>
+        n.depth === 0 &&
+        !n.placeholder &&
+        (!o.marks.nodes || o.marks.nodes.has(n.id)),
+    )
   const nodeWidthEntries: GraphKeyEntry[] = !drawsNodes
     ? []
     : nodeWidth === 'walks' && (!lifted || o.marks.widthsVary)
@@ -752,15 +791,7 @@ export function graphKey(
           ...walksScale.map(({ key, text, px }) =>
             widthEntry(key, text, px, REFERENCE_RAMP_ALT_COLOR),
           ),
-          ...((linksByWalks && unwalked) ||
-          graph.nodes.some(
-            n =>
-              n.depth === 0 &&
-              !n.placeholder &&
-              (!o.marks.nodes || o.marks.nodes.has(n.id)),
-          )
-            ? [unwalkedEntry]
-            : []),
+          ...(zeroWalks ? [unwalkedEntry] : []),
         ]
       : !o.marks.widthsVary
         ? []
@@ -797,9 +828,57 @@ export function graphKey(
           ...(unwalked ? [unwalkedEntry] : []),
         ]
       : []
+  const walksRange = (nodes: boolean, zero: boolean) =>
+    `${zero ? 0 : 1} to ${walksUnit(graph, mostPasses(graph, nodes))}`
+  const frequencies = frequencyKey(thickness)
+  const nodeRange =
+    nodeWidth === 'walks'
+      ? { px: walksScale[0]!.px, text: walksRange(true, zeroWalks) }
+      : nodeWidth === 'frequency'
+        ? {
+            px: frequencies[0]!.widthPx,
+            text: graph.nodes.some(n => n.frequency !== undefined)
+              ? `AF ${frequencies.at(-1)!.label} to ${frequencies[0]!.label}`
+              : `${frequencies.at(-1)!.label} to ${frequencies[0]!.label} of haplotypes`,
+          }
+        : nodeWidth === 'depth' && depths[0]
+          ? {
+              px: depths[0].widthPx,
+              text: `depth ${depths
+                .map(({ depth }) => groupDigits(roundDepth(depth)))
+                .toReversed()
+                .join(' to ')}`,
+            }
+          : undefined
+  const shortNodeWidth =
+    drawsNodes &&
+    nodeRange &&
+    (o.marks.widthsVary || (linksWithNodes && o.marks.linkWidthsVary))
+      ? [
+          widthEntry(
+            'width',
+            nodeRange.text,
+            nodeRange.px,
+            REFERENCE_RAMP_ALT_COLOR,
+          ),
+        ]
+      : []
+  const shortLinkWidth =
+    drawsNodes && linksByWalks && !linksWithNodes && o.marks.linkWidthsVary
+      ? [
+          widthEntry(
+            'link-width',
+            `links ${walksRange(false, unwalked)}`,
+            walkScaleEntries(graph, thickness, false)[0]!.px,
+            EDGE_DEFAULT_COLOR,
+          ),
+        ]
+      : []
+  const nodeEntries = compact ? shortNodeWidth : nodeWidthEntries
+  const linkEntries = compact ? shortLinkWidth : linkWidthEntries
   const notDrawnUnder =
     drawsNodes && uncounted
-      ? nodeWidthEntries.length > 0
+      ? nodeEntries.length > 0
         ? 'link-width'
         : 'node-width'
       : undefined
@@ -884,20 +963,24 @@ export function graphKey(
     { id: 'walks', group: 'Walks', entries: walkEntries },
     {
       id: 'node-width',
-      group:
-        linksWithNodes || notDrawnUnder === 'node-width'
-          ? 'Thickness'
-          : 'Node thickness',
+      ...(compact
+        ? {}
+        : {
+            group:
+              linksWithNodes || notDrawnUnder === 'node-width'
+                ? 'Thickness'
+                : 'Node thickness',
+          }),
       entries: [
-        ...nodeWidthEntries,
+        ...nodeEntries,
         ...(notDrawnUnder === 'node-width' ? [notDrawn] : []),
       ],
     },
     {
       id: 'link-width',
-      group: 'Link thickness',
+      ...(compact ? {} : { group: 'Link thickness' }),
       entries: [
-        ...linkWidthEntries,
+        ...linkEntries,
         ...(notDrawnUnder === 'link-width' ? [notDrawn] : []),
       ],
     },
@@ -961,7 +1044,12 @@ export function graphKey(
     {
       id: 'shares',
       entries: o.nodeSharesOf
-        ? [{ key: 'shares', text: sharesKey(o.nodeSharesOf) }]
+        ? [
+            {
+              key: 'shares',
+              text: (compact ? sharesShortKey : sharesKey)(o.nodeSharesOf),
+            },
+          ]
         : [],
     },
     {
@@ -974,7 +1062,14 @@ export function graphKey(
       id: 'too-small',
       entries: [
         ...(graph.threadFold
-          ? [entry('thread-fold', threadFoldKey(graph.threadFold, reference))]
+          ? [
+              entry(
+                'thread-fold',
+                compact
+                  ? threadFoldShortKey(graph.threadFold)
+                  : threadFoldKey(graph.threadFold, reference),
+              ),
+            ]
           : []),
         ...(o.marks.foldedNodes.size + o.marks.foldedSkips.size > 0
           ? [
@@ -991,7 +1086,36 @@ export function graphKey(
       ],
     },
   ]
-  return sections.filter(section => section.entries.length > 0)
+  const keyed = sections.filter(section => section.entries.length > 0)
+  return compact ? compactLines(keyed) : keyed
+}
+
+const COMPACT_ORDER: readonly GraphKeySectionId[] = [
+  'ramp',
+  'walks',
+  'shares',
+  'skips',
+  'too-small',
+  'node-width',
+  'link-width',
+  'halo',
+  'links',
+  'not-shown',
+  'exon',
+  'overhang',
+  'compressed',
+]
+
+// The walks on one line, then the shares, the skips and what is not drawn
+// opening the next
+function compactLines(sections: GraphKeySection[]) {
+  const ordered = sections.toSorted(
+    (a, b) => COMPACT_ORDER.indexOf(a.id) - COMPACT_ORDER.indexOf(b.id),
+  )
+  const opening = ordered.findIndex(s => s.id !== 'ramp' && s.id !== 'walks')
+  return ordered.map((section, i) =>
+    i > 0 && i === opening ? { ...section, newLine: true } : section,
+  )
 }
 
 export type GraphKey = ReturnType<typeof graphKey>

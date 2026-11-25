@@ -1,4 +1,4 @@
-import { groupDigits } from './graphLabels'
+import { formatBp, groupDigits } from './graphLabels'
 
 import type { GraphPath } from './types'
 
@@ -11,13 +11,16 @@ export function threadLabel(
 ) {
   const count = thread.count ?? 1
   return count > 1
-    ? `${count.toLocaleString('en-US')} haplotypes${
+    ? `${threadCount(thread)}${
         picked.length > 0 ? `, ${picked.join(', ')} among them` : ''
       }`
     : thread.pieces
       ? `${own}, one of its ${thread.pieces} pieces here`
       : own
 }
+
+export const threadCount = ({ count = 1 }: Pick<GraphPath, 'count'>) =>
+  `${groupDigits(count)} ${count === 1 ? 'haplotype' : 'haplotypes'}`
 
 // What a key says a fold leaves out: between two places a haplotype meets the
 // reference, any one stretch it has off it or skips of it shorter than
@@ -27,6 +30,9 @@ export const threadFoldKey = (
   reference: string,
 ) =>
   `not drawn: sequence shorter than ${groupDigits(belowBp)} bp that a haplotype adds to ${reference} or skips of it before rejoining it`
+
+export const threadFoldShortKey = ({ belowBp }: { belowBp: number }) =>
+  `differences under ${formatBp(belowBp)} not drawn`
 
 // What a key says a lane of a fold is
 export const THREAD_LANE_KEY =

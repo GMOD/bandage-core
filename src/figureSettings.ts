@@ -35,6 +35,9 @@ export interface FigureSettings extends Partial<EngineSettings> {
   // after a node's length, the share of the drawn haplotypes that walk it,
   // where some leave it out (graphLabels.ts labelledNodeShares)
   nodeShares?: boolean
+  // the key in two lines where it can be: the lifted walks by their counts,
+  // then the shares, the skips and what is not drawn (graphKey.ts compact)
+  compactKey?: boolean
   // 'hidden': a site too small to draw at the figure's scale is not drawn
   smallSites?: SmallSites
   // the interval the reference ramp spans where it is not the cut window
@@ -55,6 +58,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   liftFade: FADED_ALPHA,
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
   nodeShares: false,
+  compactKey: false,
   smallSites: 'hidden',
 }
 

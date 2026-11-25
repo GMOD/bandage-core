@@ -1,4 +1,6 @@
-import { figureData } from './figureData'
+import { figureSvg } from './figure'
+import { figureData, walkLayers } from './figureData'
+import { FIGURE_DEFAULTS } from './figureSettings'
 import { gfaTables } from './gfa/gfaTables'
 import {
   drawnMarks,
@@ -28,6 +30,7 @@ import { loadGraph } from './pipeline'
 import { RAMP_PIECE_DEG, REFERENCE_RAMP_MAX_HUE } from './referenceRampCss'
 import { buildGeometry, computeReferenceRamp } from './renderer/GeometryBuilder'
 import { abgrBlue, abgrGreen, abgrRed } from './renderer/colorBits'
+import { LANE_HEADS_AGAINST_KEY } from './renderer/laneHeads'
 import {
   eventsAtLink,
   eventsAtNode,
@@ -439,6 +442,102 @@ test('the key says which sequence a fold does not draw, at the bp it folds under
   expect(
     text(walkLift(graph, threadLayers(graph, [{ walk: 'h3#1#chr' }]))),
   ).toContainEqual(['thread-lane', THREAD_LANE_KEY])
+})
+
+test('a compact key names the lit threads by their counts alone, drops the lane note, and opens a second line on the shares and what the fold does not draw', () => {
+  const { graph } = folded()
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const lift = walkLift(
+    graph,
+    threadLayers(graph, [{ walk: 'h3#1#chr' }, { walk: 'h4#1#chr' }]),
+  )!
+  const batch = buildGeometry({
+    graph,
+    nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+    nodePositions: layout.nodePositions,
+    colorScheme: 'uniform',
+    contigThickness: 6,
+    connectorThickness: 2,
+    drawPaths: false,
+    highlight: lift,
+    axis: { scaleX: 0.1, scaleY: 0.1 },
+  })
+  const key = (compact: boolean) =>
+    graphKey(graph, layout, {
+      lift,
+      marks: drawnMarks([batch]),
+      referenceName: 'chr',
+      nodeSharesOf: 5,
+      walkLabel: name => name.split('#')[0]!,
+      compact,
+    })
+  const lines = key(true).map(({ id, newLine, entries }) => [
+    id,
+    !!newLine,
+    entries.map(e => `${e.strong ?? ''}${e.text}`),
+  ])
+  expect(
+    key(false).flatMap(s => s.entries.map(e => e.strong ?? e.text)),
+  ).toEqual(
+    expect.arrayContaining([
+      '2 haplotypes, h3 among them',
+      THREAD_LANE_KEY,
+      sharesKey(5),
+      threadFoldKey({ belowBp: 500 }, 'chr'),
+    ]),
+  )
+  expect(lines.slice(0, 2)).toEqual([
+    [
+      'walks',
+      false,
+      [
+        '2 haplotypes',
+        '1 haplotype',
+        'other haplotypes',
+        LANE_HEADS_AGAINST_KEY,
+      ],
+    ],
+    ['shares', true, ['%: of the 5 haplotypes drawn']],
+  ])
+  expect(lines.find(([id]) => id === 'too-small')?.[2]).toEqual([
+    'differences under 500 bp not drawn',
+  ])
+  expect(lines.filter(([, newLine]) => newLine)).toHaveLength(1)
+})
+
+test('compactKey is off by default, and on lays the figure key in two lines', () => {
+  const { graph } = folded()
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const walks = walkLayers(
+    threadLayers(graph, [{ walk: 'h3#1#chr' }, { walk: 'h4#1#chr' }]),
+  )
+  const svg = (compactKey?: boolean) =>
+    figureSvg(graph, layout, {
+      walks,
+      nodeShares: true,
+      width: 2000,
+      referenceName: 'chr',
+      ...(compactKey === undefined ? {} : { compactKey }),
+    })
+  const keyLines = (markup: string) => {
+    const lines = new Map<string, string[]>()
+    for (const [, y = '', inner = ''] of markup.matchAll(
+      /<g transform="translate\([\d.]+ ([\d.]+)\)" font-family="[^"]+" font-size="11">(.*?)<\/g>/g,
+    )) {
+      lines.set(y, [...(lines.get(y) ?? []), inner.replaceAll(/<[^>]+>/g, '')])
+    }
+    return [...lines.values()]
+  }
+  expect(FIGURE_DEFAULTS.compactKey).toBe(false)
+  expect(svg(false)).toBe(svg())
+  expect(keyLines(svg(true))).toEqual([
+    ['2 haplotypes', '1 haplotype', 'other haplotypes', LANE_HEADS_AGAINST_KEY],
+    [
+      '%: of the 5 haplotypes drawn',
+      'differences under 500 bp not drawn',
+      '1 to 5 walks',
+    ],
+  ])
 })
 
 test('a haplotype in two walks says so on the thread that is one of them', () => {

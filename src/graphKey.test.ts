@@ -620,6 +620,131 @@ test('under a lift the node and link thickness swatches are in the ink and fade 
   }
 })
 
+const widthRows = (g: Graph, s: Scene, o: Partial<GraphKeyOptions> = {}) =>
+  keyOf(g, s, { edgeWidth: s.edgeWidth, ...o })
+    .filter(
+      section => section.id === 'node-width' || section.id === 'link-width',
+    )
+    .flatMap(section => section.entries)
+
+test('a compact key keys the nodes in one thickness entry, in the ink the unlit nodes are drawn in, where they vary in width, and none where they do not', () => {
+  const s: Scene = { lift: lifting(graph, [ALT]), edgeWidth: 'walks' }
+  const faded = drawn(graph, s).batch.nodeStrokes.find(n => n.faded)!
+  const full = widthRows(graph, s)
+  expect(full.map(e => e.text)).toEqual(['depth 2', 'depth 1', '1 walk'])
+  expect(full[0]!.swatch).toMatchObject({
+    ink: fadeAbgr(faded.color, FADED_ALPHA),
+  })
+  expect(widthRows(graph, s, { compact: true })).toEqual([
+    { key: 'width', text: 'depth 1 to 2', swatch: full[0]!.swatch },
+  ])
+  const even = withNodes(graph, () => ({ depth: 1 }))
+  expect(
+    widthRows(even, { ...s, lift: lifting(even, [ALT]) }, { compact: true }),
+  ).toEqual([])
+})
+
+// GRCh38 and ref2 take v1>v2>v3 and del skips v2, so the links alt leaves
+// unlit carry 2 walks and 1
+const UNEVEN = load(
+  `${GFA}\nL\tv1\t+\tv3\t+\t0M\nW\tdel\t1\tchr6\t0\t7\t>v1>v3\nW\tref2\t1\tchr6\t0\t9\t>v1>v2>v3`,
+  'GRCh38',
+)
+
+test('a compact key keys the links in one thickness entry where the unlit links vary in width', () => {
+  const even: Scene = { lift: lifting(graph, [ALT]), edgeWidth: 'walks' }
+  const uneven: Scene = { lift: lifting(UNEVEN, [ALT]), edgeWidth: 'walks' }
+  const { batch } = drawn(UNEVEN, uneven)
+  expect(drawnMarks([drawn(graph, even).batch]).linkWidthsVary).toBe(false)
+  expect(drawnMarks([batch]).linkWidthsVary).toBe(true)
+  const links = (g: Graph, s: Scene) =>
+    widthRows(g, s, { compact: true }).filter(e => e.key.startsWith('link-'))
+  expect(links(graph, even)).toEqual([])
+  expect(links(UNEVEN, uneven)).toMatchObject([
+    {
+      key: 'link-width',
+      text: 'links 1 to 2 walks',
+      swatch: {
+        kind: 'width',
+        ink: fadeAbgr(batch.edgeCurves.find(e => e.faded)!.color, FADED_ALPHA),
+      },
+    },
+  ])
+})
+
+test('a compact key opens its second line on the shares, then the skips', () => {
+  const lines = keyOf(
+    SKIPPED,
+    { lift: lifting(SKIPPED, [REF]) },
+    { nodeSharesOf: 3, compact: true },
+  ).map(section => [section.id, !!section.newLine])
+  expect(lines.slice(0, 3)).toEqual([
+    ['walks', false],
+    ['shares', true],
+    ['skips', false],
+  ])
+  expect(lines.filter(([, newLine]) => newLine)).toHaveLength(1)
+})
+
+test('a compact key keeps every entry the full key has but the thickness scales, where its mark is drawn', () => {
+  const v1 = graph.nodes.find(n => n.name === 'v1')!.id
+  const pin = {
+    gene: {
+      name: 'G',
+      refName: 'chr6',
+      start: 0,
+      end: 9,
+      strand: 1,
+      exons: [{ start: 1, end: 3 }],
+    },
+    exons: 'M0,0',
+    exonsByNode: [{ nodeId: v1, d: 'M0,0', stretches: [] }],
+    nodeIds: new Set([v1]),
+    at: { x: 0, y: 0 },
+    covered: 1,
+    anchored: 1,
+    body: [],
+    onReference: true,
+    walks: 1,
+  }
+  const held = withNodes(load(NINE, 'GRCh38'), name =>
+    name === 'a1' ? { placeholder: true } : {},
+  )
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const scenes: [Graph, Scene, Partial<GraphKeyOptions>][] = [
+    [withPlaceholder, {}, {}],
+    [
+      graph,
+      {},
+      {
+        genePins: [pin],
+        halos: [{ whole: false }],
+        stripOverhangs: true,
+        runsPastEdge: true,
+        haplotypes: ['nobody#1'],
+      },
+    ],
+    [graph, { layout: { ...layout, compressed: true } }, {}],
+    [SKIPPED, { lift: lifting(SKIPPED, [REF]), width: 120 }, {}],
+    [
+      held,
+      { nodeWidth: 'walks', edgeWidth: 'walks' },
+      { nodeWidth: 'walks', edgeWidth: 'walks' },
+    ],
+  ]
+  const scale = (key: string) =>
+    key !== 'width-not-drawn' && /^(link-)?width/.test(key)
+  for (const [g, s, o] of scenes) {
+    const full = keys(g, s, o).filter(key => !scale(key))
+    expect(full.length).toBeGreaterThan(0)
+    expect(
+      keys(g, s, { ...o, compact: true })
+        .filter(key => !scale(key))
+        .toSorted(),
+    ).toEqual(full.toSorted())
+  }
+})
+
 // Eight walks through v2 and one through a1, as at a 1-walk allele
 const NINE = [
   GFA.replace('W\talt\t1\tchr6\t0\t13\t>v1>a1>v3', ''),

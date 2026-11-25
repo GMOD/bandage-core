@@ -314,6 +314,9 @@ export function labelledNodeShares(
 export const sharesKey = (of: number) =>
   `%: the share of the ${groupDigits(of)} haplotypes drawn that walk a node, loop or skip`
 
+export const sharesShortKey = (of: number) =>
+  `%: of the ${groupDigits(of)} haplotypes drawn`
+
 // The lengths the size labels are placed from where shares are written: a
 // node with a share and no length of its own, as the reference's are on a
 // graph with walks, joins them, and its label is its share alone. So the
