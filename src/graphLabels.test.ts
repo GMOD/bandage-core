@@ -1,4 +1,4 @@
-import { formatBp, graphLabels, rowLabelBox } from './graphLabels'
+import { formatBp, formatBpSpan, graphLabels, rowLabelBox } from './graphLabels'
 
 // isotropic: one scale for both axes, which is every layout but the row ones
 const iso = (scale = 1) => ({ scaleX: scale, scaleY: scale })
@@ -100,6 +100,15 @@ test('formats bp at the scale a pangenome allele lives at', () => {
     '1.2 kb',
     '2.5 Mb',
   ])
+})
+
+test('a span of lengths is written as far apart as they are', () => {
+  expect(formatBpSpan(3650, 3655)).toBe('3.650\u20133.655 kb')
+  expect(formatBpSpan(3650, 3700)).toBe('3.65\u20133.70 kb')
+  expect(formatBpSpan(3600, 3700)).toBe('3.6\u20133.7 kb')
+  expect(formatBpSpan(2400, 205_000)).toBe('2.4\u2013205 kb')
+  expect(formatBpSpan(1_200_000, 1_200_007)).toBe('1.2 Mb')
+  expect(formatBpSpan(10, 20)).toBe('10\u201320 bp')
 })
 
 test('rounds up to Mb rather than to 1000 kb', () => {

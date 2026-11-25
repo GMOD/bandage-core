@@ -692,15 +692,41 @@ export function walkLoops(graph: Pick<Graph, 'nodes' | 'paths'>) {
 }
 
 // Two lengths as one span, their unit said once where they share it
+const BP_PER_UNIT: Record<string, number> = { bp: 1, kb: 1000, Mb: 1_000_000 }
+
+// The fewest decimals, at most down to 1 bp, at which two lengths in one unit
+// are written apart by within half of how far apart they are
+function spanDecimals(least: number, most: number, per: number) {
+  const spread = most - least
+  const finest = Math.round(Math.log10(per))
+  const shownAt = (d: number) =>
+    ((Math.round((most / per) * 10 ** d) -
+      Math.round((least / per) * 10 ** d)) /
+      10 ** d) *
+    per
+  return (
+    Array.from({ length: finest + 1 }, (_, d) => d).find(
+      d => Math.abs(shownAt(d) - spread) <= spread / 2,
+    ) ?? finest
+  )
+}
+
 export function formatBpSpan(least: number, most: number) {
   const low = formatBp(least)
   const high = formatBp(most)
-  const [lowValue, lowUnit] = low.split(' ')
+  const [lowValue = '', lowUnit = ''] = low.split(' ')
+  const [highValue = '', highUnit = ''] = high.split(' ')
+  const per = BP_PER_UNIT[highUnit] ?? 1
+  const spread = most - least
+  const shown = (Number(highValue) - Number(lowValue)) * per
+  const decimals = spanDecimals(least, most, per)
   return low === high
     ? high
-    : lowUnit === high.split(' ')[1]
-      ? `${lowValue}\u2013${high}`
-      : `${low}\u2013${high}`
+    : lowUnit !== highUnit
+      ? `${low}\u2013${high}`
+      : Math.abs(shown - spread) <= spread / 2
+        ? `${lowValue}\u2013${high}`
+        : `${(least / per).toFixed(decimals)}\u2013${(most / per).toFixed(decimals)} ${highUnit}`
 }
 
 const distance = (a: NodeSegment, b: NodeSegment) =>
