@@ -18,8 +18,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@jbrowse/graph-fold':
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: ^1.2.0
+        version: 1.2.0
       '@jbrowse/graph-stress-layout':
         specifier: ^1.1.0
         version: 1.1.0
@@ -293,8 +293,8 @@ packages:
     resolution: {integrity: sha512-/wIO50DsK87me7qTlo1D6h65Onjk2LMxaWSP19jk220kJp8bic8hL6ITz1+NTi+CttKm0CyzNWJ/eDwgSayGJw==}
     engines: {node: '>=20'}
 
-  '@jbrowse/graph-fold@1.1.0':
-    resolution: {integrity: sha512-Oa9rp055ACkD52R8IeEjAONlitEkxHj6Fot48VIggt4xUy4U8bwTS3LcP7Lbmi6+5seNQm512PtwK6IEG+dPZA==}
+  '@jbrowse/graph-fold@1.2.0':
+    resolution: {integrity: sha512-rTjerGvVBeJt9Y85U904bzzwZsfEHYd7b0N3M73LmAToMECovCJgBnY3HmwUJob0dOsmcZ2mPDE7nMgHidaXxw==}
 
   '@jbrowse/graph-stress-layout@1.1.0':
     resolution: {integrity: sha512-qP/VqpFViuCs1XUaXZdvbmfisCdl7Ti4MRn+7G2TqEgRLtQ0ZWkcMnkXqo049+qbiYE2ggFdYTLkwTYlAxYnIQ==}
@@ -1411,7 +1411,7 @@ snapshots:
 
   '@jbrowse/graph-fmmm-layout@1.0.2': {}
 
-  '@jbrowse/graph-fold@1.1.0': {}
+  '@jbrowse/graph-fold@1.2.0': {}
 
   '@jbrowse/graph-stress-layout@1.1.0': {}
 
