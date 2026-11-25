@@ -284,7 +284,6 @@ interface ArrowRow {
   // a tab past `node`'s free end, drawn without the notch: the graph runs on
   // from there past what the drawing holds
   runsOn: boolean
-  turned: boolean
 }
 
 function columns<T extends object>(out: Columns<T>) {
@@ -636,7 +635,6 @@ export function figureData(
     faded: [],
     halo: [],
     runsOn: [],
-    turned: [],
   })
 
   const batches: RenderBatch[] = []
@@ -723,7 +721,7 @@ export function figureData(
     }
     batch.arrows.forEach((a, i) => {
       const edge = edgeOf.get(i)
-      if (edge !== undefined || a.walk !== undefined || a.runsOn || a.turned) {
+      if (edge !== undefined || a.walk !== undefined || a.runsOn) {
         arrows.push({
           panel,
           edge: edge ?? null,
@@ -740,7 +738,6 @@ export function figureData(
           faded: a.faded === true,
           halo: a.halo === true,
           runsOn: a.runsOn === true,
-          turned: a.turned === true,
         })
       }
     })

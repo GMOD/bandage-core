@@ -1,7 +1,6 @@
 import { isLoadedBackbone } from './anchoredNodes'
 import { panSNHaplotype } from './pansn'
 import { pathOrigin } from './pathAnchoring'
-import { packAbgr } from './renderer/colorBits'
 import { weakMemo } from './util/weakMemo'
 
 import type { Graph } from './types'
@@ -65,8 +64,6 @@ export function walksAgainstReference(graph: Graph) {
     return out
   })
 }
-
-export const AGAINST_INK = packAbgr(68, 68, 68, 255)
 
 export const againstKey = (reference = 'the reference') =>
   `walked against ${reference}'s direction`

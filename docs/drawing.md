@@ -66,6 +66,10 @@ When a track loads more graph than its window shows, place the drawing with
   painted over the nodes (`arch` on the stroke). The key shows it as a small
   arch, `skips GRCh38 sequence`. Without walks, as the rGFA track draws, a skip
   long on screen is dashed and a short one is a plain stroke
+- A reference node some walks read against the reference carries no mark of its
+  own. The links that turn strand into and out of it are painted over the nodes
+  with their heads, and a hover on the node names the haplotypes that read it so
+  (`againstHoverText`)
 - With walks, a skip or padded arm short on screen is a low arch over its feet,
   no wider than its chord and no higher than it is long. Where its span is under
   `SKIP_LEVEL_PX` or three times its stroke, it draws as the plain link it is,

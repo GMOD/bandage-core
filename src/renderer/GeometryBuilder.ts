@@ -1,4 +1,3 @@
-import { AGAINST_INK, walksAgainstReference } from '../againstReference'
 import {
   drawnAlongStable,
   isBackbone,
@@ -34,7 +33,6 @@ import {
   rampPieces,
 } from '../referenceRampCss'
 import { referenceMidpoints } from '../referenceSpan'
-import { compareValues } from '../util/canonicalOrder'
 import {
   DELETION_DASH_PX,
   SKIP_LEVEL_PX,
@@ -1106,49 +1104,6 @@ const walkWideCache = weakMemo<
 // spread along each whole run of links, so a pan never moves a head either
 const droppedHeadsCache = weakMemo<EdgeCurves, ReadonlySet<number>>()
 const NO_HEADS_DROPPED: ReadonlySet<number> = new Set()
-
-const runBpCache = weakMemo<
-  ReadonlyMap<string, readonly string[]>,
-  ReadonlyMap<string, number>
->()
-
-// The bp read against the reference in each node's run: the nodes so read on
-// its sequence with no more than `gapBp` between one and the next, as the
-// SNPs an inverted walk carries split its stretch
-function againstRunBp(
-  against: ReadonlyMap<string, readonly string[]>,
-  graph: Graph,
-  gapBp: number,
-) {
-  return runBpCache(against, [graph, gapBp], () => {
-    const sorted = graph.nodes
-      .filter(isBackbone)
-      .filter(node => against.has(node.id))
-      .sort(
-        (a, b) =>
-          compareValues(a.stable.refName, b.stable.refName) ||
-          a.stable.start - b.stable.start,
-      )
-    const bp = new Map<string, number>()
-    let from = 0
-    sorted.forEach((node, i) => {
-      const next = sorted[i + 1]
-      const end = node.stable.start + node.length
-      if (
-        next?.stable.refName !== node.stable.refName ||
-        next.stable.start - end > gapBp
-      ) {
-        const run = sorted.slice(from, i + 1)
-        const read = run.reduce((sum, n) => sum + n.length, 0)
-        for (const n of run) {
-          bp.set(n.id, read)
-        }
-        from = i + 1
-      }
-    })
-    return bp
-  })
-}
 
 const headInBounds = (
   head: Arrowhead,
@@ -2848,60 +2803,6 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
   for (const head of walkWide?.heads ?? []) {
     if (!viewportBounds || headInBounds(head, viewportBounds, scale, yToX)) {
       arrows.push(head)
-    }
-  }
-
-  const against = highlight?.walks.length
-    ? undefined
-    : walksAgainstReference(graph)
-  if (against?.size) {
-    const place = laneHeadPlacer(scale, yToX)
-    const runBp = againstRunBp(
-      against,
-      graph,
-      collapse.pxPerBp > 0 ? SMALL_SITE_PX / collapse.pxPerBp : 0,
-    )
-    for (const id of against.keys()) {
-      const node = nodeById.get(id)
-      const run = nodeStrokeRuns.get(id)
-      const stroke = run && nodeStrokes[run.start]
-      if (
-        node &&
-        isBackbone(node) &&
-        stroke &&
-        !stroke.placeholder &&
-        (collapse.pxPerBp === 0 ||
-          (runBp.get(id) ?? 0) * collapse.pxPerBp >= SMALL_SITE_PX)
-      ) {
-        for (const head of place({
-          points: piecedLines.get(id) ?? stroke.points,
-          halfWidth: stroke.thickness,
-          color: stroke.color,
-          walk: 0,
-          thread: 0,
-          threads: 1,
-          node: id,
-          against: laidAlongReference(node),
-          keepOne: true,
-        })) {
-          if (
-            !viewportBounds ||
-            headInBounds(head, viewportBounds, scale, yToX)
-          ) {
-            arrows.push({
-              x: head.x,
-              y: head.y,
-              angle: head.angle,
-              length: head.length,
-              halfWidth: head.halfWidth,
-              color: AGAINST_INK,
-              node: id,
-              turned: true,
-              halo: true,
-            })
-          }
-        }
-      }
     }
   }
 
