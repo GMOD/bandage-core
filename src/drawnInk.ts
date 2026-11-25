@@ -4,7 +4,8 @@ import { flattenedPx } from './util/strokeCover'
 import { weakMemo } from './util/weakMemo'
 
 import type { Box } from './overlayLabels'
-import type { RenderBatch, Run } from './renderer/types'
+import type { EdgeCurveBatch, RenderBatch, Run } from './renderer/types'
+import type { AxisScale } from './util/geometry'
 
 // The strokes a drawing paints, as a label placed over them must know them:
 // every node's and every link's, at the width each is drawn
@@ -234,4 +235,65 @@ export function widestStroke(batch: InkBatch, nodes: Iterable<string>) {
     }
   }
   return widest
+}
+
+// The point halfway along a run of strokes as they lie on screen, in layout
+// units, gaps between dashes counted as part of the way
+function halfwayAlong(strokes: readonly EdgeCurveBatch[], axis: AxisScale) {
+  const line = strokes.flatMap(s =>
+    s.curves.flatMap(c =>
+      flattenedPx(c, axis.scaleX, axis.scaleY, FLATNESS_PX),
+    ),
+  )
+  const steps = line.map((b, k) => {
+    const a = line[k - 1] ?? b
+    return Math.hypot(b.x - a.x, b.y - a.y)
+  })
+  let left = steps.reduce((sum, step) => sum + step, 0) / 2
+  let k = 0
+  while (k < steps.length - 1 && left > (steps[k] ?? 0)) {
+    left -= steps[k] ?? 0
+    k++
+  }
+  const b = line[k]
+  const a = line[k - 1] ?? b
+  const step = steps[k] ?? 0
+  const along = step > 0 ? left / step : 0
+  return a && b
+    ? {
+        x: (a.x + (b.x - a.x) * along) / axis.scaleX,
+        y: (a.y + (b.y - a.y) * along) / axis.scaleY,
+      }
+    : undefined
+}
+
+// Where each drawn skip's middle lies, by link index, in layout units as
+// nodePositions are: halfway along its arch as drawn on the pane, or, where
+// only lifted walks' lanes draw it, the mean of their lanes' halfway points,
+// the middle of the band
+export function skipMidpoints(batch: InkBatch, axis: AxisScale) {
+  const midpoints = new Map<number, Point>()
+  for (const [edge, { start, count }] of batch.edgeCurveRuns) {
+    const lanes = new Map<string, EdgeCurveBatch[]>()
+    for (const stroke of batch.edgeCurves.slice(start, start + count)) {
+      if (stroke.skip) {
+        const key =
+          stroke.walk === undefined ? '' : `${stroke.walk} ${stroke.pass}`
+        const lane = lanes.get(key) ?? []
+        lane.push(stroke)
+        lanes.set(key, lane)
+      }
+    }
+    const plain = lanes.get('')
+    const points = (plain ? [plain] : [...lanes.values()])
+      .map(strokes => halfwayAlong(strokes, axis))
+      .filter(p => p !== undefined)
+    if (points.length > 0) {
+      midpoints.set(edge, {
+        x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
+        y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
+      })
+    }
+  }
+  return midpoints
 }

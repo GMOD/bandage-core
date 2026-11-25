@@ -1,4 +1,4 @@
-import { inkUnderBox, sameInkOnPane } from './drawnInk'
+import { inkUnderBox, sameInkOnPane, skipMidpoints } from './drawnInk'
 
 import type { InkBatch } from './drawnInk'
 
@@ -117,4 +117,120 @@ test('ink off the pane does not make two batches paint differently on it', () =>
       translateY: -1990,
     }),
   ).toBe(false)
+})
+
+const line = (x0: number, y0: number, x1: number, y1: number) => ({
+  x0,
+  y0,
+  cx0: x0,
+  cy0: y0,
+  cx1: x1,
+  cy1: y1,
+  x1,
+  y1,
+})
+
+const skipBatch = (edgeCurves: InkBatch['edgeCurves']): InkBatch => ({
+  nodeStrokes: [],
+  nodeStrokeRuns: new Map(),
+  edgeCurves,
+  edgeCurveRuns: new Map([[3, { start: 0, count: edgeCurves.length }]]),
+})
+
+const square = { scaleX: 1, scaleY: 1 }
+
+const expectNear = (
+  p: { x: number; y: number } | undefined,
+  x: number,
+  y: number,
+  digits = 2,
+) => {
+  expect(p?.x).toBeCloseTo(x, digits)
+  expect(p?.y).toBeCloseTo(y, digits)
+}
+
+test("a skip's middle is the top of its arch as drawn, to the half px the arch is flattened to", () => {
+  const arch = skipBatch([{ ...batch.edgeCurves[0]!, skip: true, arch: true }])
+  expectNear(skipMidpoints(arch, square).get(3), 50, 70, 0)
+})
+
+test("a skip's middle is halfway along on screen, not in layout units", () => {
+  const bent = skipBatch([
+    {
+      curves: [line(0, 0, 10, 0), line(10, 0, 10, 10)],
+      thickness: 1,
+      color: 0,
+      skip: true,
+    },
+  ])
+  expectNear(skipMidpoints(bent, square).get(3), 10, 0)
+  expectNear(skipMidpoints(bent, { scaleX: 1, scaleY: 3 }).get(3), 10, 10 / 3)
+})
+
+test("a dashed skip's middle counts the gaps between its dashes", () => {
+  const dashed = skipBatch([
+    {
+      curves: [line(0, 0, 10, 0)],
+      thickness: 1,
+      color: 0,
+      skip: true,
+      dashed: true,
+    },
+    {
+      curves: [line(20, 0, 30, 0)],
+      thickness: 1,
+      color: 0,
+      skip: true,
+      dashed: true,
+    },
+    {
+      curves: [line(70, 0, 80, 0)],
+      thickness: 1,
+      color: 0,
+      skip: true,
+      dashed: true,
+    },
+  ])
+  expectNear(skipMidpoints(dashed, square).get(3), 40, 0)
+})
+
+test('a skip drawn only by lanes has its middle in the middle of the band', () => {
+  const lanes = skipBatch([
+    {
+      curves: [line(0, 0, 100, 0)],
+      thickness: 1,
+      color: 0,
+      walk: 0,
+      pass: 0,
+      skip: true,
+    },
+    {
+      curves: [line(0, 4, 100, 4)],
+      thickness: 1,
+      color: 0,
+      walk: 1,
+      pass: 0,
+      skip: true,
+    },
+  ])
+  expectNear(skipMidpoints(lanes, square).get(3), 50, 2)
+})
+
+test('a skip drawn plainly is placed on that stroke, not between it and a lane', () => {
+  const both = skipBatch([
+    { curves: [line(0, 0, 100, 0)], thickness: 1, color: 0, skip: true },
+    {
+      curves: [line(0, 8, 100, 8)],
+      thickness: 1,
+      color: 0,
+      walk: 0,
+      pass: 0,
+      skip: true,
+    },
+  ])
+  expectNear(skipMidpoints(both, square).get(3), 50, 0)
+})
+
+test('a link that skips nothing has no middle', () => {
+  expect(skipMidpoints(batch, square).size).toBe(0)
 })

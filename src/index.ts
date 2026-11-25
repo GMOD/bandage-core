@@ -414,6 +414,7 @@ export {
   layoutLabels,
 } from './labelLayout'
 export type { LabelLayout, LabelLayoutSource } from './labelLayout'
+export { skipMidpoints } from './drawnInk'
 export {
   fitBesideKey,
   keyColumnBox,
