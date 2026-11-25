@@ -72,6 +72,9 @@ export interface WalkHighlight {
   members?: readonly string[]
   variation?: string
   pieces?: number
+  // the figure's `countLaneScale` where it is not 1, which a lane stating a
+  // count is drawn that much thinner or wider by (nodeWidths.ts laneWidthPx)
+  laneScale?: number
 }
 
 export interface LiftedWalk extends WalkHighlight {
@@ -563,6 +566,7 @@ export function walkLift(
   graph: Graph,
   layers: readonly WalkLayer[],
   ramp?: ReferenceRamp,
+  { countLaneScale = 1 }: { countLaneScale?: number } = {},
 ): WalkLift | undefined {
   const index = graphIndex(graph)
   const seen = new Set<string>()
@@ -611,6 +615,9 @@ export function walkLift(
       encoding,
       ...colored,
       ...(layer.picked ? { picked: layer.picked } : {}),
+      ...(countLaneScale === 1 || walk.count === undefined
+        ? {}
+        : { laneScale: countLaneScale }),
     }
   })
   return liftOf(walks, ramp)

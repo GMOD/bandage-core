@@ -637,6 +637,30 @@ test('a walk with no steps here is left out of the threads and counted', () => {
   })
 })
 
+test('countLaneScale thins every count lane, its key swatch and its reach alike', () => {
+  const { graph } = folded()
+  const layers = threadLayers(graph, [
+    { walk: 'h3#1#chr' },
+    { walk: 'h4#1#chr' },
+  ])
+  const own = walkLift(graph, layers)!
+  const thin = walkLift(graph, layers, undefined, { countLaneScale: 0.4 })!
+  expect(own.walks.map(walk => walk.laneScale)).toEqual([undefined, undefined])
+  expect(countLanes(thin.walks)!.widths).toEqual(
+    countLanes(own.walks)!.widths.map(width => 0.4 * width),
+  )
+  expect(countLanes(thin.walks)!.band).toBeCloseTo(
+    0.4 * countLanes(own.walks)!.band,
+  )
+  expect(walkKeyEntry(thin.walks[0]!, '', undefined)).toMatchObject({
+    swatch: { kind: 'width', px: 0.4 * countLaneWidthPx(2) },
+  })
+  const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
+  expect(
+    nodeInk(graph, nodeById, 1, 'uniform', thin.walks).halfWidthPx('a+'),
+  ).toBeCloseTo(countLanes(thin.walks)!.band / 2)
+})
+
 test('a node under count lanes is hit as far as the lanes reach', () => {
   const { graph } = folded()
   const lift = walkLift(

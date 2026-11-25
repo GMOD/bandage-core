@@ -85,7 +85,7 @@ export {
   withFrequencies,
 } from './nodeWidths'
 export type { NodeWidth } from './nodeWidths'
-export { countLaneWidthPx, countLanes } from './nodeWidths'
+export { countLaneWidthPx, countLanes, laneWidthPx } from './nodeWidths'
 export {
   eventsAtLink,
   eventsAtNode,

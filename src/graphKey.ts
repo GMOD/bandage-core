@@ -9,7 +9,7 @@ import { foldedUnderBp, nodesNotDrawn } from './levelOfDetail'
 import {
   MIN_WALKS_PX,
   UNWALKED_PX,
-  countLaneWidthPx,
+  laneWidthPx,
   depthKey,
   drawnNodeWidth,
   frequencyKey,
@@ -581,7 +581,7 @@ export function walkKeyEntry(
           ? {
               kind: 'width',
               ink: stops[0]!.ink,
-              px: countLaneWidthPx(walk.count ?? 1),
+              px: laneWidthPx(walk),
             }
           : { kind: 'swatch', ink: stops[0]!.ink },
     walk,

@@ -268,11 +268,21 @@ export function countLaneWidthPx(count: number) {
   return COUNT_LANE_PX + COUNT_LANE_LOG_PX * Math.log(Math.max(count, 1))
 }
 
+// A lane as the figure's `countLaneScale` draws it: 0.4 draws a thread of 137
+// haplotypes 5.1 px wide where it was 12.8 and one of 464 6.1 px
+export interface CountedLane {
+  count?: number
+  laneScale?: number
+}
+
+export const laneWidthPx = (lane: CountedLane) =>
+  (lane.laneScale ?? 1) * countLaneWidthPx(lane.count ?? 1)
+
 // Each lane's width and its middle's offset from the middle of the band they
 // make side by side, where any lane states a count: the same on every node,
 // whatever the node's own width, so a lane runs straight from node to node
-export function countLanes(lanes: readonly { count?: number }[]) {
-  const widths = lanes.map(lane => countLaneWidthPx(lane.count ?? 1))
+export function countLanes(lanes: readonly CountedLane[]) {
+  const widths = lanes.map(laneWidthPx)
   const band = widths.reduce((a, b) => a + b, 0)
   let at = -band / 2
   return lanes.some(lane => lane.count !== undefined)
@@ -316,7 +326,7 @@ export function nodeInk(
   nodeById: ReadonlyMap<string, GraphNode> | undefined,
   contigThickness: number,
   nodeWidth: NodeWidth,
-  lanes: number | readonly { count?: number }[] = 0,
+  lanes: number | readonly CountedLane[] = 0,
   through?: ReadonlyMap<string, Run>,
 ): NodeInk {
   const drawn = graph ? drawnNodeWidth(graph, nodeWidth) : nodeWidth

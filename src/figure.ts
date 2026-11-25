@@ -91,6 +91,9 @@ export interface FigureOptions {
   linearLayout?: boolean
   contigThickness?: number
   connectorThickness?: number
+  // 1 when absent: how wide a thread of a folded graph draws against its
+  // count's own width (FigureSettings)
+  countLaneScale?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
   // 'hidden' when absent: a site too small to draw at the figure's scale is

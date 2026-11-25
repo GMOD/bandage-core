@@ -18,6 +18,10 @@ export interface FigureSettings extends Partial<EngineSettings> {
   edgeWidth?: EdgeWidth
   contigThickness?: number
   connectorThickness?: number
+  // how wide a lane that states a haplotype count, a thread of a folded graph,
+  // draws against nodeWidths.ts countLaneWidthPx: 1 by default, 0.4 for a lit
+  // thread about a contig wide
+  countLaneScale?: number
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
   // 'hidden': a site too small to draw at the figure's scale is not drawn
@@ -35,6 +39,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   edgeWidth: 'walks',
   contigThickness: 6,
   connectorThickness: 2,
+  countLaneScale: 1,
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
   smallSites: 'hidden',
 }

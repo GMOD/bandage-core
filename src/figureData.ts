@@ -77,6 +77,7 @@ export type FigureDataOptions = Pick<
   | 'linearLayout'
   | 'contigThickness'
   | 'connectorThickness'
+  | 'countLaneScale'
   | 'region'
   | 'referenceName'
   | 'colorDomain'
