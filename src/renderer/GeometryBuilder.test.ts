@@ -3,6 +3,7 @@ import { RAMP_PIECE_DEG } from '../referenceRampCss'
 import { findHoveredEdge } from '../util/hitDetection'
 import { Canvas2DRenderer } from './Canvas2DRenderer'
 import {
+  EDGE_DEFAULT_COLOR,
   REFERENCE_RAMP_MAX_HUE,
   buildGeometry,
   computeReferenceRamp,
@@ -1177,25 +1178,26 @@ describe('arrowhead placement', () => {
     }
   }
 
-  test('a skip three dashes long on screen is dashed, with a head', () => {
+  test('with walks a skip three dashes long on screen is one solid arch in link ink, with a head', () => {
     const { strokes, heads } = skipAt(4, [])
-    expect(strokes.length).toBeGreaterThanOrEqual(2)
-    expect(strokes.every(s => s.skip)).toBe(true)
+    expect(strokes).toHaveLength(1)
+    expect(strokes[0]).toMatchObject({
+      skip: true,
+      arch: true,
+      color: EDGE_DEFAULT_COLOR,
+    })
     expect(heads).toBe(1)
   })
 
   // HG02055's 50 bp skip at chr1:27,853,212, about 27 px there, drew as two
-  // or three heavy dashes under a head: a black dart on the backbone
-  // a skip too short to dash was one plain stroke, keyed "short skip" apart
-  // from the dashed ones, which read as a link
-  test('a skip shorter than three full dashes on screen is dashed shorter, with no head', () => {
+  // or three heavy dashes under a head: a black dart on the backbone; the
+  // owner found dashes over a short span ugly
+  test('with walks a skip shorter than three dashes on screen is one solid arch as thick as a link, with no head', () => {
     for (const scale of [0.6, 2.7, 3.2]) {
       const { strokes, heads } = skipAt(scale, [])
-      expect(strokes.length).toBeGreaterThanOrEqual(2)
-      for (const stroke of strokes) {
-        expect(stroke.thickness).toBe(1)
-        expect(stroke.skip).toBe(true)
-      }
+      expect(strokes).toHaveLength(1)
+      expect(strokes[0]).toMatchObject({ thickness: 1, skip: true, arch: true })
+      expect(strokes[0]!.dashed).toBeUndefined()
       expect(heads).toBe(0)
     }
   })
@@ -1213,12 +1215,11 @@ describe('arrowhead placement', () => {
     expect(strokes.every(s => s.thickness === 2.2 && s.dashed)).toBe(true)
   })
 
-  // dashes on the legs a short skip rises and falls on are dots under a head
   test('a bowed skip takes its head by the span it jumps, not its length along the bow', () => {
     const bowed = skipAt(2.7, ['M+'])
-    expect(bowed.strokes.length).toBeGreaterThanOrEqual(2)
+    expect(bowed.strokes).toHaveLength(1)
     expect(bowed.heads).toBe(0)
-    expect(skipAt(4, ['M+']).strokes.length).toBeGreaterThanOrEqual(2)
+    expect(skipAt(4, ['M+']).heads).toBe(1)
   })
 
   // the 1-5 bp skips at the amylase locus, at 240 kb across the pane, drew
@@ -1281,7 +1282,7 @@ describe('arrowhead placement', () => {
       expect(run).toBeDefined()
       const stroke = batch.edgeCurves[run!.start]!
       expect(stroke.skip === true).toBe(!plain)
-      expect(stroke.dashed === true).toBe(!plain)
+      expect(stroke.arch === true).toBe(!plain)
       expect(stroke.thickness * 2).toBe(thickness)
       expect(batch.collapsed?.shortSkips.has(0)).toBe(plain)
       expect(

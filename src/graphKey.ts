@@ -84,8 +84,8 @@ export type GraphKeySwatch =
   | { kind: 'width'; ink: number; px: number }
   // a node the cut did not load, hollow in its rim
   | { kind: 'hollow'; ink: number; rim: number; rimPx: number }
-  // a link's stroke, dashed or the plain stroke of a skip too short to dash
-  | { kind: 'line'; ink: number; dashed: boolean }
+  // a link's stroke: plain, dashed, or a skip's arch
+  | { kind: 'line'; ink: number; dashed: boolean; arch?: true }
   | { kind: 'outline'; ink: number }
   | { kind: 'halo'; ink: number }
   // a lane's threads side by side, one per pass through a node
@@ -160,8 +160,8 @@ export function lanesOverUnderlays(
 }
 
 // The classes of mark a drawing's batches hold, which the key names: a skip
-// dashed, or one plain stroke where its span on screen is too short to hold
-// the dashes; a node hollow for the bp a cut did not load; a node or link in
+// as its arch, dashed, or one plain stroke where its span on screen is too
+// short to hold the dashes; a node hollow for the bp a cut did not load; a node or link in
 // no lifted walk's lane, which under a lift is faded; a node in the
 // off-reference charcoal, plain or in a lane; a lane's second thread through a
 // node; nodes of more than one thickness; each lifted walk's passes, by lane;
@@ -194,6 +194,7 @@ export function drawnMarks(
 ) {
   const marks = {
     dashedSkip: false,
+    archSkip: false,
     shortSkip: false,
     placeholder: false,
     plainNode: false,
@@ -266,10 +267,11 @@ export function drawnMarks(
         marks.foldedSkips.add(edge)
       }
     }
-    for (const { skip, dashed, walk } of edgeCurves) {
+    for (const { skip, dashed, arch, walk } of edgeCurves) {
       if (walk === undefined) {
         marks.dashedSkip ||= !!skip && !!dashed
-        marks.shortSkip ||= !!skip && !dashed
+        marks.archSkip ||= !!skip && !!arch
+        marks.shortSkip ||= !!skip && !dashed && !arch
         marks.plainLink ||= !skip
       }
     }
@@ -831,15 +833,24 @@ export function graphKey(
       : []),
   ]
   const skipEntries: GraphKeyEntry[] = [
-    ...(o.marks.dashedSkip
+    ...(o.marks.archSkip
       ? [
           entry('deletion', deletionKey(reference), {
             kind: 'line',
-            ink: skipInk,
-            dashed: true,
+            ink: lifted ? FADED_KEY_INK : EDGE_DEFAULT_COLOR,
+            dashed: false,
+            arch: true,
           }),
         ]
-      : []),
+      : o.marks.dashedSkip
+        ? [
+            entry('deletion', deletionKey(reference), {
+              kind: 'line',
+              ink: skipInk,
+              dashed: true,
+            }),
+          ]
+        : []),
     ...(o.marks.shortSkip
       ? [
           entry('short-skip', SHORT_SKIP_KEY, {

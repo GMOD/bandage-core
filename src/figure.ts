@@ -220,9 +220,11 @@ function swatchSvg(swatch: GraphKeySwatch, id: string) {
     case 'hollow':
       return `<rect x="1" y="5" width="${SWATCH_PX - 2}" height="8" rx="4" ${inkAttrs('fill', swatch.ink)} ${inkAttrs('stroke', swatch.rim)} stroke-width="${swatch.rimPx}"/>`
     case 'line':
-      return swatch.dashed
-        ? `<line y1="9" y2="9" x2="${SWATCH_PX}" ${inkAttrs('stroke', swatch.ink)} stroke-width="2" stroke-dasharray="4 3"/>`
-        : `<line y1="9" y2="9" x1="5" x2="${SWATCH_PX - 5}" ${inkAttrs('stroke', swatch.ink)} stroke-width="1.5"/>`
+      return swatch.arch
+        ? `<path d="M2,13 Q${SWATCH_PX / 2},1 ${SWATCH_PX - 2},13" fill="none" ${inkAttrs('stroke', swatch.ink)} stroke-width="1.5"/>`
+        : swatch.dashed
+          ? `<line y1="9" y2="9" x2="${SWATCH_PX}" ${inkAttrs('stroke', swatch.ink)} stroke-width="2" stroke-dasharray="4 3"/>`
+          : `<line y1="9" y2="9" x1="5" x2="${SWATCH_PX - 5}" ${inkAttrs('stroke', swatch.ink)} stroke-width="1.5"/>`
     case 'outline':
       return `<rect x="1" y="4" width="${SWATCH_PX - 2}" height="10" rx="4" fill="none" ${inkAttrs('stroke', swatch.ink)} stroke-width="2"/>`
     case 'halo':

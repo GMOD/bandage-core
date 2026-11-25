@@ -32,8 +32,10 @@ export interface EdgeCurveBatch {
   // a skip's span on screen as built, 0 where it falls back to a plain link;
   // skips paint longest first
   span?: number
-  // a skip drawn dashed, where it is not one plain stroke
+  // a skip drawn dashed, as a graph without walks draws one long on screen
   dashed?: true
+  // a skip drawn as one solid arch, as a graph with walks draws every one
+  arch?: true
   // a stroke of a link between two reference nodes reading one as the
   // reference does and the other against it
   turn?: boolean

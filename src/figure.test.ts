@@ -343,9 +343,10 @@ test('one figure draws as it did', async () => {
 })
 
 // d719794 drew a skip whose span on screen holds fewer than three dashes as
-// one plain stroke keyed "short skip"; it is dashed shorter, under the one
-// entry, and the row is there only where a skip is drawn
-test('a figure keys the dashed links it draws as skipped reference sequence, however short', () => {
+// one plain stroke keyed "short skip"; with walks every skip is one solid
+// arch under one entry, an arch beside its words, there only where a skip is
+// drawn
+test('a figure keys the arches it draws as skipped reference sequence, however short', () => {
   const skipped = anchorGraph(
     convertGFAToGraph(
       parseGFA(`${GFA}\nL\tv1\t+\tv3\t+\t0M\nW\tdel\t1\tchr\t0\t7\t>v1>v3`),
@@ -356,8 +357,9 @@ test('a figure keys the dashed links it draws as skipped reference sequence, how
   for (const width of [600, 120]) {
     const svg = figureSvg(skipped, skippedLayout, { width })
     expect(svg).toMatch(
-      /stroke-dasharray="4 3"\/><text[^>]*>skips .+? sequence</,
+      /<path d="M2,13 Q9,1 16,13" fill="none"[^>]*\/><text[^>]*>skips .+? sequence</,
     )
+    expect(svg).not.toContain('stroke-dasharray')
     expect(svg).not.toContain('short skip')
   }
   const plain = figureSvg(graph, layout, { width: 600 })
@@ -417,7 +419,7 @@ test('a figure keys a layout whose lengths are compressed as not to scale, once'
   )
 })
 
-test('a figure split into panels keys the dashed links once, above the grid, only when a panel draws one', () => {
+test('a figure split into panels keys the skips once, above the grid, only when a panel draws one', () => {
   const skipped = anchorGraph(
     convertGFAToGraph(
       parseGFA(

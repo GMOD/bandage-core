@@ -2384,16 +2384,18 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     }
 
     const isDeletion = !plainLink && sharedCurves.arcs.has(ei)
-    // With walks every arced skip is dashed, as thick as a link of its
-    // walks; without, as the rGFA track draws, one short on screen is plain
+    // With walks every arced skip is one solid arch in link ink, as thick as
+    // a link of its walks; without, as the rGFA track draws, one long on
+    // screen is dashed
     const arcPx = isDeletion ? spanPx(baseCurves, axis) : 0
     const headed = skipDashes(arcPx)
-    const dashed = walked ? isDeletion : headed
+    const dashed = !walked && headed
+    const arched = walked && isDeletion
     // a ribbon per walk already shows how many take the link, so only the
     // link drawn alone widens by its walks
     const ribbonThickness = connectorThickness / 2
     const edgeThickness =
-      (dashed && !walked
+      (dashed
         ? connectorThickness * DELETION_THICKNESS_FACTOR
         : linkPx(linkPasses(edge))) / 2
     const skips = isDeletion || (!plainLink && !!deletions?.has(ei))
@@ -2410,7 +2412,8 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     // So one head per edge, in the edge's own colour rather than a ribbon's,
     // since choosing a ribbon's would privilege one haplotype for a fact that
     // belongs to none of them. `undefined` means this call draws no head.
-    const plainEdgeColor = skips ? EDGE_DELETION_COLOR : EDGE_DEFAULT_COLOR
+    const plainEdgeColor =
+      skips && !walked ? EDGE_DELETION_COLOR : EDGE_DEFAULT_COLOR
     const edgeFaded = !!highlight && !onWalk
     const edgeColor =
       edgeFaded && plainEdgeColor === EDGE_DEFAULT_COLOR
@@ -2419,19 +2422,13 @@ export function buildGeometry(options: BuildOptions): RenderBatch {
     const fadedMark = edgeFaded ? { faded: true as const } : {}
     const toNode = nodeById.get(edge.to)
     const intoHalfWidth = (toNode ? widthOf(toNode) : contigThickness) / 2
-    // A deletion is drawn dashed, and that is the only thing in the drawing
-    // that is. Weight and darkness were carrying it alone, and they could not:
-    // an off-reference node is charcoal rgb(60,65,72) and the arc is near-black
-    // rgb(24,24,28), which is ~25 points a channel apart, so in a figure the
-    // two dark strokes read as the same ink and the arc is the rarer of them
-    // (measured on `pangenome/hprc_lpa_kiv2`: 7,411 px of charcoal node against
-    // ~5,000 px of arc). Hue cannot separate them either, since hue means
-    // reference position and charcoal means off the reference. A broken line is
-    // available, unused, and says what it draws: sequence that is not there.
-    // A lifted walk's lane stays solid: its thread on the bypass and its
-    // absence from the bypassed nodes already say it.
     const skipMark = skips
-      ? { skip: true, span: arcPx, ...(dashed ? { dashed: true } : {}) }
+      ? {
+          skip: true,
+          span: arcPx,
+          ...(dashed ? { dashed: true } : {}),
+          ...(arched ? { arch: true } : {}),
+        }
       : {}
     const turnMark = turnsAgainstReference(edge) ? { turn: true } : {}
     const stroke = (

@@ -244,6 +244,26 @@ test('each skip row is there only where the drawing holds that mark', () => {
   expect(texts(graph)).not.toContainEqual(expect.stringMatching(/^skips /))
 })
 
+// the owner: a dashed arch over a short span looks bad
+test('with walks the one skip row is a solid arch in link ink, long on screen or short, with no short-skip row', () => {
+  for (const width of [600, 120]) {
+    const skipRows = keyOf(SKIPPED, { width })
+      .filter(section => section.id === 'skips')
+      .flatMap(section => section.entries)
+    expect(skipRows).toEqual([
+      expect.objectContaining({
+        key: 'deletion',
+        swatch: {
+          kind: 'line',
+          ink: EDGE_DEFAULT_COLOR,
+          dashed: false,
+          arch: true,
+        },
+      }),
+    ])
+  }
+})
+
 test('under a lift each skip row shows the ink its skips are stroked in', () => {
   for (const width of [600, 120]) {
     const s = { lift: lifting(SKIPPED, [REF]), width }
@@ -265,10 +285,18 @@ test('under a lift each skip row shows the ink its skips are stroked in', () => 
   }
 })
 
-test('drawn marks read a skip stroked dashed as dashed and one stroked plain as short, leaving lanes to their walks', () => {
+test('drawn marks read a skip stroked as its arch as arched, one stroked dashed as dashed and one stroked plain as short, leaving lanes to their walks', () => {
   const curve = (o: object) => ({ curves: [], thickness: 1, color: 0, ...o })
   const marks = (edgeCurves: RenderBatch['edgeCurves']) =>
     drawnMarks([{ edgeCurves, nodeStrokes: [] }])
+  for (const span of [200, 5]) {
+    expect(marks([curve({ skip: true, span, arch: true })])).toMatchObject({
+      archSkip: true,
+      dashedSkip: false,
+      shortSkip: false,
+      plainLink: false,
+    })
+  }
   for (const span of [200, 5]) {
     expect(marks([curve({ skip: true, span, dashed: true })])).toMatchObject({
       dashedSkip: true,
@@ -1115,8 +1143,10 @@ function census(
     ...(!s.lift && batch.edgeCurves.some(e => e.walk === undefined && !e.skip)
       ? ['link']
       : []),
-    ...(skips.some(e => e.dashed) ? ['deletion'] : []),
-    ...(skips.some(e => !e.dashed) ? ['short-skip'] : []),
+    ...(skips.some(e => e.dashed === true || e.arch === true)
+      ? ['deletion']
+      : []),
+    ...(skips.some(e => !e.dashed && !e.arch) ? ['short-skip'] : []),
     ...(batch.nodeStrokes.some(n => n.placeholder) ? ['not-shown'] : []),
     ...(widths.size > 1 ? ['width-thickest', 'width-thinnest'] : []),
     ...(g?.paths?.length && g.nodes.some(n => n.placeholder)

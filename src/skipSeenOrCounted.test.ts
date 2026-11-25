@@ -15,7 +15,7 @@ import {
   forceLayout,
   loadGraph,
 } from './pipeline'
-import { buildGeometry } from './renderer/GeometryBuilder'
+import { EDGE_DEFAULT_COLOR, buildGeometry } from './renderer/GeometryBuilder'
 import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { axisScaleOf } from './viewport'
 
@@ -71,8 +71,8 @@ function site(bp: number, carriers: number, bow: number) {
   return { graph, positions }
 }
 
-// each skip of a drawing as its key accounts for it: drawn dashed over the
-// nodes, or counted in the not-drawn line, whose bp every counted skip is under
+// each skip of a drawing as its key accounts for it: drawn as its arch over
+// the nodes, or counted in the not-drawn line, whose bp every counted skip is under
 function accountOf(
   graph: Graph,
   layout: Pick<LayoutResult, 'tubeMap' | 'compressed'>,
@@ -93,7 +93,7 @@ function accountOf(
     return {
       at: `${d.refName}:${d.start}`,
       bp: d.bp,
-      dashed: stroke?.skip === true && stroke.dashed === true,
+      arched: stroke?.skip === true && stroke.arch === true,
       counted: marks.foldedSkips.has(d.edgeIndex),
       under,
     }
@@ -151,7 +151,7 @@ function hostedWindow() {
   })
 }
 
-describe('every skip is drawn dashed over the nodes or counted in the key, never neither and never both', () => {
+describe('every skip is drawn as its arch over the nodes or counted in the key, never neither and never both', () => {
   test.each([0, 1.5, 2.5])(
     'a 475 bp skip whose skipped node bows %d px off its chord, at every span from 2 to 19 px, every share of walks and either small-sites mode',
     bowPx => {
@@ -180,8 +180,8 @@ describe('every skip is drawn dashed over the nodes or counted in the key, never
               carriers,
               px,
               counted: skip!.counted,
-            }).toEqual({ smallSites, carriers, px, counted: !skip!.dashed })
-            expect(skip!.dashed || skip!.under > 475).toBe(true)
+            }).toEqual({ smallSites, carriers, px, counted: !skip!.arched })
+            expect(skip!.arched || skip!.under > 475).toBe(true)
           }
         }
       }
@@ -212,7 +212,7 @@ describe('every skip is drawn dashed over the nodes or counted in the key, never
           batch,
           scene.drawnDeletions.shown,
         )
-        expect(skips.filter(s => s.dashed === s.counted)).toEqual([])
+        expect(skips.filter(s => s.arched === s.counted)).toEqual([])
         expect(skips.filter(s => s.counted && s.bp >= s.under)).toEqual([])
         expect(batch.collapsed?.shortSkips.size).toBeGreaterThan(0)
         expect(
@@ -226,3 +226,49 @@ describe('every skip is drawn dashed over the nodes or counted in the key, never
     }
   }, 120_000)
 })
+
+// the owner: a dashed arch over a short span looks bad
+test.each([12, 60])(
+  'with walks a skip spanning %d px is one unbroken stroke in link ink, as thick as a link of its walks, with its head in link ink',
+  px => {
+    const scale = px / 475
+    const { graph, positions } = site(475, 3, 0)
+    const drawing = deletionDrawing(graph, deletionEdges(graph), true)
+    const batch = buildGeometry({
+      ...layoutGeometryInputs({ nodePositions: positions }, drawing),
+      graph,
+      nodeById: new Map(graph.nodes.map(n => [n.id, n])),
+      colorScheme: 'uniform',
+      contigThickness: 6,
+      connectorThickness: 2,
+      drawPaths: false,
+      nodeWidth: 'walks',
+      edgeWidth: 'walks',
+      axis: { scaleX: scale, scaleY: scale },
+    })
+    const [skip] = drawing.shown
+    const run = batch.edgeCurveRuns.get(skip!.edgeIndex)!
+    const strokes = batch.edgeCurves.slice(run.start, run.start + run.count)
+    expect(strokes).toHaveLength(1)
+    expect(strokes[0]).toMatchObject({
+      skip: true,
+      arch: true,
+      color: EDGE_DEFAULT_COLOR,
+    })
+    expect(strokes[0]!.dashed).toBeUndefined()
+    const link = batch.edgeCurveRuns.get(
+      graph.edges.findIndex(e => e.from === 'r1+' && e.to === 'r2+'),
+    )!
+    expect(strokes[0]!.thickness).toBeLessThan(
+      batch.edgeCurves[link.start]!.thickness,
+    )
+    const heads = batch.arrowRuns.get(skip!.edgeIndex)
+    for (
+      let i = heads?.start ?? 0;
+      i < (heads ? heads.start + heads.count : 0);
+      i++
+    ) {
+      expect(batch.arrows[i]!.color).toBe(EDGE_DEFAULT_COLOR)
+    }
+  },
+)

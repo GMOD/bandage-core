@@ -125,6 +125,8 @@ interface EdgeRow {
   faded: boolean
   width: number
   deletion: boolean
+  // a skip drawn as one solid arch, as a graph with walks draws them
+  arch: boolean
   // a link reading one reference node as the reference does and the other
   // against it, which the canvas paints over the nodes, as a skip
   turn: boolean
@@ -238,6 +240,7 @@ interface GraphKeyRow {
   stops: string
   px: number | null
   dashed: boolean
+  arch: boolean
   rim: string
   rimPx: number | null
 }
@@ -379,6 +382,7 @@ function graphKeyTable(sections: GraphKeySection[]) {
     stops: [],
     px: [],
     dashed: [],
+    arch: [],
     rim: [],
     rimPx: [],
   })
@@ -408,6 +412,7 @@ function graphKeyTable(sections: GraphKeySection[]) {
             : '',
         px: swatch?.kind === 'width' ? swatch.px : null,
         dashed: swatch?.kind === 'line' && swatch.dashed,
+        arch: swatch?.kind === 'line' && swatch.arch === true,
         rim: swatch?.kind === 'hollow' ? abgrHex(swatch.rim) : '',
         rimPx: swatch?.kind === 'hollow' ? swatch.rimPx : null,
       })
@@ -601,6 +606,7 @@ export function figureData(
     faded: [],
     width: [],
     deletion: [],
+    arch: [],
     turn: [],
     along: [],
     walk: [],
@@ -694,6 +700,7 @@ export function figureData(
             faded: b.faded === true,
             width: b.thickness * 2,
             deletion: b.skip === true,
+            arch: b.arch === true,
             turn: b.turn === true,
             along: b.along === true,
             walk: keyRowOf(b.walk),
