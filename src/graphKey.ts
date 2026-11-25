@@ -723,8 +723,9 @@ export function graphKey(
     ...(absent ? [entry('absent', absent)] : []),
   ]
 
+  // under a lift, the marks a thickness keys are drawn in the faded backdrop
   const widthEntry = (key: string, text: string, px: number, ink: number) =>
-    entry(key, text, { kind: 'width', ink, px })
+    entry(key, text, { kind: 'width', ink: lifted ? fadedInk : ink, px })
   const nodeWidth = drawnNodeWidth(graph, o.nodeWidth ?? 'depth')
   const edgeWidth = drawnEdgeWidth(graph, o.edgeWidth ?? 'uniform')
   const depths = depthKey(graph, thickness, o.marks.nodes)

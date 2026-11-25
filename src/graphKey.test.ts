@@ -591,6 +591,35 @@ test("the thickness keys give the scale's two ends, links only where they widen 
   ).toEqual(['1 walk'])
 })
 
+test('under a lift the node and link thickness swatches are in the ink and fade the unlit nodes and links are drawn in', () => {
+  for (const liftFade of [FADED_ALPHA, 0.6]) {
+    const lift = walkLift(graph, [{ walk: ALT }], undefined, { liftFade })
+    const { layout, batch } = drawn(graph, { lift, edgeWidth: 'walks' })
+    const key = graphKey(graph, layout, {
+      lift,
+      edgeWidth: 'walks',
+      marks: drawnMarks([batch]),
+    })
+    const drawnInks = new Set(
+      [...batch.nodeStrokes, ...batch.edgeCurves]
+        .filter(stroke => stroke.faded)
+        .map(stroke => fadeAbgr(stroke.color, liftFade)),
+    )
+    const thicknesses = key
+      .filter(s => s.id === 'node-width' || s.id === 'link-width')
+      .flatMap(s => s.entries)
+    expect(thicknesses.map(e => e.text)).toEqual([
+      'depth 2',
+      'depth 1',
+      '1 walk',
+    ])
+    expect(drawnInks.size).toBe(1)
+    expect(
+      thicknesses.map(e => e.swatch?.kind === 'width' && e.swatch.ink),
+    ).toEqual(thicknesses.map(() => [...drawnInks][0]))
+  }
+})
+
 // Eight walks through v2 and one through a1, as at a 1-walk allele
 const NINE = [
   GFA.replace('W\talt\t1\tchr6\t0\t13\t>v1>a1>v3', ''),
