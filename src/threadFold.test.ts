@@ -696,9 +696,46 @@ test("a node's share is of the haplotypes drawn, and a fold's shares are its eve
   )
   expect(shares.texts.has('a+')).toBe(false)
   expect(shares.texts.has('c+')).toBe(false)
-  expect(sharesKey(shares.of)).toBe(
-    '%: the share of the 5 haplotypes drawn that walk a node or loop',
+  const skip = graph.edges.findIndex(
+    edge => eventsAtLink([deletion], edge).length > 0,
   )
+  expect(shares.links.get(skip)).toBe(
+    formatShare(deletion.haplotypes, shares.of),
+  )
+  expect(sharesKey(shares.of)).toBe(
+    '%: the share of the 5 haplotypes drawn that walk a node, loop or skip',
+  )
+})
+
+test("a link's share is of the haplotypes that take it, each once", () => {
+  const { links } = labelledNodeShares(whole, true)
+  const named = Object.fromEntries(
+    [...links].map(([i, text]) => {
+      const { from, to } = whole.edges[i]!
+      return [`${from}>${to}`, text]
+    }),
+  )
+  expect(named).toMatchObject({
+    'a+>s+': '60%',
+    'a+>t+': '40%',
+    's+>b+': '20%',
+    's+>c+': '20%',
+    't+>c+': '20%',
+  })
+  expect(labelledNodeShares(whole).links.size).toBe(0)
+})
+
+test("a skip's share is written on its arc, and no other link's", () => {
+  const { graph, events } = folded()
+  const deletion = events.find(event => event.kind === 'deletion')!
+  const layout = layoutModeByValue('ordered').run(graph, undefined)!
+  const shown = (nodeShares: boolean) =>
+    figureData(graph, layout, { width: 600, height: 300, nodeShares }).labels
+      .text
+  const share = formatShare(deletion.haplotypes, 5)
+  expect(shown(true)).toContain(share)
+  expect(shown(true)).not.toContain('20%')
+  expect(shown(false)).not.toContain(share)
 })
 
 test('a node with a share and no length of its own is labelled by its share alone', () => {

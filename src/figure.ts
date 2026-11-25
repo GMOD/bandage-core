@@ -594,6 +594,7 @@ export function figureSvg(
             !layout.tubeMap && (!highlight || !!graph.threadFold),
           nodeLengths,
           nodeShares: nodeShares.texts,
+          linkShares: nodeShares.links,
           nodeById,
           graph,
           drawnInk: batch,

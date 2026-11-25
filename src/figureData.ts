@@ -791,6 +791,7 @@ export function figureData(
       o.nodeLengths ?? FIGURE_DEFAULTS.nodeLengths,
     ),
     nodeShares: nodeShares.texts,
+    linkShares: nodeShares.links,
     nodeById,
     graph,
     drawnInk: batches[0],

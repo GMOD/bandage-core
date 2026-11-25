@@ -1,4 +1,9 @@
-import { inkUnderBox, piecesUnderBox, widestStroke } from './drawnInk'
+import {
+  inkUnderBox,
+  piecesUnderBox,
+  skipMidpoints,
+  widestStroke,
+} from './drawnInk'
 import { EXON_RIM_PX } from './genes/exonOutline'
 import { namedGenePins } from './genes/geneNames'
 import {
@@ -8,6 +13,7 @@ import {
   rowLabelBox,
   sharedNodeLengths,
   sizeLabelCandidates,
+  skipLabelCandidates,
   unlabelledPlaceholders,
   walkLoops,
 } from './graphLabels'
@@ -77,6 +83,8 @@ export interface LabelLayoutSource {
   nodeLengths: Map<string, number>
   // the shares written after them: labelledNodeShares' texts
   nodeShares?: ReadonlyMap<string, string>
+  // labelledNodeShares' links
+  linkShares?: ReadonlyMap<number, string>
   // the drawn nodes by id, which says which are placeholders
   nodeById: NodeKinds | undefined
   // the graph whose walks' loops write their lengths
@@ -524,14 +532,40 @@ export function layoutLabels(m: LabelLayoutSource): LabelLayout {
     budget,
   )
   const passes = placeLabels(m.passLabels ?? [], frame, take, reserved)
-  const sizes = [
+  const sizesPlaced = [
     ...lengthsPlaced,
     ...placeSizeLabels(
       sizeCandidates.filter(c => !c.kept),
       take,
       { budget, placed: lengthsPlaced, leaders: budget, under: lengths.under },
     ),
-  ].map(({ label }) => label)
+  ]
+  // last and on a ration of its own, so a skip's share never crowds out the
+  // share of the stretch it skips
+  const skipInk = m.labelsNodeSizes && m.linkShares?.size ? batch() : undefined
+  const skipSizes =
+    skipInk && m.linkShares && m.graph
+      ? placeSizeLabels(
+          skipLabelCandidates({
+            linkShares: m.linkShares,
+            midpoints: skipMidpoints(skipInk, m.axisScale),
+            edges: m.graph.edges,
+            axis: m.axisScale,
+            translateX,
+            translateY,
+            width,
+            height,
+          }),
+          take,
+          {
+            budget: sizesPlaced.length + budget,
+            placed: sizesPlaced,
+            leaders: budget,
+            under: lengths.under,
+          },
+        )
+      : []
+  const sizes = [...sizesPlaced, ...skipSizes].map(({ label }) => label)
   return {
     bubbles,
     ticks,

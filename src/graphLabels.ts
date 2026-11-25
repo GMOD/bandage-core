@@ -240,20 +240,27 @@ const haplotypesOf = (path: GraphPath) =>
     name => panSNHaplotype(pathOrigin(name).name) ?? name,
   )
 
-export const NO_SHARES: { texts: ReadonlyMap<string, string>; of: number } = {
+export const NO_SHARES: {
+  texts: ReadonlyMap<string, string>
+  links: ReadonlyMap<number, string>
+  of: number
+} = {
   texts: new Map(),
+  links: new Map(),
   of: 0,
 }
 
 // The share of the graph's haplotypes that walk each node some of them leave
 // out, written beside its length where a host asks (FigureSettings
-// nodeShares), and how many haplotypes it is a share `of`: those with a step
-// in the graph, each once whatever its walks, its passes or the thread a fold
-// put it on. No node has one where a walk has steps the cut did not load or a
-// node stands for nodes not shown, since a haplotype may then walk a node no
-// loaded step of its says it does.
+// nodeShares), the share that take each link some of them leave out, by link
+// index, written on a skip's arc, and how many haplotypes each is a share
+// `of`: those with a step in the graph, each once whatever its walks, its
+// passes or the thread a fold put it on. None is stated where a walk has steps
+// the cut did not load or a node stands for nodes not shown, since a
+// haplotype may then walk a node or take a link no loaded step of its says it
+// does.
 export function labelledNodeShares(
-  graph: Pick<Graph, 'nodes' | 'paths'> | undefined,
+  graph: Pick<Graph, 'nodes' | 'paths' | 'edges'> | undefined,
   nodeShares = false,
 ) {
   const paths = graph?.paths ?? []
@@ -263,8 +270,10 @@ export function labelledNodeShares(
     !graph?.nodes.some(node => node.placeholder)
   const all = new Set<string>()
   const through = new Map<string, Set<string>>()
+  const byName = new Map<string, string[]>()
   for (const path of stated ? paths : []) {
     const haplotypes = path.nodeIds.length > 0 ? haplotypesOf(path) : []
+    byName.set(path.name, haplotypes)
     for (const haplotype of haplotypes) {
       all.add(haplotype)
     }
@@ -276,18 +285,34 @@ export function labelledNodeShares(
       through.set(id, walkers)
     }
   }
+  const share = (walkers: ReadonlySet<string>) =>
+    walkers.size > 0 && walkers.size < all.size
+      ? formatShare(walkers.size, all.size)
+      : undefined
   const texts = new Map<string, string>()
   for (const [id, walkers] of through) {
-    if (walkers.size < all.size) {
-      texts.set(id, formatShare(walkers.size, all.size))
+    const text = share(walkers)
+    if (text) {
+      texts.set(id, text)
     }
   }
-  return texts.size > 0 ? { texts, of: all.size } : NO_SHARES
+  const links = new Map<number, string>()
+  for (const [i, edge] of (stated ? (graph?.edges ?? []) : []).entries()) {
+    const text = share(
+      new Set(edge.pathIds?.flatMap(name => byName.get(name) ?? [])),
+    )
+    if (text) {
+      links.set(i, text)
+    }
+  }
+  return texts.size + links.size > 0
+    ? { texts, links, of: all.size }
+    : NO_SHARES
 }
 
 // What the key says a share is of
 export const sharesKey = (of: number) =>
-  `%: the share of the ${groupDigits(of)} haplotypes drawn that walk a node or loop`
+  `%: the share of the ${groupDigits(of)} haplotypes drawn that walk a node, loop or skip`
 
 // The lengths the size labels are placed from where shares are written: a
 // node with a share and no length of its own, as the reference's are on a
@@ -918,6 +943,58 @@ export function loopLabelCandidates({
             ),
         })
       }
+    }
+  }
+  return candidates
+}
+
+// A skip drawn as a plain link, too short to arch, has no midpoint and so no
+// share
+export function skipLabelCandidates({
+  linkShares,
+  midpoints,
+  edges,
+  axis,
+  translateX,
+  translateY,
+  width,
+  height,
+}: Pick<
+  SizeLabelArgs,
+  'axis' | 'translateX' | 'translateY' | 'width' | 'height'
+> & {
+  linkShares: ReadonlyMap<number, string>
+  midpoints: ReadonlyMap<number, Point>
+  edges: readonly Pick<GraphEdge, 'from'>[]
+}) {
+  const pane = { width, height }
+  const candidates: SizeLabelCandidate[] = []
+  for (const [edge, text] of linkShares) {
+    const at = midpoints.get(edge)
+    const from = edges[edge]?.from
+    const middle = at && {
+      x: at.x * axis.scaleX + translateX,
+      y: at.y * axis.scaleY + translateY,
+    }
+    if (middle && from !== undefined && onPane(middle, pane)) {
+      const halfW = labelHalfWidth(text)
+      const label = { key: `skip:${edge}`, node: from, text }
+      candidates.push({
+        id: label.key,
+        kept: false,
+        middle,
+        along: [
+          {
+            label: { ...label, ...middle },
+            box: boxAt(halfW, middle.x, middle.y),
+          },
+        ].filter(({ box }) => insideFrame(box, pane)),
+        own: piece => piece.edge === edge,
+        stacked: () =>
+          stackedSpots(label, halfW, middle, rowsOnPane(height)).filter(
+            ({ box }) => insideFrame(box, pane),
+          ),
+      })
     }
   }
   return candidates
