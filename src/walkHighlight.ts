@@ -1,6 +1,7 @@
 import { isBackbone, isLoadedBackbone } from './anchoredNodes'
 import { departureAt, gapParts } from './gfa/departures'
 import { linkKey } from './gfa/linkKey'
+import { countLaneWidthPx, shareLaneWidthPx } from './nodeWidths'
 import { onOtherWalks } from './otherWalks'
 import { panSNContig } from './pansn'
 import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
@@ -18,6 +19,7 @@ import {
 import { liftedPasses, passInk, walkPassesOf } from './walkPasses'
 
 import type { GraphGap } from './gfa/departures'
+import type { CountLaneWidth } from './nodeWidths'
 import type { ReferenceRamp } from './renderer/GeometryBuilder'
 import type { Graph, GraphNode, GraphPath } from './types'
 import type { WalkEncoding, WalkLayer } from './walkEncoding'
@@ -566,8 +568,18 @@ export function walkLift(
   graph: Graph,
   layers: readonly WalkLayer[],
   ramp?: ReferenceRamp,
-  { countLaneScale = 1 }: { countLaneScale?: number } = {},
+  {
+    countLaneScale = 1,
+    countLaneWidth = 'log',
+  }: { countLaneScale?: number; countLaneWidth?: CountLaneWidth } = {},
 ): WalkLift | undefined {
+  const haplotypes = graph.threadFold?.haplotypes
+  // what a lane of `count` is drawn at against its count's own log width
+  const laneScaleOf = (count: number) =>
+    countLaneWidth === 'share' && haplotypes
+      ? (countLaneScale * shareLaneWidthPx(count, haplotypes)) /
+        countLaneWidthPx(count)
+      : countLaneScale
   const index = graphIndex(graph)
   const seen = new Set<string>()
   const lifted = layers
@@ -615,9 +627,9 @@ export function walkLift(
       encoding,
       ...colored,
       ...(layer.picked ? { picked: layer.picked } : {}),
-      ...(countLaneScale === 1 || walk.count === undefined
+      ...(walk.count === undefined || laneScaleOf(walk.count) === 1
         ? {}
-        : { laneScale: countLaneScale }),
+        : { laneScale: laneScaleOf(walk.count) }),
     }
   })
   return liftOf(walks, ramp)

@@ -65,7 +65,7 @@ import type {
 } from './layout/walkRowDraw'
 import type { WalkRows } from './layout/walkRows'
 import type { SmallSites } from './levelOfDetail'
-import type { NodeWidth } from './nodeWidths'
+import type { CountLaneWidth, NodeWidth } from './nodeWidths'
 import type { Bounds } from './pipeline'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult } from './types'
@@ -99,6 +99,9 @@ export interface FigureOptions {
   // 1 when absent: how wide a thread of a folded graph draws against its
   // count's own width (FigureSettings)
   countLaneScale?: number
+  // 'log' when absent; 'share' draws a thread as wide as its share of the
+  // haplotypes (FigureSettings)
+  countLaneWidth?: CountLaneWidth
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
   // false when absent: after a node's length, the share of the drawn

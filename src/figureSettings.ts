@@ -5,7 +5,7 @@ import { ENGINE_DEFAULTS } from './pipeline'
 import type { ColorScheme } from './colorSchemes'
 import type { EdgeWidth } from './edgeWidths'
 import type { SmallSites } from './levelOfDetail'
-import type { NodeWidth } from './nodeWidths'
+import type { CountLaneWidth, NodeWidth } from './nodeWidths'
 import type { EngineSettings } from './pipeline'
 
 // Every setting a figure spec carries that is neither the graph, the layout
@@ -22,6 +22,9 @@ export interface FigureSettings extends Partial<EngineSettings> {
   // draws against nodeWidths.ts countLaneWidthPx: 1 by default, 0.4 for a lit
   // thread about a contig wide
   countLaneScale?: number
+  // 'share' draws such a lane as wide as its share of the fold's haplotypes,
+  // so two lanes compare by width; 'log', the default, by the log of its count
+  countLaneWidth?: CountLaneWidth
   // every node's length written on it, not only a placeholder's
   nodeLengths?: boolean
   // after a node's length, the share of the drawn haplotypes that walk it,
@@ -43,6 +46,7 @@ export const FIGURE_DEFAULTS: Required<Omit<FigureSettings, 'colorDomain'>> = {
   contigThickness: 6,
   connectorThickness: 2,
   countLaneScale: 1,
+  countLaneWidth: 'log',
   nodeLengths: LABEL_DEFAULTS.nodeLengths,
   nodeShares: false,
   smallSites: 'hidden',

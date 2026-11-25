@@ -275,6 +275,19 @@ export interface CountedLane {
   laneScale?: number
 }
 
+// A lane as wide as its share of the haplotypes, where a figure's
+// `countLaneWidth` is 'share': every haplotype together is this wide, 137 of
+// 464 are 3.5 px and 314 are 8.1 px, where the log widths are 12.8 and 14.5,
+// and a lane of one still draws
+export const SHARE_LANE_PX = 12
+export const MIN_SHARE_LANE_PX = 1.5
+
+export const shareLaneWidthPx = (count: number, haplotypes: number) =>
+  Math.max(MIN_SHARE_LANE_PX, (SHARE_LANE_PX * count) / haplotypes)
+
+export const COUNT_LANE_WIDTHS = ['log', 'share'] as const
+export type CountLaneWidth = (typeof COUNT_LANE_WIDTHS)[number]
+
 export const laneWidthPx = (lane: CountedLane) =>
   (lane.laneScale ?? 1) * countLaneWidthPx(lane.count ?? 1)
 

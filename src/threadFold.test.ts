@@ -14,11 +14,14 @@ import {
 } from './graphLabels'
 import { layoutModeByValue } from './layoutModes'
 import {
+  MIN_SHARE_LANE_PX,
+  SHARE_LANE_PX,
   countLaneWidthPx,
   countLanes,
   drawnNodeWidth,
   linkPasses,
   nodeInk,
+  shareLaneWidthPx,
 } from './nodeWidths'
 import { loadGraph } from './pipeline'
 import { RAMP_PIECE_DEG, REFERENCE_RAMP_MAX_HUE } from './referenceRampCss'
@@ -711,6 +714,31 @@ test('a share never reads 0% or 100%', () => {
   expect(formatShare(1, 464)).toBe('<1%')
   expect(formatShare(463, 464)).toBe('>99%')
   expect(formatShare(137, 464)).toBe('30%')
+})
+
+test("countLaneWidth 'share' draws each thread as wide as its share of the fold's haplotypes", () => {
+  const { graph } = folded()
+  const layers = graph.paths!.map(p => ({ walk: p.name }))
+  const lift = walkLift(graph, layers, undefined, { countLaneWidth: 'share' })!
+  const of = graph.threadFold!.haplotypes
+  const widths = countLanes(lift.walks)!.widths
+  lift.walks.forEach((walk, i) => {
+    expect(widths[i]).toBeCloseTo(shareLaneWidthPx(walk.count!, of))
+  })
+  const counts = lift.walks.map(walk => walk.count!)
+  const widest = counts.indexOf(Math.max(...counts))
+  expect(countLanes(lift.walks)!.widths[widest]).toBeCloseTo(
+    (SHARE_LANE_PX * counts[widest]!) / of,
+  )
+  expect(shareLaneWidthPx(1, 464)).toBe(MIN_SHARE_LANE_PX)
+  expect(shareLaneWidthPx(137, 464)).toBeCloseTo(3.54, 2)
+  const halved = walkLift(graph, layers, undefined, {
+    countLaneWidth: 'share',
+    countLaneScale: 0.5,
+  })!
+  expect(countLanes(halved.walks)!.band).toBeCloseTo(
+    countLanes(lift.walks)!.band / 2,
+  )
 })
 
 test('a node under count lanes is hit as far as the lanes reach', () => {
