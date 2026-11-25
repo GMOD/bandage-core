@@ -326,7 +326,14 @@ test('a hover finds the threads through a node and the events drawn there', () =
     label: '2 haplotypes',
     count: 2,
     variation: '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
+    line: '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
   })
+  expect(threadsThrough(graph, 'c+').map(t => t.line)).toEqual([
+    '1 haplotype: ref#0#chr',
+    '1 haplotype: h1#1#chr',
+    '1 haplotype: h4#1#chr',
+    '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
+  ])
   expect(eventsAtNode(events, 'b+').map(e => e.kind)).toEqual(['inversion'])
   expect(
     eventsAtLink(events, { from: 'c+', to: 'a+' }).map(e => e.kind),

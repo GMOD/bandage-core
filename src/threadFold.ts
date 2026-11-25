@@ -514,8 +514,10 @@ export function threadLayers(
   return [...byThread.values(), ...loose]
 }
 
-// The threads through a node, for a hover: what a key calls each, and what
-// its haplotypes differ by under the fold
+// The threads through a node, for a hover: what a key calls each, what its
+// haplotypes differ by under the fold, and the line a hover writes for it,
+// which opens on its count so a lone haplotype's name does not read as one of
+// a wider thread's listed above it
 export function threadsThrough(
   graph: Pick<Graph, 'paths'>,
   nodeId: string,
@@ -523,12 +525,17 @@ export function threadsThrough(
 ) {
   return (graph.paths ?? [])
     .filter(path => path.count !== undefined && path.nodeIds.includes(nodeId))
-    .map(path => ({
-      name: path.name,
-      label: threadLabel(path, labelOf(path.members?.[0] ?? path.name)),
-      count: path.count ?? 1,
-      variation: path.variation,
-    }))
+    .map(path => {
+      const label = threadLabel(path, labelOf(path.members?.[0] ?? path.name))
+      const count = path.count ?? 1
+      return {
+        name: path.name,
+        label,
+        count,
+        variation: path.variation,
+        line: count > 1 ? (path.variation ?? label) : `1 haplotype: ${label}`,
+      }
+    })
 }
 
 // The events a node is drawn for, and those a link is: the step of the
