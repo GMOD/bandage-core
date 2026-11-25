@@ -114,11 +114,10 @@ function referenceRevisits(graph: Graph, reference: string | undefined) {
   return stated > here ? stated : here
 }
 
-// The graph as graph-fold reads it: every node's length and whether it stands
-// in for a stretch the cut did not load, each walk record as the node names it
-// steps, `-` ahead of a step it reads reversed, the reference's record first,
-// where each placeholder lies on its walk's contig, and how many records step
-// nothing here and are left out; or why it cannot be read so
+// The graph as graph-fold reads it: every node's length, and each walk record
+// as the node names it steps, `-` ahead of a step it reads reversed, the
+// reference's record first, and how many records step nothing here and are
+// left out; or why it cannot be read so
 export function threadFoldInput(graph: Graph) {
   const byId = new Map(graph.nodes.map(node => [node.id, node]))
   const reference = graph.referencePath ?? referenceWalkName(graph)
@@ -142,9 +141,7 @@ export function threadFoldInput(graph: Graph) {
           nodes: graph.nodes.map(node => ({
             name: node.name,
             sequenceLength: node.length,
-            ...(node.placeholder ? { placeholder: true } : {}),
           })),
-          notLoaded: notLoadedPlaces(graph),
           tracks: order.map((i, at): ThreadTrack => ({
             name: walked[i]!.name,
             haplotype: haplotypeOf(walked[i]!.name),
@@ -161,44 +158,6 @@ export function threadFoldInput(graph: Graph) {
           referenceRevisits: referenceRevisits(graph, reference),
           stepless: paths.length - walked.length,
         }
-}
-
-// Where each placeholder lies: its walk's contig and its start there
-function notLoadedPlaces(graph: Graph) {
-  const places = new Map<string, { refName: string; start: number }>()
-  for (const node of graph.nodes) {
-    if (node.placeholder) {
-      places.set(node.name, {
-        refName: node.stable?.refName ?? node.name,
-        start: node.stable?.start ?? 0,
-      })
-    }
-  }
-  return places
-}
-
-type NotLoadedPlaces = ReturnType<typeof notLoadedPlaces>
-
-// A folded placeholder placed as the first stretch it holds is, on that
-// stretch's contig, so it hovers as the placeholder it stands for
-function placeholderPlaces(fold: FoldedThreads, notLoaded: NotLoadedPlaces) {
-  const refNames: string[] = []
-  const places = fold.nodes.map(node => {
-    const held = node.placeholder
-      ? (fold.members[node.name] ?? []).flatMap(
-          name => notLoaded.get(name) ?? [],
-        )
-      : []
-    const first = held.toSorted((a, b) => a.start - b.start)[0]
-    const refName = first?.refName ?? node.name
-    if (node.placeholder && !refNames.includes(refName)) {
-      refNames.push(refName)
-    }
-    return node.placeholder
-      ? { ref: refNames.indexOf(refName), start: first?.start ?? 0 }
-      : undefined
-  })
-  return { refNames, places }
 }
 
 type FoldedThreads = Folded<ThreadTrack>
@@ -272,9 +231,9 @@ function laneOrder(fold: FoldedThreads) {
 }
 
 // The Graph of a fold of `tracks`: a node per folded node, the reference's
-// placed on `refName` at their bp and a placeholder on its walk's contig, a
-// link per step two threads' consecutive nodes make, and a path per thread
-// that counts its haplotypes, each once however many of its walks it holds
+// placed on `refName` at their bp, a link per step two threads' consecutive
+// nodes make, and a path per thread that counts its haplotypes, each once
+// however many of its walks it holds
 export function foldedGraph(
   fold: FoldedThreads,
   {
@@ -284,7 +243,6 @@ export function foldedGraph(
     tracks,
     stepless = 0,
     departing = [],
-    notLoaded = new Map(),
   }: {
     name: string
     refName: string
@@ -292,7 +250,6 @@ export function foldedGraph(
     tracks: readonly ThreadTrack[]
     stepless?: number
     departing?: readonly string[]
-    notLoaded?: NotLoadedPlaces
   },
 ): Graph {
   const index = new Map(fold.nodes.map((node, i) => [node.name, i]))
@@ -343,30 +300,18 @@ export function foldedGraph(
     starts.push(thread.start)
     ends.push(thread.start + bp)
   }
-  const placed = placeholderPlaces(fold, notLoaded)
   const tables: GraphTables = {
     nodes: {
       names: fold.nodes.map(node => node.name),
       lengths: Int32Array.from(fold.nodes, node => node.sequenceLength),
-      refs: Int32Array.from(fold.nodes, (node, i) => {
-        const place = placed.places[i]
-        return node.kind === 'reference'
-          ? 0
-          : place === undefined
-            ? -1
-            : place.ref + 1
-      }),
-      starts: Float64Array.from(
-        fold.nodes,
-        (node, i) => placed.places[i]?.start ?? node.refStart ?? 0,
+      refs: Int32Array.from(fold.nodes, node =>
+        node.kind === 'reference' ? 0 : -1,
       ),
+      starts: Float64Array.from(fold.nodes, node => node.refStart ?? 0),
       ranks: Int32Array.from(fold.nodes, node =>
         node.kind === 'reference' ? 0 : 1,
       ),
-      refNames: [refName, ...placed.refNames],
-      placeholders: Uint8Array.from(fold.nodes, node =>
-        node.placeholder ? 1 : 0,
-      ),
+      refNames: [refName],
     },
     links: {
       from: Int32Array.from(from),
@@ -500,13 +445,7 @@ export function foldThreads(
     })
   const threads = (
     kept: FoldedThreads,
-    {
-      tracks,
-      refName,
-      referencePath,
-      stepless,
-      notLoaded,
-    }: NonNullable<typeof read>,
+    { tracks, refName, referencePath, stepless }: NonNullable<typeof read>,
   ): ThreadFoldResult => {
     const folded = foldedGraph(kept, {
       name: graph.name,
@@ -515,7 +454,6 @@ export function foldThreads(
       tracks,
       stepless,
       departing: graph.departures?.names,
-      notLoaded,
     })
     return {
       folded: true,
