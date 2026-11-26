@@ -1,4 +1,4 @@
-import { fragmentRuns } from '@jbrowse/graph-walks'
+import { fragmentRuns } from '@gmod/gfa-tabix'
 
 import { drawn, orderedFigure } from '../scripts/fold-runs/drawn'
 import { hostedTables } from '../test_data/hosted/hostedTables'
@@ -46,7 +46,7 @@ const endText = (table: WalkEndTable, p: number) =>
 
 describe.each(FIXTURES)('the hosted cut %s', fixture => {
   const { refName, tables } = hostedTables(fixture)
-  const runs = fragmentRuns(tables, refName)
+  const runs = fragmentRuns(tables, refName, [])
   const graph = loadGraph(tables, fixture)
 
   test("each walk's ends are those graph-walks reads its runs with", () => {
@@ -160,6 +160,27 @@ test("a cut's fold given its walks' ends no longer says a walk starts or ends in
   ])
 })
 
+test('runs whose haplotypes are in more pieces than 1.5 a haplotype are refused, so a host cuts the window', () => {
+  const { refName, tables } = hostedTables('sv-mul-1k-10k')
+  const runs = fragmentRuns(tables, refName, [])
+  const pieces = (perHaplotype: number) => ({
+    ...runs,
+    walks: {
+      ...runs.walks,
+      names: runs.walks.names.map((name, p) =>
+        p === 0 ? name : `HG${Math.ceil(p / perHaplotype)}#1#piece${p}`,
+      ),
+    },
+  })
+  expect(runs.walks.names).toHaveLength(9)
+  expect(foldThreadRuns(pieces(4), 236)).toEqual({
+    folded: false,
+    reason:
+      'the 3 haplotypes here are in 9 pieces, more than 1.5 a haplotype, so the window is cut rather than folded from runs',
+  })
+  expect(foldThreadRuns(pieces(1), 236).folded).toBe(true)
+})
+
 test('a graph read from GFA text states no ends, so its fold is as before', () => {
   const graph = loadGraph(
     [
@@ -180,7 +201,7 @@ test('a graph read from GFA text states no ends, so its fold is as before', () =
 
 test('runs of a file that does not state its reference passes no node twice are refused', () => {
   const { refName, tables } = hostedTables('hla-ii-default')
-  const runs = fragmentRuns(tables, refName)
+  const runs = fragmentRuns(tables, refName, [])
   expect(foldThreadRuns({ ...runs, revisited: 2 }, 236)).toEqual({
     folded: false,
     reason:

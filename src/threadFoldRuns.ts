@@ -1,6 +1,7 @@
 import { foldRuns } from '@jbrowse/graph-fold'
 
 import { referenceOf, walkPathName } from './gfa/graphTables'
+import { groupDigits } from './graphLabels'
 import { pathOrigin } from './pathAnchoring'
 import { foldedGraph, haplotypeOf, threadEvents } from './threadFold'
 
@@ -9,9 +10,18 @@ import type { ThreadEvent, ThreadWalk } from './threadFold'
 import type { Graph } from './types'
 import type { Folded, RunsInput } from '@jbrowse/graph-fold'
 
-// A window's walks read as runs, graph-walks' `WalkReader.runs`, folded as
+// A window's walks read as runs, @gmod/gfa-tabix's `getRunsForRange`, folded as
 // foldThreads folds the same window's cut: no step is made of a run, so a
 // window too large to cut folds from the rows that state it.
+
+/**
+ * The most walks a window's runs fold from for each haplotype they hold. Past
+ * it the haplotypes are in pieces here, as their assemblies are across a
+ * pericentromeric stretch: 2.2 to 2.9 a haplotype on GRCh38 at
+ * chr9:38.8-39.9 Mb and chr2:91.4 Mb, where HLA class II, KIR, LPA and CFH
+ * hold 1.0. Such a window is cut instead, under the cut's own budgets.
+ */
+export const RUNS_WALKS_PER_HAPLOTYPE = 1.5
 
 // The runs as graph-fold's foldRuns reads them: the backbone foldThreads
 // would pick of the same window's cut, its nodes the reference's, and every
@@ -21,6 +31,7 @@ export function threadRunsInput(runs: WalkRunsTables) {
   const names = walks.names.map((name, p) =>
     walkPathName(name, walks.starts[p]!, walks.ends[p]!),
   )
+  const haplotypes = new Set(names.map(haplotypeOf)).size
   const threadWalk = (p: number): ThreadWalk => ({
     name: names[p]!,
     haplotype: haplotypeOf(names[p]!),
@@ -96,15 +107,19 @@ export function threadRunsInput(runs: WalkRunsTables) {
           ? 'the walk file does not say how many nodes its reference passes more than once, so a run off it may be a copy of reference sequence and not a variant'
           : `the reference passes ${runs.revisited} nodes of the graph more than once, so a run off it may be a copy of reference sequence and not a variant`,
       }
-    : !reference
-      ? { reason: 'the graph has no reference walk' }
-      : {
-          input: input(reference),
-          walks: [reference, ...order.map(threadWalk)],
-          refName: runs.refName,
-          referencePath,
-          departing: runs.departing.names,
+    : names.length > RUNS_WALKS_PER_HAPLOTYPE * haplotypes
+      ? {
+          reason: `the ${groupDigits(haplotypes)} haplotypes here are in ${groupDigits(names.length)} pieces, more than ${RUNS_WALKS_PER_HAPLOTYPE} a haplotype, so the window is cut rather than folded from runs`,
         }
+      : !reference
+        ? { reason: 'the graph has no reference walk' }
+        : {
+            input: input(reference),
+            walks: [reference, ...order.map(threadWalk)],
+            refName: runs.refName,
+            referencePath,
+            departing: runs.departing.names,
+          }
 }
 
 export type ThreadRunsFoldResult =
@@ -162,7 +177,7 @@ export function foldThreadRunsInput(
 
 /**
  * The graph foldThreads draws of a window's cut, from the same window's runs
- * instead, graph-walks' `WalkReader.runs`: every difference between its
+ * instead, @gmod/gfa-tabix's `getRunsForRange`: every difference between its
  * walks under `belowBp` merged into the reference and its walks as threads,
  * an end that leaves the window drawn as far as the runs say it goes; or why
  * not. `name` names the graph, the reference sequence by default. The key
