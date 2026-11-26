@@ -2,6 +2,7 @@ import type { GafRecord } from './gaf/parseGaf'
 import type { StableCoordinate } from './gfa-core/index'
 import type { GraphGap } from './gfa/departures'
 import type { DepartureTable } from './gfa/graphTables'
+import type { PathEnds } from './gfa/walkRuns'
 import type { TubeMapDrawing } from './layout/tubeMapLayout'
 import type { PathVisits } from './pathVisits'
 
@@ -89,6 +90,10 @@ export interface GraphPath {
   // set on a walk-file cut's walk from its tables: where each step lies on
   // the reference at the pass its row names, NaN off it
   refStarts?: Float64Array
+  // set on a walk-file cut's walk with a step on the reference: what lies
+  // past its first step on the reference and its last, which a thread fold
+  // hands graph-fold as the walk's ends
+  ends?: PathEnds
 }
 
 // One P or W record, named the way a coordinate is named: the range suffix

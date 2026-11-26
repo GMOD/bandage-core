@@ -2,6 +2,7 @@ import { branchLabel, foldGraph, variationLabel } from '@jbrowse/graph-fold'
 
 import { departureTable } from './gfa/departures'
 import { linkKey } from './gfa/linkKey'
+import { END_KINDS } from './gfa/walkRuns'
 import { referenceWalkName } from './layout/walkRowRuns'
 import { panSNFields } from './pansn'
 import { pathOrigin } from './pathAnchoring'
@@ -9,6 +10,7 @@ import { loadGraph } from './pipeline'
 import { threadLabel } from './threadKey'
 
 import type { GraphTables } from './gfa/graphTables'
+import type { PathEnd, PathEnds } from './gfa/walkRuns'
 import type { PathVisits } from './pathVisits'
 import type { Graph, GraphPath } from './types'
 import type { WalkLayer } from './walkEncoding'
@@ -22,11 +24,16 @@ import type { Branch, Folded } from '@jbrowse/graph-fold'
 // (graphLabels.ts), and `threadEvents` hands a host graph-fold's words for it,
 // for a caption or a hover.
 
-export interface ThreadTrack {
+// A walk record a fold takes: its name as a path, its haplotype and where it
+// starts on its contig
+export interface ThreadWalk {
   name: string
   haplotype: string
-  sequence: string[]
   start: number
+}
+
+export interface ThreadTrack extends ThreadWalk {
+  sequence: string[]
   indexOfFirstBase?: number
 }
 
@@ -86,7 +93,7 @@ function recordSteps(graph: Graph, walked: readonly GraphPath[]) {
 
 // The haplotype a walk record is of: `sample#hap` of a PanSN name, else the
 // name less any range, so the pieces of one haplotype count once
-const haplotypeOf = (name: string) => {
+export const haplotypeOf = (name: string) => {
   const origin = pathOrigin(name).name
   const fields = panSNFields(origin)
   return fields ? `${fields.sample}#${fields.haplotype}` : origin
@@ -114,10 +121,47 @@ function referenceRevisits(graph: Graph, reference: string | undefined) {
   return stated > here ? stated : here
 }
 
+// graph-fold's ends of walks in fold order, each record's own
+function foldEnds(rows: readonly PathEnds[]) {
+  const table = (side: 'before' | 'after') => ({
+    kinds: Uint8Array.from(rows, row => END_KINDS.indexOf(row[side].kind)),
+    pos: Float64Array.from(rows, row => row[side].pos),
+    reversed: Uint8Array.from(rows, row => (row[side].reversed ? 1 : 0)),
+    ownBp: Float64Array.from(rows, row => row[side].ownBp),
+    missingBp: Float64Array.from(rows, row => row[side].missingBp),
+  })
+  return { before: table('before'), after: table('after') }
+}
+
+// What a walk with no step on the reference has past its ends: nothing
+// known, so nothing is said of them
+const UNSTATED: PathEnd = {
+  kind: 'edge',
+  pos: Number.NaN,
+  reversed: false,
+  ownBp: Number.NaN,
+  missingBp: 0,
+}
+
+// The ends of `paths`, the reference's first, where a walk-file cut states
+// them against `reference`
+function pathEnds(paths: readonly GraphPath[], reference: string | undefined) {
+  return reference !== undefined && paths[0]?.ends?.refName === reference
+    ? foldEnds(
+        paths.map(path =>
+          path.ends?.refName === reference
+            ? path.ends
+            : { refName: reference, before: UNSTATED, after: UNSTATED },
+        ),
+      )
+    : undefined
+}
+
 // The graph as graph-fold reads it: every node's length, and each walk record
 // as the node names it steps, `-` ahead of a step it reads reversed, the
-// reference's record first, and how many records step nothing here and are
-// left out; or why it cannot be read so
+// reference's record first, what lies past each record's ends where a
+// walk-file cut states it against that reference, and how many records step
+// nothing here and are left out; or why it cannot be read so
 export function threadFoldInput(graph: Graph) {
   const byId = new Map(graph.nodes.map(node => [node.id, node]))
   const reference = graph.referencePath ?? referenceWalkName(graph)
@@ -155,19 +199,23 @@ export function threadFoldInput(graph: Graph) {
           })),
           refName: firstNode.stable?.refName ?? pathOrigin(first.name).name,
           referencePath: reference,
+          ends: pathEnds(
+            order.map(i => walked[i]!),
+            reference,
+          ),
           referenceRevisits: referenceRevisits(graph, reference),
           stepless: paths.length - walked.length,
         }
 }
 
-type FoldedThreads = Folded<ThreadTrack>
+type FoldedThreads = Folded<ThreadWalk>
 
 // Each folded track as a thread: its name, the start of its first record and
 // the names of its walks, from the records the fold took (`tracks`, in its input order). A record whose haplotype contig
 // has other records here is one piece of it, and its name says which, since
 // two threads of one name would be lifted as two pieces of one walk; the
 // reference's record keeps its own
-function threadsOfFold(fold: FoldedThreads, tracks: readonly ThreadTrack[]) {
+function threadsOfFold(fold: FoldedThreads, tracks: readonly ThreadWalk[]) {
   const origins = tracks.map(track => pathOrigin(track.name).name)
   const records = new Map<string, number[]>()
   origins.forEach((origin, i) => {
@@ -247,7 +295,7 @@ export function foldedGraph(
     name: string
     refName: string
     referencePath?: string
-    tracks: readonly ThreadTrack[]
+    tracks: readonly ThreadWalk[]
     stepless?: number
     departing?: readonly string[]
   },
@@ -399,7 +447,7 @@ export interface ThreadEvent {
 // The fold's events over `graph`, foldedGraph's of the same fold of `tracks`
 export function threadEvents(
   fold: FoldedThreads,
-  tracks: readonly ThreadTrack[],
+  tracks: readonly ThreadWalk[],
   graph: Pick<Graph, 'nodes'>,
 ): ThreadEvent[] {
   const idOf = new Map(graph.nodes.map(node => [node.name, node.id]))
@@ -419,7 +467,7 @@ export function threadEvents(
 }
 
 export type ThreadFoldResult =
-  | { folded: true; graph: Graph; events: ThreadEvent[] }
+  | { folded: true; graph: Graph; events: ThreadEvent[]; walks: ThreadWalk[] }
   | { folded: false; graph: Graph; reason: string }
 
 // `graph` with every difference between its walks under `belowBp` merged into
@@ -442,6 +490,7 @@ export function foldThreads(
       threshold: belowBp,
       cluster,
       referenceRevisits: read.referenceRevisits,
+      ends: read.ends,
     })
   const threads = (
     kept: FoldedThreads,
@@ -459,6 +508,11 @@ export function foldThreads(
       folded: true,
       graph: folded,
       events: threadEvents(kept, tracks, folded),
+      walks: tracks.map(({ name, haplotype, start }) => ({
+        name,
+        haplotype,
+        start,
+      })),
     }
   }
   return !input

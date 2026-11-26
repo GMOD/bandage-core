@@ -4,6 +4,7 @@ import { pathOrigin, stateStrands } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
 import { ownStepRuns, stretchSegments } from './departures'
 import { linkKey } from './linkKey'
+import { cutEnds } from './walkRuns'
 import {
   FORWARD,
   REVERSED,
@@ -189,6 +190,18 @@ function pLineName(name: string, start: number, end: number) {
   return start === 0 ? name : `${name}:${start}-${end}`
 }
 
+/**
+ * The name of the GraphPath a walk record of `name` from `start` to `end` is:
+ * a PanSN walk's `sample#haplotype#contig`, else a P line's name with its
+ * range
+ */
+export function walkPathName(name: string, start: number, end: number) {
+  const fields = panSNFields(name)
+  return fields
+    ? `${fields.sample}#${fields.haplotype}#${fields.contig}`
+    : pLineName(name, start, end)
+}
+
 /** The GraphPath `graphFromTables` builds of walk `p`, less its steps */
 export function tablePath(
   w: GraphTables['walks'],
@@ -201,16 +214,17 @@ export function tablePath(
   const abridged = Number.isNaN(steps) ? {} : { abridgedSteps: steps }
   const trimmedBefore = w.trimmedBefore?.[p]
   const trimmedAfter = w.trimmedAfter?.[p]
+  const name = walkPathName(walkName, start, w.ends[p]!)
   return fields
     ? {
-        name: `${fields.sample}#${fields.haplotype}#${fields.contig}`,
+        name,
         start,
         ...fields,
         ...(trimmedBefore === undefined ? {} : { trimmedBefore }),
         ...(trimmedAfter === undefined ? {} : { trimmedAfter }),
         ...abridged,
       }
-    : { name: pLineName(walkName, start, w.ends[p]!), start }
+    : { name, start }
 }
 
 // Each list's names, in the order the crossings came, each once
@@ -364,6 +378,16 @@ export function graphFromTables(
   const orient = tableOrientation({ nodes: n, links: l, walks: w }, traversals)
   const ids = nodeIdsOf(n.names, orient)
   const departed = ownStepRuns({ nodes: n, walks: w, departures })
+  const rankZero = new Set<string>()
+  for (let i = 0; i < n.lengths.length; i++) {
+    if (n.ranks[i] === REFERENCE_RANK && n.refs[i]! >= 0) {
+      rankZero.add(n.refNames[n.refs[i]!]!)
+    }
+  }
+  const endsOn = w.refStarts && w.names.find(walk => rankZero.has(walk))
+  const ends = endsOn
+    ? cutEnds({ nodes: n, links, walks: w, departures, revisited }, endsOn)
+    : []
   const departureVisits = new Array<PathVisit[] | undefined>(count)
   let departedSteps = 0
   for (const { walk, steps, held, starts, reversed } of departed) {
@@ -556,7 +580,13 @@ export function graphFromTables(
       prev = node
     }
     const refStarts = w.refStarts?.subarray(first, w.offsets[p + 1])
-    paths.push({ ...head, nodeIds, ...(refStarts ? { refStarts } : {}) })
+    const pathEnds = ends[p]
+    paths.push({
+      ...head,
+      nodeIds,
+      ...(refStarts ? { refStarts } : {}),
+      ...(pathEnds ? { ends: pathEnds } : {}),
+    })
     anchorPaths.push({
       name: visitName,
       sample: visitSample,
