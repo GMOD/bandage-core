@@ -321,6 +321,7 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
       name: walkName,
       nodeIds,
       start,
+      ...(walk.start === -1 || walk.end === -1 ? {} : { end: walk.end }),
       sample: walk.sample,
       haplotype: walk.haplotype,
       contig: walk.contig,

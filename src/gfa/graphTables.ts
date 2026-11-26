@@ -187,7 +187,7 @@ export const NOT_LOADED_TAG = 'nl:i:1'
 
 // A P line states a walk's start only as a range on its name
 function pLineName(name: string, start: number, end: number) {
-  return start === 0 ? name : `${name}:${start}-${end}`
+  return start === 0 || !(end >= start) ? name : `${name}:${start}-${end}`
 }
 
 /**
@@ -214,11 +214,13 @@ export function tablePath(
   const abridged = Number.isNaN(steps) ? {} : { abridgedSteps: steps }
   const trimmedBefore = w.trimmedBefore?.[p]
   const trimmedAfter = w.trimmedAfter?.[p]
-  const name = walkPathName(walkName, start, w.ends[p]!)
+  const end = w.ends[p]!
+  const name = walkPathName(walkName, start, end)
   return fields
     ? {
         name,
         start,
+        ...(end >= start ? { end } : {}),
         ...fields,
         ...(trimmedBefore === undefined ? {} : { trimmedBefore }),
         ...(trimmedAfter === undefined ? {} : { trimmedAfter }),

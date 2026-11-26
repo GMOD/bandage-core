@@ -36,7 +36,7 @@ export function walkKey(
         ? rangeText(reference.name, reference.start, reference.end)
         : undefined
   // what the walk spans on its contig, which its pieces may not all show
-  const spanned = walk.range ? walk.range.end - walk.range.start : walk.bp
+  const spanned = walk.extent ? walk.extent.end - walk.extent.start : walk.bp
   const unstated = spanned - walk.bp - walk.missingBp - walk.ownBp
   const outside = walk.readBp ?? unstated
   const gaps = [
@@ -67,16 +67,23 @@ export function walkKey(
   }
 }
 
-// Where a node sits on a walk's own contig, from how far along the walk it
-// is: the stretch the walk's records give it at its first visit
+// Whether a walk visits a node, and where the node sits on the walk's own
+// contig at its first visit, from how far along the walk it is: nothing on a
+// thread of a folded graph, whose node lengths are not the walk's own
 export function walkPosition(walk: LiftedWalk, nodeId: string, length: number) {
   const progress = walk.progress.get(nodeId)
-  const range = walk.range
-  if (progress === undefined || !range) {
-    return undefined
+  const along = walk.count === undefined ? walk.extent : undefined
+  const start =
+    progress === undefined || !along
+      ? undefined
+      : Math.round(
+          along.start + progress * (along.end - along.start) - length / 2,
+        )
+  return {
+    onWalk: progress !== undefined,
+    at:
+      along && start !== undefined
+        ? `${along.contig}:${groupDigits(start + 1)}-${groupDigits(start + length)}`
+        : undefined,
   }
-  const start = Math.round(
-    range.start + progress * (range.end - range.start) - length / 2,
-  )
-  return `${range.contig}:${groupDigits(start + 1)}-${groupDigits(start + length)}`
 }

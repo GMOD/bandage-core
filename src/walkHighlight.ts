@@ -54,8 +54,14 @@ export interface WalkHighlight {
   bp: number
   unloadedBp: number
   // where the walk's stretch of the cut sits on its own contig, from its W or
-  // P record: its start where it begins and its end where it ends
+  // P record: its start where it begins and its end where it ends. On a
+  // folded graph only a thread of one record that states its end has one,
+  // since a fold's node lengths are not the walk's own
   range?: { contig: string; start: number; end: number }
+  // from its first piece's start on its contig to its furthest piece's start
+  // plus the bp drawn of it: what progress and the key's gaps are measured
+  // over, which is the range on a graph that is not folded
+  extent?: { contig: string; start: number; end: number }
   // bp of the gaps between its pieces that a walk-file cut's departures say
   // the graph lacks, or are its own sequence the cut did not read
   // (gfa/departures.ts gapParts)
@@ -279,14 +285,19 @@ function highlightOf(
   if (walked.length === 0) {
     return undefined
   }
-  const extent = extentOf(walked)
-  const range = extent && {
-    contig: first?.contig ?? panSNContig(pathOrigin(name).name),
-    ...extent,
-  }
+  const contig = first?.contig ?? panSNContig(pathOrigin(name).name)
+  const drawn = extentOf(walked)
+  const extent = drawn && { contig, ...drawn }
+  const range = !graph.threadFold
+    ? extent
+    : pieces.length === 1 &&
+        first?.start !== undefined &&
+        first.end !== undefined
+      ? { contig, start: first.start, end: first.end }
+      : undefined
   // progress runs over the contig where the records place the pieces, so the
   // stretch between two pieces counts though no node draws it
-  const span = range ? range.end - range.start : bp
+  const span = extent ? extent.end - extent.start : bp
   const nodeIds = new Set<string>()
   const edgeIndexes = new Set<number>()
   const progress = new Map<string, number>()
@@ -299,8 +310,8 @@ function highlightOf(
   const routeSteps: RouteStep[][] = []
   let previous: GraphPath | undefined
   for (const piece of walked) {
-    if (range) {
-      before = Math.max(before, (piece.start ?? 0) - range.start)
+    if (extent) {
+      before = Math.max(before, (piece.start ?? 0) - extent.start)
     }
     const steps: RouteStep[] = []
     routeSteps.push(steps)
@@ -395,6 +406,7 @@ function highlightOf(
     name,
     reference,
     range,
+    extent,
     nodeIds,
     edgeIndexes,
     progress,

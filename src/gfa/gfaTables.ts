@@ -215,7 +215,7 @@ export function gfaTables(text: string): GraphTables | undefined {
       if (w) {
         names.push(`${w.sample}#${w.haplotype}#${w.contig}`)
         walkStarts.push(w.start === '*' ? 0 : +w.start)
-        walkEnds.push(w.end === '*' ? -1 : +w.end)
+        walkEnds.push(w.start === '*' || w.end === '*' ? -1 : +w.end)
         readWalkBody(line, w.body, segments, steps)
         // a stepless walk is still a path to the text route, and no row here
         if (steps.nodes.length === offsets.at(-1)) {

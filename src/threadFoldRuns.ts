@@ -36,6 +36,7 @@ export function threadRunsInput(runs: WalkRunsTables) {
     name: names[p]!,
     haplotype: haplotypeOf(names[p]!),
     start: walks.starts[p]!,
+    end: walks.ends[p]!,
   })
   const origins = names.map(name => pathOrigin(name).name)
   const referencePath = referenceOf(origins, undefined, new Set([runs.refName]))

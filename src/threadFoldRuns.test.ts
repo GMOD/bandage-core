@@ -2,12 +2,16 @@ import { fragmentRuns } from '@gmod/gfa-tabix'
 
 import { drawn, orderedFigure } from '../scripts/fold-runs/drawn'
 import { hostedTables } from '../test_data/hosted/hostedTables'
+import { departureTable } from './gfa/departures'
 import { END_KINDS, cutEnds } from './gfa/walkRuns'
 import { absentHaplotypesText } from './graphKey'
 import { loadGraph } from './pipeline'
 import { foldThreads, openBranchSpan } from './threadFold'
 import { foldThreadRuns } from './threadFoldRuns'
+import { walkLift } from './walkHighlight'
+import { walkKey, walkPosition } from './walkKey'
 
+import type { GraphTables } from './gfa/graphTables'
 import type { WalkEndTable } from './gfa/walkRuns'
 import type { ThreadEvent } from './threadFold'
 import type { Graph } from './types'
@@ -262,3 +266,138 @@ test('runs of a file that does not state its reference passes no node twice are 
     reason: 'nothing to fold',
   })
 })
+
+// ref#0#chr walks a, c and d, 1 kb each. h1 adds a 5 bp insertion b, under the
+// fold, and a 200 bp insertion e, over it, so its thread is its own and drawn
+// 5 bp short. h2 and h3 add the same 300 bp insertion f and are one thread.
+const NODES = [
+  ['a', 1000, 0],
+  ['b', 5, Number.NaN],
+  ['c', 1000, 1000],
+  ['d', 1000, 2000],
+  ['e', 200, Number.NaN],
+  ['f', 300, Number.NaN],
+] as const
+const WALKS = [
+  ['ref#0#chr', 0, 3000, ['a', 'c', 'd']],
+  ['h1#1#ctg1', 100, 3305, ['a', 'b', 'c', 'e', 'd']],
+  ['h2#1#ctg2', 0, 3300, ['a', 'c', 'f', 'd']],
+  ['h3#1#ctg3', 50, 3350, ['a', 'c', 'f', 'd']],
+] as const
+
+const LINKS = [
+  ['a', 'b'],
+  ['b', 'c'],
+  ['a', 'c'],
+  ['c', 'd'],
+  ['c', 'e'],
+  ['e', 'd'],
+  ['c', 'f'],
+  ['f', 'd'],
+] as const
+
+function indelTables(): GraphTables {
+  const index = new Map<string, number>(NODES.map(([name], i) => [name, i]))
+  const steps = WALKS.flatMap(([, , , route]) =>
+    route.map(name => index.get(name)!),
+  )
+  const offsets = [0]
+  for (const [, , , route] of WALKS) {
+    offsets.push(offsets.at(-1)! + route.length)
+  }
+  const onReference = (i: number) => !Number.isNaN(NODES[i]![2])
+  return {
+    nodes: {
+      names: NODES.map(([name]) => name),
+      lengths: Int32Array.from(NODES, ([, bp]) => bp),
+      refs: Int32Array.from(NODES, (_, i) => (onReference(i) ? 0 : -1)),
+      starts: Float64Array.from(NODES, ([, , at], i) =>
+        onReference(i) ? at : 0,
+      ),
+      ranks: Int32Array.from(NODES, (_, i) => (onReference(i) ? 0 : 1)),
+      refNames: ['ref#0#chr'],
+    },
+    links: {
+      from: Int32Array.from(LINKS, ([from]) => index.get(from)!),
+      to: Int32Array.from(LINKS, ([, to]) => index.get(to)!),
+      strands: new Uint8Array(LINKS.length),
+    },
+    walks: {
+      names: WALKS.map(([name]) => name),
+      starts: Float64Array.from(WALKS, ([, start]) => start),
+      ends: Float64Array.from(WALKS, ([, , end]) => end),
+      offsets: Int32Array.from(offsets),
+      steps: Int32Array.from(steps),
+      reversed: new Uint8Array(steps.length),
+      refStarts: Float64Array.from(steps, i => NODES[i]![2]),
+    },
+    departures: departureTable(),
+    revisited: 0,
+  }
+}
+
+const indelFolds = () => {
+  const tables = indelTables()
+  return [
+    ['runs', foldThreadRuns(fragmentRuns(tables, 'ref#0#chr', []), 50)],
+    ['a cut', foldThreads(loadGraph(tables, 'toy'), 50)],
+  ] as const
+}
+
+const liftedThread = (graph: Graph, member: string) => {
+  const path = graph.paths?.find(p => p.members?.includes(member))
+  return (
+    path &&
+    walkLift(graph, [{ walk: path.name, color: { field: 'progress' } }])
+      ?.walks[0]
+  )
+}
+
+test.each(indelFolds())(
+  "folded from %s over an indel under the fold, a thread of one record writes its record's start and end",
+  (_, fold) => {
+    const graph = fold.folded ? fold.graph : undefined
+    expect(graph && liftedThread(graph, 'h1#1#ctg1')?.extent).toMatchObject({
+      start: 100,
+      end: 3300,
+    })
+    expect(graph && walkKey(liftedThread(graph, 'h1#1#ctg1')!).scale).toBe(
+      'ctg1:101-3,305 (3.2 kb)',
+    )
+    expect(graph && walkKey(liftedThread(graph, 'ref#0#chr')!).scale).toBe(
+      'chr:1-3,000 (3 kb)',
+    )
+  },
+)
+
+test.each(indelFolds())(
+  'folded from %s, a thread of two records writes no range, since no one span is true of both',
+  (_, fold) => {
+    const graph = fold.folded ? fold.graph : undefined
+    const thread = graph && liftedThread(graph, 'h2#1#ctg2')
+    expect(thread?.members).toEqual(['h2#1#ctg2', 'h3#1#ctg3'])
+    expect(thread?.range).toBeUndefined()
+    expect(thread && walkKey(thread)).toMatchObject({
+      scale: undefined,
+      hover: undefined,
+    })
+  },
+)
+
+test.each(indelFolds())(
+  'folded from %s, a node on a thread has no position on its contig, and one off it is not on it',
+  (_, fold) => {
+    const graph = fold.folded ? fold.graph : undefined
+    const thread = graph && liftedThread(graph, 'h1#1#ctg1')
+    const on = graph?.nodes.find(node => thread?.nodeIds.has(node.id))
+    const off = graph?.nodes.find(node => !thread?.nodeIds.has(node.id))
+    expect(on && thread && walkPosition(thread, on.id, on.length)).toEqual({
+      onWalk: true,
+      at: undefined,
+    })
+    expect(off && thread && walkPosition(thread, off.id, off.length)).toEqual({
+      onWalk: false,
+      at: undefined,
+    })
+  },
+)

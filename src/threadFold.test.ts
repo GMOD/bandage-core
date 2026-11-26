@@ -683,7 +683,7 @@ test('a haplotype in two walks on one route counts once, on its thread and in ea
   ])
 })
 
-test('pieces of one contig are threads of their own names and starts', () => {
+test('pieces of one contig are threads of their own names, starts and ends, each on the contig its record names', () => {
   const { graph, events } = folded(
     withWalks('W\th5\t1\tchr\t0\t1000\t>a', 'W\th5\t1\tchr\t3001\t4001\t>c'),
   )
@@ -710,6 +710,10 @@ test('pieces of one contig are threads of their own names and starts', () => {
   expect(
     walkKeyEntry(key.walks[0]!, key.walks[0]!.name, undefined).strong,
   ).toBe('h5#1#chr, one of its 2 pieces here')
+  expect(key.walks.map(w => w.range)).toEqual([
+    { contig: 'chr', start: 0, end: 1000 },
+    { contig: 'chr', start: 3001, end: 4001 },
+  ])
 })
 
 test('an event is carried by the threads of its tracks, whatever their walks are named', () => {

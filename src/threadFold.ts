@@ -24,12 +24,13 @@ import type { Branch, Folded } from '@jbrowse/graph-fold'
 // (graphLabels.ts), and `threadEvents` hands a host graph-fold's words for it,
 // for a caption or a hover.
 
-// A walk record a fold takes: its name as a path, its haplotype and where it
-// starts on its contig
+// A walk record a fold takes: its name as a path, its haplotype, where it
+// starts on its contig and where it ends there if the record states it
 export interface ThreadWalk {
   name: string
   haplotype: string
   start: number
+  end?: number
 }
 
 export interface ThreadTrack extends ThreadWalk {
@@ -190,6 +191,7 @@ export function threadFoldInput(graph: Graph) {
             name: walked[i]!.name,
             haplotype: haplotypeOf(walked[i]!.name),
             start: walked[i]!.start ?? 0,
+            ...(walked[i]!.end === undefined ? {} : { end: walked[i]!.end }),
             sequence: steps[i]!,
             ...(at === 0
               ? {
@@ -210,7 +212,8 @@ export function threadFoldInput(graph: Graph) {
 
 type FoldedThreads = Folded<ThreadWalk>
 
-// Each folded track as a thread: its name, the start of its first record and
+// Each folded track as a thread: its name, the start and contig of its first
+// record, its end where it is that one record and the record states it, and
 // the names of its walks, from the records the fold took (`tracks`, in its input order). A record whose haplotype contig
 // has other records here is one piece of it, and its name says which, since
 // two threads of one name would be lifted as two pieces of one walk; the
@@ -244,6 +247,8 @@ function threadsOfFold(fold: FoldedThreads, tracks: readonly ThreadWalk[]) {
     return {
       name: recordName(first),
       start: tracks[first]?.start ?? 0,
+      end: held.length === 1 ? tracks[first]?.end : undefined,
+      contig: panSNFields(pathOrigin(tracks[first]?.name ?? '').name)?.contig,
       members: [...new Set(held.map(i => tracks[i]!.name))],
       walks: held.length,
       pieces:
@@ -317,7 +322,6 @@ export function foldedGraph(
   const starts: number[] = []
   const ends: number[] = []
   for (const { track, thread } of lanes) {
-    let bp = 0
     track.sequence.forEach((step, i) => {
       const back = step.startsWith('-') && !index.has(step)
       const node = index.get(back ? step.slice(1) : step)!
@@ -342,11 +346,10 @@ export function foldedGraph(
       }
       steps.push(node)
       reversed.push(back ? 1 : 0)
-      bp += fold.nodes[node]!.sequenceLength
     })
     offsets.push(steps.length)
     starts.push(thread.start)
-    ends.push(thread.start + bp)
+    ends.push(thread.end ?? Number.NaN)
   }
   const tables: GraphTables = {
     nodes: {
@@ -386,6 +389,7 @@ export function foldedGraph(
     }
     return {
       ...path,
+      ...(thread.contig === undefined ? {} : { contig: thread.contig }),
       count: track.haplotypes,
       members: thread.members,
       variation: variationLabel(track),
@@ -512,10 +516,11 @@ export function foldThreads(
       folded: true,
       graph: folded,
       events: threadEvents(kept, tracks, folded),
-      walks: tracks.map(({ name, haplotype, start }) => ({
+      walks: tracks.map(({ name, haplotype, start, end }) => ({
         name,
         haplotype,
         start,
+        ...(end === undefined ? {} : { end }),
       })),
     }
   }

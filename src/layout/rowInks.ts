@@ -40,7 +40,7 @@ export function liftedRowInks(walks: readonly LiftedWalk[]): RowInk[] {
     return {
       walk: walk.name,
       stops: encodingStops(walk.encoding).map(s => abgrHex(s.abgr)),
-      range: walk.range,
+      range: walk.extent,
       ...(drawn?.runs.length
         ? {
             passes: drawn.runs.map(run => ({

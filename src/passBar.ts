@@ -41,7 +41,7 @@ export function passBars(lift: WalkLift | undefined, shown?: WalkRows) {
       ? [
           {
             walk: walk.name,
-            bp: walk.range ? walk.range.end - walk.range.start : walk.bp,
+            bp: walk.extent ? walk.extent.end - walk.extent.start : walk.bp,
             ownInk: drawn.ownInk,
             runs: drawn.runs.map(run => ({
               ...run,

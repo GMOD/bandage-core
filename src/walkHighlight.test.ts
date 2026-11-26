@@ -292,9 +292,12 @@ test("a node's position on a walk is its stretch on the walk's own contig", () =
     { walk: 'alt#1#chr' },
     { walk: 'inv#1#chr' },
   ])!.walks
-  expect(walkPosition(alt!, 'a1+', 6)).toBe('chr:5-10')
-  expect(walkPosition(inv!, 'v1+', 4)).toBe('chr:6-9')
-  expect(walkPosition(inv!, 'a1+', 6)).toBeUndefined()
+  expect(walkPosition(alt!, 'a1+', 6)).toEqual({ onWalk: true, at: 'chr:5-10' })
+  expect(walkPosition(inv!, 'v1+', 4)).toEqual({ onWalk: true, at: 'chr:6-9' })
+  expect(walkPosition(inv!, 'a1+', 6)).toEqual({
+    onWalk: false,
+    at: undefined,
+  })
 })
 
 test('a walk in a tagged walk cut is not the reference walk', () => {

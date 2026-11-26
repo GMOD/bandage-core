@@ -64,6 +64,8 @@ export interface GraphPath {
   // where this record starts on its contig: a W record's start, or the range
   // suffix on a P record's name
   start?: number
+  // where it ends there, where the record states it: a W record's end
+  end?: number
   // set for W records, which state the assembly they walk; P records do not
   sample?: string
   haplotype?: number
