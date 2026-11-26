@@ -138,7 +138,7 @@ test('a thread is the walks of one route, with their count and names, the ones t
     ['h2#1#chr', 2, ['h2#1#chr', 'h3#1#chr'], 'a+ c+'],
   ])
   expect(graph.paths![3]!.variation).toBe(
-    '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
+    '2 haplotypes, 1 bp folded away in each',
   )
   expect(graph.threadFold).toEqual({
     belowBp: 500,
@@ -328,14 +328,14 @@ test('a hover finds the threads through a node and the events drawn there', () =
     name: 'h2#1#chr',
     label: '2 haplotypes',
     count: 2,
-    variation: '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
-    line: '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
+    variation: '2 haplotypes, 1 bp folded away in each',
+    line: '2 haplotypes, 1 bp folded away in each',
   })
   expect(threadsThrough(graph, 'c+').map(t => t.line)).toEqual([
     '1 haplotype: ref#0#chr',
     '1 haplotype: h1#1#chr',
     '1 haplotype: h4#1#chr',
-    '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
+    '2 haplotypes, 1 bp folded away in each',
   ])
   expect(eventsAtNode(events, 'b+').map(e => e.kind)).toEqual(['inversion'])
   expect(
@@ -407,7 +407,7 @@ test('the key names a thread by its count and the picks it holds', () => {
   )
   expect(many).toMatchObject({
     strong: '2 haplotypes, h3 among them',
-    hover: '2 haplotypes on 2 distinct walks, 1 bp folded away in each',
+    hover: '2 haplotypes, 1 bp folded away in each',
     swatch: { kind: 'width', px: countLaneWidthPx(2) },
   })
   expect(one).toMatchObject({ strong: 'h4' })
@@ -674,7 +674,7 @@ test('a haplotype in two walks on one route counts once, on its thread and in ea
     'h5#1#other',
   ])
   expect(skipping.variation).toBe(
-    '3 haplotypes on 2 distinct walks, 0 bp to 2 bp folded away in each',
+    '3 haplotypes, 0 bp to 2 bp folded away in each',
   )
   expect(graph.threadFold).toMatchObject({ haplotypes: 6, walks: 7 })
   expect(events.map(e => [e.text, e.haplotypes])).toEqual([
