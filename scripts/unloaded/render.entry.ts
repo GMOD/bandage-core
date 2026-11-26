@@ -35,7 +35,7 @@ const width = Number(flag('width') ?? 1600)
 const KEY_ROOM_PX = 140
 
 const reader = openWalks(file)
-const header = await reader.header()
+const header = await reader.getHeader()
 const haplotypes =
   named ?? (kept > 0 ? header.haplotypes.slice(0, kept) : undefined)
 const set = named ? `named${named.length}` : kept > 0 ? `first${kept}` : 'all'

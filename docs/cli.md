@@ -18,8 +18,8 @@ same spec twice writes the same file.
 
 The spec names a GFA file, plain or gzipped, under `gfa`. To draw a region of a
 walk file, read the region with
-[@jbrowse/graph-walks](https://github.com/GMOD/graph-walks), write it as GFA
-with `graphTablesGFA`, and name that file under `gfa`.
+[@gmod/gfa-tabix](https://github.com/GMOD/gfa-tabix-js), write it as GFA with
+`graphTablesGFA`, and name that file under `gfa`.
 [figures/kiv2_walks.gfa.gz](../figures/kiv2_walks.gfa.gz) was made this way. It
 contains LPA's KIV-2 repeat, chr6:160,614,798-160,647,758, from the HPRC release
 2.1 walk file, with GRCh38 and three haplotypes.

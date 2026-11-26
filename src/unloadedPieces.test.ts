@@ -1,5 +1,4 @@
-import { WalkReader } from '@jbrowse/graph-walks'
-import { LocalFile } from 'generic-filehandle2'
+import { WalkFile } from '@gmod/gfa-tabix'
 
 import { isOffReference } from './anchoredNodes'
 import { bubbleLabel } from './bubbles/bubbleLabel'
@@ -65,19 +64,14 @@ async function cut(
   end: number,
   o: { loaded?: boolean; gaps?: boolean; context?: number } = {},
 ) {
-  const reader = WalkReader.open(
-    `test_data/walks8/${name}.R.walks.gz`,
-    url => new LocalFile(url),
-  )
+  const reader = new WalkFile({
+    walksPath: `test_data/walks8/${name}.R.walks.gz`,
+  })
   const { graph, kept, fragments, departures, gaps, placeholders } =
-    await reader.cut(
-      `R#0#${contig}`,
-      { start, end },
-      {
-        ...(o.context === undefined ? {} : { context: o.context }),
-        ...(o.loaded ? { expand: () => true } : {}),
-      },
-    )
+    await reader.getCutForRange(`R#0#${contig}`, start, end, {
+      ...(o.context === undefined ? {} : { context: o.context }),
+      ...(o.loaded ? { expand: () => true } : {}),
+    })
   const tables = o.gaps
     ? graph.tables(kept, fragments, departures, gaps)
     : graph.tables(kept, fragments, departures)

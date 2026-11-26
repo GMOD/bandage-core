@@ -378,7 +378,7 @@ async function compare(
 }
 
 const reader = openWalks(path)
-const header = await reader.header()
+const header = await reader.getHeader()
 const windows = stated.map(parseWindow)
 const next = random(seed)
 for (let k = 0; k < randomCount && tiles.length > 0; k++) {

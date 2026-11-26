@@ -28,10 +28,9 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
     devDependencies:
-      # PLACEHOLDER: regenerate with `pnpm install` once @jbrowse/graph-walks 9.3.0 is published
-      '@jbrowse/graph-walks':
-        specifier: ^9.3.0
-        version: 9.3.0
+      '@gmod/gfa-tabix':
+        specifier: ^10.1.0
+        version: 10.1.0
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -285,6 +284,10 @@ packages:
     resolution: {integrity: sha512-RVkx84He7NWo7MpexZ041sc6YWQqdusOdmX3pO52BXM7Km9HZ9nweeZeybUBOGx9u22Uof63o07y889sKlYffA==}
     hasBin: true
 
+  '@gmod/gfa-tabix@10.1.0':
+    resolution: {integrity: sha512-nRwa6MCvnHEYsA4o59PHAZOADcB8BLMQ72d1+TByoOHz0PYnoZPvzWBrQ2jloBbhEV7hcnjFvWNpIlcR7B7Elw==}
+    engines: {node: '>=20'}
+
   '@gmod/shared-read-cache@2.1.0':
     resolution: {integrity: sha512-AyiUt0hiEGl7lWc1fuigbXR/RToIw3h72dalaRoSNau9WL9ux9rEfkcsXDYTgSDudehfAEQac1jTvn2zrfnELQ==}
 
@@ -301,11 +304,6 @@ packages:
 
   '@jbrowse/graph-stress-layout@1.1.0':
     resolution: {integrity: sha512-qP/VqpFViuCs1XUaXZdvbmfisCdl7Ti4MRn+7G2TqEgRLtQ0ZWkcMnkXqo049+qbiYE2ggFdYTLkwTYlAxYnIQ==}
-    engines: {node: '>=20'}
-
-  # PLACEHOLDER: the published tarball's integrity, once @jbrowse/graph-walks 9.3.0 is published
-  '@jbrowse/graph-walks@9.3.0':
-    resolution: {integrity: PLACEHOLDER-graph-walks-9.3.0}
     engines: {node: '>=20'}
 
   '@jbrowse/quick-lru@8.0.0':
@@ -1404,6 +1402,11 @@ snapshots:
     dependencies:
       generic-filehandle2: 2.5.1
 
+  '@gmod/gfa-tabix@10.1.0':
+    dependencies:
+      '@gmod/bgzf-filehandle': 6.8.2
+      generic-filehandle2: 2.5.1
+
   '@gmod/shared-read-cache@2.1.0': {}
 
   '@gmod/tabix@3.13.1':
@@ -1418,11 +1421,6 @@ snapshots:
   '@jbrowse/graph-fold@1.3.0': {}
 
   '@jbrowse/graph-stress-layout@1.1.0': {}
-
-  '@jbrowse/graph-walks@9.3.0':
-    dependencies:
-      '@gmod/bgzf-filehandle': 6.8.2
-      generic-filehandle2: 2.5.1
 
   '@jbrowse/quick-lru@8.0.0': {}
 

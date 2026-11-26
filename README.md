@@ -9,7 +9,7 @@ own viewer or figures with it.
 
 - **In:** a pangenome graph as GFA, or a region of one read from a
   [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) walk file with
-  [@jbrowse/graph-walks](https://github.com/GMOD/graph-walks)
+  [@gmod/gfa-tabix](https://github.com/GMOD/gfa-tabix-js)
 - **Out:** a layout of the graph, drawn on an HTML canvas (as in the JBrowse
   plugin and BandageJS), to an SVG file, or as tables of coordinates for another
   plotting library (ggbandage plots them with ggplot2)
@@ -23,7 +23,7 @@ own viewer or figures with it.
 npm install @jbrowse/bandage-core
 ```
 
-Reading walk files also needs `@jbrowse/graph-walks`.
+Reading walk files also needs `@gmod/gfa-tabix`.
 
 ## Usage
 
@@ -32,6 +32,7 @@ on jbrowse.org and draws it with one panel per haplotype. It keeps three
 haplotypes besides GRCh38 and draws two of them:
 
 ```ts
+import { WalkFile } from '@gmod/gfa-tabix'
 import {
   ENGINE_DEFAULTS,
   figureSvg,
@@ -39,21 +40,21 @@ import {
   layoutEngine,
   loadGraph,
 } from '@jbrowse/bandage-core'
-import { WalkReader, walksKept } from '@jbrowse/graph-walks'
 
-const reader = WalkReader.open(
-  'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38-f8.GRCh38.walks.gz',
-)
+const walks = new WalkFile({
+  walksUrl:
+    'https://jbrowse.org/demos/hprc/hprc-v2.1-mc-grch38-f8.GRCh38.walks.gz',
+})
 const refName = 'GRCh38#0#chr6'
-const kiv2 = await reader.cut(
-  refName,
-  { start: 160_614_798, end: 160_647_758 },
-  { keep: walksKept(['HG00097', 'HG01960', 'HG00133'], refName) },
+const { tables } = await walks.getGraphForRange(
+  'chr6',
+  160_614_798,
+  160_647_758,
+  {
+    haplotypes: ['HG00097', 'HG01960', 'HG00133'],
+  },
 )
-const graph = loadGraph(
-  kiv2.graph.tables(kiv2.kept, kiv2.fragments, kiv2.departures),
-  'KIV-2',
-)
+const graph = loadGraph(tables, 'KIV-2')
 const { result } = await forceLayout(graph, ENGINE_DEFAULTS, layoutEngine)
 const svg = figureSvg(graph, result, {
   walks: [

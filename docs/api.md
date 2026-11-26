@@ -5,11 +5,11 @@ The main exports of `@jbrowse/bandage-core`, grouped by task.
 
 ## Loading a graph
 
-| Export                             | What it does                                                                                                                                                                                                            |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadGraph(source, name, options)` | reads GFA or rGFA text, or a region read from a walk file with @jbrowse/graph-walks, into a `Graph`. `referencePath` names the reference path of a plain GFA, and `maxNodes` makes it throw an error for a larger graph |
-| `graphTablesGFA(tables)`           | writes a region read from a walk file as GFA                                                                                                                                                                            |
-| `departureTable()`                 | an empty list of departures, for a source that has none                                                                                                                                                                 |
+| Export                             | What it does                                                                                                                                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `loadGraph(source, name, options)` | reads GFA or rGFA text, or a region read from a walk file with @gmod/gfa-tabix, into a `Graph`. `referencePath` names the reference path of a plain GFA, and `maxNodes` makes it throw an error for a larger graph |
+| `graphTablesGFA(tables)`           | writes a region read from a walk file as GFA                                                                                                                                                                       |
+| `departureTable()`                 | an empty list of departures, for a source that has none                                                                                                                                                            |
 
 Decompress a `.gfa.gz` before passing its text to `loadGraph`.
 

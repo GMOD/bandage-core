@@ -1,7 +1,7 @@
 import {
   departureKind as walksDepartureKind,
   placementChoice as walksPlacementChoice,
-} from '@jbrowse/graph-walks'
+} from '@gmod/gfa-tabix'
 
 import { serializeEl } from '../el'
 import { parseGFA } from '../gfa-core/index'

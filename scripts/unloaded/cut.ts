@@ -1,13 +1,11 @@
-import { WalkReader, walksKept } from '@jbrowse/graph-walks'
-import { LocalFile } from 'generic-filehandle2'
+import { WalkFile, walksKept } from '@gmod/gfa-tabix'
 
 export interface Window {
   start: number
   end: number
 }
 
-export const openWalks = (path: string) =>
-  WalkReader.open(path, url => new LocalFile(url))
+export const openWalks = (path: string) => new WalkFile({ walksPath: path })
 
 export type Reader = ReturnType<typeof openWalks>
 
@@ -34,18 +32,15 @@ export async function cutTables(
   region: Window,
   o: { haplotypes?: string[]; loaded?: boolean; gaps?: boolean } = {},
 ) {
-  const { graph, kept, fragments, departures, gaps } = await reader.cut(
-    refName,
-    region,
-    {
+  const { graph, kept, fragments, departures, gaps } =
+    await reader.getCutForRange(refName, region.start, region.end, {
       stepBudget: Infinity,
       byteBudget: Infinity,
       departureByteBudget: Infinity,
       nodeLimit: Infinity,
       keep: walksKept(o.haplotypes, refName),
       ...(o.loaded ? { expand: () => true } : {}),
-    },
-  )
+    })
   return o.gaps
     ? graph.tables(kept, fragments, departures, gaps)
     : graph.tables(kept, fragments, departures)

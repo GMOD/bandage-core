@@ -2,15 +2,16 @@ import type { GraphTables } from './graphTables'
 
 /**
  * What a walk does past one end of its fragment of a window, as
- * @jbrowse/graph-walks' runs say it: `beyond`, it is next on the reference
- * past the drawn stretch on that side, the same way round; `elsewhere`, it
- * is next on the reference reversed, or back on the other side; `edge`, no
- * departure, and the end lies on the drawn stretch's edge, so nothing is
- * known of what the walk does next; `ends`, no departure and the end lies
- * inside the drawn stretch: the walk has no step on the reference sequence
- * past it. graph-fold's END_KINDS are the same four in the same order.
+ * @gmod/gfa-tabix's runs say it: `beyond`, it is next on the reference past
+ * the drawn stretch on that side, the same way round; `elsewhere`, any other
+ * departure, reversed, back on the other side or with its far end inside the
+ * drawn stretch; `edge`, no departure, and the end lies on the drawn
+ * stretch's edge, so nothing is known of what the walk does next; `nowhere`,
+ * no departure and the end lies inside the drawn stretch: the walk has no
+ * step on the reference sequence past it. graph-fold's END_KINDS are the same
+ * four in the same order.
  */
-export const END_KINDS = ['beyond', 'elsewhere', 'edge', 'ends'] as const
+export const END_KINDS = ['beyond', 'elsewhere', 'edge', 'nowhere'] as const
 
 export type EndKind = (typeof END_KINDS)[number]
 
@@ -29,7 +30,7 @@ export interface WalkEndTable {
 }
 
 /**
- * A window's walks as runs, graph-walks' WalkRuns (typecheck/graphWalks.ts
+ * A window's walks as runs, @gmod/gfa-tabix's WalkRuns (typecheck/graphWalks.ts
  * holds the two equal): a fragment per walk of the cut, the reference's
  * first, each its stretches of consecutive reference steps at `offsets[p]`
  * up to `offsets[p + 1]`, the own bp before each stretch past the first,
@@ -101,7 +102,7 @@ const breakpoint = (lo: number, hi: number, against: boolean, leave: boolean) =>
 
 /**
  * Each walk's ends in a cut's tables against the reference walk `refName`,
- * as graph-walks' fragmentRuns reads them, which a test holds them equal to:
+ * as @gmod/gfa-tabix's fragmentRuns reads them, which a test holds them equal to:
  * from the departure table's departure rejoining a walk's first step on the
  * reference, or leaving its last, told apart by the reference's drawn
  * stretch. Undefined for a walk with no step on the reference, and for every
@@ -172,7 +173,7 @@ export function cutEnds(
       k === undefined
         ? pastDrawn(at, highSide)
           ? 'edge'
-          : 'ends'
+          : 'nowhere'
         : reversed === against && pastDrawn(pos, highSide)
           ? 'beyond'
           : 'elsewhere'
@@ -183,7 +184,7 @@ export function cutEnds(
       ownBp:
         k !== undefined
           ? departures.ownBp[k]!
-          : kind === 'ends'
+          : kind === 'nowhere'
             ? readBp
             : Number.NaN,
       missingBp: k === undefined ? 0 : departures.missingBp[k]!,

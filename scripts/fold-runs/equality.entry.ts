@@ -1,6 +1,6 @@
 // Holds a fold read from runs equal to the fold of the same window's cut, on
-// a walk file: graph-walks' `WalkReader.runs` then foldThreadRuns against
-// `cutRegion`, loadGraph and foldThreads, both with the walks' ends, by
+// a walk file: @gmod/gfa-tabix's `getRunsForRange` then foldThreadRuns against
+// `getGraphForRange`, loadGraph and foldThreads, both with the walks' ends, by
 // drawn() and by the ordered figure. Mutants broken at the seam between the
 // runs and graph-fold's input must each fail that equality.
 //
@@ -18,7 +18,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { foldRuns } from '@jbrowse/graph-fold'
-import { CUT_PRESETS, WalkReader } from '@jbrowse/graph-walks'
+import { CUT_PRESETS, WalkFile } from '@gmod/gfa-tabix'
 import { LocalFile } from 'generic-filehandle2'
 
 import { loadGraph } from '../../src/pipeline'
@@ -51,7 +51,11 @@ class CountedFile extends LocalFile {
     return super.read(length, position)
   }
 }
-const openReader = () => WalkReader.open(path, url => new CountedFile(url))
+const openReader = () =>
+  new WalkFile({
+    walksFilehandle: new CountedFile(path),
+    idxFilehandle: new CountedFile(`${path}.idx`),
+  })
 
 const now = () => performance.now() / 1000
 const peakMB = () => Math.round(process.resourceUsage().maxRSS / 1024)
@@ -85,11 +89,12 @@ const withoutEnds = (graph: Graph): Graph => ({
 
 // the steps path as a host cutting the window takes it
 async function cutGraph(
-  reader: WalkReader,
+  reader: WalkFile,
   region: ReturnType<typeof parseWindow>,
   preset: string,
 ) {
-  const { tables } = await reader.cutRegion(region, {
+  const { refName, start, end } = region
+  const { tables } = await reader.getGraphForRange(refName, start, end, {
     ...CUT_PRESETS.browser,
     ...NO_LIMITS,
     ...presetOptions(preset),
@@ -98,16 +103,15 @@ async function cutGraph(
 }
 
 async function readRuns(
-  reader: WalkReader,
-  region: ReturnType<typeof parseWindow>,
+  reader: WalkFile,
+  { refName, start, end }: ReturnType<typeof parseWindow>,
   preset: string,
 ) {
-  const { runs } = await reader.runsRegion(region, {
+  return reader.getRunsForRange(refName, start, end, {
     byteBudget: Infinity,
     departureByteBudget: Infinity,
     ...presetOptions(preset),
   })
-  return runs
 }
 
 type Read = ReturnType<typeof threadRunsInput>

@@ -1,5 +1,4 @@
-import { WalkReader } from '@jbrowse/graph-walks'
-import { LocalFile } from 'generic-filehandle2'
+import { WalkFile } from '@gmod/gfa-tabix'
 
 import { walkRowReadout } from '../layout/walkRowDraw'
 import { walkRowRuns, walkRowsOf } from '../layout/walkRowRuns'
@@ -12,13 +11,13 @@ import type { GraphTables } from './graphTables'
 // them, cut by graph-walks 7 as the plugin and BandageJS cut them, on chr1 of
 // the reference the name ends in
 async function rowsOf(name: string, start: number, end: number, context = 0) {
-  const reader = WalkReader.open(
-    `test_data/walks8/${name}.walks.gz`,
-    url => new LocalFile(url),
-  )
-  const { graph, kept, fragments, departures } = await reader.cut(
+  const reader = new WalkFile({
+    walksPath: `test_data/walks8/${name}.walks.gz`,
+  })
+  const { graph, kept, fragments, departures } = await reader.getCutForRange(
     `${name.split('.').at(-1)}#0#chr1`,
-    { start, end },
+    start,
+    end,
     { context },
   )
   const tables = graph.tables(kept, fragments, departures)
@@ -338,14 +337,14 @@ describe('a row over a window its walk crosses more than once', () => {
 // walks >1>3>2>1. A cut of the first 10 bp holds R's step on 1 alone and A's
 // steps on 3 and 2, which the tables place on the reference
 test('a reference node a haplotype brings into a cut takes the strand the reference steps it on', async () => {
-  const reader = WalkReader.open(
-    'test_data/walks8/strand.R.walks.gz',
-    url => new LocalFile(url),
-  )
+  const reader = new WalkFile({
+    walksPath: 'test_data/walks8/strand.R.walks.gz',
+  })
   const tablesOf = async (end: number) => {
-    const { graph, kept, fragments, departures } = await reader.cut(
+    const { graph, kept, fragments, departures } = await reader.getCutForRange(
       'R#0#chr',
-      { start: 0, end },
+      0,
+      end,
       { context: 0 },
     )
     return graph.tables(kept, fragments, departures)

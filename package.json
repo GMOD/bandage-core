@@ -61,7 +61,7 @@
     "@jbrowse/tubemap-core": "^2.1.1"
   },
   "devDependencies": {
-    "@jbrowse/graph-walks": "^9.3.0",
+    "@gmod/gfa-tabix": "^10.1.0",
     "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
     "generic-filehandle2": "^2.5.1",
