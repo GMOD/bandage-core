@@ -432,3 +432,35 @@ test.each(indelFolds())(
     })
   },
 )
+
+// h1's own bp put e, 2,005 to 2,205 past its start, in the second span; drawn
+// 5 bp short by the fold, its middle falls in the first
+const SPANS = [
+  { start: 0, end: 2102 },
+  { start: 2102, end: 3205 },
+]
+
+test('unfolded, pass spans stated in a walk\'s own bp take each node by where it lies on the walk', () => {
+  const graph = loadGraph(indelTables(), 'toy')
+  const walk = walkLift(graph, [
+    { walk: 'h1#1#ctg1', color: { field: 'pass' }, passes: SPANS },
+  ])?.walks[0]
+  const e = graph.nodes.find(node => node.name === 'e')
+  expect(e && walk?.walkPasses?.visitPass.get(e.id)).toEqual([1])
+})
+
+test.each(indelFolds())(
+  'folded from %s, pass spans stated in the walk\'s own bp colour no pass, as its drawn steps do not lie at those bp',
+  (_, fold) => {
+    const graph = fold.folded ? fold.graph : undefined
+    const thread = graph?.paths?.find(p => p.members?.includes('h1#1#ctg1'))
+    const walk =
+      graph &&
+      thread &&
+      walkLift(graph, [
+        { walk: thread.name, color: { field: 'pass' }, passes: SPANS },
+      ])?.walks[0]
+    expect(walk?.ownLengths).toBe(false)
+    expect(walk?.walkPasses?.passes).toEqual([])
+  },
+)

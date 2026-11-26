@@ -1,7 +1,10 @@
+import { figureData, walkRowInks } from './figureData'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
+import { liftedRowInks } from './layout/rowInks'
+import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import { foldThreads } from './threadFold'
 import { walkLift } from './walkHighlight'
@@ -135,3 +138,45 @@ test('folded, each P thread of one record keeps the range its name states, the r
   expect(rangeOf(graph, 'plain')).toBe('plain:1-2,100 (2.1 kb)')
   expect(lifted(graph, 'chm13#chr1:500-2500')?.reference).toBe(true)
 })
+
+// hap goes round a and b twice, 1 kb each, so a fold keeps both passes
+const REPEAT = [
+  'S\ta\t*\tLN:i:1000',
+  'S\tb\t*\tLN:i:1000',
+  'S\tc\t*\tLN:i:1000',
+  'L\ta\t+\tb\t+\t0M',
+  'L\tb\t+\tc\t+\t0M',
+  'L\tb\t+\ta\t+\t0M',
+  'W\tref\t0\tchr\t0\t3000\t>a>b>c',
+  'W\thap\t1\tctg\t0\t5000\t>a>b>a>b>c',
+].join('\n')
+
+const byPass = (graph: Graph) => {
+  const path = graph.paths!.find(p => p.members?.includes('hap#1#ctg') ?? p.name === 'hap#1#ctg')!
+  return [{ walk: path.name, color: { field: 'pass' as const } }]
+}
+
+test.each([
+  ['unfolded', true],
+  ['folded', false],
+])(
+  "%s, a walk's passes colour its row only where its nodes are drawn at its own lengths, in core and from the figure data alike",
+  (_, own) => {
+    const unfolded = loadGraph(REPEAT, 'repeat', { referencePath: 'ref#0#chr' })
+    const graph = own ? unfolded : folded(unfolded)
+    const layers = byPass(graph)
+    const walk = walkLift(graph, layers)!.walks.find(w => w.name === layers[0]!.walk)!
+    expect(walk.walkPasses?.passes.length).toBe(2)
+    expect(liftedRowInks([walk])[0]?.passes !== undefined).toBe(own)
+    const layout = layoutModeByValue('ordered').run(graph, undefined)!
+    const { keys, passRuns } = figureData(graph, layout, { walks: layers })
+    expect(keys.ownLengths).toEqual([own])
+    const inks = walkRowInks(
+      keys,
+      { name: [walk.name], bp: [5000], contig: ['ctg'], contigStart: [0] },
+      { row: [0, 0, 0], offset: [500, 2500, 4500] },
+      { ...passRuns, key: passRuns.walk.map(w => keys.walk.indexOf(w)) },
+    )
+    expect(inks.color.some(color => passRuns.color.includes(color))).toBe(own)
+  },
+)

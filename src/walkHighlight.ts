@@ -485,7 +485,11 @@ function laneColors(
   const walkPasses =
     encoding.field === 'pass'
       ? liftedPasses(
-          walkPassesOf(walk, id => byId.get(id)?.length ?? 0, layer?.passes),
+          walkPassesOf(
+            walk,
+            id => byId.get(id)?.length ?? 0,
+            walk.ownLengths ? layer?.passes : undefined,
+          ),
           encodedColor(encoding),
           walk.ownLengths,
           layer?.passNames,

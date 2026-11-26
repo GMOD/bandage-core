@@ -171,6 +171,9 @@ interface KeyRow {
   contig: string | null
   start: number | null
   end: number | null
+  // false where the walk's nodes are not drawn at its own lengths, so its
+  // pass runs are bp along the drawn route and lie on no row
+  ownLengths: boolean
 }
 
 interface ThreadKeyRow {
@@ -481,6 +484,7 @@ export function figureData(
     contig: [],
     start: [],
     end: [],
+    ownLengths: [],
   })
   const threadKeys = columns<ThreadKeyRow>({ panel: [], note: [] })
   const pushKey = (walk: LiftedWalk, panel: string) => {
@@ -498,6 +502,7 @@ export function figureData(
       contig: walk.range?.contig ?? null,
       start: walk.range?.start ?? null,
       end: walk.range?.end ?? null,
+      ownLengths: walk.ownLengths,
     })
     return key
   }
@@ -1037,7 +1042,7 @@ export function figureData(
 
 type KeyColumns = Pick<
   Columns<KeyRow>,
-  'name' | 'stops' | 'field' | 'contig' | 'start' | 'end'
+  'name' | 'stops' | 'field' | 'contig' | 'start' | 'end' | 'ownLengths'
 >
 
 interface WalkRowColumns {
@@ -1063,7 +1068,7 @@ export function walkRowInks(
     const start = keys.start[k]
     const end = keys.end[k]
     const passes = (passRuns?.key ?? []).flatMap((key, i) =>
-      key === k
+      key === k && keys.ownLengths[k]
         ? [
             {
               start: passRuns!.start[i]!,
