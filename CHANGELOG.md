@@ -1,3 +1,16 @@
+## [14.9.0](https://github.com/GMOD/bandage-core/compare/v14.8.0...v14.9.0) (2026-11-26)
+
+### Other Changes
+
+- SkipMidpoints reads where each drawn skip's middle lies from the drawn ink, by link index in layout units: halfway along its arch on screen, gaps between dashes counted, or the middle of the band where only lifted walks' lanes draw it, so a label can sit on a deletion's arc ([dec858f](https://github.com/GMOD/bandage-core/commit/dec858fc9b90f8508dace72600e5280c21c905ed))
+- Graph-walks 9.2.0 installs without waiting out the minimum release age, as its earlier releases do ([ac21327](https://github.com/GMOD/bandage-core/commit/ac21327678c03e1db342c84aba03f370f6c101fc))
+- A span of lengths in one unit is written to as many decimals as it takes to be as far apart as the lengths are, down to 1 bp: alleles of 3,650 and 3,655 bp read 3.650–3.655 kb, where 3.6–3.7 kb stated a 100 bp spread ([4f4d2d0](https://github.com/GMOD/bandage-core/commit/4f4d2d02b145232bc961fe1c4f5f35b5ee08d28b))
+- ThreadsThrough gives each thread the line a hover writes for it, opening on its count, so a lone haplotype reads "1 haplotype: HG00097#1" rather than a bare name under a wider thread's "4 haplotypes on 4 distinct walks" ([56d4f9b](https://github.com/GMOD/bandage-core/commit/56d4f9be06bc0e9289d651e7aa3879f3346a1dcd))
+- NodeShares writes on a skip's arc the share of haplotypes that take it, at the middle of its arch as drawn (skipMidpoints), so CFH's 85 kb deletion reads 30% over the 70% on the stretch it skips; a skip's share is placed last on a ration of its own and never crowds out a length or a stretch's share, as C4's three arcs took its 67% and 93% when they shared the ration ([db2b38f](https://github.com/GMOD/bandage-core/commit/db2b38f4ce4367ce51aa8aad8960b2c89412dd83))
+- Under a lift the key's node and link thickness swatches are drawn in the ink and fade the unlit marks are drawn in, LIFT_BACKDROP_COLOR at the lift's liftFade, where they were the off-reference charcoal and the plain link grey that no mark of a lifted drawing uses; a drawing with no lift keys its thicknesses as before ([3ba54dd](https://github.com/GMOD/bandage-core/commit/3ba54ddaea1e54148d703ba92f05a93047863a60))
+- CompactKey lays a figure's key in two lines where it can: the lit threads by their counts alone, "314 haplotypes", with the other haplotypes, then on a line of its own "%: of the 464 haplotypes drawn", the skip and "differences under 1 kb not drawn"; the lane note goes, as a lane's count states it, and a thickness is keyed in one entry, "depth 2 to 464" or "links 1 to 325 walks", only where the unlit nodes or links vary in width, every other entry kept where its mark is drawn; off by default, so every figure is as it was ([8e9c942](https://github.com/GMOD/bandage-core/commit/8e9c9424d7a084cbf70582fabc40c55b59f4391f))
+- Under compactKey a one-haplotype thread that is a piece of its haplotype keeps its piece count, "1 haplotype, one of its 3 pieces here", so a haplotype in three pieces no longer reads as three haplotypes ([dafea72](https://github.com/GMOD/bandage-core/commit/dafea72996dbc0e96a98c41e893dbe81ea02480c))
+
 ## [14.8.0](https://github.com/GMOD/bandage-core/compare/v14.7.0...v14.8.0) (2026-11-25)
 
 ### Other Changes
