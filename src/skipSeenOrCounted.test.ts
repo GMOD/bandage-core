@@ -1,7 +1,4 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { gunzipSync } from 'node:zlib'
-
+import { hostedTables } from '../test_data/hosted/hostedTables'
 import { deletionDrawing, deletionEdges } from './deletionEdges'
 import { figureScene } from './figureScene'
 import { parseGFA } from './gfa-core/index'
@@ -20,7 +17,6 @@ import { layoutGeometryInputs } from './renderer/geometryInputs'
 import { axisScaleOf } from './viewport'
 
 import type { DeletionEdge } from './deletionEdges'
-import type { GraphTables } from './gfa/graphTables'
 import type { SmallSites } from './levelOfDetail'
 import type { RenderBatch } from './renderer/types'
 import type { Graph, LayoutResult, NodeSegment } from './types'
@@ -100,55 +96,11 @@ function accountOf(
   })
 }
 
-const isTyped = (
-  value: unknown,
-): value is { typed: string; values: (number | null)[] } =>
-  typeof value === 'object' &&
-  value !== null &&
-  'typed' in value &&
-  typeof value.typed === 'string' &&
-  'values' in value &&
-  Array.isArray(value.values)
-
-const typedArrays: Record<string, (values: number[]) => ArrayLike<number>> = {
-  Int32Array: values => Int32Array.from(values),
-  Float64Array: values => Float64Array.from(values),
-  Uint8Array: values => Uint8Array.from(values),
-}
-
-const revive = (_key: string, value: unknown) => {
-  const make = isTyped(value) ? typedArrays[value.typed] : undefined
-  return isTyped(value) && make ? make(value.values.map(v => v ?? NaN)) : value
-}
-
-function assertHostedFixture(
-  value: unknown,
-): asserts value is { refName: string; tables: GraphTables } {
-  expect(
-    typeof value === 'object' &&
-      value !== null &&
-      'refName' in value &&
-      typeof value.refName === 'string' &&
-      'tables' in value &&
-      typeof value.tables === 'object',
-  ).toBe(true)
-}
-
 // the hosted HPRC walks' cut of chr2:90,391,794-90,397,920 with eight
 // haplotypes, as graph-walks reads it
 function hostedWindow() {
-  const fixture: unknown = JSON.parse(
-    gunzipSync(
-      readFileSync(
-        join(__dirname, '../test_data/hosted/sv-mul-1k-10k.tables.json.gz'),
-      ),
-    ).toString(),
-    revive,
-  )
-  assertHostedFixture(fixture)
-  return loadGraph(fixture.tables, fixture.refName, {
-    referencePath: 'GRCh38',
-  })
+  const { refName, tables } = hostedTables('sv-mul-1k-10k')
+  return loadGraph(tables, refName, { referencePath: 'GRCh38' })
 }
 
 describe('every skip is drawn as its arch over the nodes or counted in the key, never neither and never both', () => {

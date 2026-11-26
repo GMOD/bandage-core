@@ -1,63 +1,17 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { gunzipSync } from 'node:zlib'
-
+import { hostedTables } from '../test_data/hosted/hostedTables'
 import { loadGraph } from './pipeline'
 import { foldThreads } from './threadFold'
 
-import type { GraphTables } from './gfa/graphTables'
 import type { Graph } from './types'
-
-const isTyped = (
-  value: unknown,
-): value is { typed: string; values: (number | null)[] } =>
-  typeof value === 'object' &&
-  value !== null &&
-  'typed' in value &&
-  typeof value.typed === 'string' &&
-  'values' in value &&
-  Array.isArray(value.values)
-
-const typedArrays: Record<string, (values: number[]) => ArrayLike<number>> = {
-  Int32Array: values => Int32Array.from(values),
-  Float64Array: values => Float64Array.from(values),
-  Uint8Array: values => Uint8Array.from(values),
-  Uint32Array: values => Uint32Array.from(values),
-}
-
-const revive = (_key: string, value: unknown) => {
-  const make = isTyped(value) ? typedArrays[value.typed] : undefined
-  return isTyped(value) && make ? make(value.values.map(v => v ?? NaN)) : value
-}
-
-function assertHosted(
-  value: unknown,
-): asserts value is { refName: string; tables: GraphTables } {
-  expect(
-    typeof value === 'object' &&
-      value !== null &&
-      'refName' in value &&
-      typeof value.refName === 'string' &&
-      'tables' in value &&
-      typeof value.tables === 'object',
-  ).toBe(true)
-}
 
 // HLA class II, chr6:32,484,416-32,514,438, as the graph track cuts the hosted
 // HPRC walk file for its eight default haplotypes: at the default budgets,
 // 6,419 of its 16,417 nodes stand in for stretches not loaded; expanded, every
 // stretch loads
 function hlaCut(mode: 'default' | 'expanded') {
-  const fixture: unknown = JSON.parse(
-    gunzipSync(
-      readFileSync(
-        join(__dirname, `../test_data/hosted/hla-ii-${mode}.tables.json.gz`),
-      ),
-    ).toString(),
-    revive,
-  )
-  assertHosted(fixture)
-  return loadGraph(fixture.tables, 'hla', { referencePath: 'GRCh38' })
+  return loadGraph(hostedTables(`hla-ii-${mode}`).tables, 'hla', {
+    referencePath: 'GRCh38',
+  })
 }
 
 // what a fold draws, by node name, which does not depend on the nodes a

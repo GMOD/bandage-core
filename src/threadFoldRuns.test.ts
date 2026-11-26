@@ -1,0 +1,186 @@
+import { fragmentRuns } from '@jbrowse/graph-walks'
+
+import { drawn, orderedFigure } from '../scripts/fold-runs/drawn'
+import { hostedTables } from '../test_data/hosted/hostedTables'
+import { END_KINDS, cutEnds } from './gfa/walkRuns'
+import { loadGraph } from './pipeline'
+import { foldThreads } from './threadFold'
+import { foldThreadRuns } from './threadFoldRuns'
+
+import type { WalkEndTable } from './gfa/walkRuns'
+import type { Graph } from './types'
+
+// Cuts of the hosted HPRC walk file for eight haplotypes: HLA class II at
+// chr6:32,484,416-32,514,438 with its abridged pieces left out and read in
+// full, and chr2:90,391,794-90,397,920
+const FIXTURES = ['hla-ii-default', 'hla-ii-expanded', 'sv-mul-1k-10k']
+
+const withoutEnds = (graph: Graph): Graph => ({
+  ...graph,
+  paths: graph.paths?.map(path => ({ ...path, ends: undefined })),
+})
+
+const endText = (table: WalkEndTable, p: number) =>
+  [
+    table.kinds[p],
+    table.pos[p],
+    table.reversed[p],
+    table.ownBp[p],
+    table.missingBp[p],
+  ].join(' ')
+
+describe.each(FIXTURES)('the hosted cut %s', fixture => {
+  const { refName, tables } = hostedTables(fixture)
+  const runs = fragmentRuns(tables, refName)
+  const graph = loadGraph(tables, fixture)
+
+  test("each walk's ends are those graph-walks reads its runs with", () => {
+    const ends = cutEnds(tables, refName)
+    const walkAt = new Map(
+      tables.walks.names.map((name, p) => [
+        `${name} ${tables.walks.starts[p]}`,
+        p,
+      ]),
+    )
+    const pairs = runs.walks.names.map((name, p) => {
+      const at = walkAt.get(`${name} ${runs.walks.starts[p]}`) ?? -1
+      const end = ends[at]
+      const side = (row: typeof end, which: 'before' | 'after') =>
+        row
+          ? [
+              END_KINDS.indexOf(row[which].kind),
+              row[which].pos,
+              row[which].reversed ? 1 : 0,
+              row[which].ownBp,
+              row[which].missingBp,
+            ].join(' ')
+          : 'none'
+      return [
+        `${name} ${side(end, 'before')} | ${side(end, 'after')}`,
+        `${name} ${endText(runs.walks.before, p)} | ${endText(runs.walks.after, p)}`,
+      ]
+    })
+    expect(pairs.map(([mine]) => mine)).toEqual(
+      pairs.map(([, theirs]) => theirs),
+    )
+  })
+
+  test.each([236, 1000])(
+    'folded from its runs at %d bp, it draws and says what its cut does, given the walks departing over it',
+    bp => {
+      const steps = foldThreads(graph, bp)
+      const fromRuns = foldThreadRuns(runs, bp, {
+        name: fixture,
+        departing: tables.departures.names,
+      })
+      expect(steps.folded && fromRuns.folded).toBe(true)
+      if (steps.folded && fromRuns.folded) {
+        expect(drawn(fromRuns.graph, fromRuns.events)).toEqual(
+          drawn(steps.graph, steps.events),
+        )
+        expect(orderedFigure(fromRuns.graph)).toBe(orderedFigure(steps.graph))
+        expect(fromRuns.walks).toEqual(steps.walks)
+      }
+    },
+  )
+
+  test('its runs alone name no walk that departs over the whole window', () => {
+    const steps = foldThreads(graph, 236)
+    const fromRuns = foldThreadRuns(runs, 236, { name: fixture })
+    const departing = (fold: typeof steps | typeof fromRuns) =>
+      fold.folded
+        ? (drawn(fold.graph, fold.events).threadFold?.departing ?? [])
+        : []
+    expect(departing(fromRuns)).toEqual([])
+    expect(departing(steps)).toEqual(
+      fixture === 'sv-mul-1k-10k' ? ['HG01960#1#JBHIHM010000042.1'] : [],
+    )
+  })
+
+  test('a walk swapped for another breaks that equality', () => {
+    const steps = foldThreads(graph, 236)
+    const { names } = runs.walks
+    const last = names.length - 1
+    const swapped = {
+      ...runs,
+      walks: {
+        ...runs.walks,
+        names: names.map((name, p) =>
+          p === 1 ? names[last]! : p === last ? names[1]! : name,
+        ),
+      },
+    }
+    const fromRuns = foldThreadRuns(swapped, 236, { name: fixture })
+    expect(steps.folded && fromRuns.folded).toBe(true)
+    if (steps.folded && fromRuns.folded) {
+      expect(drawn(fromRuns.graph, fromRuns.events)).not.toEqual(
+        drawn(steps.graph, steps.events),
+      )
+    }
+  })
+})
+
+test("a cut's fold given its walks' ends no longer says a walk starts or ends inside the window where it carries on past it", () => {
+  const graph = loadGraph(hostedTables('hla-ii-default').tables, 'hla')
+  const texts = (g: Graph) => {
+    const fold = foldThreads(g, 236)
+    return fold.folded ? fold.events.map(event => event.text) : []
+  }
+  const inside = (all: string[]) =>
+    all.filter(text => text.includes('inside the window'))
+  const past = (all: string[]) =>
+    all.filter(text => text.includes('continues past the window'))
+  const before = texts(withoutEnds(graph))
+  const after = texts(graph)
+  expect([inside(before), past(before)]).toEqual([
+    [
+      'walk ends inside the window 45.1 kb, 2 of 9',
+      'walk ends inside the window 252 bp, 2 of 9',
+    ],
+    [],
+  ])
+  expect([inside(after), past(after)]).toEqual([
+    [],
+    [
+      'deletion 86 kb, 2 of 9, continues past the window',
+      'deletion 1.8 kb, 2 of 9, continues past the window',
+    ],
+  ])
+})
+
+test('a graph read from GFA text states no ends, so its fold is as before', () => {
+  const graph = loadGraph(
+    [
+      'S\ta\t*\tLN:i:1000',
+      'S\tb\t*\tLN:i:2000',
+      'S\tc\t*\tLN:i:1000',
+      'L\ta\t+\tb\t+\t0M',
+      'L\tb\t+\tc\t+\t0M',
+      'L\ta\t+\tc\t+\t0M',
+      'W\tref\t0\tchr\t0\t4000\t>a>b>c',
+      'W\th1\t1\tchr\t0\t2000\t>a>c',
+    ].join('\n'),
+    'toy',
+    { referencePath: 'ref#0#chr' },
+  )
+  expect(graph.paths?.map(path => path.ends)).toEqual([undefined, undefined])
+})
+
+test('runs of a file that does not state its reference passes no node twice are refused', () => {
+  const { refName, tables } = hostedTables('hla-ii-default')
+  const runs = fragmentRuns(tables, refName)
+  expect(foldThreadRuns({ ...runs, revisited: 2 }, 236)).toEqual({
+    folded: false,
+    reason:
+      'the reference passes 2 nodes of the graph more than once, so a run off it may be a copy of reference sequence and not a variant',
+  })
+  expect(foldThreadRuns({ ...runs, revisited: Number.NaN }, 236)).toEqual({
+    folded: false,
+    reason:
+      'the walk file does not say how many nodes its reference passes more than once, so a run off it may be a copy of reference sequence and not a variant',
+  })
+  expect(foldThreadRuns(runs, 0)).toEqual({
+    folded: false,
+    reason: 'nothing to fold',
+  })
+})
