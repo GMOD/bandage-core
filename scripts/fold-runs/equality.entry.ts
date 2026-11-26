@@ -94,10 +94,7 @@ async function cutGraph(
     ...NO_LIMITS,
     ...presetOptions(preset),
   })
-  return loadGraph(
-    tables,
-    `${region.refName}:${region.start}-${region.end}`,
-  )
+  return loadGraph(tables, `${region.refName}:${region.start}-${region.end}`)
 }
 
 async function readRuns(
@@ -214,8 +211,7 @@ async function both(
       runsS: tRuns,
       folded: [steps.folded, fromRuns.folded],
       departing: departing.length,
-      departingWithoutFragment: departing.filter(n => !fragments.has(n))
-        .length,
+      departingWithoutFragment: departing.filter(n => !fragments.has(n)).length,
     }
     if (steps.folded && fromRuns.folded) {
       const a = drawn(steps.graph, steps.events)
@@ -241,7 +237,10 @@ async function both(
           const key = text.includes('continues past the window')
             ? 'continues past the window'
             : text.includes('inside the window')
-              ? text.replace(/^.*?(walk (starts|ends) inside the window).*$/, '$1')
+              ? text.replace(
+                  /^.*?(walk (starts|ends) inside the window).*$/,
+                  '$1',
+                )
               : text.includes('outside the window')
                 ? 'joins outside the window'
                 : 'other'
@@ -262,7 +261,7 @@ async function both(
         record.mutants = Object.fromEntries(
           Object.entries(MUTANTS).map(([name, mutate]) => {
             const read = threadRunsInput(runs)
-            const ready = 'input' in read ? read : undefined
+            const ready = read.input === undefined ? undefined : read
             const applies = ready ? mutate(ready) : false
             const broken = foldThreadRunsInput(read, bp, { name: graph.name })
             const difference = broken.folded
@@ -317,7 +316,15 @@ async function alone(
       const fold = foldThreadRuns(runs, bp)
       folds.push({ bp, foldS: now() - t1, folded: fold.folded })
     }
-    print({ where, preset, path: mode, readS: tRead, folds, bytes: bytesRead, peakMB: peakMB() })
+    print({
+      where,
+      preset,
+      path: mode,
+      readS: tRead,
+      folds,
+      bytes: bytesRead,
+      peakMB: peakMB(),
+    })
   } else {
     const cut = await cutGraph(reader, region, preset)
     const graph = mode === 'before' ? withoutEnds(cut) : cut
@@ -327,7 +334,15 @@ async function alone(
       const fold = foldThreads(graph, bp)
       folds.push({ bp, foldS: now() - t1, folded: fold.folded })
     }
-    print({ where, preset, path: mode, readS: tRead, folds, bytes: bytesRead, peakMB: peakMB() })
+    print({
+      where,
+      preset,
+      path: mode,
+      readS: tRead,
+      folds,
+      bytes: bytesRead,
+      peakMB: peakMB(),
+    })
   }
 }
 

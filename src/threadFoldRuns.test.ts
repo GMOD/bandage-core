@@ -20,6 +20,20 @@ const withoutEnds = (graph: Graph): Graph => ({
   paths: graph.paths?.map(path => ({ ...path, ends: undefined })),
 })
 
+// what a fold draws and says, or the reason it gives for not folding
+function shown(
+  fold: ReturnType<typeof foldThreads> | ReturnType<typeof foldThreadRuns>,
+) {
+  if (!fold.folded) {
+    throw new Error(fold.reason)
+  }
+  return {
+    drawn: drawn(fold.graph, fold.events),
+    figure: orderedFigure(fold.graph),
+    walks: fold.walks,
+  }
+}
+
 const endText = (table: WalkEndTable, p: number) =>
   [
     table.kinds[p],
@@ -68,19 +82,14 @@ describe.each(FIXTURES)('the hosted cut %s', fixture => {
   test.each([236, 1000])(
     'folded from its runs at %d bp, it draws and says what its cut does, given the walks departing over it',
     bp => {
-      const steps = foldThreads(graph, bp)
-      const fromRuns = foldThreadRuns(runs, bp, {
-        name: fixture,
-        departing: tables.departures.names,
-      })
-      expect(steps.folded && fromRuns.folded).toBe(true)
-      if (steps.folded && fromRuns.folded) {
-        expect(drawn(fromRuns.graph, fromRuns.events)).toEqual(
-          drawn(steps.graph, steps.events),
-        )
-        expect(orderedFigure(fromRuns.graph)).toBe(orderedFigure(steps.graph))
-        expect(fromRuns.walks).toEqual(steps.walks)
-      }
+      expect(
+        shown(
+          foldThreadRuns(runs, bp, {
+            name: fixture,
+            departing: tables.departures.names,
+          }),
+        ),
+      ).toEqual(shown(foldThreads(graph, bp)))
     },
   )
 
@@ -88,9 +97,7 @@ describe.each(FIXTURES)('the hosted cut %s', fixture => {
     const steps = foldThreads(graph, 236)
     const fromRuns = foldThreadRuns(runs, 236, { name: fixture })
     const departing = (fold: typeof steps | typeof fromRuns) =>
-      fold.folded
-        ? (drawn(fold.graph, fold.events).threadFold?.departing ?? [])
-        : []
+      shown(fold).drawn.threadFold?.departing
     expect(departing(fromRuns)).toEqual([])
     expect(departing(steps)).toEqual(
       fixture === 'sv-mul-1k-10k' ? ['HG01960#1#JBHIHM010000042.1'] : [],
@@ -98,7 +105,6 @@ describe.each(FIXTURES)('the hosted cut %s', fixture => {
   })
 
   test('a walk swapped for another breaks that equality', () => {
-    const steps = foldThreads(graph, 236)
     const { names } = runs.walks
     const last = names.length - 1
     const swapped = {
@@ -110,13 +116,9 @@ describe.each(FIXTURES)('the hosted cut %s', fixture => {
         ),
       },
     }
-    const fromRuns = foldThreadRuns(swapped, 236, { name: fixture })
-    expect(steps.folded && fromRuns.folded).toBe(true)
-    if (steps.folded && fromRuns.folded) {
-      expect(drawn(fromRuns.graph, fromRuns.events)).not.toEqual(
-        drawn(steps.graph, steps.events),
-      )
-    }
+    expect(
+      shown(foldThreadRuns(swapped, 236, { name: fixture })).drawn,
+    ).not.toEqual(shown(foldThreads(graph, 236)).drawn)
   })
 })
 

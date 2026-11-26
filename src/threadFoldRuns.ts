@@ -28,7 +28,8 @@ export function threadRunsInput(runs: WalkRunsTables) {
   })
   const origins = names.map(name => pathOrigin(name).name)
   const referencePath = referenceOf(origins, undefined, new Set([runs.refName]))
-  const backbone = referencePath === undefined ? -1 : origins.indexOf(referencePath)
+  const backbone =
+    referencePath === undefined ? -1 : origins.indexOf(referencePath)
   const order = walks.names.flatMap((_, p) => (p === backbone ? [] : [p]))
   const held = (side: 'before' | 'after') => {
     const table = walks[side]
@@ -123,7 +124,7 @@ export function foldThreadRunsInput(
   belowBp: number,
   { cluster = true, name, departing = [] }: ThreadRunsOptions = {},
 ): ThreadRunsFoldResult {
-  const ready = 'input' in read ? read : undefined
+  const ready = read.input === undefined ? undefined : read
   const fold =
     ready &&
     foldRuns(ready.input, {
@@ -152,7 +153,7 @@ export function foldThreadRunsInput(
   return !ready || !fold
     ? {
         folded: false,
-        reason: 'reason' in read ? read.reason : 'nothing to fold',
+        reason: read.reason ?? 'nothing to fold',
       }
     : fold.folded
       ? threads(fold, ready)

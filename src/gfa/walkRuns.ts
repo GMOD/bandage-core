@@ -147,7 +147,10 @@ export function cutEnds(
     against: boolean,
     readBp: number,
   ): PathEnd => {
-    const pos = k === undefined ? Number.NaN : departures[leave ? 'rejoinPos' : 'leavePos'][k]!
+    const pos =
+      k === undefined
+        ? Number.NaN
+        : departures[leave ? 'rejoinPos' : 'leavePos'][k]!
     const reversed =
       k !== undefined &&
       departures[leave ? 'rejoinReversed' : 'leaveReversed'][k] === 1

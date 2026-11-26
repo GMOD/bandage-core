@@ -4,7 +4,6 @@ import { pathOrigin, stateStrands } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
 import { ownStepRuns, stretchSegments } from './departures'
 import { linkKey } from './linkKey'
-import { cutEnds } from './walkRuns'
 import {
   FORWARD,
   REVERSED,
@@ -12,6 +11,7 @@ import {
   respelled,
   respelledStrands,
 } from './segmentOrientation'
+import { cutEnds } from './walkRuns'
 
 import type {
   Graph,

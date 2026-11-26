@@ -82,10 +82,7 @@ export function firstDifference(
   const keys = (value: object) => Object.keys(value)
   return text(a) === text(b) && JSON.stringify(a) === JSON.stringify(b)
     ? undefined
-    : a !== null &&
-        b !== null &&
-        typeof a === 'object' &&
-        typeof b === 'object'
+    : a !== null && b !== null && typeof a === 'object' && typeof b === 'object'
       ? ([...new Set([...keys(a), ...keys(b)])]
           .map(key =>
             firstDifference(
