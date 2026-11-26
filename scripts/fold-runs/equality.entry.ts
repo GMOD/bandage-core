@@ -149,33 +149,40 @@ const MUTANTS: Record<string, (read: Ready) => boolean> = {
     }
     return input.stretches.against.length > 0
   },
-  // one of two walks of a haplotype that share a thread or a branch given
-  // another haplotype's, which changes a count; a swap between walks that
-  // share nothing counts the same
+  // the first two walks whose haplotypes swapped change how many
+  // haplotypes a thread holds; a swap that changes no count is no fault
   haplotypeSwapped: ({ input, walks }) => {
     const fold = foldRuns(input, { threshold: 236, cluster: true })
-    const trackOf = fold.walks.map(walk => walk.track)
-    const together = (i: number, j: number) =>
-      trackOf[i] === trackOf[j] ||
-      fold.branches.some(
-        branch =>
-          branch.tracks.includes(trackOf[i]!) &&
-          branch.tracks.includes(trackOf[j]!),
-      )
+    const trackOf = fold.walks.slice(1).map(walk => walk.track)
     const { tracks } = input
-    const a = tracks.findIndex((t, i) =>
-      tracks.some((u, j) => j !== i && u.haplotype === t.haplotype && together(i, j)),
-    )
-    const b = tracks.findIndex(t => t.haplotype !== tracks[a]?.haplotype)
-    const found = a >= 0 && b >= 0
-    if (found) {
-      const [ta, tb] = [tracks[a]!, tracks[b]!]
-      tracks[a] = { ...ta, haplotype: tb.haplotype }
-      tracks[b] = { ...tb, haplotype: ta.haplotype }
-      walks[a + 1] = tracks[a]
-      walks[b + 1] = tracks[b]
+    const counts = (haplotypeOf: (i: number) => string) => {
+      const held = fold.tracks.map(() => new Set<string>())
+      tracks.forEach((_, i) => held[trackOf[i]!]?.add(haplotypeOf(i)))
+      return held.map(set => set.size).join(' ')
     }
-    return found
+    const plain = counts(i => tracks[i]!.haplotype)
+    const pairs = tracks.flatMap((_, i) =>
+      tracks.flatMap((__, j) => (j > i ? [[i, j] as const] : [])),
+    )
+    const pair = pairs.find(
+      ([i, j]) =>
+        counts(k =>
+          k === i
+            ? tracks[j]!.haplotype
+            : k === j
+              ? tracks[i]!.haplotype
+              : tracks[k]!.haplotype,
+        ) !== plain,
+    )
+    if (pair) {
+      const [i, j] = pair
+      const [ti, tj] = [tracks[i]!, tracks[j]!]
+      tracks[i] = { ...ti, haplotype: tj.haplotype }
+      tracks[j] = { ...tj, haplotype: ti.haplotype }
+      walks[i + 1] = tracks[i]
+      walks[j + 1] = tracks[j]
+    }
+    return pair !== undefined
   },
 }
 
