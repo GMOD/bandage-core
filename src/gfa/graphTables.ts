@@ -1,5 +1,5 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
-import { panSNFields, panSNSample } from '../pansn'
+import { panSNContig, panSNFields, panSNSample } from '../pansn'
 import { pathOrigin, stateStrands } from '../pathAnchoring'
 import { PathVisits } from '../pathVisits'
 import { ownStepRuns, stretchSegments } from './departures'
@@ -227,7 +227,7 @@ export function tablePath(
         ...(trimmedAfter === undefined ? {} : { trimmedAfter }),
         ...abridged,
       }
-    : { name, start, ...stated }
+    : { name, start, ...stated, contig: panSNContig(walkName) }
 }
 
 // Each list's names, in the order the crossings came, each once

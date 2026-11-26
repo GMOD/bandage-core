@@ -7,6 +7,7 @@ import {
   anchorGraph,
   chooseReferencePath,
   pathOrigin,
+  pathRecord,
 } from './pathAnchoring'
 
 import type { Graph } from './types'
@@ -26,7 +27,6 @@ test('splits an odgi extract range suffix off the path name', () => {
   expect(pathOrigin('K12#1#chr:1004500-1004961')).toEqual({
     name: 'K12#1#chr',
     start: 1004500,
-    end: 1004961,
   })
 })
 
@@ -36,23 +36,34 @@ test('adds a vg subrange to the GBZ fragment it counts from', () => {
   expect(pathOrigin('B97#0#chr8#145994[348002-349740]')).toEqual({
     name: 'B97#0#chr8',
     start: 493996,
-    end: 495734,
   })
   expect(pathOrigin('B97#0#chr8#145994')).toEqual({
     name: 'B97#0#chr8',
     start: 145994,
-    end: undefined,
   })
   expect(pathOrigin('B73#0#chr8[363449-365187]')).toEqual({
     name: 'B73#0#chr8',
     start: 363449,
-    end: 365187,
   })
   expect(pathOrigin('HG002#1#5[100-200]')).toEqual({
     name: 'HG002#1#5',
     start: 100,
-    end: 200,
   })
+})
+
+// gfa-to-tabix's read_path_name: the bp of a P line's steps decide whether
+// odgi's suffix is a range
+test.each([
+  ['K12#1#chr:1004500-1004961', 461, 'K12#1#chr', 1004500],
+  ['K12#1#chr:1004500-1004961', 400, 'K12#1#chr:1004500-1004961', 0],
+  ['B97#0#chr8#145994[348002-349740]', 1738, 'B97#0#chr8', 493996],
+  ['B97#0#chr8#145994', 50, 'B97#0#chr8', 145994],
+  ['B73#0#chr8[363449-365187]', 1738, 'B73#0#chr8', 363449],
+  ['B73#0#chr8[363449-365187]', 100, 'B73#0#chr8[363449-365187]', 0],
+  ['plain', 30, 'plain', 0],
+  ['sample#1#scaffold:alt', 10, 'sample#1#scaffold:alt', 0],
+])('the P line %s over %d bp is path %s from %d', (line, bp, name, start) => {
+  expect(pathRecord(line, bp)).toEqual({ name, start, end: start + bp })
 })
 
 // A stable name may contain colons of its own, so only a trailing digit range

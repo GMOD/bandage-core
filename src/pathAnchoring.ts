@@ -5,7 +5,7 @@ import { groupBy } from './util/groups'
 
 import type { AnchoredNode } from './anchoredNodes'
 import type { PathVisits } from './pathVisits'
-import type { Graph, GraphNode, PathOrigin } from './types'
+import type { Graph, GraphNode, GraphPath, PathOrigin } from './types'
 
 // Reference coordinates for a GFA that tags none of its segments with one.
 //
@@ -32,28 +32,70 @@ import type { Graph, GraphNode, PathOrigin } from './types'
 //
 // Anchored on the digits rather than on a trailing colon, because a stable name
 // may legitimately contain one (the same hazard gfaParser's tag splitting has).
-const RANGE_SUFFIX = /:(\d+)-(\d+)$/
-const VG_FRAGMENT = /^([^#]*#[^#]*#[^#[]*)#(\d+)(?:\[(\d+)-(\d+)\])?$/
-const VG_SUBRANGE = /\[(\d+)-(\d+)\]$/
+const RANGE_SUFFIX = /:(\d+)-\d+$/
+const VG_FRAGMENT = /^([^#]*#[^#]*#[^#[]*)#(\d+)(?:\[(\d+)-\d+\])?$/
+const VG_SUBRANGE = /\[(\d+)-\d+\]$/
 
 export function pathOrigin(pathName: string) {
   const fragment = VG_FRAGMENT.exec(pathName)
   if (fragment) {
-    const offset = +fragment[2]!
-    return {
-      name: fragment[1]!,
-      start: offset + +(fragment[3] ?? 0),
-      end: fragment[4] === undefined ? undefined : offset + +fragment[4],
-    }
+    return { name: fragment[1]!, start: +fragment[2]! + +(fragment[3] ?? 0) }
   }
   const match = RANGE_SUFFIX.exec(pathName) ?? VG_SUBRANGE.exec(pathName)
   return match
-    ? {
-        name: pathName.slice(0, match.index),
-        start: +match[1]!,
-        end: +match[2]!,
-      }
-    : { name: pathName, start: 0, end: undefined }
+    ? { name: pathName.slice(0, match.index), start: +match[1]! }
+    : { name: pathName, start: 0 }
+}
+
+// A P line's path name and where it starts on that path, as gfa-to-tabix's
+// read_path_name reads them once the bp of its steps are known: odgi's
+// `:start-end` only where the steps span it, beneath it vg's `[start]` or
+// `[start-end]`, beneath that the digits of a fourth `#` field, the starts
+// adding up. A suffix the steps do not span is part of the name, and a name
+// with none is its own coordinates from 0. It ends its start plus its bp.
+export function pathRecord(pathName: string, bp: number) {
+  const spans = (start: string, end: string | undefined) =>
+    end !== undefined && +end - +start === bp
+  const colon = /:(\d+)-(\d+)$/.exec(pathName)
+  const cut = colon && bp > 0 && spans(colon[1]!, colon[2]) ? colon : undefined
+  const uncut = cut ? pathName.slice(0, cut.index) : pathName
+  const piece = /\[(\d+)(?:-(\d+))?\]$/.exec(uncut)
+  const bracket =
+    piece && (piece[2] === undefined || cut || spans(piece[1]!, piece[2]))
+      ? piece
+      : undefined
+  const whole = bracket ? uncut.slice(0, bracket.index) : uncut
+  const field =
+    whole.split('#').length === 4 ? /#(\d+)$/.exec(whole) : undefined
+  const name = field ? whole.slice(0, field.index) : whole
+  const start = +(cut?.[1] ?? 0) + +(bracket?.[1] ?? 0) + +(field?.[1] ?? 0)
+  return { name, start, end: start + bp }
+}
+
+// Where a stretch of a record's steps, `first` to `last`, lies on its
+// contig: its start past the steps before it, and its end where the record
+// states a span its own steps agree with and the graph draws its nodes at
+// their own lengths
+export function stretchSpan(
+  graph: Pick<Graph, 'threadFold'>,
+  path: GraphPath,
+  lengthOf: (id: string) => number,
+  first: number,
+  last: number,
+) {
+  const bp = (from: number, to: number) =>
+    path.nodeIds.slice(from, to).reduce((sum, id) => sum + lengthOf(id), 0)
+  const start = path.start === undefined ? undefined : path.start + bp(0, first)
+  const agrees =
+    !graph.threadFold &&
+    path.start !== undefined &&
+    path.end !== undefined &&
+    path.end - path.start === bp(0, path.nodeIds.length)
+  return {
+    start,
+    end:
+      agrees && start !== undefined ? start + bp(first, last + 1) : undefined,
+  }
 }
 
 export interface PathSteps {

@@ -239,6 +239,14 @@ interface PassRunRow {
   color: string
 }
 
+// a pass bar as core draws it: its bp, along the walk where its nodes are
+// drawn at its own lengths, else along the route drawn
+interface PassBarRow {
+  walk: string
+  bp: number
+  ownLengths: boolean
+}
+
 // an entry of the graph's key, its colours as hex with their alpha
 interface GraphKeyRow {
   section: string
@@ -939,8 +947,10 @@ export function figureData(
     end: [],
     color: [],
   })
+  const bars = columns<PassBarRow>({ walk: [], bp: [], ownLengths: [] })
   for (const bar of facets ? [] : passBars(lift)) {
     const walk = labelOf(bar.walk)
+    bars.push({ walk, bp: bar.bp, ownLengths: bar.ownLengths })
     for (const { ink, ...pass } of bar.passes) {
       passes.push({ walk, ...pass, color: abgrHex(ink) })
     }
@@ -1005,6 +1015,7 @@ export function figureData(
     threadKeys: threadKeys.out,
     passes: passes.out,
     passRuns: passRuns.out,
+    passBars: bars.out,
     pins: pins.out,
     exons: exons.out,
     labels: labels.out,
@@ -1042,8 +1053,9 @@ export function figureData(
 
 type KeyColumns = Pick<
   Columns<KeyRow>,
-  'name' | 'stops' | 'field' | 'contig' | 'start' | 'end' | 'ownLengths'
->
+  'name' | 'stops' | 'field' | 'contig' | 'start' | 'end'
+> &
+  Partial<Pick<Columns<KeyRow>, 'ownLengths'>>
 
 interface WalkRowColumns {
   name: string[]
@@ -1068,7 +1080,7 @@ export function walkRowInks(
     const start = keys.start[k]
     const end = keys.end[k]
     const passes = (passRuns?.key ?? []).flatMap((key, i) =>
-      key === k && keys.ownLengths[k]
+      key === k && keys.ownLengths?.[k] !== false
         ? [
             {
               start: passRuns!.start[i]!,

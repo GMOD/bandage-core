@@ -440,7 +440,7 @@ const SPANS = [
   { start: 2102, end: 3205 },
 ]
 
-test('unfolded, pass spans stated in a walk\'s own bp take each node by where it lies on the walk', () => {
+test("unfolded, pass spans stated in a walk's own bp take each node by where it lies on the walk", () => {
   const graph = loadGraph(indelTables(), 'toy')
   const walk = walkLift(graph, [
     { walk: 'h1#1#ctg1', color: { field: 'pass' }, passes: SPANS },
@@ -450,7 +450,7 @@ test('unfolded, pass spans stated in a walk\'s own bp take each node by where it
 })
 
 test.each(indelFolds())(
-  'folded from %s, pass spans stated in the walk\'s own bp colour no pass, as its drawn steps do not lie at those bp',
+  "folded from %s, pass spans stated in the walk's own bp colour no pass, as its drawn steps do not lie at those bp",
   (_, fold) => {
     const graph = fold.folded ? fold.graph : undefined
     const thread = graph?.paths?.find(p => p.members?.includes('h1#1#ctg1'))

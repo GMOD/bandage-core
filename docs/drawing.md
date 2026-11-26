@@ -185,7 +185,10 @@ trip.
 - Pass count is not copy number: it depends on which nodes the graph shares
   between copies
 - `figureData` adds `pass`, `visit` and `walkPass` to lane rows, plus `passes`,
-  `passRuns` and `pass` labels (not for faceted figures)
+  `passRuns`, `passBars` and `pass` labels (not for faceted figures). A pass
+  bar's `bp` and its runs run along the walk where `ownLengths` is true, and
+  along the route drawn on a graph folded to threads, where its runs colour no
+  walk row
 
 ## Exporting what a pane shows
 

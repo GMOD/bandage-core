@@ -1,10 +1,13 @@
+import { bubbleSubgraph } from './bubbles/popBubble'
 import { figureData, walkRowInks } from './figureData'
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
 import { liftedRowInks } from './layout/rowInks'
+import { trimToWindow } from './layout/trimToWindow'
 import { layoutModeByValue } from './layoutModes'
+import { passBars } from './passBar'
 import { loadGraph } from './pipeline'
 import { foldThreads } from './threadFold'
 import { walkLift } from './walkHighlight'
@@ -116,7 +119,7 @@ test('folded, a W record keeps the range its start and own steps state, and one 
   })
 })
 
-test("a P record's range is the one its name states, and a name with none is the path's own coordinates", () => {
+test("a P record's range is the one its name states where its steps span it, as gfa-to-tabix reads it, and a name with none, or one its steps do not span, is the path's own coordinates", () => {
   const graph = loadGraph(NAMED, 'named', { referencePath: 'chm13#chr1' })
   expect(rangeOf(graph, 'chm13#chr1:500-2500')).toBe('chr1:501-2,500 (2 kb)')
   expect(rangeOf(graph, 'hg#ctg:100-2200')).toBe('ctg:101-2,200 (2.1 kb)')
@@ -126,7 +129,9 @@ test("a P record's range is the one its name states, and a name with none is the
     'short',
     { referencePath: 'chm13#chr1' },
   )
-  expect(rangeOf(short, 'chm13#chr1:500-1500')).toBe('chr1:501-1,500 (1 kb)')
+  expect(rangeOf(short, 'chm13#chr1:500-1500')).toBe(
+    'chr1:500-1500:1-2,000 (2 kb)',
+  )
 })
 
 test('folded, each P thread of one record keeps the range its name states, the reference included', () => {
@@ -139,44 +144,140 @@ test('folded, each P thread of one record keeps the range its name states, the r
   expect(lifted(graph, 'chm13#chr1:500-2500')?.reference).toBe(true)
 })
 
-// hap goes round a and b twice, 1 kb each, so a fold keeps both passes
+// hap goes round a and b twice, 1 kb each, by a 10 bp s a fold merges away,
+// so a fold keeps both passes and draws the walk 10 bp short
 const REPEAT = [
   'S\ta\t*\tLN:i:1000',
   'S\tb\t*\tLN:i:1000',
   'S\tc\t*\tLN:i:1000',
+  'S\ts\t*\tLN:i:10',
   'L\ta\t+\tb\t+\t0M',
   'L\tb\t+\tc\t+\t0M',
   'L\tb\t+\ta\t+\t0M',
+  'L\tb\t+\ts\t+\t0M',
+  'L\ts\t+\ta\t+\t0M',
   'W\tref\t0\tchr\t0\t3000\t>a>b>c',
-  'W\thap\t1\tctg\t0\t5000\t>a>b>a>b>c',
+  'W\thap\t1\tctg\t0\t5010\t>a>b>s>a>b>c',
 ].join('\n')
 
 const byPass = (graph: Graph) => {
-  const path = graph.paths!.find(p => p.members?.includes('hap#1#ctg') ?? p.name === 'hap#1#ctg')!
+  const path = graph.paths!.find(
+    p => p.members?.includes('hap#1#ctg') ?? p.name === 'hap#1#ctg',
+  )!
   return [{ walk: path.name, color: { field: 'pass' as const } }]
 }
 
 test.each([
-  ['unfolded', true],
-  ['folded', false],
+  ['unfolded', true, 5010],
+  ['folded', false, 5000],
 ])(
-  "%s, a walk's passes colour its row only where its nodes are drawn at its own lengths, in core and from the figure data alike",
-  (_, own) => {
-    const unfolded = loadGraph(REPEAT, 'repeat', { referencePath: 'ref#0#chr' })
+  "%s, a walk's passes colour its row only where its nodes are drawn at its own lengths, in core and from the figure data alike, and its pass bar runs the bp drawn",
+  (_, own, drawnBp) => {
+    const unfolded = loadGraph(REPEAT, 'repeat', {
+      referencePath: 'ref#0#chr',
+    })
     const graph = own ? unfolded : folded(unfolded)
     const layers = byPass(graph)
-    const walk = walkLift(graph, layers)!.walks.find(w => w.name === layers[0]!.walk)!
+    const lift = walkLift(graph, layers)!
+    const walk = lift.walks.find(w => w.name === layers[0]!.walk)!
     expect(walk.walkPasses?.passes.length).toBe(2)
+    expect(walk.range).toEqual({ contig: 'ctg', start: 0, end: 5010 })
     expect(liftedRowInks([walk])[0]?.passes !== undefined).toBe(own)
+    expect(passBars(lift).map(bar => [bar.bp, bar.ownLengths])).toEqual([
+      [drawnBp, own],
+    ])
     const layout = layoutModeByValue('ordered').run(graph, undefined)!
-    const { keys, passRuns } = figureData(graph, layout, { walks: layers })
+    const tables = figureData(graph, layout, { walks: layers })
+    const { keys, passRuns } = tables
     expect(keys.ownLengths).toEqual([own])
-    const inks = walkRowInks(
-      keys,
-      { name: [walk.name], bp: [5000], contig: ['ctg'], contigStart: [0] },
-      { row: [0, 0, 0], offset: [500, 2500, 4500] },
-      { ...passRuns, key: passRuns.walk.map(w => keys.walk.indexOf(w)) },
+    expect(tables.passBars).toEqual({
+      walk: ['hap'],
+      bp: [drawnBp],
+      ownLengths: [own],
+    })
+    const inksOf = (columns: Parameters<typeof walkRowInks>[0]) =>
+      walkRowInks(
+        columns,
+        { name: [walk.name], bp: [5010], contig: ['ctg'], contigStart: [0] },
+        { row: [0, 0, 0], offset: [500, 2500, 4500] },
+        { ...passRuns, key: passRuns.walk.map(w => keys.walk.indexOf(w)) },
+      ).color
+    expect(
+      inksOf(keys).some(
+        color => color !== null && passRuns.color.includes(color),
+      ),
+    ).toBe(own)
+    const { name, stops, field, contig, start, end } = keys
+    expect(inksOf({ name, stops, field, contig, start, end })).toEqual(
+      own ? inksOf(keys) : inksOf({ ...keys, ownLengths: [true] }),
     )
-    expect(inks.color.some(color => passRuns.color.includes(color))).toBe(own)
   },
 )
+
+// a and b and c and d are 1 kb of chr; h takes a 300 bp i in place of b
+const POPPED = [
+  'S\ta\t*\tLN:i:1000\tSN:Z:chr\tSO:i:0\tSR:i:0',
+  'S\tb\t*\tLN:i:1000\tSN:Z:chr\tSO:i:1000\tSR:i:0',
+  'S\tc\t*\tLN:i:1000\tSN:Z:chr\tSO:i:2000\tSR:i:0',
+  'S\td\t*\tLN:i:1000\tSN:Z:chr\tSO:i:3000\tSR:i:0',
+  'S\ti\t*\tLN:i:300\tSN:Z:h#1#ctg\tSO:i:1700\tSR:i:1',
+  'L\ta\t+\tb\t+\t0M',
+  'L\tb\t+\tc\t+\t0M',
+  'L\tc\t+\td\t+\t0M',
+  'L\ta\t+\ti\t+\t0M',
+  'L\ti\t+\tc\t+\t0M',
+  'W\tref\t0\tchr\t0\t4000\t>a>b>c>d',
+  'W\th\t1\tctg\t700\t4000\t>a>i>c>d',
+].join('\n')
+
+const positionOf = (graph: Graph, member: string, name: string) => {
+  const node = graph.nodes.find(n => n.name === name)!
+  return walkPosition(lifted(graph, member)!, node.id, node.length).at
+}
+
+test("a popped bubble's walks range over the steps it keeps, from their first's start to their last's end", () => {
+  const graph = loadGraph(POPPED, 'popped', { referencePath: 'ref#0#chr' })
+  const popped = bubbleSubgraph(graph, ['b', 'i', 'c'])
+  expect(rangeOf(popped, 'h#1#ctg')).toBe('ctg:1,701-3,000 (1.3 kb)')
+  expect(rangeOf(popped, 'ref#0#chr')).toBe('chr:1,001-3,000 (2 kb)')
+  expect(positionOf(popped, 'h#1#ctg', 'c')).toBe('ctg:2,001-3,000')
+})
+
+test("a window's trim ranges each walk over the steps it keeps", () => {
+  const graph = loadGraph(POPPED, 'popped', { referencePath: 'ref#0#chr' })
+  const trimmed = trimToWindow(graph, { start: 1200, end: 2800 })
+  expect(rangeOf(trimmed, 'h#1#ctg')).toBe('ctg:2,001-3,000 (1 kb)')
+  expect(rangeOf(trimmed, 'ref#0#chr')).toBe('chr:1,001-3,000 (2 kb)')
+  expect(positionOf(trimmed, 'h#1#ctg', 'c')).toBe('ctg:2,001-3,000')
+})
+
+test('a walk whose stated end its own steps do not reach or pass gives its stated range and no position', () => {
+  const graph = loadGraph(
+    [...STARRED.split('\n'), 'W\th5\t1\tctg5\t0\t500\t>a>i2>c'].join('\n'),
+    'short',
+    { referencePath: 'ref#0#chr' },
+  )
+  expect(rangeOf(graph, 'h5#1#ctg5')).toBe('ctg5:1-500 (500 bp)')
+  expect(positionOf(graph, 'h5#1#ctg5', 'c')).toBeUndefined()
+  expect(positionOf(graph, 'h5#1#ctg5', 'a')).toBeUndefined()
+})
+
+test('a folded thread of several P records with no one span is named without a range', () => {
+  const graph = folded(
+    loadGraph(
+      [
+        ...NAMED.split('\n').filter(line => !line.startsWith('P')),
+        'P\tchm13#chr1:500-2500\ta+,c+\t*',
+        'P\ts1#ctg:100-2100\ta+,c+\t*',
+        'P\ts2#ctg:300-2300\ta+,c+\t*',
+        'P\ts3#ctg:300-2400\ta+,i+,c+\t*',
+      ].join('\n'),
+      'shared',
+      { referencePath: 'chm13#chr1' },
+    ),
+  )
+  const shared = graph.paths!.find(p => p.members?.includes('s1#ctg:100-2100'))
+  expect(shared?.members).toEqual(['s1#ctg:100-2100', 's2#ctg:300-2300'])
+  expect(shared?.name).toBe('s1#ctg')
+  expect(rangeOf(graph, 's1#ctg:100-2100')).toBeUndefined()
+})

@@ -1,6 +1,7 @@
 import { REFERENCE_RANK } from '../anchoredNodes'
 import { stableCoordinate } from '../gfa-core/index'
-import { pathOrigin, stateStrands, surveyPaths } from '../pathAnchoring'
+import { panSNContig } from '../pansn'
+import { pathRecord, stateStrands, surveyPaths } from '../pathAnchoring'
 import { revisitedCount } from './graphTables'
 import { linkKey } from './linkKey'
 import {
@@ -103,16 +104,18 @@ const strandsOf = (from: string | undefined, to: string | undefined) =>
   (from === '-' ? 1 : 0) | (to === '-' ? 2 : 0)
 
 // A P body is a comma-joined `<id><strand>` list whose start offset lives in
-// the record's name; a W record arrives split into steps with its start as a
-// field
-function stepsOfPath(p: GFAPath): PathSteps {
-  return {
-    ...pathOrigin(p.name),
-    steps: p.path.split(',').map(segment => ({
-      id: segment.slice(0, -1),
-      strand: segment.endsWith('-') ? ('-' as const) : ('+' as const),
-    })),
-  }
+// the record's name, read as gfa-to-tabix reads it from the bp of its steps;
+// a W record arrives split into steps with its start as a field
+function stepsOfPath(p: GFAPath, bpOf: (id: string) => number) {
+  const steps = p.path.split(',').map(segment => ({
+    id: segment.slice(0, -1),
+    strand: segment.endsWith('-') ? ('-' as const) : ('+' as const),
+  }))
+  const record = pathRecord(
+    p.name,
+    steps.reduce((bp, step) => bp + bpOf(step.id), 0),
+  )
+  return { ...record, steps }
 }
 
 // Named by the full PanSN name, contig included. Dropping the contig made a
@@ -206,7 +209,15 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
 
-  const pathSteps = gfaGraph.paths.map(stepsOfPath)
+  const declared = new Map<string, number>()
+  for (const gfaNode of gfaGraph.nodes) {
+    if (!declared.has(gfaNode.id)) {
+      declared.set(gfaNode.id, gfaNode.length)
+    }
+  }
+  const pathSteps = gfaGraph.paths.map(p =>
+    stepsOfPath(p, id => declared.get(id) ?? 0),
+  )
   const walkSteps = gfaGraph.walks.map(stepsOfWalk)
   const stepped = [...pathSteps, ...walkSteps]
   const { canonical, traversals, respell } = surveySegments(gfaGraph, stepped)
@@ -310,10 +321,15 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
   gfaGraph.paths.forEach(({ name: pathName }, i) => {
     // a step lands on its segment's canonical orientation, whichever way this
     // path reads it
-    const { start, steps } = pathSteps[i]!
+    const { name: path, start, end, steps } = pathSteps[i]!
     const nodeIds = steps.map(step => nodeId(step.id))
-    const end = pathOrigin(pathName).end ?? start + ownBp(steps)
-    paths.push({ name: pathName, nodeIds, start, end } satisfies GraphPath)
+    paths.push({
+      name: pathName,
+      nodeIds,
+      start,
+      end,
+      contig: panSNContig(path),
+    } satisfies GraphPath)
     recordPathEdges(nodeIds, steps, pathName)
   })
 

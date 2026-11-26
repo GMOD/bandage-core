@@ -1,5 +1,5 @@
 import { isBackbone, overlapsWindow } from '../anchoredNodes'
-import { pathOrigin, trimOrigins } from '../pathAnchoring'
+import { pathOrigin, stretchSpan, trimOrigins } from '../pathAnchoring'
 import { PathVisitsBuilder } from '../pathVisits'
 
 import type { PathVisits } from '../pathVisits'
@@ -51,6 +51,7 @@ export function trimToWindow(
   }
 
   const kept = new Set<string>()
+  const lengthOf = new Map(graph.nodes.map(n => [n.id, n.length]))
   const trimmed: GraphPath[] = []
   const stretches = new Map<string, { first: number; nodeIds: string[] }>()
   paths.forEach((path, i) => {
@@ -62,6 +63,13 @@ export function trimToWindow(
       }
       trimmed.push({
         ...path,
+        ...stretchSpan(
+          graph,
+          path,
+          id => lengthOf.get(id) ?? 0,
+          span.first,
+          span.last,
+        ),
         nodeIds,
         ...(path.refStarts
           ? { refStarts: path.refStarts.subarray(span.first, span.last + 1) }

@@ -1,4 +1,4 @@
-import { trimOrigins } from '../pathAnchoring'
+import { stretchSpan, trimOrigins } from '../pathAnchoring'
 
 import type { Graph } from '../types'
 
@@ -8,8 +8,9 @@ import type { Graph } from '../types'
 // needs a backbone still has one. A walk keeps the steps it takes inside the
 // bubble, so the bubbles derived inside it still read their routes and
 // lengths off the haplotypes, and carriage still sets node width. Its origin
-// moves to where its first kept step starts, so a position read off the walk
-// is where that step sits on its contig, as it is on the whole graph.
+// moves to where its first kept step starts, and its end to where its last
+// ends (pathAnchoring.ts stretchSpan), so a range or position read off the
+// walk is where those steps sit on its contig, as it is on the whole graph.
 export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
   const keep = new Set(segmentIds)
   const nodes = graph.nodes.filter(n => keep.has(n.name))
@@ -23,9 +24,7 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
     }
     const nodeIds = p.nodeIds.filter(id => ids.has(id))
     kept.set(p.name, { first, nodeIds })
-    const before = p.nodeIds
-      .slice(0, first)
-      .reduce((sum, id) => sum + (lengthOf.get(id) ?? 0), 0)
+    const last = p.nodeIds.findLastIndex(id => ids.has(id))
     return [
       {
         ...p,
@@ -33,7 +32,7 @@ export function bubbleSubgraph(graph: Graph, segmentIds: string[]): Graph {
         ...(p.refStarts
           ? { refStarts: p.refStarts.filter((_, i) => ids.has(p.nodeIds[i]!)) }
           : {}),
-        ...(p.start === undefined ? {} : { start: p.start + before }),
+        ...stretchSpan(graph, p, id => lengthOf.get(id) ?? 0, first, last),
       },
     ]
   })
