@@ -9,12 +9,21 @@ import type {
   GraphTables,
 } from '../src/gfa/graphTables'
 import type {
+  END_KINDS,
+  WalkEndTable,
+  WalkRunsTables,
+} from '../src/gfa/walkRuns'
+import type { END_KINDS as FOLD_END_KINDS } from '@jbrowse/graph-fold'
+import type {
   DepartureKind as WalksDepartureKind,
   DepartureTable as WalksDepartureTable,
   GapKind as WalksGapKind,
   GapTable as WalksGapTable,
   GraphTables as WalksGraphTables,
   WalkDeparture,
+  WalkEnds as WalksWalkEnds,
+  WalkRuns,
+  END_KINDS as WALKS_END_KINDS,
 } from '@jbrowse/graph-walks'
 
 type Identical<A, B> =
@@ -34,3 +43,12 @@ export type DeparturesMatch = Holds<
 export type KindsMatch = Holds<Identical<DepartureKind, WalksDepartureKind>>
 export type GapTablesMatch = Holds<Identical<GapTable, WalksGapTable>>
 export type GapKindsMatch = Holds<Identical<GapKind, WalksGapKind>>
+export type RunsMatch = Holds<Identical<WalkRunsTables, WalkRuns>>
+export type EndTablesMatch = Holds<Identical<WalkEndTable, WalksWalkEnds>>
+// an end's kind travels as its index, so the three lists agree in order
+export type EndKindsMatch = Holds<
+  Identical<typeof END_KINDS, typeof WALKS_END_KINDS>
+>
+export type FoldEndKindsMatch = Holds<
+  Identical<typeof END_KINDS, typeof FOLD_END_KINDS>
+>
