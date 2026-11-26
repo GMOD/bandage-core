@@ -1,6 +1,13 @@
 import { expect, test, vi } from 'vitest'
 
-import { edgeHoverText, nodeHoverName, regionLabel, skipAt } from './hoverText'
+import {
+  edgeHoverText,
+  nodeEndLabel,
+  nodeHoverName,
+  regionLabel,
+  replacedStretchText,
+  skipAt,
+} from './hoverText'
 import { paddedFeet } from './layout/replacementFeet'
 import { loadGraph } from './pipeline'
 
@@ -197,4 +204,55 @@ test("a fold's own sequence goes unnamed in a hover, and every other node by its
   expect(nodeHoverName(fold, reference)).toBe('8~9')
   expect(nodeHoverName({}, branch)).toBe('open:9:right:8014:900')
   expect(nodeHoverName(undefined, branch)).toBe('open:9:right:8014:900')
+})
+
+test("a link's end is the node's name and strand, or the length of a node a fold made", () => {
+  const fold = {
+    threadFold: {
+      belowBp: 944,
+      haplotypes: 2,
+      walks: 2,
+      stepless: 0,
+      departing: [],
+    },
+  }
+  const reference = {
+    id: '8~9+',
+    name: '8~9',
+    length: 10,
+    depth: 2,
+    stable: { refName: 'chr1', start: 0, rank: 0 },
+  }
+  const branch = {
+    id: 'open:9:right:8014:900+',
+    name: 'open:9:right:8014:900',
+    length: 8014,
+    depth: 1,
+  }
+  const nodes = new Map([reference, branch].map(node => [node.id, node]))
+  const link: GraphEdge = {
+    from: '8~9+',
+    fromStrand: '+',
+    to: 'open:9:right:8014:900+',
+    toStrand: '+',
+  }
+  expect(nodeEndLabel(fold, branch, '+')).toBe('8,014 bp')
+  expect(nodeEndLabel(fold, reference, '-')).toBe('8~9-')
+  expect(
+    edgeHoverText(link, undefined, undefined, (id, strand) =>
+      nodeEndLabel(fold, nodes.get(id)!, strand),
+    ),
+  ).toEqual({ ends: '8~9+ → 8,014 bp' })
+  expect(edgeHoverText(link, undefined, id => nodes.get(id)!.name)).toEqual({
+    ends: '8~9+ → open:9:right:8014:900+',
+  })
+})
+
+test('an allele is placed by the reference stretch it replaces, or the point it is inserted after', () => {
+  expect(
+    replacedStretchText('GRCh38 chr1', { start: 196892389, end: 196911638 }),
+  ).toBe('in place of GRCh38 chr1:196,892,390-196,911,638')
+  expect(
+    replacedStretchText('GRCh38 chr1', { start: 196817006, end: 196817006 }),
+  ).toBe('inserted after GRCh38 chr1:196,817,006')
 })

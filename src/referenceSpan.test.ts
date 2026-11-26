@@ -1,6 +1,10 @@
 import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
-import { buildNeighbors, nodeReferenceSpan } from './referenceSpan'
+import {
+  buildNeighbors,
+  nodeReferenceSpan,
+  statedReferenceSpan,
+} from './referenceSpan'
 
 // The worked example from gfatools/doc/rGFA.md, the same fixture the anchored
 // layout tests use: chr1 runs v1->v2->v3->v4, and foo carries an alternate
@@ -18,11 +22,11 @@ L\tv2\t+\tv5\t+\t0M
 L\tv5\t+\tv6\t+\t0M
 L\tv6\t+\tv4\t+\t0M`
 
-function setup(gfa: string) {
+function setup(gfa: string, spanOf = nodeReferenceSpan) {
   const graph = convertGFAToGraph(parseGFA(gfa))
   const nodeById = new Map(graph.nodes.map(n => [n.id, n]))
   const neighbors = buildNeighbors(graph)
-  return (nodeId: string) => nodeReferenceSpan({ nodeId, nodeById, neighbors })
+  return (nodeId: string) => spanOf({ nodeId, nodeById, neighbors })
 }
 
 test('a backbone node states its own reference span', () => {
@@ -63,6 +67,27 @@ test('an allele with one flank in the window takes that flank span', () => {
 S\talt\tGGG\tLN:i:3\tSN:Z:alt\tSO:i:0\tSR:i:1
 L\tv1\t+\talt\t+\t0M`
   expect(setup(clipped)('alt+')).toEqual({ start: 0, end: 5 })
+})
+
+test('a reader is given no span for an allele with one flank in the window, and the span the data states for every other node', () => {
+  const clipped = `S\tv1\tAAAAA\tLN:i:5\tSN:Z:chr1\tSO:i:0\tSR:i:0
+S\talt\tGGG\tLN:i:3\tSN:Z:alt\tSO:i:0\tSR:i:1
+L\tv1\t+\talt\t+\t0M`
+  const insertion = `S\tv1\tAAAAA\tLN:i:5\tSN:Z:chr1\tSO:i:0\tSR:i:0
+S\tv2\tCCCCC\tLN:i:5\tSN:Z:chr1\tSO:i:5\tSR:i:0
+S\tins\tGGG\tLN:i:3\tSN:Z:alt\tSO:i:0\tSR:i:1
+L\tv1\t+\tv2\t+\t0M
+L\tv1\t+\tins\t+\t0M
+L\tins\t+\tv2\t+\t0M`
+  const stated = setup(RGFA, statedReferenceSpan)
+  expect(setup(clipped, statedReferenceSpan)('alt+')).toBeUndefined()
+  expect(setup(insertion, statedReferenceSpan)('ins+')).toEqual({
+    start: 5,
+    end: 5,
+  })
+  expect(stated('v2+')).toEqual({ start: 5, end: 8 })
+  expect(stated('v5+')).toEqual({ start: 8, end: 10 })
+  expect(stated('nope+')).toBeUndefined()
 })
 
 test('a node with no backbone anywhere in reach has no reference span', () => {

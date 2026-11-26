@@ -29,6 +29,8 @@ export function edgeHoverText(
   edge: GraphEdge,
   skip: DeletionEdge | PaddedFoot | undefined,
   nameOf: (id: string) => string = id => id,
+  endOf: (id: string, strand: string) => string = (id, strand) =>
+    `${nameOf(id)}${strand}`,
 ) {
   return skip
     ? {
@@ -41,7 +43,7 @@ export function edgeHoverText(
               },
       }
     : {
-        ends: `${nameOf(edge.from)}${edge.fromStrand ?? ''} → ${nameOf(edge.to)}${edge.toStrand ?? ''}`,
+        ends: `${endOf(edge.from, edge.fromStrand ?? '')} → ${endOf(edge.to, edge.toStrand ?? '')}`,
       }
 }
 
@@ -53,6 +55,30 @@ export function nodeHoverName(
   node: GraphNode,
 ) {
   return graph?.threadFold && !isBackbone(node) ? undefined : node.name
+}
+
+// A link's end as a hover states it: the node's name and strand, or the
+// length of a node that has no name a reader could look up
+export function nodeEndLabel(
+  graph: Pick<Graph, 'threadFold'> | undefined,
+  node: GraphNode,
+  strand: string,
+) {
+  const name = nodeHoverName(graph, node)
+  return name === undefined
+    ? `${groupDigits(node.length)} bp`
+    : `${name}${strand}`
+}
+
+// Where on the reference an allele lies, as a hover states it: the stretch
+// it stands in place of, or the point it is inserted at
+export function replacedStretchText(
+  reference: string,
+  { start, end }: { start: number; end: number },
+) {
+  return end > start
+    ? `in place of ${reference}:${groupDigits(start + 1)}-${groupDigits(end)}`
+    : `inserted after ${reference}:${groupDigits(start)}`
 }
 
 // What a hovered placeholder says in place of a node's name, length and

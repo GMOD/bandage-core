@@ -48,6 +48,7 @@ function flankingSpan({
   let frontier = [nodeId]
   let minEnd = Infinity
   let maxStart = -Infinity
+  const flanks = new Set<string>()
 
   // Backbone nodes are terminal — they are collected, never queued — so the walk
   // cannot cross the reference into a neighbouring bubble. It stays inside the
@@ -62,6 +63,7 @@ function flankingSpan({
             seen.add(neighborId)
             const neighbor = nodeById.get(neighborId)
             if (neighbor && isBackbone(neighbor)) {
+              flanks.add(neighborId)
               minEnd = Math.min(minEnd, neighbor.stable.start + neighbor.length)
               maxStart = Math.max(maxStart, neighbor.stable.start)
             } else {
@@ -79,6 +81,7 @@ function flankingSpan({
     : {
         start: Math.min(minEnd, maxStart),
         end: Math.max(minEnd, maxStart),
+        flanks: flanks.size,
       }
 }
 
@@ -100,11 +103,32 @@ export function nodeReferenceSpan({
   neighbors: Map<string, string[]>
 }): ReferenceSpan | undefined {
   const node = nodeById.get(nodeId)
+  const flanking =
+    node && !isBackbone(node)
+      ? flankingSpan({ nodeId, nodeById, neighbors })
+      : undefined
   return node === undefined
     ? undefined
     : isBackbone(node)
       ? { start: node.stable.start, end: node.stable.start + node.length }
-      : flankingSpan({ nodeId, nodeById, neighbors })
+      : flanking && { start: flanking.start, end: flanking.end }
+}
+
+// The reference interval a reader may show for a node: its own, or the one
+// an allele replaces between two flanks. A node with one flank in reach, as
+// at the window's edge, gets none, since where it rejoins is not given.
+export function statedReferenceSpan(args: {
+  nodeId: string
+  nodeById: Map<string, GraphNode>
+  neighbors: Map<string, string[]>
+}): ReferenceSpan | undefined {
+  const node = args.nodeById.get(args.nodeId)
+  const flanking = node && !isBackbone(node) ? flankingSpan(args) : undefined
+  return node && isBackbone(node)
+    ? nodeReferenceSpan(args)
+    : flanking && flanking.flanks > 1
+      ? { start: flanking.start, end: flanking.end }
+      : undefined
 }
 
 // Every node's midpoint on the reference, keyed by id: what a position-based

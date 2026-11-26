@@ -1,5 +1,6 @@
 import { RAMP_PIECE_DEG } from './referenceRampCss'
 import {
+  drawReferenceStrip,
   litOutline,
   nodeAnchor,
   referenceStripBlocks,
@@ -10,6 +11,7 @@ import {
 } from './referenceStrip'
 import { computeReferenceRamp, packHsl } from './renderer/GeometryBuilder'
 import { abgrToCssRgba, packAbgr } from './renderer/colorBits'
+import { recordingCanvas } from './renderer/recordingCanvas'
 
 import type { Graph, GraphNode } from './types'
 
@@ -258,6 +260,36 @@ describe('a lit span is outlined as far as the strip shows it', () => {
   test('wholly past an edge with no cap, nothing', () => {
     expect(litOutline([300, 400], { ...caps, hi: 200 })).toEqual([])
     expect(litOutline([-90, -10], { ...caps, lo: 0 })).toEqual([])
+  })
+})
+
+describe('the strip wires its end caps to the lit outline', () => {
+  const frame = { scale: 1, translateX: 0 }
+  const strip = (bp1: number, lit: { start: number; end: number }) => {
+    const { canvas, strokes, points } = recordingCanvas()
+    drawReferenceStrip(
+      canvas.getContext('2d')!,
+      [{ node: 'a', bp0: 0, bp1, colors: ['#ff0000'], faded: false }],
+      frame,
+      { width: 200, lit },
+    )
+    return { strokes, xs: points.map(p => p.x) }
+  }
+
+  test('a span past the edge the graph runs on past outlines that cap, in the ink the triangle is drawn in', () => {
+    const { strokes, xs } = strip(300, { start: 250, end: 280 })
+    expect(strokes).toEqual(['#18181c'])
+    expect(xs.slice(-5)).toEqual([189.75, 199.25, 199.25, 189.75, 189.75])
+  })
+
+  test('a span cut by that edge stops at its cap, open there', () => {
+    expect(strip(300, { start: 150, end: 280 }).xs.slice(-5)).toEqual([
+      150, 150, 189, 189, 150,
+    ])
+  })
+
+  test('where the graph stops inside the pane there is no cap, and a span past the edge is not outlined', () => {
+    expect(strip(150, { start: 250, end: 280 }).xs).toEqual([])
   })
 })
 

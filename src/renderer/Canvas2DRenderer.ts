@@ -257,9 +257,9 @@ export class Canvas2DRenderer implements Renderer {
   // Only what the highlights lift, over a transparent clear, for a hover layer
   // stacked on a canvas that drew the batch without them: a pointer move then
   // repaints one node or edge rather than the whole drawing
-  // `casing`, an ABGR ink, outlines each lifted node under it, so the node
-  // reads as the one lit however faint its own colour
-  renderHighlights(casing?: number) {
+  // `casing` outlines each lifted node under it, a hairline of `ink` a gap of
+  // `paper` off it, so the outline reads as one however thin the node
+  renderHighlights(casing?: { ink: number; paper: number }) {
     const ctx = this.ctx
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
     const batch = this.batch
@@ -274,15 +274,23 @@ export class Canvas2DRenderer implements Renderer {
     if (casing !== undefined) {
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
-      for (const group of groupByPaint(lifted, ([i]) => ({
-        color: casing,
-        weight: weightOf(batch.nodeStrokes[i]!.thickness) + CASING_PX,
-        last: false,
-      }))) {
-        this.strokeNodes(
-          { ...group, items: group.items.map(([i]) => batch.nodeStrokes[i]!) },
-          t,
-        )
+      for (const { color, past } of [
+        { color: casing.ink, past: CASING_GAP_PX + CASING_LINE_PX },
+        { color: casing.paper, past: CASING_GAP_PX },
+      ]) {
+        for (const group of groupByPaint(lifted, ([i]) => ({
+          color,
+          weight: weightOf(batch.nodeStrokes[i]!.thickness) + past,
+          last: false,
+        }))) {
+          this.strokeNodes(
+            {
+              ...group,
+              items: group.items.map(([i]) => batch.nodeStrokes[i]!),
+            },
+            t,
+          )
+        }
       }
     }
     const arrows = runItems(batch.arrows, this.edgeRun(batch.arrowRuns))
@@ -578,8 +586,9 @@ function inRun(run: Run | undefined, i: number) {
   return run !== undefined && i >= run.start && i < run.start + run.count
 }
 
-// how far a lifted node's casing shows past it on each side, in css px
-const CASING_PX = 1.5
+// a lifted node's casing on each side of it, in css px: the gap, then the line
+const CASING_GAP_PX = 1
+const CASING_LINE_PX = 1
 
 interface Paint {
   color: number

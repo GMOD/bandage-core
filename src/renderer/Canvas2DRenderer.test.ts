@@ -195,7 +195,7 @@ test('renderHighlights strokes only what is lit, over a clear', () => {
   expect(strokes).toEqual([litEdge, litNode])
 })
 
-test('a casing is stroked under each lit node, in its ink, wider than the node by a stroke each side', () => {
+test('a casing is stroked under each lit node: a hairline of ink, a gap of paper, then the node, so it reads as an outline at any width', () => {
   const { renderer, strokes, lineWidths } = makeRenderer()
   renderer.uploadGeometry(batchOf2Edges())
   renderer.updateTransform(TRANSFORM)
@@ -206,9 +206,10 @@ test('a casing is stroked under each lit node, in its ink, wider than the node b
   strokes.length = 0
   lineWidths.length = 0
   const ink = packAbgr(24, 24, 28, 255)
-  renderer.renderHighlights(ink)
-  expect(strokes).toEqual([abgrToCssRgba(ink), litNode])
-  expect(lineWidths).toEqual([nodeWidth! + 3, nodeWidth])
+  const paper = packAbgr(255, 255, 255, 255)
+  renderer.renderHighlights({ ink, paper })
+  expect(strokes).toEqual([abgrToCssRgba(ink), abgrToCssRgba(paper), litNode])
+  expect(lineWidths).toEqual([nodeWidth! + 4, nodeWidth! + 2, nodeWidth])
 })
 
 test('a thin shallow node over a wide deep one is painted after it', () => {
