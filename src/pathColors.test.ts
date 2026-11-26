@@ -3,8 +3,8 @@ import { nameHue, pathCssColor, pathLegend, walkLabelsOf } from './pathColors'
 test('a P record legend is labelled by sample', () => {
   expect(
     pathLegend([
-      { name: 'K12#1#chr:1004500-1004961', nodeIds: [] },
-      { name: 'IAI39#1#chr:2249412-2249872', nodeIds: [] },
+      { name: 'K12#1#chr:1004500-1004961' },
+      { name: 'IAI39#1#chr:2249412-2249872' },
     ]),
   ).toEqual([
     {
@@ -23,9 +23,9 @@ test('a P record legend is labelled by sample', () => {
 test('two haplotypes of one sample widen every label, not just theirs', () => {
   expect(
     pathLegend([
-      { name: 'HG00738#1', nodeIds: [] },
-      { name: 'HG00738#2', nodeIds: [] },
-      { name: 'GRCh38#0', nodeIds: [] },
+      { name: 'HG00738#1' },
+      { name: 'HG00738#2' },
+      { name: 'GRCh38#0' },
     ]).map(e => e.label),
   ).toEqual(['HG00738#1', 'HG00738#2', 'GRCh38#0'])
 })
@@ -38,10 +38,7 @@ test('names that hash to neighbouring hues still get distinct ribbons', () => {
   const nctc86 = 'NCTC86#1#chr:1709109-1710286'
   expect(Math.abs(nameHue(sakai) - nameHue(nctc86))).toBeLessThan(30)
 
-  const [a, b] = pathLegend([
-    { name: sakai, nodeIds: [] },
-    { name: nctc86, nodeIds: [] },
-  ])
+  const [a, b] = pathLegend([{ name: sakai }, { name: nctc86 }])
   expect(a!.color).toBe('hsl(0, 70%, 50%)')
   expect(b!.color).toBe('hsl(180, 70%, 50%)')
 })
@@ -66,7 +63,7 @@ test('repeat copies of one sequence are told apart by offset, not by name', () =
         'K12#1#chr:4166751-4167659',
         'Sakai#1#chr:4735469-4736377',
         'Sakai#1#chr:4976146-4977054',
-      ].map(name => ({ name, nodeIds: [] })),
+      ].map(name => ({ name })),
     ).map(e => e.label),
   ).toEqual(['K12 @4,166,751', 'Sakai @4,735,469', 'Sakai @4,976,146'])
 })
@@ -78,7 +75,7 @@ test('haplotypes their range suffixes would separate still take sample#haplotype
         'HG01978#1#JAGYVQ1.1:100-200',
         'HG01978#2#JAGYVR2.1:300-400',
         'HG01952#1#JAHAME3.1:500-600',
-      ].map(name => ({ name, nodeIds: [] })),
+      ].map(name => ({ name })),
     ).map(e => e.label),
   ).toEqual(['HG01978#1', 'HG01978#2', 'HG01952#1'])
 })
@@ -87,10 +84,9 @@ test('haplotypes their range suffixes would separate still take sample#haplotype
 // an offset both paths share
 test('two haplotypes at the same offset widen the name instead', () => {
   expect(
-    pathLegend([
-      { name: 'HG00738#1', nodeIds: [] },
-      { name: 'HG00738#2', nodeIds: [] },
-    ]).map(e => e.label),
+    pathLegend([{ name: 'HG00738#1' }, { name: 'HG00738#2' }]).map(
+      e => e.label,
+    ),
   ).toEqual(['HG00738#1', 'HG00738#2'])
 })
 
@@ -99,18 +95,15 @@ test('two haplotypes at the same offset widen the name instead', () => {
 test('a generic path is labelled by its contig, not the placeholder sample', () => {
   expect(
     pathLegend([
-      { name: '_gbwt_ref#0#ref:23438-23804', nodeIds: [] },
-      { name: '_gbwt_ref#0#GI262359905:57387-57753', nodeIds: [] },
-      { name: '_gbwt_ref#0#GI528476558:23418-23785', nodeIds: [] },
+      { name: '_gbwt_ref#0#ref:23438-23804' },
+      { name: '_gbwt_ref#0#GI262359905:57387-57753' },
+      { name: '_gbwt_ref#0#GI528476558:23418-23785' },
     ]).map(e => e.label),
   ).toEqual(['ref', 'GI262359905', 'GI528476558'])
 })
 
 test('a legend names the colours the paths were drawn in where given', () => {
-  const paths = [
-    { name: 'HG00738#1', nodeIds: [] },
-    { name: 'HG00738#2', nodeIds: [] },
-  ]
+  const paths = [{ name: 'HG00738#1' }, { name: 'HG00738#2' }]
   expect(pathLegend(paths, ['#111', '#222']).map(e => e.color)).toEqual([
     '#111',
     '#222',

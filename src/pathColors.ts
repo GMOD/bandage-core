@@ -115,7 +115,7 @@ export interface PathLegendEntry {
 // pathCssColor's hue. One entry per name: the records of a walk cut in pieces
 // are one walk, drawn in the first record's colour.
 export function pathLegend(
-  paths: GraphPath[],
+  paths: readonly Pick<GraphPath, 'name'>[],
   colors?: readonly string[],
 ): PathLegendEntry[] {
   const firstOf = new Map<string, number>()
