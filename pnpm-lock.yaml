@@ -17,7 +17,6 @@ importers:
       '@jbrowse/graph-fmmm-layout':
         specifier: ^1.0.2
         version: 1.0.2
-      # PLACEHOLDER: regenerate with `pnpm install` once @jbrowse/graph-fold 1.3.0 is published
       '@jbrowse/graph-fold':
         specifier: ^1.3.0
         version: 1.3.0
@@ -298,9 +297,8 @@ packages:
     resolution: {integrity: sha512-/wIO50DsK87me7qTlo1D6h65Onjk2LMxaWSP19jk220kJp8bic8hL6ITz1+NTi+CttKm0CyzNWJ/eDwgSayGJw==}
     engines: {node: '>=20'}
 
-  # PLACEHOLDER: the published tarball's integrity, once @jbrowse/graph-fold 1.3.0 is published
   '@jbrowse/graph-fold@1.3.0':
-    resolution: {integrity: PLACEHOLDER-graph-fold-1.3.0}
+    resolution: {integrity: sha512-0XscDSfCY4YjCJW45b48BhHEXxVy9hP9egFCYJk/oCWvV/D/0wfWLY+NtA0wgjQmelgRxpBR6U8huVIGVtQstw==}
 
   '@jbrowse/graph-stress-layout@1.1.0':
     resolution: {integrity: sha512-qP/VqpFViuCs1XUaXZdvbmfisCdl7Ti4MRn+7G2TqEgRLtQ0ZWkcMnkXqo049+qbiYE2ggFdYTLkwTYlAxYnIQ==}
