@@ -51,7 +51,15 @@ function tables({
     walks: {
       names: walks.map(w => w.name),
       starts: Float64Array.from(walks, w => w.start),
-      ends: Float64Array.from(walks, w => w.start + 100),
+      ends: Float64Array.from(
+        walks,
+        w =>
+          w.start +
+          w.steps.reduce(
+            (bp, [node]) => bp + (node < declared ? 10 + node : 0),
+            0,
+          ),
+      ),
       offsets: Int32Array.from(offsets),
       steps: Int32Array.from(steps, s => s[0]),
       reversed: Uint8Array.from(steps, s => (s[1] ? 1 : 0)),
@@ -114,8 +122,8 @@ test('the tables write the GFA they stand for', () => {
     'S\t3\t*\tLN:i:12\tSN:Z:HG002#1#c\tSO:i:4\tSR:i:1',
     'L\t1\t+\t2\t+\t0M',
     'L\t2\t-\t3\t-\t0M',
-    'W\tGRCh38\t0\tchr1\t0\t100\t>1>2',
-    'W\tHG002\t1\tc#2\t5\t105\t<3<2',
+    'W\tGRCh38\t0\tchr1\t0\t21\t>1>2',
+    'W\tHG002\t1\tc#2\t5\t28\t<3<2',
   ])
 })
 
@@ -145,11 +153,11 @@ test('a two-part walk name keeps its name and writes a P line', () => {
     'P\tgrch38#chr2\t3+\t*',
   ])
   expect(graphTablesGFA(twoPart(5)).split('\n').at(-1)).toBe(
-    'P\tgrch38#chr2:5-105\t3+\t*',
+    'P\tgrch38#chr2:5-17\t3+\t*',
   )
   expect(graphFromTables(twoPart(5), 'cut').paths?.map(p => p.name)).toEqual([
-    'grch38#chr1:5-105',
-    'grch38#chr2:5-105',
+    'grch38#chr1:5-26',
+    'grch38#chr2:5-17',
   ])
   expectSameGraph(twoPart(0))
   expectSameGraph(twoPart(5))

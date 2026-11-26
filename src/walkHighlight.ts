@@ -53,15 +53,17 @@ export interface WalkHighlight {
   steps: number
   bp: number
   unloadedBp: number
-  // where the walk's stretch of the cut sits on its own contig, from its W or
-  // P record: its start where it begins and its end where it ends. On a
-  // folded graph only a thread of one record that states its end has one,
-  // since a fold's node lengths are not the walk's own
+  // where the walk's stretch of the cut sits on its own contig, as its W or P
+  // records and a cut's stated stretches give it: none where a piece states
+  // no start, or no end, as a thread of several records does
   range?: { contig: string; start: number; end: number }
   // from its first piece's start on its contig to its furthest piece's start
   // plus the bp drawn of it: what progress and the key's gaps are measured
-  // over, which is the range on a graph that is not folded
-  extent?: { contig: string; start: number; end: number }
+  // over
+  extent?: { start: number; end: number }
+  // whether its nodes are drawn at the walk's own lengths, as they are on any
+  // graph not folded to threads
+  ownLengths: boolean
   // bp of the gaps between its pieces that a walk-file cut's departures say
   // the graph lacks, or are its own sequence the cut did not read
   // (gfa/departures.ts gapParts)
@@ -256,7 +258,12 @@ function highlightOf(
         const start = at
         at += x.bp
         return x.kind === 'steps' && x.nodes.length > 0
-          ? [stranded({ name, nodeIds: x.nodes, start }, x.reversed)]
+          ? [
+              stranded(
+                { name, nodeIds: x.nodes, start, end: start + x.bp },
+                x.reversed,
+              ),
+            ]
           : []
       })
     },
@@ -285,16 +292,14 @@ function highlightOf(
   if (walked.length === 0) {
     return undefined
   }
-  const contig = first?.contig ?? panSNContig(pathOrigin(name).name)
-  const drawn = extentOf(walked)
-  const extent = drawn && { contig, ...drawn }
-  const range = !graph.threadFold
-    ? extent
-    : pieces.length === 1 &&
-        first?.start !== undefined &&
-        first.end !== undefined
-      ? { contig, start: first.start, end: first.end }
-      : undefined
+  const extent = extentOf(walked)
+  const range = walked.every(p => p.start !== undefined && p.end !== undefined)
+    ? {
+        contig: first?.contig ?? panSNContig(pathOrigin(name).name),
+        start: walked.reduce((least, p) => Math.min(least, p.start!), Infinity),
+        end: walked.reduce((most, p) => Math.max(most, p.end!), -Infinity),
+      }
+    : undefined
   // progress runs over the contig where the records place the pieces, so the
   // stretch between two pieces counts though no node draws it
   const span = extent ? extent.end - extent.start : bp
@@ -407,6 +412,7 @@ function highlightOf(
     reference,
     range,
     extent,
+    ownLengths: !graph.threadFold,
     nodeIds,
     edgeIndexes,
     progress,
@@ -481,6 +487,7 @@ function laneColors(
       ? liftedPasses(
           walkPassesOf(walk, id => byId.get(id)?.length ?? 0, layer?.passes),
           encodedColor(encoding),
+          walk.ownLengths,
           layer?.passNames,
           lanes,
           taken,

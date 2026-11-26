@@ -2,9 +2,12 @@ import { fragmentRuns } from '@gmod/gfa-tabix'
 
 import { drawn, orderedFigure } from '../scripts/fold-runs/drawn'
 import { hostedTables } from '../test_data/hosted/hostedTables'
+import { figureData } from './figureData'
 import { departureTable } from './gfa/departures'
 import { END_KINDS, cutEnds } from './gfa/walkRuns'
 import { absentHaplotypesText } from './graphKey'
+import { liftedRowInks } from './layout/rowInks'
+import { layoutModeByValue } from './layoutModes'
 import { loadGraph } from './pipeline'
 import { foldThreads, openBranchSpan } from './threadFold'
 import { foldThreadRuns } from './threadFoldRuns'
@@ -361,9 +364,10 @@ test.each(indelFolds())(
       start: 100,
       end: 3300,
     })
-    expect(graph && walkKey(liftedThread(graph, 'h1#1#ctg1')!).scale).toBe(
-      'ctg1:101-3,305 (3.2 kb)',
-    )
+    expect(graph && walkKey(liftedThread(graph, 'h1#1#ctg1')!)).toMatchObject({
+      scale: 'ctg1:101-3,305 (3.2 kb)',
+      gaps: '',
+    })
     expect(graph && walkKey(liftedThread(graph, 'ref#0#chr')!).scale).toBe(
       'chr:1-3,000 (3 kb)',
     )
@@ -398,6 +402,33 @@ test.each(indelFolds())(
     expect(off && thread && walkPosition(thread, off.id, off.length)).toEqual({
       onWalk: false,
       at: undefined,
+    })
+  },
+)
+
+test.each(indelFolds())(
+  "folded from %s, the figure data's key columns are the range the key writes, and its row inks read the same",
+  (_, fold) => {
+    const graph = fold.folded ? fold.graph : undefined
+    const thread = graph?.paths?.find(p => p.members?.includes('h1#1#ctg1'))
+    const layout = graph && layoutModeByValue('ordered').run(graph, undefined)
+    const { keys } =
+      graph && layout && thread
+        ? figureData(graph, layout, {
+            walks: [{ walk: thread.name, color: { field: 'progress' } }],
+          })
+        : { keys: undefined }
+    const k = keys?.name.indexOf(thread?.name ?? '') ?? -1
+    expect([keys?.contig[k], keys?.start[k], keys?.end[k]]).toEqual([
+      'ctg1',
+      100,
+      3305,
+    ])
+    const walk = graph && liftedThread(graph, 'h1#1#ctg1')
+    expect(walk && liftedRowInks([walk])[0]?.range).toEqual({
+      contig: 'ctg1',
+      start: 100,
+      end: 3305,
     })
   },
 )

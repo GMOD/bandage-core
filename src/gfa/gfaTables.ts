@@ -201,6 +201,13 @@ export function gfaTables(text: string): GraphTables | undefined {
   const walkEnds: number[] = []
   const offsets = [0]
   const steps = stepColumns()
+  const ownBp = (first: number) => {
+    let bp = 0
+    for (let s = first; s < steps.nodes.length; s++) {
+      bp += lengths[steps.nodes.data[s]!] ?? 0
+    }
+    return bp
+  }
   for (const raw of lines) {
     if (raw.startsWith('L\t')) {
       const [, source, strand1, target, strand2] = trimCR(raw).split('\t')
@@ -215,8 +222,14 @@ export function gfaTables(text: string): GraphTables | undefined {
       if (w) {
         names.push(`${w.sample}#${w.haplotype}#${w.contig}`)
         walkStarts.push(w.start === '*' ? 0 : +w.start)
-        walkEnds.push(w.start === '*' || w.end === '*' ? -1 : +w.end)
         readWalkBody(line, w.body, segments, steps)
+        walkEnds.push(
+          w.start === '*'
+            ? -1
+            : w.end === '*'
+              ? +w.start + ownBp(offsets.at(-1)!)
+              : +w.end,
+        )
         // a stepless walk is still a path to the text route, and no row here
         if (steps.nodes.length === offsets.at(-1)) {
           return undefined

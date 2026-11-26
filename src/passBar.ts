@@ -10,6 +10,9 @@ import type { WalkLift } from './walkHighlight'
 export interface PassBar {
   walk: string
   bp: number
+  // false where its nodes are not drawn at the walk's own lengths, so its
+  // bp are along the drawn route and not the walk's
+  ownLengths: boolean
   ownInk: number
   runs: { pass: number; start: number; end: number; ink: number }[]
   passes: {
@@ -42,6 +45,7 @@ export function passBars(lift: WalkLift | undefined, shown?: WalkRows) {
           {
             walk: walk.name,
             bp: walk.extent ? walk.extent.end - walk.extent.start : walk.bp,
+            ownLengths: walk.ownLengths,
             ownInk: drawn.ownInk,
             runs: drawn.runs.map(run => ({
               ...run,
@@ -96,13 +100,17 @@ export function passBarTree(bar: PassBar, label: string, width: number) {
   }
   const step = bar.bp > 0 ? niceStep(bar.bp, 8) : 1
   const ticks = Array.from(
-    { length: bar.bp > 0 ? Math.floor(bar.bp / step) + 1 : 0 },
+    {
+      length: bar.bp > 0 && bar.ownLengths ? Math.floor(bar.bp / step) + 1 : 0,
+    },
     (_, i) => i * step,
   )
   const title = el(
     'text',
     { x: SIDE_PX, y: TITLE_Y, ...FONT, 'font-weight': 'bold' },
-    `${label} along its length`,
+    bar.ownLengths
+      ? `${label} along its length`
+      : `${label} along its drawn route`,
   )
   const named: { from: number; to: number }[] = []
   const brackets = bar.passes.flatMap(pass => {

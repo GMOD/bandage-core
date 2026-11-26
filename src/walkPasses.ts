@@ -168,6 +168,7 @@ export interface LiftedPasses extends Omit<WalkPasses, 'passes'> {
 export function liftedPasses(
   found: WalkPasses,
   ownInk: number,
+  ownLengths: boolean,
   names: readonly string[] = [],
   lanes: readonly string[] = [],
   taken: readonly string[] = [],
@@ -187,7 +188,10 @@ export function liftedPasses(
       return {
         ...pass,
         label,
-        title: bundled ? bundle : `${label} · ${formatBp(pass.repeatBp)}`,
+        title:
+          bundled || !ownLengths
+            ? label
+            : `${label} · ${formatBp(pass.repeatBp)}`,
         ink: inks[bundled ? 0 : i] ?? ownInk,
       }
     }),

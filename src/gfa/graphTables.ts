@@ -215,18 +215,19 @@ export function tablePath(
   const trimmedBefore = w.trimmedBefore?.[p]
   const trimmedAfter = w.trimmedAfter?.[p]
   const end = w.ends[p]!
+  const stated = end >= start ? { end } : {}
   const name = walkPathName(walkName, start, end)
   return fields
     ? {
         name,
         start,
-        ...(end >= start ? { end } : {}),
+        ...stated,
         ...fields,
         ...(trimmedBefore === undefined ? {} : { trimmedBefore }),
         ...(trimmedAfter === undefined ? {} : { trimmedAfter }),
         ...abridged,
       }
-    : { name, start }
+    : { name, start, ...stated }
 }
 
 // Each list's names, in the order the crossings came, each once

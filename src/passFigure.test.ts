@@ -21,6 +21,7 @@ import {
 } from './renderer/laneHeads'
 import { axisScaleOf } from './viewport'
 import { walkLift } from './walkHighlight'
+import { liftedPasses, walkPassesOf } from './walkPasses'
 
 import type { El } from './el'
 import type { GenePin } from './genes/genePins'
@@ -411,6 +412,7 @@ test("figureData's arrows table marks the heads the canvas strokes a white halo 
 const BAR: PassBar = {
   walk: HAP,
   bp: 1000,
+  ownLengths: true,
   ownInk: hexAbgr('#888888'),
   bundled: false,
   runs: [
@@ -549,4 +551,26 @@ test('a faceted figure names no pass and draws no bar, in figureSvg as in figure
   expect(passLabelTexts(tables)).toEqual([])
   expect(tables.passes.walk).toEqual([])
   expect(tables.passRuns.walk).toEqual([])
+})
+
+test('a walk not drawn at its own lengths, as a thread of a fold, has a bar along its drawn route with no bp ticks, and passes named without bp', () => {
+  const texts = (bar: PassBar) =>
+    elements(passBarTree(bar, HAP, 1024))
+      .filter(e => e.tag === 'text')
+      .map(e => e.children.filter(c => typeof c === 'string').join(''))
+  expect(texts(BAR)).toContain(`${HAP} along its length`)
+  expect(texts(BAR).some(t => /^\d/.test(t))).toBe(true)
+  const drawn = texts({ ...BAR, ownLengths: false })
+  expect(drawn).toContain(`${HAP} along its drawn route`)
+  expect(drawn.some(t => /^\d/.test(t))).toBe(false)
+  const walk = walkLift(
+    graphOf('>f1>a>b>c>d>a>c>d>a>b>c>d>f2'),
+    byPass,
+  )!.walks.find(w => w.name === HAP)!
+  const found = walkPassesOf(walk, () => 1000, undefined)
+  const titles = (ownLengths: boolean) =>
+    liftedPasses(found, 0, ownLengths).passes.map(p => p.title)
+  expect(titles(true).length).toBeGreaterThan(1)
+  expect(titles(true).every(t => / · \d/.test(t))).toBe(true)
+  expect(titles(false)).toEqual(titles(true).map(t => t.split(' · ')[0]))
 })

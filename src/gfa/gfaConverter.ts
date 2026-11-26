@@ -260,6 +260,8 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
   })
 
   const paths: GraphPath[] = []
+  const ownBp = (steps: readonly { id: string }[]) =>
+    steps.reduce((bp, step) => bp + (lengths.get(step.id) ?? 0), 0)
 
   // The paths taking each link, read either way along it: `L a + b +` is
   // taken by a step from a+ to b+ and by one from b- to a-, never by one from
@@ -310,7 +312,8 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
     // path reads it
     const { start, steps } = pathSteps[i]!
     const nodeIds = steps.map(step => nodeId(step.id))
-    paths.push({ name: pathName, nodeIds, start } satisfies GraphPath)
+    const end = pathOrigin(pathName).end ?? start + ownBp(steps)
+    paths.push({ name: pathName, nodeIds, start, end } satisfies GraphPath)
     recordPathEdges(nodeIds, steps, pathName)
   })
 
@@ -321,7 +324,9 @@ export function convertGFAToGraph(stated: GFAGraph, name = 'Imported GFA') {
       name: walkName,
       nodeIds,
       start,
-      ...(walk.start === -1 || walk.end === -1 ? {} : { end: walk.end }),
+      ...(walk.start === -1
+        ? {}
+        : { end: walk.end === -1 ? start + ownBp(walk.segments) : walk.end }),
       sample: walk.sample,
       haplotype: walk.haplotype,
       contig: walk.contig,

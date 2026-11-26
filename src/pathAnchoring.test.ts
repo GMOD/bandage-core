@@ -26,6 +26,7 @@ test('splits an odgi extract range suffix off the path name', () => {
   expect(pathOrigin('K12#1#chr:1004500-1004961')).toEqual({
     name: 'K12#1#chr',
     start: 1004500,
+    end: 1004961,
   })
 })
 
@@ -35,18 +36,22 @@ test('adds a vg subrange to the GBZ fragment it counts from', () => {
   expect(pathOrigin('B97#0#chr8#145994[348002-349740]')).toEqual({
     name: 'B97#0#chr8',
     start: 493996,
+    end: 495734,
   })
   expect(pathOrigin('B97#0#chr8#145994')).toEqual({
     name: 'B97#0#chr8',
     start: 145994,
+    end: undefined,
   })
   expect(pathOrigin('B73#0#chr8[363449-365187]')).toEqual({
     name: 'B73#0#chr8',
     start: 363449,
+    end: 365187,
   })
   expect(pathOrigin('HG002#1#5[100-200]')).toEqual({
     name: 'HG002#1#5',
     start: 100,
+    end: 200,
   })
 })
 

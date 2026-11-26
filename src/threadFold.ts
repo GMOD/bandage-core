@@ -4,7 +4,7 @@ import { departureTable } from './gfa/departures'
 import { linkKey } from './gfa/linkKey'
 import { END_KINDS } from './gfa/walkRuns'
 import { referenceWalkName } from './layout/walkRowRuns'
-import { panSNFields } from './pansn'
+import { panSNContig, panSNFields } from './pansn'
 import { pathOrigin } from './pathAnchoring'
 import { loadGraph } from './pipeline'
 import { threadLabel } from './threadKey'
@@ -248,7 +248,7 @@ function threadsOfFold(fold: FoldedThreads, tracks: readonly ThreadWalk[]) {
       name: recordName(first),
       start: tracks[first]?.start ?? 0,
       end: held.length === 1 ? tracks[first]?.end : undefined,
-      contig: panSNFields(pathOrigin(tracks[first]?.name ?? '').name)?.contig,
+      contig: panSNContig(pathOrigin(tracks[first]?.name ?? '').name),
       members: [...new Set(held.map(i => tracks[i]!.name))],
       walks: held.length,
       pieces:
@@ -370,7 +370,9 @@ export function foldedGraph(
       strands: Uint8Array.from(strands),
     },
     walks: {
-      names: lanes.map(({ thread }) => thread.name),
+      names: lanes.map(({ thread }) =>
+        panSNFields(thread.name) ? thread.name : pathOrigin(thread.name).name,
+      ),
       starts: Float64Array.from(starts),
       ends: Float64Array.from(ends),
       offsets: Int32Array.from(offsets),
@@ -389,7 +391,7 @@ export function foldedGraph(
     }
     return {
       ...path,
-      ...(thread.contig === undefined ? {} : { contig: thread.contig }),
+      contig: thread.contig,
       count: track.haplotypes,
       members: thread.members,
       variation: variationLabel(track),

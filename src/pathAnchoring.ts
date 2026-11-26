@@ -32,19 +32,28 @@ import type { Graph, GraphNode, PathOrigin } from './types'
 //
 // Anchored on the digits rather than on a trailing colon, because a stable name
 // may legitimately contain one (the same hazard gfaParser's tag splitting has).
-const RANGE_SUFFIX = /:(\d+)-\d+$/
-const VG_FRAGMENT = /^([^#]*#[^#]*#[^#[]*)#(\d+)(?:\[(\d+)-\d+\])?$/
-const VG_SUBRANGE = /\[(\d+)-\d+\]$/
+const RANGE_SUFFIX = /:(\d+)-(\d+)$/
+const VG_FRAGMENT = /^([^#]*#[^#]*#[^#[]*)#(\d+)(?:\[(\d+)-(\d+)\])?$/
+const VG_SUBRANGE = /\[(\d+)-(\d+)\]$/
 
 export function pathOrigin(pathName: string) {
   const fragment = VG_FRAGMENT.exec(pathName)
   if (fragment) {
-    return { name: fragment[1]!, start: +fragment[2]! + +(fragment[3] ?? 0) }
+    const offset = +fragment[2]!
+    return {
+      name: fragment[1]!,
+      start: offset + +(fragment[3] ?? 0),
+      end: fragment[4] === undefined ? undefined : offset + +fragment[4],
+    }
   }
   const match = RANGE_SUFFIX.exec(pathName) ?? VG_SUBRANGE.exec(pathName)
   return match
-    ? { name: pathName.slice(0, match.index), start: +match[1]! }
-    : { name: pathName, start: 0 }
+    ? {
+        name: pathName.slice(0, match.index),
+        start: +match[1]!,
+        end: +match[2]!,
+      }
+    : { name: pathName, start: 0, end: undefined }
 }
 
 export interface PathSteps {

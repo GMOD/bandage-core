@@ -68,22 +68,22 @@ export function walkKey(
 }
 
 // Whether a walk visits a node, and where the node sits on the walk's own
-// contig at its first visit, from how far along the walk it is: nothing on a
-// thread of a folded graph, whose node lengths are not the walk's own
+// contig at its first visit, from how far along the walk it is: nothing where
+// the walk states no start, or its nodes are not drawn at its own lengths
 export function walkPosition(walk: LiftedWalk, nodeId: string, length: number) {
   const progress = walk.progress.get(nodeId)
-  const along = walk.count === undefined ? walk.extent : undefined
+  const { range, extent } = walk
   const start =
-    progress === undefined || !along
+    progress === undefined || !extent || !walk.ownLengths
       ? undefined
       : Math.round(
-          along.start + progress * (along.end - along.start) - length / 2,
+          extent.start + progress * (extent.end - extent.start) - length / 2,
         )
   return {
     onWalk: progress !== undefined,
     at:
-      along && start !== undefined
-        ? `${along.contig}:${groupDigits(start + 1)}-${groupDigits(start + length)}`
+      range && start !== undefined
+        ? `${range.contig}:${groupDigits(start + 1)}-${groupDigits(start + length)}`
         : undefined,
   }
 }
