@@ -442,6 +442,9 @@ export interface ThreadEvent {
   // false where no node or link of the graph is the event, as for a walk
   // that ends inside the window
   anchored: boolean
+  // only on a branch that continues past the window: where on the reference
+  // its far breakpoint is, past refStart or refEnd, which stop at the window
+  beyond?: number
 }
 
 // The fold's events over `graph`, foldedGraph's of the same fold of `tracks`
@@ -463,6 +466,7 @@ export function threadEvents(
     from: branch.from === undefined ? undefined : idOf.get(branch.from),
     to: branch.to === undefined ? undefined : idOf.get(branch.to),
     anchored: branch.anchored,
+    ...(branch.beyond === undefined ? {} : { beyond: branch.beyond }),
   }))
 }
 
@@ -596,6 +600,23 @@ export function threadsThrough(
 // threads that leave out what lies between its two nodes
 export const eventsAtNode = (events: readonly ThreadEvent[], nodeId: string) =>
   events.filter(event => event.nodeIds.includes(nodeId))
+
+// The reference a branch that continues past the window stands in for, from
+// its breakpoint inside the window to the far one past it
+export const openBranchSpan = (
+  events: readonly ThreadEvent[],
+  nodeId: string,
+) => {
+  const open = eventsAtNode(events, nodeId).find(
+    event => event.beyond !== undefined,
+  )
+  return open?.beyond === undefined
+    ? undefined
+    : {
+        start: Math.min(open.refStart, open.beyond),
+        end: Math.max(open.refEnd, open.beyond),
+      }
+}
 
 export const eventsAtLink = (
   events: readonly ThreadEvent[],

@@ -91,6 +91,7 @@ export {
   eventsAtNode,
   foldThreads,
   foldedGraph,
+  openBranchSpan,
   threadEvents,
   threadFoldInput,
   threadLayers,

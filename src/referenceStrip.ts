@@ -26,9 +26,9 @@ import type { Graph, NodeSegment } from './types'
 // blocks on screen are wide enough to read one by one, touching ones alternate
 // between two tiers, as a feature track stacks features that would touch. A
 // base-level cut splits the backbone at every SNP, and tiers there would be a
-// barcode that reads as data, so it draws as one band. The lit node gets a leader from its span on the strip
-// to where the graph drew it, as the variant matrix ties a column to its
-// variant.
+// barcode that reads as data, so it draws as one band. The lit node's span is
+// outlined on the strip, as far as the strip shows it, and the graph outlines
+// the node in the same ink.
 
 export const REFERENCE_STRIP_PX = 12
 // the strip, and the gap under it the fit leaves the drawing
@@ -239,7 +239,6 @@ export function nodeAnchor(
 export interface StripLit {
   start: number
   end: number
-  anchor?: { x: number; y: number }
 }
 
 // Each block in whole device pixels, left to right, none sharing a pixel.
@@ -341,6 +340,65 @@ function drawOverhang(
   ctx.fill()
 }
 
+// The ink the strip outlines a lit span in, and the graph its node
+export const stripInk = (darkMode?: boolean) =>
+  darkMode ? '#ffffff' : '#18181c'
+
+const LIT_PX = 1.5
+const LIT_MIN_PX = 3
+
+// A lit span's outline, as the polylines to stroke: over the part of it
+// between the strip's end caps, open on a side the pane cuts, so it runs on
+// past the cap there. A span wholly past an edge outlines that edge's cap, and
+// nothing where the strip draws none. `lo` and `hi` are where the caps begin.
+export function litOutline(
+  [x0, x1]: readonly [number, number],
+  { lo, hi, width }: { lo: number; hi: number; width: number },
+) {
+  const cutLeft = x0 < lo
+  const cutRight = x1 > hi
+  const v0 = Math.max(x0, lo)
+  const v1 = Math.min(x1, hi)
+  const top = LIT_PX / 2
+  const bottom = REFERENCE_STRIP_PX - LIT_PX / 2
+  const w = Math.max(v1 - v0, LIT_MIN_PX)
+  const left = cutRight ? v1 - w : cutLeft ? v0 : (v0 + v1) / 2 - w / 2
+  const right = left + w
+  const capLeft = cutLeft ? lo - OVERHANG_CAP_PX : hi
+  const cap = [
+    { x: capLeft + top, y: top },
+    { x: capLeft + OVERHANG_CAP_PX - top, y: top },
+    { x: capLeft + OVERHANG_CAP_PX - top, y: bottom },
+    { x: capLeft + top, y: bottom },
+    { x: capLeft + top, y: top },
+  ]
+  return v1 >= v0
+    ? cutRight
+      ? [
+          [
+            ...(cutLeft ? [] : [{ x: left, y: bottom }]),
+            { x: left, y: top },
+            { x: right, y: top },
+          ],
+          [
+            { x: right, y: bottom },
+            { x: left, y: bottom },
+          ],
+        ]
+      : [
+          [
+            ...(cutLeft ? [] : [{ x: left, y: bottom }]),
+            { x: left, y: top },
+            { x: right, y: top },
+            { x: right, y: bottom },
+            { x: left, y: bottom },
+          ],
+        ]
+    : (cutLeft ? lo > 0 : hi < width)
+      ? [cap]
+      : []
+}
+
 // Rows split the strip's height at whole device pixels, as blocks split its
 // width
 function rowEdge(row: number, rows: number, dpr: number) {
@@ -363,7 +421,7 @@ export function drawReferenceStrip(
     dpr?: number
   },
 ) {
-  const ink = darkMode ? '#ffffff' : '#18181c'
+  const ink = stripInk(darkMode)
   ctx.clearRect(0, 0, width, REFERENCE_STRIP_ZONE_PX)
   for (const b of stripPixels(blocks, frame, width, dpr)) {
     // a row per lifted walk, else the block's tier, else the whole strip
@@ -392,18 +450,22 @@ export function drawReferenceStrip(
     drawOverhang(ctx, width, -1, ink)
   }
   if (lit) {
-    const [x0, x1] = span(frame, lit.start, lit.end)
-    const w = Math.max(x1 - x0, 3)
-    const left = (x0 + x1) / 2 - w / 2
     ctx.strokeStyle = ink
-    ctx.lineWidth = 1.5
-    ctx.strokeRect(left, 0.75, w, REFERENCE_STRIP_PX - 1.5)
-    if (lit.anchor) {
-      ctx.beginPath()
-      ctx.moveTo(left + w / 2, REFERENCE_STRIP_PX)
-      ctx.lineTo(lit.anchor.x, lit.anchor.y)
-      ctx.lineWidth = 1
-      ctx.stroke()
+    ctx.lineWidth = LIT_PX
+    ctx.beginPath()
+    for (const line of litOutline(span(frame, lit.start, lit.end), {
+      lo: overhang.left > 0 ? OVERHANG_CAP_PX : 0,
+      hi: overhang.right > 0 ? width - OVERHANG_CAP_PX : width,
+      width,
+    })) {
+      line.forEach(({ x, y }, i) => {
+        if (i === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
+      })
     }
+    ctx.stroke()
   }
 }

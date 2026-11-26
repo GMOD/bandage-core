@@ -5,10 +5,11 @@ import { hostedTables } from '../test_data/hosted/hostedTables'
 import { END_KINDS, cutEnds } from './gfa/walkRuns'
 import { absentHaplotypesText } from './graphKey'
 import { loadGraph } from './pipeline'
-import { foldThreads } from './threadFold'
+import { foldThreads, openBranchSpan } from './threadFold'
 import { foldThreadRuns } from './threadFoldRuns'
 
 import type { WalkEndTable } from './gfa/walkRuns'
+import type { ThreadEvent } from './threadFold'
 import type { Graph } from './types'
 
 // Cuts of the hosted HPRC walk file for eight haplotypes: HLA class II at
@@ -158,6 +159,50 @@ test("a cut's fold given its walks' ends no longer says a walk starts or ends in
       'deletion 1.8 kb, 2 of 9, continues past the window',
     ],
   ])
+})
+
+test('a branch that continues past the window states its far breakpoint, past the window edge its refStart or refEnd stops at', () => {
+  const graph = loadGraph(hostedTables('hla-ii-default').tables, 'hla')
+  const fold = foldThreads(graph, 236)
+  const past = fold.folded
+    ? fold.events.filter(event => event.text.includes('continues past'))
+    : []
+  expect(
+    past.map(({ refStart, refEnd, beyond = Number.NaN }) =>
+      Math.round((Math.max(refEnd, beyond) - Math.min(refStart, beyond)) / 100),
+    ),
+  ).toEqual([860, 18])
+  expect(
+    past.every(
+      ({ refStart, refEnd, beyond = Number.NaN }) =>
+        beyond < refStart || beyond > refEnd,
+    ),
+  ).toBe(true)
+})
+
+test("an open branch's node spans the reference out to its far breakpoint, and any other node has no such span", () => {
+  const event = (fields: Partial<ThreadEvent>): ThreadEvent => ({
+    text: '',
+    kind: 'other',
+    refStart: 100,
+    refEnd: 500,
+    haplotypes: 1,
+    paths: [],
+    nodeIds: [],
+    from: undefined,
+    to: undefined,
+    anchored: true,
+    ...fields,
+  })
+  const events = [
+    event({ nodeIds: ['right'], refStart: 400, refEnd: 500, beyond: 900 }),
+    event({ nodeIds: ['left'], refStart: 100, refEnd: 150, beyond: 20 }),
+    event({ nodeIds: ['inside'], refStart: 200, refEnd: 300 }),
+  ]
+  expect(openBranchSpan(events, 'right')).toEqual({ start: 400, end: 900 })
+  expect(openBranchSpan(events, 'left')).toEqual({ start: 20, end: 150 })
+  expect(openBranchSpan(events, 'inside')).toBeUndefined()
+  expect(openBranchSpan(events, 'none')).toBeUndefined()
 })
 
 test('runs whose haplotypes are in more pieces than 1.5 a haplotype are refused, so a host cuts the window', () => {

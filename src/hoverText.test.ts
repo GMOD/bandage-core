@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest'
 
-import { edgeHoverText, regionLabel, skipAt } from './hoverText'
+import { edgeHoverText, nodeHoverName, regionLabel, skipAt } from './hoverText'
 import { paddedFeet } from './layout/replacementFeet'
 import { loadGraph } from './pipeline'
 
@@ -168,4 +168,33 @@ test('a foot shared by walks that skip different stretches says only that it ski
   expect(said('y', 'r4')).toEqual({
     deletion: { bp: '3,839 bp', where: 'GRCh38#0#chr5:2,001-5,839' },
   })
+})
+
+test("a fold's own sequence goes unnamed in a hover, and every other node by its name", () => {
+  const fold = {
+    threadFold: {
+      belowBp: 944,
+      haplotypes: 2,
+      walks: 2,
+      stepless: 0,
+      departing: [],
+    },
+  }
+  const reference = {
+    id: '8~9+',
+    name: '8~9',
+    length: 10,
+    depth: 2,
+    stable: { refName: 'chr1', start: 0, rank: 0 },
+  }
+  const branch = {
+    id: 'open:9:right:8014:900+',
+    name: 'open:9:right:8014:900',
+    length: 8014,
+    depth: 1,
+  }
+  expect(nodeHoverName(fold, branch)).toBeUndefined()
+  expect(nodeHoverName(fold, reference)).toBe('8~9')
+  expect(nodeHoverName({}, branch)).toBe('open:9:right:8014:900')
+  expect(nodeHoverName(undefined, branch)).toBe('open:9:right:8014:900')
 })

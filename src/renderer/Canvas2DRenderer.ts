@@ -257,7 +257,9 @@ export class Canvas2DRenderer implements Renderer {
   // Only what the highlights lift, over a transparent clear, for a hover layer
   // stacked on a canvas that drew the batch without them: a pointer move then
   // repaints one node or edge rather than the whole drawing
-  renderHighlights() {
+  // `casing`, an ABGR ink, outlines each lifted node under it, so the node
+  // reads as the one lit however faint its own colour
+  renderHighlights(casing?: number) {
     const ctx = this.ctx
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
     const batch = this.batch
@@ -269,6 +271,20 @@ export class Canvas2DRenderer implements Renderer {
     const weightOf = this.weightOf
     const curves = runItems(batch.edgeCurves, this.edgeRun(batch.edgeCurveRuns))
     const lifted = [...this.liftedStrokes(batch)]
+    if (casing !== undefined) {
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      for (const group of groupByPaint(lifted, ([i]) => ({
+        color: casing,
+        weight: weightOf(batch.nodeStrokes[i]!.thickness) + CASING_PX,
+        last: false,
+      }))) {
+        this.strokeNodes(
+          { ...group, items: group.items.map(([i]) => batch.nodeStrokes[i]!) },
+          t,
+        )
+      }
+    }
     const arrows = runItems(batch.arrows, this.edgeRun(batch.arrowRuns))
     const groups: PaintedLayer = {
       links: groupByPaint(curves, e => ({
@@ -561,6 +577,9 @@ function runItems<T>(items: T[], run: Run | undefined) {
 function inRun(run: Run | undefined, i: number) {
   return run !== undefined && i >= run.start && i < run.start + run.count
 }
+
+// how far a lifted node's casing shows past it on each side, in css px
+const CASING_PX = 1.5
 
 interface Paint {
   color: number

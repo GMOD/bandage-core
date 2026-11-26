@@ -1,5 +1,6 @@
 import { RAMP_PIECE_DEG } from './referenceRampCss'
 import {
+  litOutline,
   nodeAnchor,
   referenceStripBlocks,
   stripBlockAt,
@@ -211,6 +212,53 @@ test('the overhang is the backbone drawn past each edge of the window', () => {
   // reversed, low bp is on the right
   const reversed = { scale: -0.5, translateX: 600 }
   expect(stripOverhang(blocks, reversed, 90)).toEqual({ left: 0, right: 20 })
+})
+
+describe('a lit span is outlined as far as the strip shows it', () => {
+  const caps = { lo: 11, hi: 189, width: 200 }
+  const xs = (lines: { x: number }[][]) => lines.map(line => line.map(p => p.x))
+
+  test('inside the caps, a closed box', () => {
+    expect(xs(litOutline([50, 80], caps))).toEqual([[50, 50, 80, 80, 50]])
+  })
+
+  test('a point is a box the least width, round it', () => {
+    expect(xs(litOutline([50, 50], caps))).toEqual([
+      [48.5, 48.5, 51.5, 51.5, 48.5],
+    ])
+  })
+
+  test('cut by the right cap, open there, its top and bottom running to the cap', () => {
+    expect(xs(litOutline([150, 260], caps))).toEqual([
+      [150, 150, 189],
+      [189, 150],
+    ])
+  })
+
+  test('cut by the left cap, open there', () => {
+    expect(xs(litOutline([-40, 30], caps))).toEqual([[11, 30, 30, 11]])
+  })
+
+  test('cut by both, its top and bottom alone', () => {
+    expect(xs(litOutline([-40, 260], caps))).toEqual([
+      [11, 189],
+      [189, 11],
+    ])
+  })
+
+  test('wholly past an edge, the cap on that side', () => {
+    expect(xs(litOutline([300, 400], caps))).toEqual([
+      [189.75, 199.25, 199.25, 189.75, 189.75],
+    ])
+    expect(xs(litOutline([-90, -10], caps))).toEqual([
+      [0.75, 10.25, 10.25, 0.75, 0.75],
+    ])
+  })
+
+  test('wholly past an edge with no cap, nothing', () => {
+    expect(litOutline([300, 400], { ...caps, hi: 200 })).toEqual([])
+    expect(litOutline([-90, -10], { ...caps, lo: 0 })).toEqual([])
+  })
 })
 
 test('a node is anchored at the middle of its polyline', () => {

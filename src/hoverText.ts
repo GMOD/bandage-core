@@ -1,3 +1,4 @@
+import { isBackbone } from './anchoredNodes'
 import { NOT_LOADED_TEXT } from './gfa/departures'
 import { formatBp, groupDigits } from './graphLabels'
 import { paddedFeet } from './layout/replacementFeet'
@@ -42,6 +43,16 @@ export function edgeHoverText(
     : {
         ends: `${nameOf(edge.from)}${edge.fromStrand ?? ''} → ${nameOf(edge.to)}${edge.toStrand ?? ''}`,
       }
+}
+
+// The name a hover gives a node: none for sequence a fold made of the
+// haplotypes' own, whose name the fold wrote from where it lies and its size
+// and no file holds, so it goes by its length alone
+export function nodeHoverName(
+  graph: Pick<Graph, 'threadFold'> | undefined,
+  node: GraphNode,
+) {
+  return graph?.threadFold && !isBackbone(node) ? undefined : node.name
 }
 
 // What a hovered placeholder says in place of a node's name, length and
