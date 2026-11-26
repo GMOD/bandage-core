@@ -3,6 +3,7 @@ import { fragmentRuns } from '@jbrowse/graph-walks'
 import { drawn, orderedFigure } from '../scripts/fold-runs/drawn'
 import { hostedTables } from '../test_data/hosted/hostedTables'
 import { END_KINDS, cutEnds } from './gfa/walkRuns'
+import { absentHaplotypesText } from './graphKey'
 import { loadGraph } from './pipeline'
 import { foldThreads } from './threadFold'
 import { foldThreadRuns } from './threadFoldRuns'
@@ -80,27 +81,36 @@ describe.each(FIXTURES)('the hosted cut %s', fixture => {
   })
 
   test.each([236, 1000])(
-    'folded from its runs at %d bp, it draws and says what its cut does, given the walks departing over it',
+    'folded from its runs at %d bp, it draws and says what its cut does',
     bp => {
-      expect(
-        shown(
-          foldThreadRuns(runs, bp, {
-            name: fixture,
-            departing: tables.departures.names,
-          }),
-        ),
-      ).toEqual(shown(foldThreads(graph, bp)))
+      expect(shown(foldThreadRuns(runs, bp, { name: fixture }))).toEqual(
+        shown(foldThreads(graph, bp)),
+      )
     },
   )
 
-  test('its runs alone name no walk that departs over the whole window', () => {
+  test('its runs name the walks that depart across the whole window, so the key says such a walk has no step here rather than no walk', () => {
     const steps = foldThreads(graph, 236)
     const fromRuns = foldThreadRuns(runs, 236, { name: fixture })
-    const departing = (fold: typeof steps | typeof fromRuns) =>
-      shown(fold).drawn.threadFold?.departing
-    expect(departing(fromRuns)).toEqual([])
-    expect(departing(steps)).toEqual(
-      fixture === 'sv-mul-1k-10k' ? ['HG01960#1#JBHIHM010000042.1'] : [],
+    const across =
+      fixture === 'sv-mul-1k-10k' ? ['HG01960#1#JBHIHM010000042.1'] : []
+    const key = (fold: typeof steps | typeof fromRuns) =>
+      fold.folded ? absentHaplotypesText(fold.graph, across, refName) : 'none'
+    const without = foldThreadRuns(
+      { ...runs, departing: { ...runs.departing, names: [] } },
+      236,
+      { name: fixture },
+    )
+    expect(runs.departing.names).toEqual(across)
+    expect(shown(fromRuns).drawn.threadFold?.departing).toEqual(across)
+    expect(key(fromRuns)).toEqual(key(steps))
+    expect([key(fromRuns), key(without)]).toEqual(
+      across.length > 0
+        ? [
+            `1 of 1 haplotype has no step on ${refName} here`,
+            '1 of 1 haplotype has no walk here',
+          ]
+        : [undefined, undefined],
     )
   })
 

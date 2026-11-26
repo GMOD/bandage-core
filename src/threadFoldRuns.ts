@@ -103,6 +103,7 @@ export function threadRunsInput(runs: WalkRunsTables) {
           walks: [reference, ...order.map(threadWalk)],
           refName: runs.refName,
           referencePath,
+          departing: runs.departing.names,
         }
 }
 
@@ -115,14 +116,13 @@ type ThreadRunsRead = ReturnType<typeof threadRunsInput>
 export interface ThreadRunsOptions {
   cluster?: boolean
   name?: string
-  departing?: readonly string[]
 }
 
 /** foldThreadRuns of runs threadRunsInput has read */
 export function foldThreadRunsInput(
   read: ThreadRunsRead,
   belowBp: number,
-  { cluster = true, name, departing = [] }: ThreadRunsOptions = {},
+  { cluster = true, name }: ThreadRunsOptions = {},
 ): ThreadRunsFoldResult {
   const ready = read.input === undefined ? undefined : read
   const fold =
@@ -134,7 +134,7 @@ export function foldThreadRunsInput(
     })
   const threads = (
     kept: Folded<ThreadWalk>,
-    { walks, refName, referencePath }: NonNullable<typeof ready>,
+    { walks, refName, referencePath, departing }: NonNullable<typeof ready>,
   ): ThreadRunsFoldResult => {
     const graph = foldedGraph(kept, {
       name: name ?? refName,
@@ -165,9 +165,9 @@ export function foldThreadRunsInput(
  * instead, graph-walks' `WalkReader.runs`: every difference between its
  * walks under `belowBp` merged into the reference and its walks as threads,
  * an end that leaves the window drawn as far as the runs say it goes; or why
- * not. `name` names the graph, the reference sequence by default, and
- * `departing` lists the walks with a departure over the window for the
- * graph's key, which the runs do not state.
+ * not. `name` names the graph, the reference sequence by default. The key
+ * tells a haplotype that departs across the whole window from one with no
+ * walk there by the runs' `departing`.
  */
 export function foldThreadRuns(
   runs: WalkRunsTables,

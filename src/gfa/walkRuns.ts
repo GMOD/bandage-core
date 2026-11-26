@@ -33,8 +33,8 @@ export interface WalkEndTable {
  * holds the two equal): a fragment per walk of the cut, the reference's
  * first, each its stretches of consecutive reference steps at `offsets[p]`
  * up to `offsets[p + 1]`, the own bp before each stretch past the first,
- * the own bp before the first and after the last, and what lies past each
- * end
+ * the own bp before the first and after the last, what lies past each end,
+ * and the departures of the walks the window holds no fragment of
  */
 export interface WalkRunsTables {
   refName: string
@@ -62,6 +62,19 @@ export interface WalkRunsTables {
     against: Uint8Array
     offBefore: Float64Array
     loaded: Uint8Array
+  }
+  // the departures over the drawn stretch of the walks with no fragment,
+  // such as one that departs across the whole window, as a cut's departure
+  // table lists them
+  departing: {
+    names: string[]
+    hapStarts: Float64Array
+    ownBp: Float64Array
+    missingBp: Float64Array
+    leavePos: Float64Array
+    leaveReversed: Uint8Array
+    rejoinPos: Float64Array
+    rejoinReversed: Uint8Array
   }
 }
 
