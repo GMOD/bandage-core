@@ -15,6 +15,7 @@ import {
 import { facetLifts, walkHighlight, walkLift } from './walkHighlight'
 import { walkKey, walkPosition } from './walkKey'
 
+import type { GraphGap } from './gfa/departures'
 import type { Graph } from './types'
 
 // ref walks v1 v2 v3; alt walks v1 a1 v3, taking a1 in place of v2. The a1->v3
@@ -177,6 +178,44 @@ test('a walk states where its stretch sits on its own contig, from its record', 
   const lift = walkLift(walks, [{ walk: 'alt#1#chr' }], ramp)!
   expect(lift.walks[0]!.range).toEqual({ contig: 'chr', start: 0, end: 13 })
   expect(lift.referenceDomain).toEqual({ start: 0, end: 9 })
+})
+
+test("a walk of several records ends at the furthest end, not the last record's", () => {
+  const listedLateFirst = `${WALKS.split('\nW\t')[0]}
+W\tref\t0\tchr\t0\t9\t>v1>v2>v3
+W\tsplit\t1\tchr\t4\t10\t>a1
+W\tsplit\t1\tchr\t0\t13\t>v1>a1>v3`
+  const g = anchorGraph(convertGFAToGraph(parseGFA(listedLateFirst)), 'ref')
+  const lift = walkLift(g, [{ walk: 'split#1#chr' }], ramp)!
+  expect(lift.walks[0]!.range).toEqual({ contig: 'chr', start: 0, end: 13 })
+})
+
+test("a walk's range starts at a stated stretch before its first record", () => {
+  const loaded = anchorGraph(
+    convertGFAToGraph(
+      parseGFA(`${WALKS.split('\nW\t')[0]}
+W\tref\t0\tchr\t0\t9\t>v1>v2>v3
+W\tlate\t1\tchr\t4\t13\t>a1>v3`),
+    ),
+    'ref',
+  )
+  const stretch: GraphGap['segments'][number] = {
+    kind: 'steps',
+    bp: 4,
+    missingBp: 0,
+    before: Number.NaN,
+    after: Number.NaN,
+    nodes: ['v1+'],
+    reversed: [false],
+  }
+  const g = {
+    ...loaded,
+    gaps: [
+      { name: 'late#1#chr', edge: 1, start: 0, end: 4, segments: [stretch] },
+    ],
+  }
+  const lift = walkLift(g, [{ walk: 'late#1#chr' }], ramp)!
+  expect(lift.walks[0]!.range).toEqual({ contig: 'chr', start: 0, end: 13 })
 })
 
 test('one colour for the walk paints it flat', () => {
