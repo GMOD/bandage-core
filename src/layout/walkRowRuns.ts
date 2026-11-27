@@ -9,7 +9,7 @@ import {
 } from '../gfa/departures'
 import { referenceOf, tableNodeIds, tablePath } from '../gfa/graphTables'
 import { panSNContig, panSNFields, panSNHaplotype, panSNSample } from '../pansn'
-import { pathOrigin } from '../pathAnchoring'
+import { pathOrigin, spanStated } from '../pathAnchoring'
 import { compareIds } from '../util/canonicalOrder'
 import { groupBy, pushTo } from '../util/groups'
 
@@ -130,6 +130,7 @@ interface Pieces {
   departures: DepartureTable | undefined
   revisited: number | undefined
   stretches: Stretches
+  threadFold: boolean
 }
 
 const stretchKey = (name: string, start: number, end: number) =>
@@ -269,6 +270,7 @@ function graphPieces(graph: Graph): Pieces {
     placeholder: node => placeholders.has(node),
     departures: graph.departures,
     revisited: graph.revisited,
+    threadFold: graph.threadFold !== undefined,
     stretches: stretchIndex(
       (graph.gaps ?? []).map(gap => ({
         ...gap,
@@ -336,6 +338,7 @@ function tablePieces(
           }))
         : [],
     ),
+    threadFold: false,
   }
 }
 
@@ -569,6 +572,7 @@ export function walkRowRuns(
     departures,
     revisited,
     stretches,
+    threadFold,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
     : graphPieces(source)
@@ -878,6 +882,9 @@ export function walkRowRuns(
         pos += lengthOf(node)
       }
       pieceSpans.push([pieceLo, length])
+      if (!threadFold && !spanStated(heads[piece]!, pos - (start ?? 0))) {
+        unplaced = true
+      }
       end = start === undefined ? undefined : pos
       if (start !== undefined) {
         extents.push([start, pos])

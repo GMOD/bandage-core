@@ -4,7 +4,7 @@ import { linkKey } from './gfa/linkKey'
 import { countLaneWidthPx, shareLaneWidthPx } from './nodeWidths'
 import { onOtherWalks } from './otherWalks'
 import { panSNContig } from './pansn'
-import { pathOrigin, referenceVisitStarts } from './pathAnchoring'
+import { pathOrigin, referenceVisitStarts, spanStated } from './pathAnchoring'
 import { rampPieces } from './referenceRampCss'
 import { NOT_LOADED_COLOR, rampFraction } from './renderer/GeometryBuilder'
 import { abgrHex } from './renderer/colorBits'
@@ -64,6 +64,7 @@ export interface WalkHighlight {
   // whether its nodes are drawn at the walk's own lengths, as they are on any
   // graph not folded to threads
   ownLengths: boolean
+  spansStated: boolean
   // bp of the gaps between its pieces that a walk-file cut's departures say
   // the graph lacks, or are its own sequence the cut did not read
   // (gfa/departures.ts gapParts)
@@ -413,6 +414,7 @@ function highlightOf(
     range,
     extent,
     ownLengths: !graph.threadFold,
+    spansStated: walked.every(piece => spanStated(piece, bpOf(piece))),
     nodeIds,
     edgeIndexes,
     progress,

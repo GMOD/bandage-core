@@ -69,14 +69,13 @@ export function walkKey(
 
 // Whether a walk visits a node, and where the node sits on the walk's own
 // contig at its first visit, from how far along the walk it is: nothing where
-// the walk states no span, its nodes are not drawn at its own lengths, or
-// they do not reach from the span's start to its end
+// a piece of the walk states no span its own steps fill, or its nodes are not
+// drawn at its own lengths
 export function walkPosition(walk: LiftedWalk, nodeId: string, length: number) {
   const progress = walk.progress.get(nodeId)
   const { range, extent } = walk
-  const agrees = range?.start === extent?.start && range?.end === extent?.end
   const start =
-    progress === undefined || !extent || !walk.ownLengths || !agrees
+    progress === undefined || !extent || !walk.ownLengths || !walk.spansStated
       ? undefined
       : Math.round(
           extent.start + progress * (extent.end - extent.start) - length / 2,

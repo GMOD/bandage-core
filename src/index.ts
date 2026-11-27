@@ -231,6 +231,7 @@ export type {
   KeyStop,
 } from './graphKey'
 export { rangeText, walkKey, walkPosition } from './walkKey'
+export { spanStated } from './pathAnchoring'
 export { figureSvg } from './figure'
 export {
   figureData,

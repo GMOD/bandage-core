@@ -72,6 +72,17 @@ export function pathRecord(pathName: string, bp: number) {
   return { name, start, end: start + bp }
 }
 
+export function spanStated(
+  record: { start?: number; end?: number },
+  bp: number,
+) {
+  return (
+    record.start !== undefined &&
+    record.end !== undefined &&
+    record.end - record.start === bp
+  )
+}
+
 // Where a stretch of a record's steps, `first` to `last`, lies on its
 // contig: its start past the steps before it, and its end where the record
 // states a span its own steps agree with and the graph draws its nodes at
@@ -87,10 +98,7 @@ export function stretchSpan(
     path.nodeIds.slice(from, to).reduce((sum, id) => sum + lengthOf(id), 0)
   const start = path.start === undefined ? undefined : path.start + bp(0, first)
   const agrees =
-    !graph.threadFold &&
-    path.start !== undefined &&
-    path.end !== undefined &&
-    path.end - path.start === bp(0, path.nodeIds.length)
+    !graph.threadFold && spanStated(path, bp(0, path.nodeIds.length))
   return {
     start,
     end:

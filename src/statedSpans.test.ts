@@ -1,3 +1,4 @@
+import { hostedTables } from '../test_data/hosted/hostedTables'
 import { bubbleSubgraph } from './bubbles/popBubble'
 import { figureData, walkRowInks } from './figureData'
 import { parseGFA } from './gfa-core/index'
@@ -6,13 +7,18 @@ import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
 import { liftedRowInks } from './layout/rowInks'
 import { trimToWindow } from './layout/trimToWindow'
+import { placeRowGenes } from './layout/walkRowDraw'
+import { walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
+import { walkRows } from './layout/walkRows'
 import { layoutModeByValue } from './layoutModes'
+import { panSNContig } from './pansn'
 import { passBars } from './passBar'
 import { loadGraph } from './pipeline'
 import { foldThreads } from './threadFold'
 import { walkLift } from './walkHighlight'
 import { walkKey, walkPosition } from './walkKey'
 
+import type { WalkRows } from './layout/walkRows'
 import type { Graph } from './types'
 
 // ref walks a and c, 1 kb each, and each haplotype an insertion of its own
@@ -281,3 +287,64 @@ test('a folded thread of several P records with no one span is named without a r
   expect(shared?.name).toBe('s1#ctg')
   expect(rangeOf(graph, 's1#ctg:100-2100')).toBeUndefined()
 })
+
+const SHORT = [...STARRED.split('\n'), 'W\th5\t1\tctg5\t0\t500\t>a>i2>c'].join(
+  '\n',
+)
+
+const rowsOf = (bars: WalkRows | undefined) =>
+  bars ? [bars.reference, ...bars.rows] : []
+
+const shortRows = {
+  text: walkRows(loadGraph(SHORT, 'short', { referencePath: 'ref#0#chr' })),
+  converted: walkRows(convertGFAToGraph(parseGFA(SHORT), 'short')),
+  tables: walkRowsOf(
+    walkRowRuns(gfaTables(SHORT)!, undefined, { referencePath: 'ref#0#chr' })!,
+  ),
+}
+
+test.each(Object.entries(shortRows))(
+  "read as %s, a walk row's bar has a contig axis only where its record states a span its own steps fill, and genes land only on such a row",
+  (_, bars) => {
+    const rows = rowsOf(bars)
+    expect(Object.fromEntries(rows.map(row => [row.name, row.axis]))).toEqual({
+      'ref#0#chr': { contig: 'chr', start: 0 },
+      'h2#1#ctg2': undefined,
+      'h3#1#ctg3': { contig: 'ctg3', start: 700 },
+      'h4#1#ctg4': undefined,
+      'h5#1#ctg5': undefined,
+    })
+    const gene = (refName: string) => ({
+      name: `on ${refName}`,
+      refName,
+      start: 0,
+      end: 20_000,
+      strand: 1,
+      exons: [],
+    })
+    const placed = placeRowGenes(
+      rows,
+      new Map(rows.map(row => [row.name, [gene(panSNContig(row.name))]])),
+    )
+    expect([...placed.keys()]).toEqual(['ref#0#chr', 'h3#1#ctg3'])
+  },
+)
+
+test.each(['hla-ii-default', 'hla-ii-expanded', 'sv-mul-1k-10k'])(
+  "every walk of the hosted walk file's %s cut states spans its own steps fill, so each walked row has a contig axis",
+  name => {
+    const { tables } = hostedTables(name)
+    const graph = loadGraph(tables, name)
+    expect(
+      (graph.paths ?? []).filter(
+        path => !lifted(graph, path.name)?.spansStated,
+      ),
+    ).toEqual([])
+    const walked = (bars: WalkRows | undefined) =>
+      rowsOf(bars).filter(row => row.bp > 0)
+    for (const bars of [walkRowsOf(walkRowRuns(tables)!), walkRows(graph)]) {
+      expect(walked(bars).length).toBeGreaterThan(1)
+      expect(walked(bars).filter(row => !row.axis)).toEqual([])
+    }
+  },
+)
