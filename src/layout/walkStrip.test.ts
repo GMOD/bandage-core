@@ -98,9 +98,14 @@ test('the node under a point on a tag-anchored reference past its first piece', 
     nodes,
     edges: [],
     paths: [
-      { name: 'REF#1#chr:0-200', nodeIds: ['a', 'b'], start: 0 },
-      { name: 'REF#1#chr:300-500', nodeIds: ['c', 'd'], start: 300 },
-      { name: 'S#1#chr', nodeIds: ['a', 'b', 'c', 'd'], start: 0 },
+      { name: 'REF#1#chr:0-200', nodeIds: ['a', 'b'], start: 0, end: 200 },
+      {
+        name: 'REF#1#chr:300-500',
+        nodeIds: ['c', 'd'],
+        start: 300,
+        end: 500,
+      },
+      { name: 'S#1#chr', nodeIds: ['a', 'b', 'c', 'd'], start: 0, end: 400 },
     ],
   }
   const { reference } = walkRows(graph)!

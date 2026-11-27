@@ -199,7 +199,7 @@ test('the reference walk lifted by pass gets no pass bar while the strip draws i
       parseGFA(
         [
           ...SEGMENTS.slice(0, -1),
-          'W\tref\t0\tchr\t0\t42\t>f1>a>b>c>d>a>b>c>d>f2',
+          'W\tref\t0\tchr\t0\t52\t>f1>a>b>c>d>a>b>c>d>f2',
           'W\thap\t1\tctg\t0\t*\t>f1>a>b>c>d>f2',
         ].join('\n'),
       ),
