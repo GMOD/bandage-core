@@ -1,3 +1,15 @@
+## [15.1.0](https://github.com/GMOD/bandage-core/compare/v15.0.0...v15.1.0) (2026-11-27)
+
+### Other Changes
+
+- A walk row's bar has a contig axis only where each of its records states a span its own steps fill (spanStated), so a W line with `*` for its start, or a stated span its steps do not fill, gives no row position, no genes on the row and no location to open; a hover position and stretchSpan read the same spanStated, a hover checking each piece rather than the walk's whole range against its extent ([642767b](https://github.com/GMOD/bandage-core/commit/642767b144886e07658641b82e4e0dab77e533d0))
+- Two tests' records state the spans their own steps fill, as a loader states them: the pass figure's reference W line ends at 52, its steps' bp, not 42, and the strip test's tag-anchored records carry the ends their P lines would give ([7470595](https://github.com/GMOD/bandage-core/commit/7470595dfe69ff277c8f6d3dd8ed0eda8c3f8466))
+- A window's trim and a popped bubble are tested to give a walk whose stated span its own steps do not fill no range or position, which a planted stretchSpan reading only a stated end passed every test ([0b73e09](https://github.com/GMOD/bandage-core/commit/0b73e090a4a5346fd365f5b9f778375846d75a3d))
+- A walk row carries where its bar lies along its walk's own steps (`along`, WalkAlong) apart from its contig axis, so a row whose records state no span its steps fill still marks where its walk passes a hovered node, finds the node under a point and draws its inks across its breaks; only contig positions (the row's position, its genes, a location to open, the ramp and pass placement) read the axis ([dc529d8](https://github.com/GMOD/bandage-core/commit/dc529d8dc9c23e679c42bc47a9cc6af057d4050f))
+- A row with no contig axis is tested to colour its bar past a break by the bp the break holds, which a planted ink reading the break off the contig axis passed every test ([71b041f](https://github.com/GMOD/bandage-core/commit/71b041f6889d80005df6a1dbb038cbf5c9270073))
+- A walk row folded to threads has a contig axis only where its thread states a span the fold's lengths of its steps fill, as any other row does, not wherever its first record states a start; every row keeps its place along its own steps ([7195515](https://github.com/GMOD/bandage-core/commit/7195515070f5e02af7762e0295353d606c3d2a5b))
+- No walk row folded to threads has a contig axis, as the fold draws its steps at lengths not its own and a matching total proves no position inside it; every row keeps its place along its own steps, so strip ticks and the node under the pointer stay ([ec5a820](https://github.com/GMOD/bandage-core/commit/ec5a8200912f69f69ef2c3c887ea57a7ae8c527b))
+
 ## [15.0.0](https://github.com/GMOD/bandage-core/compare/v14.10.0...v15.0.0) (2026-11-27)
 
 ### Other Changes
