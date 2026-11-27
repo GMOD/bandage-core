@@ -5,7 +5,7 @@ import { passInk } from '../walkPasses'
 import { alongRow, contigAlong, drawnAlong } from './walkRows'
 
 import type { LiftedWalk } from '../walkHighlight'
-import type { WalkAxis } from './walkRows'
+import type { WalkAlong, WalkAxis } from './walkRows'
 
 // A walk row in the colours its lifted walk takes in the drawing, so a row
 // reads as the thread above it: one flat colour, or a progress ramp's colours
@@ -69,6 +69,7 @@ export function rowInkOf(row: { name: string }, inks: readonly RowInk[]) {
 
 interface InkedRow {
   bp: number
+  along?: Pick<WalkAlong, 'breaks'>
   axis?: WalkAxis
 }
 
@@ -93,10 +94,10 @@ function stopsAt(stops: readonly string[], t: number) {
     : mixHex(stops[i]!, stops[i + 1]!, at - i)
 }
 
-// The row's axis from its bar's own start, and the bar's drawn length
-function barAxis(row: InkedRow) {
-  const { axis } = row
-  return { axis, length: axis ? drawnAlong(axis, row.bp) : row.bp }
+// The bar's place along its walk's own steps, and the bar's drawn length
+function barAlong(row: InkedRow) {
+  const { along } = row
+  return { along, length: along ? drawnAlong(along, row.bp) : row.bp }
 }
 
 // The walk's pass runs as offsets along the row's bar, placed by the contig
@@ -104,7 +105,7 @@ function barAxis(row: InkedRow) {
 // walk's contig to place them by
 function placedPasses(ink: RowInk, row: InkedRow) {
   const { range } = ink
-  const { axis } = barAxis(row)
+  const { axis } = row
   return axis && range && axis.contig === range.contig
     ? (ink.passes ?? []).map(pass => ({
         ...alongRow(axis, range.start + pass.start, range.start + pass.end),
@@ -119,7 +120,7 @@ export function rowShowsPasses(ink: RowInk, row: InkedRow) {
   const placed = placedPasses(ink, row)
   return (
     placed.length > 0 &&
-    placed.every(pass => pass.start >= 0 && pass.end <= barAxis(row).length)
+    placed.every(pass => pass.start >= 0 && pass.end <= barAlong(row).length)
   )
 }
 
@@ -130,7 +131,7 @@ function passStretches(ink: RowInk, row: InkedRow, joinBp: number) {
   const stretches = placedPasses(ink, row)
     .map(pass => ({
       from: Math.max(0, pass.start),
-      to: Math.min(barAxis(row).length, pass.end),
+      to: Math.min(barAlong(row).length, pass.end),
       color: pass.color,
     }))
     .filter(s => s.to > s.from)
@@ -152,9 +153,9 @@ function passStretches(ink: RowInk, row: InkedRow, joinBp: number) {
 export function rowInkAlong(ink: RowInk, row: InkedRow, joinBp = row.bp / 600) {
   const stretches = passStretches(ink, row, joinBp)
   const { from, to } = rampEnds(ink, row)
-  const { axis } = barAxis(row)
+  const { along: frame } = barAlong(row)
   return (at: number) => {
-    const along = axis ? contigAlong(axis, at) : at
+    const along = frame ? contigAlong(frame, at) : at
     return (
       stretches.find(s => at >= s.from && at < s.to)?.color ??
       stopsAt(ink.stops, from + (to - from) * (row.bp > 0 ? along / row.bp : 0))
@@ -173,7 +174,7 @@ export const rowInkAt = (ink: RowInk, row: InkedRow, offset: number) =>
 export function rowInkStops(ink: RowInk, row: InkedRow, joinBp = row.bp / 600) {
   const stretches = passStretches(ink, row, joinBp)
   return stretches.length
-    ? passStops(ink.stops[0]!, stretches, barAxis(row).length)
+    ? passStops(ink.stops[0]!, stretches, barAlong(row).length)
     : rampStops(ink, row)
 }
 
@@ -205,8 +206,8 @@ function rampStops(ink: RowInk, row: InkedRow) {
           { length: STEPS_PER_RAMP + 1 },
           (_, k) => (k / STEPS_PER_RAMP - from) / (to - from),
         ).filter(offset => offset > 0 && offset < 1)
-  const { axis, length } = barAxis(row)
-  const edges = (axis?.breaks ?? []).flatMap(b => [
+  const { along, length } = barAlong(row)
+  const edges = (along?.breaks ?? []).flatMap(b => [
     b.at / row.bp,
     (b.at + b.bp) / row.bp,
   ])
@@ -216,7 +217,9 @@ function rampStops(ink: RowInk, row: InkedRow) {
       : [0, ...[...crossings, ...edges].sort((a, b) => a - b), 1]
   return offsets.map(offset => ({
     offset:
-      axis && length > 0 ? drawnAlong(axis, offset * row.bp) / length : offset,
+      along && length > 0
+        ? drawnAlong(along, offset * row.bp) / length
+        : offset,
     color: stopsAt(ink.stops, from + (to - from) * offset),
   }))
 }

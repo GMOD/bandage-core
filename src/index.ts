@@ -319,6 +319,7 @@ export {
 } from './layout/walkRowLinks'
 export type { WalkRowBlock, WalkRowLink } from './layout/walkRowLinks'
 export type {
+  WalkAlong,
   WalkAxis,
   WalkRow,
   WalkRows,

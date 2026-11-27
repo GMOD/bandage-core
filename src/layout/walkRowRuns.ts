@@ -22,7 +22,7 @@ import type {
 import type { DepartureTable, GraphTables } from '../gfa/graphTables'
 import type { Graph, GraphPath } from '../types'
 import type {
-  WalkAxis,
+  WalkAlong,
   WalkBreak,
   WalkPass,
   WalkRow,
@@ -769,6 +769,7 @@ export function walkRowRuns(
     // a piece with no start, or one overlapping the last, leaves bar offsets
     // no linear map onto the contig
     let unplaced = false
+    let unstated = false
     let end: number | undefined
     let previous: number | undefined
     const partsAt = new Map<number, GapPart[]>()
@@ -883,7 +884,7 @@ export function walkRowRuns(
       }
       pieceSpans.push([pieceLo, length])
       if (!threadFold && !spanStated(heads[piece]!, pos - (start ?? 0))) {
-        unplaced = true
+        unstated = true
       }
       end = start === undefined ? undefined : pos
       if (start !== undefined) {
@@ -1294,8 +1295,8 @@ export function walkRowRuns(
     const contig = head.contig ?? panSNContig(pathOrigin(head.name).name)
     const contigAt = (i: number) =>
       i < length ? stepStart[i]! : stepEnd(length - 1)
-    const axis: WalkAxis | undefined =
-      unplaced || length === 0 ? undefined : { contig, start: contigAt(lo) }
+    const frame: WalkAlong | undefined =
+      unplaced || length === 0 ? undefined : { start: contigAt(lo) }
 
     // A pass's steps from `lo` to `hi`, read from its flank on the left,
     // measured over the window: on the reference, a step's bp less what lies
@@ -1655,6 +1656,10 @@ export function walkRowRuns(
       d =>
         !extents.some(([a, b]) => d.hapStart > a && d.hapStart + d.ownBp < b),
     )
+    const barAlong = frame && {
+      ...frame,
+      ...(breaks.length > 0 ? { breaks } : {}),
+    }
     return stepless
       ? steplessMeta(head, own, departureGapBp, abridgedSteps)
       : {
@@ -1678,10 +1683,8 @@ export function walkRowRuns(
           ...(awayRuns > 0 ? { passesOutside: true } : {}),
           ...(passes.length > 1 ? { passes: passes.map(passMeta) } : {}),
           ...(stops.left || stops.right ? { stops } : {}),
-          axis: axis && {
-            ...axis,
-            ...(breaks.length > 0 ? { breaks } : {}),
-          },
+          ...(barAlong ? { along: barAlong } : {}),
+          axis: barAlong && !unstated ? { contig, ...barAlong } : undefined,
           ...(abridgedSteps > 0 ? { abridgedSteps } : {}),
           ...(unloadedBp > 0 ? { unloadedBp } : {}),
           ...(fromElsewhereBp > 0 ? { fromElsewhereBp } : {}),

@@ -83,8 +83,8 @@ export function stripMarks(graph: Graph, rows: WalkRow[], node: GraphNode) {
   const visits = graph.pathVisits?.get(node.name) ?? []
   const marks: StripMark[] = []
   for (const row of rows) {
-    const axis = row.axis
-    if (!axis) {
+    const along = row.along
+    if (!along) {
       continue
     }
     const path = pathOrigin(row.name).name
@@ -92,7 +92,7 @@ export function stripMarks(graph: Graph, rows: WalkRow[], node: GraphNode) {
       if (v.path !== path) {
         continue
       }
-      const { start, end } = alongRow(axis, v.start, v.start + node.length)
+      const { start, end } = alongRow(along, v.start, v.start + node.length)
       if (end > 0 && start < barEnd(row)) {
         marks.push({ row: row.name, start, bp: end - start })
       }
@@ -152,15 +152,15 @@ export function segmentAt(
   offset: number,
   pxPerBp: number,
 ) {
-  const axis = row.axis
-  const spans = axis && spansOf(graph, row.name)
-  const along = axis ? contigAlong(axis, offset) : -1
-  if (!axis || !spans || along < 0 || along > row.bp) {
+  const frame = row.along
+  const spans = frame && spansOf(graph, row.name)
+  const along = frame ? contigAlong(frame, offset) : -1
+  if (!frame || !spans || along < 0 || along > row.bp) {
     return undefined
   }
-  const at = axis.start + along
+  const at = frame.start + along
   const tol = 0.5 / pxPerBp
-  const bar = rowSpan(axis, row.bp)
+  const bar = rowSpan(frame, row.bp)
   const from = Math.max(at - tol, bar.start)
   const to = Math.min(at + tol, bar.end)
   const lo = partitionPoint(spans.starts.length, i => spans.ends[i]! <= from)

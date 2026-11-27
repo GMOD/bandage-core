@@ -53,14 +53,18 @@ export interface WalkRun {
   fromElsewhere?: true
 }
 
-// Where a row's bar lies on the walk's own contig: the contig position at the
-// bar's left end, positions rising rightward along it
-export interface WalkAxis {
-  contig: string
+// Where a row's bar lies along its walk's own steps: the bp the walk's
+// visits count at the bar's left end, rising rightward along it
+export interface WalkAlong {
   start: number
-  // the stretches away from the window, `bp` of contig from `at` bp along
+  // the stretches away from the window, `bp` of the walk from `at` bp along
   // the bar drawn `drawn` wide, in order
   breaks?: WalkBreak[]
+}
+
+// The same where the walk's records state the contig positions it counts
+export interface WalkAxis extends WalkAlong {
+  contig: string
 }
 
 export interface WalkBreak {
@@ -70,7 +74,7 @@ export interface WalkBreak {
 }
 
 // Where `along` bp of contig past the bar's start is drawn on the bar
-export function drawnAlong(axis: WalkAxis, along: number) {
+export function drawnAlong(axis: Pick<WalkAlong, 'breaks'>, along: number) {
   let shift = 0
   let inside: number | undefined
   for (const b of axis.breaks ?? []) {
@@ -84,7 +88,7 @@ export function drawnAlong(axis: WalkAxis, along: number) {
 }
 
 // The bp of contig past the bar's start drawn at `x` on the bar
-export function contigAlong(axis: WalkAxis, along: number) {
+export function contigAlong(axis: Pick<WalkAlong, 'breaks'>, along: number) {
   let shift = 0
   let inside: number | undefined
   for (const b of axis.breaks ?? []) {
@@ -99,7 +103,7 @@ export function contigAlong(axis: WalkAxis, along: number) {
 }
 
 // A contig span as offsets along a row's bar
-export const alongRow = (axis: WalkAxis, start: number, end: number) => ({
+export const alongRow = (axis: WalkAlong, start: number, end: number) => ({
   start: drawnAlong(axis, start - axis.start),
   end: drawnAlong(axis, end - axis.start),
 })
@@ -215,7 +219,10 @@ export interface WalkRow {
   // cut far more than its runs
   visits?: WalkVisit[]
   // undefined where a piece states no start or overlaps the one before, so
-  // bar offsets don't map linearly onto the contig
+  // bar offsets don't map linearly onto the walk's own steps
+  along?: WalkAlong
+  // undefined also where a piece states no span its own steps fill
+  // (pathAnchoring.ts spanStated)
   axis?: WalkAxis
   // on the reference row, the count of nodes the reference passes more than
   // once that its tables or Graph state, or the host passes (gfa/departures.ts

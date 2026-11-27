@@ -39,7 +39,7 @@ import type { GeneModel } from '../genes/genePins'
 import type { Departure, GapCause } from '../gfa/departures'
 import type { RowInk } from './rowInks'
 import type {
-  WalkAxis,
+  WalkAlong,
   WalkPass,
   WalkRow,
   WalkRows,
@@ -668,7 +668,7 @@ export function runPaint(
 }
 
 // The contig span a row's bar covers
-export const rowSpan = (axis: WalkAxis, bp: number) => ({
+export const rowSpan = (axis: WalkAlong, bp: number) => ({
   start: axis.start,
   end: axis.start + bp,
 })

@@ -1104,26 +1104,26 @@ export function walkRowInks(
   const inkAt = named.map((ink, r) => {
     const contig = rows.contig[r]
     const start = rows.contigStart[r]
+    const along = {
+      breaks: (breaks?.row ?? []).flatMap((row, b) =>
+        row === r
+          ? [
+              {
+                at: breaks!.at[b]!,
+                bp: breaks!.bp[b]!,
+                drawn: breaks!.drawn[b]!,
+              },
+            ]
+          : [],
+      ),
+    }
     return ink && keys.field[inks.indexOf(ink)] !== 'reference'
       ? rowInkAlong(ink, {
           bp: rows.bp[r]!,
+          along,
           axis:
             contig != null && start != null
-              ? {
-                  contig,
-                  start,
-                  breaks: (breaks?.row ?? []).flatMap((row, b) =>
-                    row === r
-                      ? [
-                          {
-                            at: breaks!.at[b]!,
-                            bp: breaks!.bp[b]!,
-                            drawn: breaks!.drawn[b]!,
-                          },
-                        ]
-                      : [],
-                  ),
-                }
+              ? { contig, start, ...along }
               : undefined,
         })
       : undefined

@@ -10,6 +10,7 @@ import { trimToWindow } from './layout/trimToWindow'
 import { placeRowGenes } from './layout/walkRowDraw'
 import { walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
 import { walkRows } from './layout/walkRows'
+import { segmentAt, stripMarks } from './layout/walkStrip'
 import { layoutModeByValue } from './layoutModes'
 import { panSNContig } from './pansn'
 import { passBars } from './passBar'
@@ -346,6 +347,22 @@ test.each(Object.entries(shortRows))(
     expect([...placed.keys()]).toEqual(['ref#0#chr', 'h3#1#ctg3'])
   },
 )
+
+test("a row with no contig axis still marks where its walk passes a node, and finds the node under a point, along the walk's own steps", () => {
+  const graph = loadGraph(SHORT, 'short', { referencePath: 'ref#0#chr' })
+  const bars = walkRows(graph)!
+  const node = (name: string) => graph.nodes.find(n => n.name === name)!
+  const marks = stripMarks(graph, rowsOf(bars), node('c'))
+  for (const name of ['h2#1#ctg2', 'h4#1#ctg4', 'h5#1#ctg5']) {
+    const row = bars.rows.find(r => r.name === name)!
+    expect(row.axis).toBeUndefined()
+    expect(row.along).toEqual({ start: 0 })
+    expect(marks.filter(m => m.row === name).map(m => m.start)).toEqual([
+      name === 'h4#1#ctg4' ? 11_000 : 1100,
+    ])
+    expect(segmentAt(graph, row, 600, 1)).toBe(node('a').id)
+  }
+})
 
 test.each(['hla-ii-default', 'hla-ii-expanded', 'sv-mul-1k-10k'])(
   "every walk of the hosted walk file's %s cut states spans its own steps fill, so each walked row has a contig axis",
