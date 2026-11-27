@@ -257,6 +257,23 @@ test("a window's trim ranges each walk over the steps it keeps", () => {
   expect(positionOf(trimmed, 'h#1#ctg', 'c')).toBe('ctg:2,001-3,000')
 })
 
+test("a window's trim and a popped bubble give a walk whose stated span its own steps do not fill no range or position over the steps they keep", () => {
+  const graph = loadGraph(
+    [...POPPED.split('\n'), 'W\th2\t1\tctg2\t700\t1500\t>a>i>c>d'].join('\n'),
+    'overrun',
+    { referencePath: 'ref#0#chr' },
+  )
+  expect(rangeOf(graph, 'h2#1#ctg2')).toBe('ctg2:701-1,500 (800 bp)')
+  for (const kept of [
+    trimToWindow(graph, { start: 1200, end: 2800 }),
+    bubbleSubgraph(graph, ['b', 'i', 'c']),
+  ]) {
+    expect(rangeOf(kept, 'h2#1#ctg2')).toBeUndefined()
+    expect(positionOf(kept, 'h2#1#ctg2', 'c')).toBeUndefined()
+    expect(rangeOf(kept, 'h#1#ctg')).toBeDefined()
+  }
+})
+
 test('a walk whose stated end its own steps do not reach or pass gives its stated range and no position', () => {
   const graph = loadGraph(
     [...STARRED.split('\n'), 'W\th5\t1\tctg5\t0\t500\t>a>i2>c'].join('\n'),
