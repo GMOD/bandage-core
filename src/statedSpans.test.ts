@@ -5,7 +5,7 @@ import { parseGFA } from './gfa-core/index'
 import { convertGFAToGraph } from './gfa/gfaConverter'
 import { gfaTables } from './gfa/gfaTables'
 import { graphFromTables } from './gfa/graphTables'
-import { liftedRowInks } from './layout/rowInks'
+import { liftedRowInks, rowInkAt } from './layout/rowInks'
 import { trimToWindow } from './layout/trimToWindow'
 import { placeRowGenes } from './layout/walkRowDraw'
 import { walkRowRuns, walkRowsOf } from './layout/walkRowRuns'
@@ -362,6 +362,17 @@ test("a row with no contig axis still marks where its walk passes a node, and fi
     ])
     expect(segmentAt(graph, row, 600, 1)).toBe(node('a').id)
   }
+})
+
+test('a row with no contig axis colours its bar past a break by the bp the break holds', () => {
+  const ink = { walk: 'w', stops: ['#000000', '#ffffff'] }
+  const along = { start: 0, breaks: [{ at: 5, bp: 10, drawn: 2 }] }
+  expect(rowInkAt(ink, { bp: 40, along }, 15)).toBe(
+    rowInkAt(ink, { bp: 40 }, 23),
+  )
+  expect(rowInkAt(ink, { bp: 40, along }, 15)).not.toBe(
+    rowInkAt(ink, { bp: 40 }, 15),
+  )
 })
 
 test.each(['hla-ii-default', 'hla-ii-expanded', 'sv-mul-1k-10k'])(
