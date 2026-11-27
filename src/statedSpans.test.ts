@@ -14,7 +14,6 @@ import { segmentAt, stripMarks } from './layout/walkStrip'
 import { layoutModeByValue } from './layoutModes'
 import { panSNContig } from './pansn'
 import { passBars } from './passBar'
-import { spanStated } from './pathAnchoring'
 import { loadGraph } from './pipeline'
 import { foldThreads } from './threadFold'
 import { walkLift } from './walkHighlight'
@@ -395,36 +394,14 @@ test.each(['hla-ii-default', 'hla-ii-expanded', 'sv-mul-1k-10k'])(
   },
 )
 
-test("folded to threads, a row has a contig axis only where its thread states a span the fold's lengths of its steps fill, and keeps its place along its own steps", () => {
+test('folded to threads, no row has a contig axis, since the fold draws its steps at lengths not its own, and every row keeps its place along its own steps', () => {
   const bars = walkRows(folded(starred.text))!
-  expect(
-    Object.fromEntries(rowsOf(bars).map(row => [row.name, row.axis])),
-  ).toEqual({
-    'ref#0#chr': { contig: 'chr', start: 0 },
-    'h2#1#ctg2': undefined,
-    'h3#1#ctg3': { contig: 'ctg3', start: 700 },
-    'h4#1#ctg4': undefined,
-  })
+  expect(rowsOf(bars).filter(row => row.axis)).toEqual([])
   expect(rowsOf(bars).filter(row => !row.along)).toEqual([])
   const { tables } = hostedTables('hla-ii-default')
   const fold = foldThreads(loadGraph(tables, 'hla'), 236)
-  const graph = fold.folded ? fold.graph : undefined
-  const lengthOf = new Map(graph?.nodes.map(n => [n.id, n.length]))
-  const fills = new Set(
-    (graph?.paths ?? []).flatMap(path =>
-      spanStated(
-        path,
-        path.nodeIds.reduce((bp, id) => bp + (lengthOf.get(id) ?? 0), 0),
-      )
-        ? [path.name]
-        : [],
-    ),
-  )
-  const hosted = rowsOf(graph && walkRows(graph))
-  expect(fills.size).toBeGreaterThan(0)
-  expect(fills.size).toBeLessThan(hosted.length)
-  expect(
-    hosted.filter(row => fills.has(row.name) !== (row.axis !== undefined)),
-  ).toEqual([])
+  const hosted = rowsOf(fold.folded ? walkRows(fold.graph) : undefined)
+  expect(hosted.length).toBeGreaterThan(0)
+  expect(hosted.filter(row => row.axis)).toEqual([])
   expect(hosted.filter(row => row.bp > 0 && !row.along)).toEqual([])
 })
