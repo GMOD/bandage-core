@@ -130,7 +130,6 @@ interface Pieces {
   departures: DepartureTable | undefined
   revisited: number | undefined
   stretches: Stretches
-  threadFold: boolean
 }
 
 const stretchKey = (name: string, start: number, end: number) =>
@@ -270,7 +269,6 @@ function graphPieces(graph: Graph): Pieces {
     placeholder: node => placeholders.has(node),
     departures: graph.departures,
     revisited: graph.revisited,
-    threadFold: graph.threadFold !== undefined,
     stretches: stretchIndex(
       (graph.gaps ?? []).map(gap => ({
         ...gap,
@@ -338,7 +336,6 @@ function tablePieces(
           }))
         : [],
     ),
-    threadFold: false,
   }
 }
 
@@ -572,7 +569,6 @@ export function walkRowRuns(
     departures,
     revisited,
     stretches,
-    threadFold,
   } = 'walks' in source
     ? tablePieces(source, o.referencePath, o.visits)
     : graphPieces(source)
@@ -883,7 +879,7 @@ export function walkRowRuns(
         pos += lengthOf(node)
       }
       pieceSpans.push([pieceLo, length])
-      if (!threadFold && !spanStated(heads[piece]!, pos - (start ?? 0))) {
+      if (!spanStated(heads[piece]!, pos - (start ?? 0))) {
         unstated = true
       }
       end = start === undefined ? undefined : pos
